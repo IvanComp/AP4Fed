@@ -93,8 +93,7 @@ class SimulationPage(QWidget):
                 try:
                     with open(config_path, 'r') as f:
                         config = json.load(f)
-                    client_details = config.get('client_details', [])
-                    num_supernodes = len(client_details)
+                        num_supernodes = config.get('clients', 2) 
                 except Exception as e:
                     QMessageBox.warning(self, "Error", f"Failed to read configuration file:\n{e}")
                     num_supernodes = 2  # Default value

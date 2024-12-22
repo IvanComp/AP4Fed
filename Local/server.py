@@ -17,6 +17,7 @@ from flwr.server import (
     ServerAppComponents,
     start_server
 )
+from rich.panel import Panel
 from flwr.server.strategy import Strategy
 from flwr.server.client_manager import ClientManager
 from flwr.server.client_proxy import ClientProxy
@@ -24,6 +25,7 @@ from flwr.common.logger import log
 from logging import INFO
 from taskA import Net as NetA, get_weights as get_weights_A
 from taskB import Net as NetB, get_weights as get_weights_B
+from rich.console import Console
 import time
 import csv
 import os
@@ -43,7 +45,7 @@ matplotlib.use('Agg')
 current_dir = os.path.abspath(os.path.dirname(__file__))
 
 # Path to the 'configuration' directory
-config_dir = os.path.join(current_dir, 'configuration')
+config_dir = os.path.join(current_dir, '..', 'configuration') 
 config_file = os.path.join(config_dir, 'config.json')
 
 # Read 'rounds' and 'clients' from config.json
@@ -53,14 +55,12 @@ if os.path.exists(config_file):
             config = json.load(f)
         num_rounds = int(config.get('rounds', 10))  # Use 'rounds' from config.json, default to 10
         client_count = int(config.get('clients', 2))  # Use 'clients' from config.json, default to 2
-        print(f"Number of rounds set to {num_rounds} from config.json.")
-        print(f"Number of clients set to {client_count} from config.json.")
     except Exception as e:
-        print(f"Error reading config.json: {e}")
+        log(INFO, f"Error reading config.json: {e}")
         num_rounds = 10  # Default value in case of error
         client_count = 2  # Default value in case of error
 else:
-    print(f"config.json not found at {config_file}. Using default num_rounds=10 and client_count=2.")
+    log(INFO, f"config.json not found at {config_file}. Using default num_rounds=10 and client_count=2.")
     num_rounds = 10  # Default value if config.json does not exist
     client_count = 2  # Default value if config.json does not exist
 
@@ -235,14 +235,26 @@ client_model_mapping = {}
 previous_round_end_time = time.time() 
 
 class MultiModelStrategy(Strategy):
-    def __init__(self, initial_parameters_a: Parameters, initial_parameters_b: Parameters, client_count: int):
+    def __init__(self, initial_parameters_a: Parameters, initial_parameters_b: Parameters):
         self.parameters_a = initial_parameters_a
         self.parameters_b = initial_parameters_b
-        self.client_count = client_count  # Salva il numero di client
+    
+    #time.sleep(3)
+    log(INFO, f"==========================================")
+    log(INFO, f"List of Implemented Architectural Patterns")
+    enabled_patterns = [pattern for pattern, enabled in config["patterns"].items() if enabled]
+
+    if enabled_patterns:
+        formatted_patterns = "\n".join(
+            [f"  {pattern.replace('_', ' ').title()} ✅" for pattern in enabled_patterns]
+        )
+        log(INFO, f"\n{formatted_patterns}")
+    
+    log(INFO, f"==========================================")
+    #time.sleep(5)
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
         return None
-
 
     def configure_fit(
         self,
@@ -251,14 +263,8 @@ class MultiModelStrategy(Strategy):
         client_manager: ClientManager,
     ) -> List[Tuple[ClientProxy, FitIns]]:
         
-        min_clients = self.client_count  # Usa il numero di client dinamico
-
-        client_manager.wait_for(min_clients) 
-        time.sleep(3)
-        log(INFO, f"Message Compressor is disabled for this experiment...")
-        time.sleep(5)
-        
-        clients = client_manager.sample(num_clients=min_clients)
+        client_manager.wait_for(client_count) 
+        clients = client_manager.sample(num_clients=client_count)
 
         fit_configurations = []
 
@@ -388,8 +394,7 @@ class MultiModelStrategy(Strategy):
 def server_fn(context: Context):
     strategy = MultiModelStrategy(
         initial_parameters_a=parametersA,
-        initial_parameters_b=parametersB,
-        client_count=client_count  # Passa il numero di client alla strategia
+        initial_parameters_b=parametersB
     )
     server_config = ServerConfig(num_rounds=num_rounds)
     return ServerAppComponents(strategy=strategy, config=server_config)
