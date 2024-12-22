@@ -1,0 +1,419 @@
+import os
+import json
+from PyQt5.QtWidgets import (
+    QWidget, QVBoxLayout, QLabel, QPushButton, QScrollArea, QFrame,
+    QFileDialog, QMessageBox, QHBoxLayout, QStyle, QGridLayout
+)
+from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtGui import QPixmap, QIcon
+
+class RecapSimulationPage(QWidget):
+    def __init__(self, user_choices):
+        super().__init__()
+        self.user_choices = user_choices
+
+        self.setWindowTitle("List of Input Parameters for the Simulation")
+        self.resize(1000, 800)
+        # Remove global style that might interfere with QMessageBox
+        self.setStyleSheet("background-color: white;")
+
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignTop)
+        self.setLayout(layout)
+
+        # Title
+        title_label = QLabel("List of Input Parameters for the Simulation")
+        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setStyleSheet("color: black; font-size: 24px; font-weight: bold;")
+        layout.addWidget(title_label)
+
+        # Scrollable area to display configuration details
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setAlignment(Qt.AlignTop)
+
+        # Divide configuration into sections
+        self.display_general_parameters(scroll_layout)
+        self.display_clients(scroll_layout)
+        self.display_patterns(scroll_layout)
+
+        scroll_area.setWidget(scroll_content)
+        layout.addWidget(scroll_area)
+
+        # Button layout
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setAlignment(Qt.AlignCenter)
+        buttons_layout.setSpacing(20)
+
+        # "Run Simulation" Button
+        run_button = QPushButton("Run Simulation")
+        run_button.clicked.connect(self.run_simulation)
+        run_button.setCursor(Qt.PointingHandCursor)
+        run_button.setStyleSheet("""
+            QPushButton {
+                background-color: #70C284; 
+                color: white; 
+                font-size: 14px; 
+                padding: 10px;
+                border-radius: 5px;
+                width: 200px;
+            }
+            QPushButton:hover {
+                background-color: #00b300;
+            }
+            QPushButton:pressed {
+                background-color: #008000;
+            }
+        """)
+        buttons_layout.addWidget(run_button)
+
+        # "Download .json Configuration" Button
+        download_button = QPushButton("Download .json Configuration")
+        download_button.clicked.connect(self.download_configuration)
+        download_button.setCursor(Qt.PointingHandCursor)
+        download_button.setStyleSheet("""
+            QPushButton {
+                background-color: #ffc107;
+                color: white;
+                font-size: 14px;
+                padding: 8px 16px;
+                border-radius: 5px;
+                text-align: left;
+            }
+            QPushButton:hover {
+                background-color: #e0a800;
+            }
+            QPushButton:pressed {
+                background-color: #c69500;
+            }
+        """)
+
+        # Add standard PyQt5 icon
+        json_icon = self.style().standardIcon(QStyle.SP_DialogSaveButton)
+        download_button.setIcon(json_icon)
+        download_button.setIconSize(QSize(24, 24))
+
+        buttons_layout.addWidget(download_button)
+
+        # "Close" Button
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(self.close)
+        close_button.setCursor(Qt.PointingHandCursor)
+        close_button.setStyleSheet("""
+            QPushButton {
+                background-color: #ee534f;
+                color: white;
+                font-size: 14px;
+                padding: 8px 16px;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background-color: #ff6666;
+            }
+            QPushButton:pressed {
+                background-color: #cc0000;
+            }
+        """)
+        buttons_layout.addWidget(close_button)
+
+        layout.addLayout(buttons_layout)
+
+    def display_general_parameters(self, layout):
+        """
+        Displays general parameters.
+        """
+        # Merge configurations
+        merged_config = {}
+        for choice in self.user_choices:
+            if isinstance(choice, dict):
+                merged_config.update(choice)
+
+        # General Parameters Section
+        general_label = QLabel("General Parameters")
+        general_label.setStyleSheet("color: black; font-size: 20px; font-weight: bold; margin-top: 10px;")
+        layout.addWidget(general_label)
+
+        # Display general parameters
+        general_params = {}
+        for key in ['simulation_type', 'rounds']:
+            if key in merged_config:
+                general_params[key] = merged_config[key]
+
+        # Clean up parameter names for display
+        display_params = {}
+        for key, value in general_params.items():
+            display_key = key.replace('_', ' ').title()
+            display_params[display_key] = value
+
+        self.add_configuration_items(display_params, layout)
+
+    def display_clients(self, layout):
+        """
+        Displays client information in cards.
+        """
+        # Merge configurations
+        merged_config = {}
+        for choice in self.user_choices:
+            if isinstance(choice, dict):
+                merged_config.update(choice)
+
+        clients = merged_config.get('client_details', [])
+
+        if clients:
+            clients_label = QLabel("Clients")
+            clients_label.setStyleSheet("color: black; font-size: 20px; font-weight: bold; margin-top: 20px;")
+            layout.addWidget(clients_label)
+
+            # Grid layout for client cards
+            grid_layout = QGridLayout()
+            grid_layout.setSpacing(10)
+            max_columns = 6
+            row = 0
+            col = 0
+
+            for idx, client in enumerate(clients):
+                card = self.create_client_card(client)
+                grid_layout.addWidget(card, row, col)
+                col += 1
+                if col >= max_columns:
+                    col = 0
+                    row += 1
+
+            layout.addLayout(grid_layout)
+
+    def create_client_card(self, client_info):
+        """
+        Creates a card for the client with a computer icon and its information.
+        """
+        card = QFrame()
+        card.setFrameShape(QFrame.Box)
+        card.setLineWidth(1)
+        card.setStyleSheet("background-color: #f9f9f9; border-radius: 5px;")
+
+        card_layout = QVBoxLayout()
+        card_layout.setAlignment(Qt.AlignCenter)
+        card.setLayout(card_layout)
+
+        # Computer icon using standard icon
+        pc_icon = self.style().standardIcon(QStyle.SP_ComputerIcon)
+        pc_icon_label = QLabel()
+        pc_icon_label.setPixmap(pc_icon.pixmap(32, 32))
+        card_layout.addWidget(pc_icon_label, alignment=Qt.AlignCenter)
+
+        # Client information
+        for key, value in client_info.items():
+            display_key = key.replace('_', ' ').title()
+
+            # Capitalize "CPU", "RAM", and "ID"
+            words = display_key.split()
+            words = [word.upper() if word.lower() in ['cpu', 'ram', 'id'] else word for word in words]
+            display_key = ' '.join(words)
+
+            info_label = QLabel(f"{display_key}: {value}")
+            info_label.setStyleSheet("color: black; font-size: 12px;")
+            card_layout.addWidget(info_label, alignment=Qt.AlignCenter)
+
+        return card
+
+    def display_patterns(self, layout):
+        """
+        Displays patterns with green ticks if True.
+        """
+        # Merge configurations
+        merged_config = {}
+        for choice in self.user_choices:
+            if isinstance(choice, dict):
+                merged_config.update(choice)
+
+        # Patterns Section
+        patterns_label = QLabel("Patterns")
+        patterns_label.setStyleSheet("color: black; font-size: 20px; font-weight: bold; margin-top: 20px;")
+        layout.addWidget(patterns_label)
+
+        patterns = merged_config.get('patterns', {})
+
+        # Display patterns with green ticks if True
+        for pattern, is_enabled in patterns.items():
+            pattern_layout = QHBoxLayout()
+            pattern_layout.setAlignment(Qt.AlignLeft)
+
+            display_pattern = pattern.replace('_', ' ').title()
+
+            pattern_label = QLabel(f"{display_pattern}")
+            pattern_label.setStyleSheet("color: black; font-size: 14px;")
+            pattern_layout.addWidget(pattern_label)
+
+            if isinstance(is_enabled, bool):
+                icon_label = QLabel()
+                if is_enabled:
+                    icon = self.style().standardIcon(QStyle.SP_DialogApplyButton)
+                else:
+                    icon = self.style().standardIcon(QStyle.SP_DialogCancelButton)
+                icon_label.setPixmap(icon.pixmap(16, 16))
+                pattern_layout.addWidget(icon_label)
+            else:
+                # If the value is not boolean, display the value
+                value_label = QLabel(str(is_enabled))
+                value_label.setStyleSheet("color: black; font-size: 14px;")
+                pattern_layout.addWidget(value_label)
+
+            layout.addLayout(pattern_layout)
+
+    def add_configuration_items(self, config, layout, indent=0):
+        """
+        Recursively adds configuration items to the layout.
+        """
+        for key, value in config.items():
+            # Horizontal layout for each item
+            item_layout = QHBoxLayout()
+            item_layout.setAlignment(Qt.AlignLeft)
+            # Indentation
+            indent_str = ' ' * indent * 20  # 20 pixels per indentation level
+
+            # Key label
+            key_label = QLabel(f"{key}:")
+            key_label.setStyleSheet(f"color: black; font-size: 14px; margin-left: {indent_str}px;")
+            item_layout.addWidget(key_label)
+
+            if isinstance(value, dict):
+                # If the value is a dictionary, add its items recursively
+                layout.addLayout(item_layout)
+                self.add_configuration_items(value, layout, indent + 1)
+            elif isinstance(value, list):
+                # If the value is a list, display each item
+                layout.addLayout(item_layout)
+                for idx, item in enumerate(value, start=1):
+                    self.add_configuration_items({f"Item {idx}": item}, layout, indent + 1)
+            else:
+                # Value label
+                value_label = QLabel(str(value))
+                value_label.setStyleSheet("color: black; font-size: 14px;")
+                item_layout.addWidget(value_label)
+                layout.addLayout(item_layout)
+
+    def download_configuration(self):
+        """
+        Downloads the merged configuration as a JSON file.
+        """
+        # Merge configurations
+        merged_config = {}
+        for choice in self.user_choices:
+            if isinstance(choice, dict):
+                merged_config.update(choice)
+
+        # Open a file dialog to save the file
+        options = QFileDialog.Options()
+        file_name, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Configuration",
+            "",
+            "JSON Files (*.json);;All Files (*)",
+            options=options
+        )
+        if file_name:
+            # Ensure the file has a .json extension
+            if not file_name.endswith('.json'):
+                file_name += '.json'
+            try:
+                with open(file_name, 'w') as f:
+                    json.dump(merged_config, f, indent=4)
+                QMessageBox.information(self, "Success", f"Configuration saved to {file_name}")
+            except Exception as e:
+                QMessageBox.warning(self, "Error", f"An error occurred while saving the file:\n{e}")
+
+    
+    def run_simulation(self):
+        """
+        Saves the configuration and opens the simulation window.
+        """
+        # Merge configurations
+        merged_config = {}
+        for choice in self.user_choices:
+            if isinstance(choice, dict):
+                merged_config.update(choice)
+
+        # Path to the 'configuration' directory
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        config_dir = os.path.join(base_dir, 'configuration')
+
+        # Create the directory if it doesn't exist
+        if not os.path.exists(config_dir):
+            os.makedirs(config_dir)
+
+        # Configuration file name
+        config_file_name = 'config.json'
+        config_file_path = os.path.join(config_dir, config_file_name)
+
+        try:
+            with open(config_file_path, 'w') as f:
+                json.dump(merged_config, f, indent=4)
+
+            # QMessageBox to confirm the save with black text
+            msg_box = QMessageBox(self)
+            msg_box.setWindowTitle("Success")
+            msg_box.setText(f"Configuration saved to {config_file_path}")
+            msg_box.setStyleSheet("""
+                QMessageBox {
+                    background-color: white;
+                }
+                QMessageBox QLabel {
+                    color: black;
+                    font-size: 14px;
+                }
+                QMessageBox QPushButton {
+                    background-color: lightgray;
+                    color: black;
+                    font-size: 12px;
+                    padding: 5px;
+                    border-radius: 5px;
+                }
+                QMessageBox QPushButton:hover {
+                    background-color: gray;
+                    color: white;
+                }
+            """)
+            msg_box.exec_()
+        except Exception as e:
+            # QMessageBox for error with black text
+            error_box = QMessageBox(self)
+            error_box.setWindowTitle("Error")
+            error_box.setText(f"An error occurred while saving the file:\n{e}")
+            error_box.setStyleSheet("""
+                QMessageBox {
+                    background-color: white;
+                }
+                QMessageBox QLabel {
+                    color: black;
+                    font-size: 14px;
+                }
+                QMessageBox QPushButton {
+                    background-color: lightgray;
+                    color: black;
+                    font-size: 12px;
+                    padding: 5px;
+                    border-radius: 5px;
+                }
+                QMessageBox QPushButton:hover {
+                    background-color: gray;
+                    color: white;
+                }
+            """)
+            error_box.exec_()
+            return 
+
+        # Determine the number of supernodes (number of clients)
+        client_details = merged_config.get('client_details', [])
+        num_supernodes = len(client_details)
+
+        # Check if there are clients defined
+        if num_supernodes == 0:
+            QMessageBox.warning(self, "Warning", "No clients defined in the configuration. Using default num_supernodes=2.")
+            num_supernodes = 2  # Default value
+
+        # Open the simulation window passing num_supernodes
+        from simulation import SimulationPage  # Import SimulationPage
+        self.simulation_page = SimulationPage(num_supernodes)
+        self.simulation_page.show()
+        self.close()  # Close the recap page
