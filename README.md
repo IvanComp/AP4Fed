@@ -1,8 +1,8 @@
 ---
-framework: [Flower, PyTorch, Torchvision]
-dataset: [CIFAR-10, FMNIST]
-model: [Convolutional Neural Network]
-version: [1.0.0]
+Framework: [Flower, PyTorch, Torchvision]
+Testing Datasets: [CIFAR-10, FMNIST]
+Testing Models: [Convolutional Neural Network]
+Version: [1.0.0]
 ---
 
 # AP4FED
@@ -57,12 +57,12 @@ Follow the instructions in the command, which will launch the <tt>AP4FED</tt>. T
 
 The Architectural Patterns ([2]) implemented in our framework are:
 
-| Architectural Pattern | Pattern Category | Description | Link |
-| --- | --- | --- | --- |
-| **Client Registry** | `Client Management` | A registry to store relevant information of each client device participating in Federated Learning rounds. | - |
-| **Client Selector** | `Client Management` | A mechanism to dynamically select clients based on specific criteria, such as data distribution, device capabilities, or network conditions, to optimize the federated learning process. | [Link](1.%20Client%20Selector) |
-| **Client Cluster** | `Client Management` | A strategy to group clients into clusters based on shared characteristics, such as data similarity or device attributes, improving model accuracy and convergence in non-IID data scenarios. | [Link](1.%20Client%20Cluster) |
-| **Message Compressor** | `Model Management` | A component designed to reduce the size of data exchanged between clients and the server by compressing messages, which lowers communication latency and bandwidth usage in federated learning environments. | [Link](1.%20Message%20Compressor) |
+| Architectural Pattern | Pattern Category | Description |
+| --- | --- | --- | 
+| **Client Registry** | `Client Management` | A registry to store relevant information of each client device participating in Federated Learning rounds. | 
+| **Client Selector** | `Client Management` | A mechanism to dynamically select clients based on specific criteria, such as data distribution, device capabilities, or network conditions, to optimize the federated learning process. | 
+| **Client Cluster** | `Client Management` | A strategy to group clients into clusters based on shared characteristics, such as data similarity or device attributes, improving model accuracy and convergence in non-IID data scenarios. | 
+| **Message Compressor** | `Model Management` | A component designed to reduce the size of data exchanged between clients and the server by compressing messages, which lowers communication latency and bandwidth usage in federated learning environments. |
 
 The **Client Registry** architectural pattern is implemented by adding the following parameters:
 
