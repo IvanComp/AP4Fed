@@ -8,7 +8,7 @@ Version: [1.0.0]
 # AP4FED
 
 <p align="center">
-<img src="img/logoNew2.svg" width="340px" height="210px"/>
+<img src="img/readme/logo.svg" width="340px" height="210px"/>
 </p>
 <img src="https://img.shields.io/badge/version-1.0-green" alt="Version">
 
@@ -18,7 +18,7 @@ Version: [1.0.0]
 
 <tt>AP4FED</tt> was utilized in the paper "_Performance Analysis of Architectural Patterns for Federated Learning Systems_" accepted for the 22nd IEEE International Conference on Software Architecture (ICSA 2025) [1].
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14039470.svg)](https://zenodo.org/uploads/14039470)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14539962.svg)](https://zenodo.org/records/14539962)
 
 # Table of contents
 <!--ts-->
