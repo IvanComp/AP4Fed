@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QScrollArea, QFrame,
     QFileDialog, QMessageBox, QHBoxLayout, QStyle, QGridLayout
 )
-from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtCore import Qt, QSize, QTimer
 from PyQt5.QtGui import QPixmap, QIcon
 
 class RecapSimulationPage(QWidget):
@@ -319,10 +319,30 @@ class RecapSimulationPage(QWidget):
             try:
                 with open(file_name, 'w') as f:
                     json.dump(merged_config, f, indent=4)
-                QMessageBox.information(self, "Success", f"Configuration saved to {file_name}")
-            except Exception as e:
-                QMessageBox.warning(self, "Error", f"An error occurred while saving the file:\n{e}")
+                
+                # Creazione del QMessageBox
+                msg_box = QMessageBox(self)
+                msg_box.setIcon(QMessageBox.Information)
+                msg_box.setWindowTitle("Success")
+                msg_box.setText(f"Configuration saved to {file_name}")
+                
+                # Imposta un timer per chiudere il box dopo 2 secondi
+                QTimer.singleShot(2000, msg_box.close)
+                
+                # Mostra il box
+                msg_box.exec_()
 
+            except Exception as e:
+                msg_box = QMessageBox(self)
+                msg_box.setIcon(QMessageBox.Warning)
+                msg_box.setWindowTitle("Error")
+                msg_box.setText(f"An error occurred while saving the file:\n{e}")
+                
+                # Imposta un timer per chiudere il box dopo 2 secondi
+                QTimer.singleShot(2000, msg_box.close)
+                
+                # Mostra il box
+                msg_box.exec_()
     
     def run_simulation(self):
         """

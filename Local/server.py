@@ -114,11 +114,12 @@ def log_round_time(client_id, fl_round, training_time, communication_time, total
 
 def preprocess_csv():
     import pandas as pd
-
     df = pd.read_csv(csv_file)
     df['Training Time'] = pd.to_numeric(df['Training Time'], errors='coerce')
     df['Total Time of FL Round'] = pd.to_numeric(df['Total Time of FL Round'], errors='coerce')
-    df['Total Time of FL Round'] = df.groupby('FL Round')['Total Time of FL Round'].transform('max')
+    df['Total Time of FL Round'] = df.groupby('FL Round')['Total Time of FL Round'].transform(
+        lambda x: [None] * (len(x) - 1) + [x.iloc[-1]]
+    )
     df['Total Client Time'] = df['Training Time'] + df['Communication Time']
     unique_tasks = df['Task'].unique()
     client_mappings = {}
@@ -134,7 +135,19 @@ def preprocess_csv():
     task_order = ['taskA', 'taskB']
     df['Task'] = pd.Categorical(df['Task'], categories=task_order, ordered=True)
     df.sort_values(by=['FL Round', 'Task', 'Client Number'], inplace=True)
-    df.drop(columns=['Client Number'], inplace=True)  
+    df.drop(columns=['Client Number'], inplace=True)
+    df['Task'] = df['Task'].cat.rename_categories({'taskA': 'CIFAR-10', 'taskB': 'FMNIST'})
+    df['Client ID'] = df['Client ID'].str.replace(r' - TASK[A|B]', '', regex=True)
+    columns_to_move = [
+    "Train Loss", "Train Accuracy", "Train F1",
+    "Val Loss", "Val Accuracy", "Val F1", "Total Time of Training Round", "Total Time of FL Round"
+    ]
+    for round_num, group in df.groupby("FL Round"):
+        last_client_index = group.index[-1]
+        for col in columns_to_move:
+            df.loc[last_client_index, col] = group[col].max()
+            df.loc[group.index[:-1], col] = None  # Opzionale: svuota i valori negli altri client
+
     df.to_csv(csv_file, index=False)
     sns.set_theme(style="ticks")
     df = pd.read_csv(csv_file)
@@ -207,29 +220,6 @@ def weighted_average_global(metrics, task_type, srt1, srt2, time_between_rounds)
 
 parametersA = ndarrays_to_parameters(get_weights_A(NetA()))
 parametersB = ndarrays_to_parameters(get_weights_B(NetB()))
-
-def print_results():
-    clients_taskA = [cid for cid, model in client_model_mapping.items() if model == "taskA" and len(cid) <= 12]
-
-    print(f"\nResults for round {currentRnd}:")
-    print(f"  Clients: {clients_taskA}")
-    print(f"  Train loss: {global_metrics['taskA']['train_loss']}")
-    print(f"  Train accuracy: {global_metrics['taskA']['train_accuracy']}")
-    print(f"  Train F1: {global_metrics['taskA']['train_f1']}")
-    print(f"  Val loss: {global_metrics['taskA']['val_loss']}")
-    print(f"  Val accuracy: {global_metrics['taskA']['val_accuracy']}")
-    print(f"  Val F1: {global_metrics['taskA']['val_f1']}")
-
-    clients_taskB = [cid for cid, model in client_model_mapping.items() if model == "taskB" and len(cid) <= 12]
-
-    print(f"\nResults for round {currentRnd}:")
-    print(f"  Clients: {clients_taskB}")
-    print(f"  Train loss: {global_metrics['taskB']['train_loss']}")
-    print(f"  Train accuracy: {global_metrics['taskB']['train_accuracy']}")
-    print(f"  Train F1: {global_metrics['taskB']['train_f1']}")
-    print(f"  Val loss: {global_metrics['taskB']['val_loss']}")
-    print(f"  Val accuracy: {global_metrics['taskB']['val_accuracy']}")
-    print(f"  Val F1: {global_metrics['taskB']['val_f1']}")
 
 client_model_mapping = {}
 previous_round_end_time = time.time() 
@@ -323,27 +313,23 @@ class MultiModelStrategy(Strategy):
         if results_a:
             srt1 = max(training_times)
             self.parameters_a = self.aggregate_parameters(results_a, "taskA", srt1, srt2, time_between_rounds)
- 
-        metrics_aggregated = {
-            "taskA": {
-                "train_loss": global_metrics["taskA"]["train_loss"][-1] if global_metrics["taskA"]["train_loss"] else None,
-                "train_accuracy": global_metrics["taskA"]["train_accuracy"][-1] if global_metrics["taskA"]["train_accuracy"] else None,
-                "train_f1": global_metrics["taskA"]["train_f1"][-1] if global_metrics["taskA"]["train_f1"] else None,
-                "val_loss": global_metrics["taskA"]["val_loss"][-1] if global_metrics["taskA"]["val_loss"] else None,
-                "val_accuracy": global_metrics["taskA"]["val_accuracy"][-1] if global_metrics["taskA"]["val_accuracy"] else None,
-                "val_f1": global_metrics["taskA"]["val_f1"][-1] if global_metrics["taskA"]["val_f1"] else None,
-            },
-            "taskB": {
-                "train_loss": global_metrics["taskB"]["train_loss"][-1] if global_metrics["taskB"]["train_loss"] else None,
-                "train_accuracy": global_metrics["taskB"]["train_accuracy"][-1] if global_metrics["taskB"]["train_accuracy"] else None,
-                "train_f1": global_metrics["taskB"]["train_f1"][-1] if global_metrics["taskB"]["train_f1"] else None,
-                "val_loss": global_metrics["taskB"]["val_loss"][-1] if global_metrics["taskB"]["val_loss"] else None,
-                "val_accuracy": global_metrics["taskB"]["val_accuracy"][-1] if global_metrics["taskB"]["val_accuracy"] else None,
-                "val_f1": global_metrics["taskB"]["val_f1"][-1] if global_metrics["taskB"]["val_f1"] else None,
-            },
-        }
 
-        print_results()
+        metrics_aggregated = {}
+
+        if any(global_metrics["taskA"].values()): 
+            metrics_aggregated["CIFAR-10"] = {
+                key: global_metrics["taskA"][key][-1] if global_metrics["taskA"][key] else None
+                for key in global_metrics["taskA"]
+            }
+
+        if any(global_metrics["taskB"].values()): 
+            metrics_aggregated["FMNIST"] = {
+                key: global_metrics["taskB"][key][-1] if global_metrics["taskB"][key] else None
+                for key in global_metrics["taskB"]
+            }
+
+        if metrics_aggregated:
+            print(metrics_aggregated)
 
         if currentRnd == num_rounds:
             preprocess_csv()
