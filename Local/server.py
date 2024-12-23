@@ -154,14 +154,14 @@ def weighted_average_global(metrics, task_type, srt1, srt2, time_between_rounds)
 
     train_losses = [num_examples * m["train_loss"] for num_examples, m in metrics]
     train_accuracies = [num_examples * m["train_accuracy"] for num_examples, m in metrics]
-    train_f1s = [num_examples * m["train_f1"] for num_examples, m in metrics]
+    train_f1 = [num_examples * m["train_f1"] for num_examples, m in metrics]
     val_losses = [num_examples * m["val_loss"] for num_examples, m in metrics]
     val_accuracies = [num_examples * m["val_accuracy"] for num_examples, m in metrics]
     val_f1s = [num_examples * m["val_f1"] for num_examples, m in metrics]
 
     avg_train_loss = sum(train_losses) / total_examples
     avg_train_accuracy = sum(train_accuracies) / total_examples
-    avg_train_f1 = sum(train_f1s) / total_examples
+    avg_train_f1 = sum(train_f1) / total_examples
     avg_val_loss = sum(val_losses) / total_examples
     avg_val_accuracy = sum(val_accuracies) / total_examples
     avg_val_f1 = sum(val_f1s) / total_examples

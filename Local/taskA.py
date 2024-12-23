@@ -64,37 +64,91 @@ def train(net, trainloader, valloader, epochs, device):
     # End measuring training time
     training_time = time.time() - start_time
     log(INFO, f"Training completed in {training_time:.2f} seconds")
+    start_comm_time = time.time()
 
-    train_loss, train_acc = test(net, trainloader)
-    val_loss, val_acc = test(net, valloader)
+    train_loss, train_acc, train_f1 = test(net, trainloader)
+    val_loss, val_acc, val_f1 = test(net, valloader)
 
     results = {
         "train_loss": train_loss,
         "train_accuracy": train_acc,
+        "train_f1": train_f1,
         "val_loss": val_loss,
         "val_accuracy": val_acc,
+        "val_f1": val_f1,
     }
 
-    return results, training_time  # Return the training time as well
+    return results, training_time, start_comm_time # Return the training time as well
 
 
 def test(net, testloader):
-    """Validate the model on the test set."""
     net.to(DEVICE)
     criterion = torch.nn.CrossEntropyLoss()
-    correct, loss = 0, 0.0
+    correct = 0
+    loss = 0.0
+    all_preds = []
+    all_labels = []
+
     with torch.no_grad():
         for images, labels in testloader:
-            outputs = net(images.to(DEVICE))
+            images = images.to(DEVICE)
             labels = labels.to(DEVICE)
+            outputs = net(images)
             loss += criterion(outputs, labels).item()
-            correct += (torch.max(outputs.data, 1)[1] == labels).sum().item()
+            _, predicted = torch.max(outputs.data, 1)
+            correct += (predicted == labels).sum().item()
+            all_preds.append(predicted)
+            all_labels.append(labels)
+
     accuracy = correct / len(testloader.dataset)
-    return loss, accuracy
+
+    # Concatenare tutte le predizioni e le etichette
+    all_preds = torch.cat(all_preds)
+    all_labels = torch.cat(all_labels)
+
+    # Calcolo dell'F1 score
+    f1 = f1_score_torch(all_labels, all_preds, num_classes=10, average='macro')
+
+    return loss, accuracy, f1
+
+
+def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
+    # Creazione della matrice di confusione
+    confusion_matrix = torch.zeros(num_classes, num_classes)
+    for t, p in zip(y_true, y_pred):
+        confusion_matrix[t.long(), p.long()] += 1
+
+    # Calcolo di precision e recall per ogni classe
+    precision = torch.zeros(num_classes)
+    recall = torch.zeros(num_classes)
+    f1_per_class = torch.zeros(num_classes)
+    for i in range(num_classes):
+        TP = confusion_matrix[i, i]
+        FP = confusion_matrix[:, i].sum() - TP
+        FN = confusion_matrix[i, :].sum() - TP
+
+        precision[i] = TP / (TP + FP + 1e-8)
+        recall[i] = TP / (TP + FN + 1e-8)
+        f1_per_class[i] = 2 * (precision[i] * recall[i]) / (precision[i] + recall[i] + 1e-8)
+
+    if average == 'macro':
+        f1 = f1_per_class.mean().item()
+    elif average == 'micro':
+        TP = torch.diag(confusion_matrix).sum()
+        FP = confusion_matrix.sum() - torch.diag(confusion_matrix).sum()
+        FN = FP
+        precision_micro = TP / (TP + FP + 1e-8)
+        recall_micro = TP / (TP + FN + 1e-8)
+        f1 = (2 * precision_micro * recall_micro / (precision_micro + recall_micro + 1e-8)).item()
+    else:
+        raise ValueError("Average must be 'macro' or 'micro'")
+
+    return f1
 
 
 def get_weights(net):
     return [val.cpu().numpy() for _, val in net.state_dict().items()]
+
 
 def set_weights(net, parameters):
     params_dict = zip(net.state_dict().keys(), parameters)

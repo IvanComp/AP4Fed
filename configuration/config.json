@@ -1,12 +1,12 @@
 {
     "simulation_type": "Local",
-    "rounds": 10,
+    "rounds": 4,
     "clients": 2,
     "patterns": {
         "client_registry": true,
         "client_selector": false,
         "client_cluster": false,
-        "message_compressor": true,
+        "message_compressor": false,
         "multi-task_model_trainer": false
     },
     "client_details": [
