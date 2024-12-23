@@ -24,8 +24,8 @@ Version: [1.0.0]
 <!--ts-->
    * [Prerequisites](#prerequisites)
    * [How to Run](#how-to-run)
-   * [AP4FED](#AP4FED)
-   * [Architectural Patterns](#architecturalpatterns)
+   * [AP4FED](#ap4fed)
+   * [Architectural Patterns](#architectural-patterns)
    * [References](#references)
    
 # Prerequisites
@@ -57,10 +57,18 @@ Follow the instructions in the command, which will launch the <tt>AP4FED</tt>. T
 # AP4FED
 
 <p align="center">
-<img src="img/readme/logo.svg" width="340px" height="210px"/>
-<img src="img/readme/logo.svg" width="340px" height="210px"/>
-<img src="img/readme/logo.svg" width="340px" height="210px"/>
-<img src="img/readme/logo.svg" width="340px" height="210px"/>
+<img src="img/readme/1.png" width="400px" height="300px"/>
+<img src="img/readme/2.png" width="400px" height="300px"/>
+</p>
+
+<p align="center">
+<img src="img/readme/3.png" width="400px" height="300px"/>
+<img src="img/readme/4.png" width="400px" height="300px"/>
+</p>
+
+<p align="center">
+<img src="img/readme/5.png" width="400px" height="300px"/>
+<img src="img/readme/6.png" width="400px" height="300px"/>
 </p>
 
 # Architectural Patterns
