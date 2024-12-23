@@ -71,6 +71,12 @@ Follow the instructions in the command, which will launch the <tt>AP4FED</tt>. T
 <img src="img/readme/6.png" width="400px" height="300px"/>
 </p>
 
+## Load/Save a Custom Configuration
+
+<p align="center">
+<img src="img/readme/7.png" width="180px" height="280px"/>
+</p>
+
 # Architectural Patterns
 
 The Architectural Patterns ([2]) implemented in our framework are:
