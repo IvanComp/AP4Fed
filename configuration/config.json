@@ -1,13 +1,13 @@
 {
     "simulation_type": "Local",
-    "rounds": 3,
-    "clients": 3,
+    "rounds": 10,
+    "clients": 5,
     "patterns": {
         "client_registry": true,
-        "client_selector": false,
-        "client_cluster": false,
-        "message_compressor": false,
-        "multi-task_model_trainer": false
+        "client_selector": true,
+        "client_cluster": true,
+        "message_compressor": true,
+        "multi-task_model_trainer": true
     },
     "client_details": [
         {
@@ -18,12 +18,24 @@
         },
         {
             "client_id": 2,
+            "cpu": 2,
+            "ram": 4,
+            "dataset": "FMNIST"
+        },
+        {
+            "client_id": 3,
             "cpu": 1,
             "ram": 2,
             "dataset": "CIFAR-10"
         },
         {
-            "client_id": 3,
+            "client_id": 4,
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "CIFAR-10"
+        },
+        {
+            "client_id": 5,
             "cpu": 1,
             "ram": 2,
             "dataset": "CIFAR-10"

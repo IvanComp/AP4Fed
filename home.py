@@ -1,13 +1,12 @@
 import os
 import sys
-import json  # Aggiunto per gestire i file JSON
+import json  
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QMessageBox, QFileDialog
 from PyQt5.QtGui import QPixmap, QIcon, QDesktopServices
 from PyQt5.QtCore import Qt, QUrl, QSize
-from presimulation import PreSimulationPage  # Importa la pagina PreSimulation
-from recap_simulation import RecapSimulationPage  # Importa RecapSimulationPage per le configurazioni caricate
+from presimulation import PreSimulationPage  
+from recap_simulation import RecapSimulationPage 
 
-# Array globale per salvare le scelte
 user_choices = []
 
 class HomePage(QWidget):
@@ -18,7 +17,7 @@ class HomePage(QWidget):
 
         # Percorsi assoluti per le immagini
         base_dir = os.path.dirname(__file__)
-        logo_path = os.path.join(base_dir, "img/logoNew2.svg")
+        logo_path = os.path.join(base_dir, "img/readme/logo.svg")
 
         # Layout principale
         layout = QVBoxLayout()

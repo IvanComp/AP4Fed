@@ -24,6 +24,7 @@ Version: [1.0.0]
 <!--ts-->
    * [Prerequisites](#prerequisites)
    * [How to Run](#how-to-run)
+   * [AP4FED](#AP4FED)
    * [Architectural Patterns](#architecturalpatterns)
    * [References](#references)
    
@@ -52,6 +53,15 @@ In the main folder run the following command:
 python home.py
 ```
 Follow the instructions in the command, which will launch the <tt>AP4FED</tt>. This interface allows you to configure the Federated Learning system and proceed with benchmarking, providing a user-friendly way to manage and test the setup.
+
+# AP4FED
+
+<p align="center">
+<img src="img/readme/logo.svg" width="340px" height="210px"/>
+<img src="img/readme/logo.svg" width="340px" height="210px"/>
+<img src="img/readme/logo.svg" width="340px" height="210px"/>
+<img src="img/readme/logo.svg" width="340px" height="210px"/>
+</p>
 
 # Architectural Patterns
 
