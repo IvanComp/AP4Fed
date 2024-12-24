@@ -87,13 +87,15 @@ The Architectural Patterns ([2]) implemented in our framework are:
 | **Client Selector** | `Client Management` | A mechanism to dynamically select clients based on specific criteria, such as data distribution, device capabilities, or network conditions, to optimize the federated learning process. | 
 | **Client Cluster** | `Client Management` | A strategy to group clients into clusters based on shared characteristics, such as data similarity or device attributes, improving model accuracy and convergence in non-IID data scenarios. | 
 | **Message Compressor** | `Model Management` | A component designed to reduce the size of data exchanged between clients and the server by compressing messages, which lowers communication latency and bandwidth usage in federated learning environments. |
+| **Multi-Task Model Trainer** | `Model Training` | In progress... |
+| **Heterogeneous Data Handler** | `Model Training` | In progress... |
 
 The **Client Registry** architectural pattern is implemented by adding the following parameters:
 
 | Attribute | Data Type | Description |
 | --- | --- | --- | 
 | **cID** | `string` | Client’s Unique Identifier | 
-| **cluster_Type** | `string` | Cluster associated to the Client | 
+| **cluster_Type** | `string` | Cluster associated to each Client | 
 | **n_CPU** | `int` | Number of Client’s CPU | 
 | **training_time** | `float` | Client’s Training Time | 
 | **communication_time** | `float` | Client’s Communication Time | 
