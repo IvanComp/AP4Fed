@@ -238,23 +238,23 @@ class RecapSimulationPage(QWidget):
 
         # Definiamo la struttura delle 4 categorie, ciascuna con una lista di (chiave_config, label_amichevole)
         categories = [
-            ("Client Management Category", [
+            ("Client Management", [
                 ("client_registry", "Client Registry"),
                 ("client_selector", "Client Selector"),
                 ("client_cluster", "Client Cluster"),
             ]),
-            ("Model Management Category", [
+            ("Model Management", [
                 ("message_compressor", "Message Compressor"),
                 ("model_co-versioning_registry", "Model co-Versioning Registry"),
                 ("model_replacement_trigger", "Model Replacement Trigger"),
                 ("deployment_selector", "Deployment Selector"),
             ]),
-            ("Model Training Category", [
+            ("Model Training", [
                 ("multi-task_model_trainer", "Multi-Task Model Trainer"),
                 ("heterogeneous_data_handler", "Heterogeneous Data Handler"),
                 ("incentive_registry", "Incentive Registry"),
             ]),
-            ("Model Aggregation Category", [
+            ("Model Aggregation", [
                 ("asynchronous_aggregator", "Asynchronous Aggregator"),
                 ("decentralised_aggregator", "Decentralised Aggregator"),
                 ("hierarchical_aggregator", "Hierarchical Aggregator"),
@@ -439,7 +439,7 @@ class RecapSimulationPage(QWidget):
                     font-size: 14px;
                 }
                 QMessageBox QPushButton {
-                    background-color: lightgray;
+                    background-color: white;
                     color: black;
                     font-size: 12px;
                     padding: 5px;

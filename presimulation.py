@@ -31,14 +31,14 @@ class PreSimulationPage(QWidget):
             },
             "Client Selector": {
                 "category": "Client Management Category",
-                "image": "img/patterns/Client-Management/clientselector.svg",
+                "image": "img/patterns/Client-Management/clientselector.png",
                 "description": "Actively selects client devices for a specific training round based on predefined criteria to enhance model performance and system efficiency.",
                 "benefits": "Ensures only the most relevant clients train each round, potentially improving performance.",
                 "drawbacks": "May exclude important data from non-selected clients."
             },
             "Client Cluster": {
                 "category": "Client Management Category",
-                "image": "img/patterns/Client-Management/clientcluster.svg",
+                "image": "img/patterns/Client-Management/clientcluster.png",
                 "description": "Groups client devices based on their similarity (e.g., resources, data distribution) to improve model performance and training efficiency.",
                 "benefits": "Allows specialized training; can handle different groups more effectively.",
                 "drawbacks": "Additional overhead to manage cluster membership."
@@ -669,6 +669,13 @@ class ClientConfigurationPage(QWidget):
             QPushButton:pressed {
                 background-color: #008000;
             }
+            QFrame#ClientCard {
+                background-color: #f0f0f0; 
+                border: 1px solid lightgray;
+                border-radius: 5px;
+                margin-top: 5px;
+                margin-bottom: 5px;
+            }
         """)
         confirm_button.setCursor(Qt.PointingHandCursor)
         confirm_button.clicked.connect(self.save_client_configurations_and_continue)
@@ -686,7 +693,7 @@ class ClientConfigurationPage(QWidget):
         card.setLayout(card_layout)
         card.setStyleSheet("""
                 QMessageBox {
-                    background-color: lightgray;
+                    background-color: #f9f9f9;
                 }
             """)
 
@@ -744,6 +751,8 @@ class ClientConfigurationPage(QWidget):
         dataset_label.setStyleSheet("font-size: 12px;; background:white")
         dataset_label.setAlignment(Qt.AlignLeft)
         dataset_combobox = QComboBox()
+        dataset_combobox.setStyleSheet("background:white")
+        dataset_combobox.setCursor(Qt.PointingHandCursor)
         dataset_combobox.addItems(["CIFAR-10", "FMNIST", "MIXED"])
         dataset_combobox.setFixedWidth(100)
 
@@ -751,6 +760,8 @@ class ClientConfigurationPage(QWidget):
         partition_label.setStyleSheet("font-size: 12px; ; background:white")
         partition_label.setAlignment(Qt.AlignLeft)
         partition_combobox = QComboBox()
+        partition_combobox.setStyleSheet("background:white")
+        partition_combobox.setCursor(Qt.PointingHandCursor)
         partition_combobox.addItems(["IID", "non-IID", "Random"])
         partition_combobox.setFixedWidth(100)
 
