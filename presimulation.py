@@ -12,11 +12,6 @@ from PyQt5.QtGui import QPixmap, QIcon, QDesktopServices
 from PyQt5.QtSvg import QSvgWidget
 
 class PreSimulationPage(QWidget):
-    """
-    Questa classe rappresenta la pagina di pre-simulazione dove l'utente può configurare
-    le impostazioni generali della simulazione, come il numero di round, il numero di client,
-    e selezionare i pattern architetturali da implementare.
-    """
     def __init__(self, user_choices, home_page_callback):
         super().__init__()
 
@@ -567,7 +562,7 @@ class ClientConfigurationPage(QWidget):
     def __init__(self, user_choices, home_page_callback):
         super().__init__()
         self.setWindowTitle("Client Configuration")
-        self.resize(800, 600)
+        self.resize(1200, 1000)
         self.user_choices = user_choices
         self.home_page_callback = home_page_callback
 
@@ -601,9 +596,8 @@ class ClientConfigurationPage(QWidget):
             QPushButton:pressed {
                 background-color: #008000;
             }
-            /* Stile per i QFrame che fungono da 'card' dei client */
             QFrame#ClientCard {
-                background-color: #f0f0f0; /* come il tuo QGroupBox di prima */
+                background-color: #f0f0f0; 
                 border: 1px solid lightgray;
                 border-radius: 5px;
                 margin-top: 5px;
@@ -611,24 +605,51 @@ class ClientConfigurationPage(QWidget):
             }
         """)
 
-        # Layout verticale principale
-        main_layout = QVBoxLayout()
-        main_layout.setAlignment(Qt.AlignTop)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(5)
-        self.setLayout(main_layout)
+        # Layout orizzontale principale: a sinistra la lista dei pattern, a destra i client
+        main_hlayout = QHBoxLayout()
+        main_hlayout.setContentsMargins(10, 10, 10, 10)
+        main_hlayout.setSpacing(10)
+        self.setLayout(main_hlayout)
 
-        # Titolo
+        # ----------- Colonna di sinistra: Patterns selezionati -------------
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+        left_layout.setAlignment(Qt.AlignTop)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(5)
+
+        patterns_label = QLabel("Selected Patterns")
+        patterns_label.setStyleSheet("font-size: 14px; font-weight: bold; margin-bottom: 5px;")
+        left_layout.addWidget(patterns_label)
+
+        # Recuperiamo i pattern selezionati
+        selected_patterns = self.user_choices[-1].get("patterns", {})
+        for pattern_key, is_enabled in selected_patterns.items():
+            if is_enabled:
+                pattern_text = pattern_key.replace("_", " ").title()  # es: "client_registry" -> "Client Registry"
+                lbl = QLabel(f"• {pattern_text}")
+                lbl.setStyleSheet("font-size: 12px; color: black;")
+                left_layout.addWidget(lbl)
+
+        left_layout.addStretch()
+        main_hlayout.addWidget(left_widget, stretch=1)
+
+        # ----------- Colonna di destra: Configurazione client -------------
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        right_layout.setAlignment(Qt.AlignTop)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(5)
+
         title_label = QLabel("Configure Each Client")
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("font-size: 14px; font-weight: bold; margin-bottom: 5px;")
-        main_layout.addWidget(title_label)
+        right_layout.addWidget(title_label)
 
-        # Area di scorrimento per gestire molti client
         scroll_area = QScrollArea()
         scroll_area.setStyleSheet("background-color: transparent;")
         scroll_area.setWidgetResizable(True)
-        main_layout.addWidget(scroll_area)
+        right_layout.addWidget(scroll_area)
 
         scroll_widget = QWidget()
         scroll_widget.setStyleSheet("background-color: transparent;")
@@ -640,11 +661,10 @@ class ClientConfigurationPage(QWidget):
         self.client_configs = []
         num_clients = self.user_choices[-1]["clients"]
 
-        # Creazione di una "card" verticale per ogni client (con larghezza fissa)
+        # Creiamo la card per ogni client
         for client_id in range(1, num_clients + 1):
             card_widget, config_dict = self.create_client_card(client_id)
 
-            # Usa un piccolo layout orizzontale per centrare la card
             hbox = QHBoxLayout()
             hbox.setAlignment(Qt.AlignCenter)
             hbox.addWidget(card_widget)
@@ -652,34 +672,13 @@ class ClientConfigurationPage(QWidget):
 
             self.client_configs.append(config_dict)
 
-        # Pulsante di conferma in basso
+        # Pulsante in fondo
         confirm_button = QPushButton("Confirm and Continue")
-        confirm_button.setStyleSheet("""
-            QPushButton {
-                background-color: #70C284;
-                color: white;
-                border-radius: 5px;
-                margin: 5px;   /* "Margine" esterno al pulsante */
-                padding: 8px;  /* Spazio interno al pulsante (simile a CSS 'padding') */
-                font-size: 13px;
-            }
-            QPushButton:hover {
-                background-color: #00b300;
-            }
-            QPushButton:pressed {
-                background-color: #008000;
-            }
-            QFrame#ClientCard {
-                background-color: #f0f0f0; 
-                border: 1px solid lightgray;
-                border-radius: 5px;
-                margin-top: 5px;
-                margin-bottom: 5px;
-            }
-        """)
         confirm_button.setCursor(Qt.PointingHandCursor)
         confirm_button.clicked.connect(self.save_client_configurations_and_continue)
-        main_layout.addWidget(confirm_button, alignment=Qt.AlignCenter)
+        right_layout.addWidget(confirm_button, alignment=Qt.AlignCenter)
+
+        main_hlayout.addWidget(right_widget, stretch=3)
 
     def create_client_card(self, client_id):
         """
