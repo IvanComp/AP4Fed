@@ -3,9 +3,9 @@ import subprocess
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QFrame, QVBoxLayout, QLabel, QPushButton, QSpinBox,
     QCheckBox, QGroupBox, QFormLayout, QHBoxLayout, QGridLayout,
-    QComboBox, QScrollArea, QSizePolicy, QStyle
+    QComboBox, QScrollArea, QSizePolicy, QStyle, QMessageBox
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QSize
 from recap_simulation import RecapSimulationPage
 
 class PreSimulationPage(QWidget):
@@ -193,11 +193,42 @@ class PreSimulationPage(QWidget):
             topic_layout.setSpacing(5)
 
             for pattern in patterns:
-                pattern_name = pattern.split(":")[0]
-                checkbox_label = pattern_name
-                checkbox_tooltip = pattern.split(":")[1].strip()
-                checkbox = QCheckBox(checkbox_label)
-                checkbox.setToolTip(checkbox_tooltip)
+                # pattern contiene stringhe tipo "Client Registry: descrizione..."
+                pattern_name = pattern.split(":")[0].strip()
+                pattern_desc = pattern.split(":")[1].strip()  # La descrizione dopo i due punti
+
+                # Layout orizzontale per (pulsante info + checkbox)
+                pattern_layout = QHBoxLayout()
+                pattern_layout.setSpacing(6)
+
+                # Crea un piccolo pulsante con icona info
+                info_button = QPushButton()
+                info_button.setCursor(Qt.PointingHandCursor)
+                info_button.setToolTip(f"More info about {pattern_name}")
+                info_icon = self.style().standardIcon(QStyle.SP_MessageBoxInformation)
+                info_button.setIcon(info_icon)
+                
+                # Imposta una dimensione fissa per il pulsante (es. 24x24) e icona (16x16)
+                info_button.setFixedSize(24, 24)
+                info_button.setIconSize(QSize(16, 16))
+                info_button.setStyleSheet("""
+                    QPushButton {
+                        background-color: transparent;
+                        border: none;
+                        padding: 0px;
+                        margin: 0px;
+                    }
+                    QPushButton:hover {
+                        background-color: #e0e0e0;
+                    }
+                """)
+
+                # Collegamento click -> popup info
+                info_button.clicked.connect(lambda checked, p=pattern_name, d=pattern_desc: self.show_pattern_info(p, d))
+
+                # Creazione checkbox
+                checkbox = QCheckBox(pattern_name)
+                checkbox.setToolTip(pattern_desc)
                 checkbox.setStyleSheet("""
                     QCheckBox {
                         color: black;
@@ -207,7 +238,8 @@ class PreSimulationPage(QWidget):
                         color: black;
                     }
                 """)
-                # Patterns implementati
+
+                # Abilita/disabilita pattern
                 enabled_patterns = [
                     "Client Registry",
                     "Client Selector",
@@ -216,30 +248,29 @@ class PreSimulationPage(QWidget):
                     "Multi-Task Model Trainer",
                     "Heterogeneous Data Handler",
                 ]
-
                 if pattern_name not in enabled_patterns:
                     checkbox.setEnabled(False)
 
+                # Gestione speciale di "Client Registry (Active by default)"
                 if pattern_name == "Client Registry":
-                    # Modifica dell'etichetta per includere "(Active by default)"
                     checkbox.setText("Client Registry (Active by Default)")
                     checkbox.setChecked(True)
-                    # Non disabilitiamo il checkbox, ma impediamo che possa essere deselezionato
                     def prevent_uncheck(state):
                         if state != Qt.Checked:
                             checkbox.blockSignals(True)
                             checkbox.setChecked(True)
                             checkbox.blockSignals(False)
                     checkbox.stateChanged.connect(prevent_uncheck)
-                    checkbox.setStyleSheet("""
-                        QCheckBox {
-                            color: black;
-                            font-size: 12px;
-                        }
-                    """)
 
+                # Aggiungi il pulsante info e il checkbox al layout orizzontale
+                pattern_layout.addWidget(info_button)
+                pattern_layout.addWidget(checkbox)
+
+                topic_layout.addLayout(pattern_layout)
+
+                # Salva riferimento al checkbox
                 self.pattern_checkboxes[pattern_name] = checkbox
-                topic_layout.addWidget(checkbox)
+
             topic_group.setLayout(topic_layout)
             patterns_grid.addWidget(topic_group, row, col)
             col += 1
