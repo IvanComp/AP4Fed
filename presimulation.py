@@ -3,10 +3,13 @@ import subprocess
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QFrame, QVBoxLayout, QLabel, QPushButton, QSpinBox,
     QCheckBox, QGroupBox, QFormLayout, QHBoxLayout, QGridLayout,
-    QComboBox, QScrollArea, QSizePolicy, QStyle, QMessageBox
+    QComboBox, QScrollArea, QSizePolicy, QStyle, QMessageBox,
+    QDialog, QDialogButtonBox
 )
 from PyQt5.QtCore import Qt, QSize
 from recap_simulation import RecapSimulationPage
+from PyQt5.QtGui import QPixmap, QIcon, QDesktopServices
+from PyQt5.QtSvg import QSvgWidget
 
 class PreSimulationPage(QWidget):
     """
@@ -16,6 +19,115 @@ class PreSimulationPage(QWidget):
     """
     def __init__(self, user_choices, home_page_callback):
         super().__init__()
+
+        self.pattern_data = {
+            # Client Management Category
+            "Client Registry": {
+                "category": "Client Management Category",
+                "image": "img/patterns/Client-Management/clientregistry.png",  
+                "description": "Maintains information about all participating client devices for client management.",
+                "benefits": "Centralized tracking of client states; easier organization.",
+                "drawbacks": "Requires overhead for maintaining the registry."
+            },
+            "Client Selector": {
+                "category": "Client Management Category",
+                "image": "img/patterns/Client-Management/clientselector.svg",
+                "description": "Actively selects client devices for a specific training round based on predefined criteria to enhance model performance and system efficiency.",
+                "benefits": "Ensures only the most relevant clients train each round, potentially improving performance.",
+                "drawbacks": "May exclude important data from non-selected clients."
+            },
+            "Client Cluster": {
+                "category": "Client Management Category",
+                "image": "img/patterns/Client-Management/clientcluster.svg",
+                "description": "Groups client devices based on their similarity (e.g., resources, data distribution) to improve model performance and training efficiency.",
+                "benefits": "Allows specialized training; can handle different groups more effectively.",
+                "drawbacks": "Additional overhead to manage cluster membership."
+            },
+
+            # Model Management Category
+            "Message Compressor": {
+                "category": "Model Management Category",
+                "image": "img/patterns/Model-Management/message_compressor.png",
+                "description": "Compresses and reduces the size of message data before each model exchange round to improve communication efficiency.",
+                "benefits": "Reduces bandwidth usage; can speed up communication rounds.",
+                "drawbacks": "Compression/decompression overhead might offset gains for large data."
+            },
+            "Model co-Versioning Registry": {
+                "category": "Model Management Category",
+                "image": "TODO",
+                "description": "This Architectural Pattern is not yet implemented",
+                "benefits": "TODO",
+                "drawbacks": "TODO"
+            },
+            "Model Replacement Trigger": {
+                "category": "Model Management Category",
+                "image": "TODO",
+                "description": "This Architectural Pattern is not yet implemented",
+                "benefits": "TODO",
+                "drawbacks": "TODO"
+            },
+            "Deployment Selector": {
+                "category": "Model Management Category",
+                "image": "TODO",
+                "description": "This Architectural Pattern is not yet implemented",
+                "benefits": "TODO",
+                "drawbacks": "TODO"
+            },
+
+            # Model Training Category
+            "Multi-Task Model Trainer": {
+                "category": "Model Training Category",
+                "image": "img/patterns/Model-Management/multi_task_model_trainer.svg",
+                "description": "Utilizes data from related models on local devices to enhance efficiency.",
+                "benefits": "Potential knowledge sharing among similar tasks; improved training.",
+                "drawbacks": "Training logic may become more complex to handle multiple tasks."
+            },
+            "Heterogeneous Data Handler": {
+                "category": "Model Training Category",
+                "image": "img/patterns/Model-Management/heterogeneous_data_handler.svg",
+                "description": "Addresses issues with non-IID and skewed data while preserving data privacy.",
+                "benefits": "Better management of varied data distributions.",
+                "drawbacks": "Requires more sophisticated data partitioning and handling logic."
+            },
+            "Incentive Registry": {
+                "category": "Model Training Category",
+                "image": "TODO",
+                "description": "This Architectural Pattern is not yet implemented",
+                "benefits": "TODO",
+                "drawbacks": "TODO"
+            },
+
+            # Model Aggregation Category
+            "Asynchronous Aggregator": {
+                "category": "Model Aggregation Category",
+                "image": "TODO",
+                "description": "This Architectural Pattern is not yet implemented",
+                "benefits": "TODO",
+                "drawbacks": "TODO"
+            },
+            "Decentralised Aggregator": {
+                "category": "Model Aggregation Category",
+                "image": "TODO",
+                "description": "This Architectural Pattern is not yet implemented",
+                "benefits": "TODO",
+                "drawbacks": "TODO"
+            },
+            "Hierarchical Aggregator": {
+                "category": "Model Aggregation Category",
+                "image": "TODO",
+                "description": "This Architectural Pattern is not yet implemented",
+                "benefits": "TODO",
+                "drawbacks": "TODO"
+            },
+            "Secure Aggregator": {
+                "category": "Model Aggregation Category",
+                "image": "TODO",
+                "description": "This Architectural Pattern is not yet implemented",
+                "benefits": "TODO",
+                "drawbacks": "TODO"
+            }
+        }
+
         self.setStyleSheet("""
             QWidget {
                 background-color: white;
@@ -145,26 +257,26 @@ class PreSimulationPage(QWidget):
         self.pattern_checkboxes = {}
         macrotopics = [
             ("Client Management Category", [
-                "Client Registry: Mantiene le informazioni di tutti i dispositivi client partecipanti per la gestione dei client.",
-                "Client Selector: Seleziona attivamente i dispositivi client per un certo round di training secondo criteri predefiniti per aumentare le prestazioni del modello e l'efficienza del sistema.",
-                "Client Cluster: Raggruppa i dispositivi client in base alla loro somiglianza di determinate caratteristiche (es. risorse, distribuzione dei dati) per aumentare le prestazioni del modello e l'efficienza del training."
+                "Client Registry: Maintains information about all participating client devices for client management.",
+                "Client Selector: Actively selects client devices for a specific training round based on predefined criteria to enhance model performance and system efficiency.",
+                "Client Cluster: Groups client devices based on their similarity in certain characteristics (e.g., resources, data distribution) to improve model performance and training efficiency."
             ]),
             ("Model Management Category", [
-                "Message Compressor: Comprime e riduce la dimensione dei dati dei messaggi prima di ogni round di scambio del modello per aumentare l'efficienza della comunicazione.",
-                "Model co-Versioning Registry: Memorizza e allinea i modelli locali con le versioni del modello globale per il tracciamento.",
-                "Model Replacement Trigger: Attiva la sostituzione del modello quando viene rilevato un degrado delle prestazioni del modello.",
-                "Deployment Selector: Abbina modelli globali convergenti a client idonei per l'ottimizzazione dei task."
+                "Message Compressor: Compresses and reduces the size of message data before each model exchange round to improve communication efficiency.",
+                "Model co-Versioning Registry: Stores and aligns local models with the global model versions for tracking purposes.",
+                "Model Replacement Trigger: Triggers model replacement when performance degradation is detected.",
+                "Deployment Selector: Matches converging global models with suitable clients for task optimization."
             ]),
             ("Model Training Category", [
-                "Multi-Task Model Trainer: Utilizza dati da modelli correlati su dispositivi locali per migliorare l'efficienza.",
-                "Heterogeneous Data Handler: Risolve problemi di dati non-IID e distorti mantenendo la privacy dei dati.",
-                "Incentive Registry: Misura e registra i contributi dei client e fornisce incentivi."
+                "Multi-Task Model Trainer: Utilizes data from related models on local devices to enhance efficiency.",
+                "Heterogeneous Data Handler: Addresses issues with non-IID and skewed data while maintaining data privacy.",
+                "Incentive Registry: Measures and records client contributions and provides incentives."
             ]),
             ("Model Aggregation Category", [
-                "Asynchronous Aggregator: Aggrega in modo asincrono per ridurre la latenza.",
-                "Decentralised Aggregator: Rimuove il server centrale per prevenire guasti del punto singolo.",
-                "Hierarchical Aggregator: Aggiunge un layer edge per l'aggregazione parziale per migliorare l'efficienza.",
-                "Secure Aggregator: Garantisce la sicurezza durante l'aggregazione."
+                "Asynchronous Aggregator: Aggregates asynchronously to reduce latency.",
+                "Decentralised Aggregator: Removes the central server to prevent single-point failures.",
+                "Hierarchical Aggregator: Adds an edge layer for partial aggregation to improve efficiency.",
+                "Secure Aggregator: Ensures security during aggregation."
             ])
         ]
 
@@ -201,14 +313,14 @@ class PreSimulationPage(QWidget):
                 pattern_layout = QHBoxLayout()
                 pattern_layout.setSpacing(6)
 
-                # Crea un piccolo pulsante con icona info
+                # Pulsante con icona info
                 info_button = QPushButton()
                 info_button.setCursor(Qt.PointingHandCursor)
                 info_button.setToolTip(f"More info about {pattern_name}")
                 info_icon = self.style().standardIcon(QStyle.SP_MessageBoxInformation)
+                info_button.setCursor(Qt.PointingHandCursor)
                 info_button.setIcon(info_icon)
                 
-                # Imposta una dimensione fissa per il pulsante (es. 24x24) e icona (16x16)
                 info_button.setFixedSize(24, 24)
                 info_button.setIconSize(QSize(16, 16))
                 info_button.setStyleSheet("""
@@ -223,8 +335,29 @@ class PreSimulationPage(QWidget):
                     }
                 """)
 
-                # Collegamento click -> popup info
-                info_button.clicked.connect(lambda checked, p=pattern_name, d=pattern_desc: self.show_pattern_info(p, d))
+                # Funzione wrapper per recuperare i dati dal dizionario (self.pattern_data)
+                def info_clicked(checked, pname=pattern_name):
+                    # Se pattern_name esiste in self.pattern_data, mostriamo i dati custom
+                    if pname in self.pattern_data:
+                        data = self.pattern_data[pname]
+                        cat_ = data["category"]
+                        img_ = data["image"]
+                        desc_ = data["description"]
+                        ben_ = data["benefits"]
+                        dr_  = data["drawbacks"]
+                        self.show_pattern_info(pname, cat_, img_, desc_, ben_, dr_)
+                    else:
+                        # fallback (se non c'è)
+                        self.show_pattern_info(
+                            pname,
+                            topic,
+                            "img/fittizio.png",
+                            pattern_desc,
+                            "No custom benefits",
+                            "No custom drawbacks"
+                        )
+
+                info_button.clicked.connect(info_clicked)
 
                 # Creazione checkbox
                 checkbox = QCheckBox(pattern_name)
@@ -262,10 +395,8 @@ class PreSimulationPage(QWidget):
                             checkbox.blockSignals(False)
                     checkbox.stateChanged.connect(prevent_uncheck)
 
-                # Aggiungi il pulsante info e il checkbox al layout orizzontale
                 pattern_layout.addWidget(info_button)
                 pattern_layout.addWidget(checkbox)
-
                 topic_layout.addLayout(pattern_layout)
 
                 # Salva riferimento al checkbox
@@ -318,6 +449,78 @@ class PreSimulationPage(QWidget):
             # Comando docker non trovato
             self.docker_status_label.setText("Not Installed")
             self.docker_status_label.setStyleSheet("color: red; font-size: 12px;")
+
+    def show_pattern_info(self, pattern_name, pattern_category, image_path, description, benefits, drawbacks):
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"{pattern_name} - {pattern_category}")
+        dialog.resize(500, 400)
+
+        layout = QVBoxLayout(dialog)
+        layout.setAlignment(Qt.AlignTop)
+
+        title_label = QLabel(f"{pattern_name} ({pattern_category})")
+        title_label.setStyleSheet("color: black; font-size: 16px; font-weight: bold; margin-bottom: 10px;")
+        layout.addWidget(title_label, alignment=Qt.AlignCenter)
+
+        base_dir = os.path.dirname(os.path.abspath(__file__)) 
+        # DEBUG: stampa il percorso e il risultato di os.path.exists
+        print(f"[DEBUG] Trying to load image at: {image_path}")
+        print(f"[DEBUG] os.path.exists(image_path) = {os.path.exists(os.path.join(base_dir, image_path))}")
+
+        image_label = QLabel()   
+        
+        if os.path.exists(os.path.join(base_dir, image_path)):            
+            image_path = os.path.join(base_dir, image_path)
+            pixmap = QPixmap(image_path)
+            pixmap = pixmap.scaled(200, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            image_label.setPixmap(pixmap)
+            image_label.setAlignment(Qt.AlignCenter)
+        else:
+            # Il file non esiste
+            image_label.setText("Image not found")
+            image_label.setStyleSheet("color: red;")
+            image_label.setAlignment(Qt.AlignCenter)
+
+        layout.addWidget(image_label)
+
+        desc_label = QLabel(description)
+        desc_label.setWordWrap(True)
+        desc_label.setStyleSheet("color: black; font-size: 13px; margin-top: 5px;")
+        layout.addWidget(desc_label)
+
+        benefits_label = QLabel(f"Benefits: {benefits}")
+        benefits_label.setWordWrap(True)
+        benefits_label.setStyleSheet("color: green; font-size: 12px; margin-top: 10px;")
+        layout.addWidget(benefits_label)
+
+        drawbacks_label = QLabel(f"Drawbacks: {drawbacks}")
+        drawbacks_label.setWordWrap(True)
+        drawbacks_label.setStyleSheet("color: red; font-size: 12px; margin-top: 5px;")
+        layout.addWidget(drawbacks_label)
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Close)
+        button_box.rejected.connect(dialog.reject)
+        button_box.setCursor(Qt.PointingHandCursor)
+
+        button_box.setStyleSheet("""
+            QPushButton {
+                background-color: red;
+                color: white;
+                border-radius: 5px;
+                margin: 5px;   /* "Margine" esterno al pulsante */
+                padding: 8px;  /* Spazio interno al pulsante */
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #ff6666;
+            }
+            QPushButton:pressed {
+                background-color: #cc0000;
+            }
+        """)
+
+        layout.addWidget(button_box, alignment=Qt.AlignCenter)
+        dialog.exec_()
 
     def update_docker_status(self):
         """
@@ -451,6 +654,22 @@ class ClientConfigurationPage(QWidget):
 
         # Pulsante di conferma in basso
         confirm_button = QPushButton("Confirm and Continue")
+        confirm_button.setStyleSheet("""
+            QPushButton {
+                background-color: #70C284;
+                color: white;
+                border-radius: 5px;
+                margin: 5px;   /* "Margine" esterno al pulsante */
+                padding: 8px;  /* Spazio interno al pulsante (simile a CSS 'padding') */
+                font-size: 13px;
+            }
+            QPushButton:hover {
+                background-color: #00b300;
+            }
+            QPushButton:pressed {
+                background-color: #008000;
+            }
+        """)
         confirm_button.setCursor(Qt.PointingHandCursor)
         confirm_button.clicked.connect(self.save_client_configurations_and_continue)
         main_layout.addWidget(confirm_button, alignment=Qt.AlignCenter)
