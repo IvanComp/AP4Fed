@@ -219,47 +219,103 @@ class RecapSimulationPage(QWidget):
 
     def display_patterns(self, layout):
         """
-        Displays patterns with green ticks if True.
+        Visualizza i pattern raggruppati in 4 categorie.
+        Se un pattern è True mostra una spunta verde, se False mostra una X rossa.
         """
-        # Merge configurations
+        # Merge configuration
         merged_config = {}
         for choice in self.user_choices:
             if isinstance(choice, dict):
                 merged_config.update(choice)
 
-        # Patterns Section
+        # Sezione Patterns
         patterns_label = QLabel("Patterns")
         patterns_label.setStyleSheet("color: black; font-size: 20px; font-weight: bold; margin-top: 20px;")
         layout.addWidget(patterns_label)
 
-        patterns = merged_config.get('patterns', {})
+        # Otteniamo il dict dei pattern dal config
+        all_patterns = merged_config.get('patterns', {})
 
-        # Display patterns with green ticks if True
-        for pattern, is_enabled in patterns.items():
-            pattern_layout = QHBoxLayout()
-            pattern_layout.setAlignment(Qt.AlignLeft)
+        # Definiamo la struttura delle 4 categorie, ciascuna con una lista di (chiave_config, label_amichevole)
+        categories = [
+            ("Client Management Category", [
+                ("client_registry", "Client Registry"),
+                ("client_selector", "Client Selector"),
+                ("client_cluster", "Client Cluster"),
+            ]),
+            ("Model Management Category", [
+                ("message_compressor", "Message Compressor"),
+                ("model_co-versioning_registry", "Model co-Versioning Registry"),
+                ("model_replacement_trigger", "Model Replacement Trigger"),
+                ("deployment_selector", "Deployment Selector"),
+            ]),
+            ("Model Training Category", [
+                ("multi-task_model_trainer", "Multi-Task Model Trainer"),
+                ("heterogeneous_data_handler", "Heterogeneous Data Handler"),
+                ("incentive_registry", "Incentive Registry"),
+            ]),
+            ("Model Aggregation Category", [
+                ("asynchronous_aggregator", "Asynchronous Aggregator"),
+                ("decentralised_aggregator", "Decentralised Aggregator"),
+                ("hierarchical_aggregator", "Hierarchical Aggregator"),
+                ("secure_aggregator", "Secure Aggregator"),
+            ])
+        ]
 
-            display_pattern = pattern.replace('_', ' ').title()
+        # Creiamo una griglia 2x2 per le 4 categorie
+        categories_grid = QGridLayout()
+        categories_grid.setSpacing(20)
+        layout.addLayout(categories_grid)
 
-            pattern_label = QLabel(f"{display_pattern}")
-            pattern_label.setStyleSheet("color: black; font-size: 14px;")
-            pattern_layout.addWidget(pattern_label)
+        row, col = 0, 0
+        for category_title, pattern_list in categories:
+            # Crea un frame per la singola categoria
+            cat_frame = QFrame()
+            cat_frame.setFrameShape(QFrame.Box)
+            cat_frame.setLineWidth(1)
+            cat_frame.setStyleSheet("background-color: #f9f9f9; border-radius: 5px;")
 
-            if isinstance(is_enabled, bool):
+            cat_layout = QVBoxLayout()
+            cat_layout.setAlignment(Qt.AlignTop)
+            cat_frame.setLayout(cat_layout)
+
+            # Titolo della categoria
+            cat_label = QLabel(category_title)
+            cat_label.setStyleSheet("color: black; font-size: 14px; font-weight: bold; margin-top: 5px;")
+            cat_layout.addWidget(cat_label, alignment=Qt.AlignCenter)
+
+            # Elenco pattern
+            for pattern_key, pattern_display_name in pattern_list:
+                # Crea un layout orizzontale per l'icona e il nome
+                pattern_layout = QHBoxLayout()
+                pattern_layout.setAlignment(Qt.AlignLeft)
+
+                # Icona verde (check) o rossa (X) PRIMA del nome pattern
+                is_enabled = all_patterns.get(pattern_key, False)
                 icon_label = QLabel()
                 if is_enabled:
-                    icon = self.style().standardIcon(QStyle.SP_DialogApplyButton)
+                    icon_label.setText("✔")  # check unicode
+                    icon_label.setStyleSheet("color: green; font-size: 14px; margin-right: 5px;")
                 else:
-                    icon = self.style().standardIcon(QStyle.SP_DialogCancelButton)
-                icon_label.setPixmap(icon.pixmap(16, 16))
-                pattern_layout.addWidget(icon_label)
-            else:
-                # If the value is not boolean, display the value
-                value_label = QLabel(str(is_enabled))
-                value_label.setStyleSheet("color: black; font-size: 14px;")
-                pattern_layout.addWidget(value_label)
+                    icon_label.setText("✘")  # X unicode
+                    icon_label.setStyleSheet("color: red; font-size: 14px; margin-right: 5px;")
 
-            layout.addLayout(pattern_layout)
+                pattern_layout.addWidget(icon_label)
+
+                # Nome pattern
+                p_label = QLabel(pattern_display_name)
+                p_label.setStyleSheet("color: black; font-size: 13px;")
+                pattern_layout.addWidget(p_label)
+
+                cat_layout.addLayout(pattern_layout)
+
+                # Inseriamo il frame della categoria nella griglia 2x2
+                categories_grid.addWidget(cat_frame, row, col)
+
+            col += 1
+            if col >= 2:
+                col = 0
+                row += 1
 
     def add_configuration_items(self, config, layout, indent=0):
         """

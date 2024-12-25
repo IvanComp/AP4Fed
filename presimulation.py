@@ -1,7 +1,7 @@
 import os
 import subprocess
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QLabel, QPushButton, QSpinBox,
+    QApplication, QWidget, QFrame, QVBoxLayout, QLabel, QPushButton, QSpinBox,
     QCheckBox, QGroupBox, QFormLayout, QHBoxLayout, QGridLayout,
     QComboBox, QScrollArea, QSizePolicy, QStyle
 )
@@ -77,14 +77,14 @@ class PreSimulationPage(QWidget):
         self.rounds_input = QSpinBox()
         self.rounds_input.setMinimum(1)
         self.rounds_input.setMaximum(100)
-        self.rounds_input.setValue(10)
+        self.rounds_input.setValue(3)
         general_settings_layout.addRow("Number of Rounds:", self.rounds_input)
 
         # Input per il numero di client
         self.clients_input = QSpinBox()
         self.clients_input.setMinimum(1)  # Minimo 1 client
         self.clients_input.setMaximum(100)
-        self.clients_input.setValue(2)
+        self.clients_input.setValue(3)
         general_settings_layout.addRow("Number of Clients:", self.clients_input)
 
         # Verifica lo stato di Docker se la simulazione è Docker
@@ -156,7 +156,7 @@ class PreSimulationPage(QWidget):
                 "Deployment Selector: Abbina modelli globali convergenti a client idonei per l'ottimizzazione dei task."
             ]),
             ("Model Training Category", [
-                "Multi-task Model Trainer: Utilizza dati da modelli correlati su dispositivi locali per migliorare l'efficienza.",
+                "Multi-Task Model Trainer: Utilizza dati da modelli correlati su dispositivi locali per migliorare l'efficienza.",
                 "Heterogeneous Data Handler: Risolve problemi di dati non-IID e distorti mantenendo la privacy dei dati.",
                 "Incentive Registry: Misura e registra i contributi dei client e fornisce incentivi."
             ]),
@@ -213,7 +213,8 @@ class PreSimulationPage(QWidget):
                     "Client Selector",
                     "Client Cluster",
                     "Message Compressor",
-                    "Multi-task Model Trainer"
+                    "Multi-Task Model Trainer",
+                    "Heterogeneous Data Handler",
                 ]
 
                 if pattern_name not in enabled_patterns:
@@ -221,7 +222,7 @@ class PreSimulationPage(QWidget):
 
                 if pattern_name == "Client Registry":
                     # Modifica dell'etichetta per includere "(Active by default)"
-                    checkbox.setText("Client Registry (Active by default)")
+                    checkbox.setText("Client Registry (Active by Default)")
                     checkbox.setChecked(True)
                     # Non disabilitiamo il checkbox, ma impediamo che possa essere deselezionato
                     def prevent_uncheck(state):
@@ -300,7 +301,7 @@ class PreSimulationPage(QWidget):
         # Salva le configurazioni dei pattern selezionati
         patterns_data = {}
         for key in ["Client Registry", "Client Selector", "Client Cluster",
-                    "Message Compressor", "Multi-task Model Trainer"]:
+                    "Message Compressor", "Multi-Task Model Trainer", "Heterogeneous Data Handler"]:
             patterns_data[key.lower().replace(" ", "_")] = (
                 self.pattern_checkboxes[key].isChecked() if key in self.pattern_checkboxes else False
             )
@@ -308,7 +309,7 @@ class PreSimulationPage(QWidget):
         simulation_config = {
             "rounds": self.rounds_input.value(),
             "clients": self.clients_input.value(),
-            "patterns": patterns_data
+            "patterns": patterns_data,
         }
 
         # Rimuovi la sezione Docker Configuration, dato che è stata eliminata
@@ -324,8 +325,10 @@ class PreSimulationPage(QWidget):
 
 class ClientConfigurationPage(QWidget):
     """
-    Questa classe rappresenta la pagina di configurazione dei client, dove l'utente può
-    specificare CPU, RAM e dataset per ciascun client.
+    Questa classe rappresenta la pagina di configurazione dei client,
+    con card verticali (una sotto l'altra), larghezza fissa
+    e centratura orizzontale.
+    Mantiene lo stile e le funzionalità precedenti.
     """
     def __init__(self, user_choices, home_page_callback):
         super().__init__()
@@ -334,6 +337,7 @@ class ClientConfigurationPage(QWidget):
         self.user_choices = user_choices
         self.home_page_callback = home_page_callback
 
+        # Stile ripreso dal tuo codice precedente + card style
         self.setStyleSheet("""
             QWidget {
                 background-color: white;  /* Sfondo bianco */
@@ -343,143 +347,19 @@ class ClientConfigurationPage(QWidget):
                 color: black;
                 background-color: transparent;  /* Rimuove lo sfondo bianco dai label */
             }
-            QGroupBox {
-                background-color: #f0f0f0;  /* Colore di sfondo dei box dei client */
-                border: 1px solid lightgray;
-                border-radius: 5px;
-                margin-top: 5px;
-                margin-bottom: 5px;
-            }
-            QGroupBox:title {
-                subcontrol-origin: margin;
-                subcontrol-position: top left;
-                padding: 0 5px;
-                color: black;
-                font-size: 12px;
-                font-weight: bold;
-            }
             QSpinBox, QComboBox {
                 background-color: white;
                 border: 1px solid gray;
                 border-radius: 3px;
                 height: 20px;  /* Riduce l'altezza dei widget */
+                font-size: 12px;
             }
             QPushButton {
                 height: 30px;  /* Riduce l'altezza del pulsante */
-            }
-        """)
-
-        layout = QVBoxLayout()
-        layout.setAlignment(Qt.AlignTop)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(5)
-        self.setLayout(layout)
-
-        title_label = QLabel("Configure Each Client")
-        title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("font-size: 14px; font-weight: bold;")
-        layout.addWidget(title_label)
-
-        # Area di scorrimento per gestire molti client
-        scroll_area = QScrollArea()
-        scroll_area.setStyleSheet("background-color: transparent;")
-        scroll_widget = QWidget()
-        scroll_widget.setStyleSheet("background-color: transparent;")
-        scroll_layout = QVBoxLayout()
-        scroll_layout.setContentsMargins(0, 0, 0, 0)
-        scroll_layout.setSpacing(5)
-        scroll_widget.setLayout(scroll_layout)
-        scroll_area.setWidget(scroll_widget)
-        scroll_area.setWidgetResizable(True)
-        layout.addWidget(scroll_area)
-
-        self.client_configs = []
-
-        num_clients = self.user_choices[-1]["clients"]
-
-        for client_id in range(1, num_clients + 1):
-            client_group = QGroupBox(f"Client {client_id}")
-            client_group.setStyleSheet("""
-                QGroupBox {
-                    background-color: #f0f0f0;
-                    border: 1px solid lightgray;
-                    border-radius: 5px;
-                    margin-top: 5px;
-                    margin-bottom: 5px;
-                }
-                QGroupBox:title {
-                    subcontrol-origin: margin;
-                    subcontrol-position: top left;
-                    padding: 0 5px;
-                    color: black;
-                    font-size: 12px;
-                    font-weight: bold;
-                }
-            """)
-            client_layout = QGridLayout()
-            client_layout.setContentsMargins(5, 5, 5, 5)
-            client_layout.setHorizontalSpacing(10)
-            client_layout.setVerticalSpacing(5)
-
-            # CPU Input
-            cpu_label = QLabel("CPU Allocation:")
-            cpu_label.setStyleSheet("font-size: 12px;")
-            cpu_input = QSpinBox()
-            cpu_input.setMinimum(1)
-            cpu_input.setMaximum(16)
-            cpu_input.setValue(1)
-            cpu_input.setSuffix(" CPUs")
-            cpu_input.setFixedWidth(80)
-            cpu_input.setStyleSheet("font-size: 12px;")
-
-            # RAM Input
-            ram_label = QLabel("RAM Allocation:")
-            ram_label.setStyleSheet("font-size: 12px;")
-            ram_input = QSpinBox()
-            ram_input.setMinimum(1)
-            ram_input.setMaximum(128)
-            ram_input.setValue(2)
-            ram_input.setSuffix(" GB")
-            ram_input.setFixedWidth(80)
-            ram_input.setStyleSheet("font-size: 12px;")
-
-            # Dataset Selection
-            dataset_label = QLabel("Testing Dataset:")
-            dataset_label.setStyleSheet("font-size: 12px;")
-            dataset_combobox = QComboBox()
-            dataset_combobox.addItems(["CIFAR-10", "FMNIST"])
-            dataset_combobox.setFixedWidth(120)
-            dataset_combobox.setStyleSheet("font-size: 12px; background-color:white")
-
-            # Aggiungi gli elementi al layout del client
-            client_layout.addWidget(cpu_label, 0, 0, alignment=Qt.AlignLeft)
-            client_layout.addWidget(cpu_input, 0, 1, alignment=Qt.AlignLeft)
-            client_layout.addWidget(ram_label, 0, 2, alignment=Qt.AlignLeft)
-            client_layout.addWidget(ram_input, 0, 3, alignment=Qt.AlignLeft)
-            client_layout.addWidget(dataset_label, 0, 4, alignment=Qt.AlignLeft)
-            client_layout.addWidget(dataset_combobox, 0, 5, alignment=Qt.AlignLeft)
-
-            client_group.setLayout(client_layout)
-            scroll_layout.addWidget(client_group)
-
-            # Salva gli input per un successivo recupero
-            self.client_configs.append({
-                "cpu_input": cpu_input,
-                "ram_input": ram_input,
-                "dataset_combobox": dataset_combobox
-            })
-
-        # Bottone per Confermare e Continuare
-        confirm_button = QPushButton("Confirm and Continue")
-        confirm_button.setCursor(Qt.PointingHandCursor)
-        confirm_button.setStyleSheet("""
-            QPushButton {
                 background-color: green;
                 color: white;
                 font-size: 12px;
-                padding: 5px 10px;
                 border-radius: 5px;
-                height: 30px;
             }
             QPushButton:hover {
                 background-color: #00b300;
@@ -487,13 +367,163 @@ class ClientConfigurationPage(QWidget):
             QPushButton:pressed {
                 background-color: #008000;
             }
+            /* Stile per i QFrame che fungono da 'card' dei client */
+            QFrame#ClientCard {
+                background-color: #f0f0f0; /* come il tuo QGroupBox di prima */
+                border: 1px solid lightgray;
+                border-radius: 5px;
+                margin-top: 5px;
+                margin-bottom: 5px;
+            }
         """)
+
+        # Layout verticale principale
+        main_layout = QVBoxLayout()
+        main_layout.setAlignment(Qt.AlignTop)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(5)
+        self.setLayout(main_layout)
+
+        # Titolo
+        title_label = QLabel("Configure Each Client")
+        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setStyleSheet("font-size: 14px; font-weight: bold; margin-bottom: 5px;")
+        main_layout.addWidget(title_label)
+
+        # Area di scorrimento per gestire molti client
+        scroll_area = QScrollArea()
+        scroll_area.setStyleSheet("background-color: transparent;")
+        scroll_area.setWidgetResizable(True)
+        main_layout.addWidget(scroll_area)
+
+        scroll_widget = QWidget()
+        scroll_widget.setStyleSheet("background-color: transparent;")
+        scroll_layout = QVBoxLayout(scroll_widget)
+        scroll_layout.setContentsMargins(0, 0, 0, 0)
+        scroll_layout.setSpacing(5)
+        scroll_area.setWidget(scroll_widget)
+
+        self.client_configs = []
+        num_clients = self.user_choices[-1]["clients"]
+
+        # Creazione di una "card" verticale per ogni client (con larghezza fissa)
+        for client_id in range(1, num_clients + 1):
+            card_widget, config_dict = self.create_client_card(client_id)
+
+            # Usa un piccolo layout orizzontale per centrare la card
+            hbox = QHBoxLayout()
+            hbox.setAlignment(Qt.AlignCenter)
+            hbox.addWidget(card_widget)
+            scroll_layout.addLayout(hbox)
+
+            self.client_configs.append(config_dict)
+
+        # Pulsante di conferma in basso
+        confirm_button = QPushButton("Confirm and Continue")
+        confirm_button.setCursor(Qt.PointingHandCursor)
         confirm_button.clicked.connect(self.save_client_configurations_and_continue)
-        layout.addWidget(confirm_button, alignment=Qt.AlignCenter)
+        main_layout.addWidget(confirm_button, alignment=Qt.AlignCenter)
+
+    def create_client_card(self, client_id):
+        """
+        Crea una card (QFrame) per un singolo client
+        restituendo (card_widget, dict_config).
+        """
+        card = QFrame(objectName="ClientCard")  # lo stile #ClientCard verrà applicato
+        card_layout = QVBoxLayout()
+        card_layout.setContentsMargins(8, 8, 8, 8)
+        card_layout.setSpacing(5)
+        card.setLayout(card_layout)
+        card.setStyleSheet("""
+                QMessageBox {
+                    background-color: lightgray;
+                }
+            """)
+
+        # Larghezza fissa delle card
+        card.setFixedWidth(600)
+
+        # Icona del computer come in Recap
+        pc_icon = self.style().standardIcon(QStyle.SP_ComputerIcon)
+        icon_label = QLabel()
+        icon_label.setPixmap(pc_icon.pixmap(24, 24))
+        icon_label.setAlignment(Qt.AlignCenter)
+        card_layout.addWidget(icon_label)
+
+        # Titolo "Client X"
+        client_title = QLabel(f"Client {client_id}")
+        client_title.setStyleSheet("font-size: 12px; font-weight: bold;")
+        client_title.setAlignment(Qt.AlignCenter)
+        card_layout.addWidget(client_title)
+
+        # Layout per i campi di input
+        # Riga 1: CPU, RAM
+        row1_layout = QHBoxLayout()
+        row1_layout.setSpacing(5)
+
+        cpu_label = QLabel("CPU Allocation:")
+        cpu_label.setStyleSheet("font-size: 12px; background:white")
+        cpu_label.setAlignment(Qt.AlignLeft)
+        cpu_input = QSpinBox()
+        cpu_input.setRange(1, 16)
+        cpu_input.setValue(1)
+        cpu_input.setSuffix(" CPUs")
+        cpu_input.setFixedWidth(80)
+
+        ram_label = QLabel("RAM Allocation:")
+        ram_label.setStyleSheet("font-size: 12px; background:white")
+        ram_label.setAlignment(Qt.AlignLeft)
+        ram_input = QSpinBox()
+        ram_input.setRange(1, 128)
+        ram_input.setValue(2)
+        ram_input.setSuffix(" GB")
+        ram_input.setFixedWidth(80)
+
+        row1_layout.addWidget(cpu_label)
+        row1_layout.addWidget(cpu_input)
+        row1_layout.addSpacing(10)
+        row1_layout.addWidget(ram_label)
+        row1_layout.addWidget(ram_input)
+        card_layout.addLayout(row1_layout)
+
+        # Riga 2: Dataset, Partition
+        row2_layout = QHBoxLayout()
+        row2_layout.setSpacing(5)
+
+        dataset_label = QLabel("Testing Dataset:")
+        dataset_label.setStyleSheet("font-size: 12px;; background:white")
+        dataset_label.setAlignment(Qt.AlignLeft)
+        dataset_combobox = QComboBox()
+        dataset_combobox.addItems(["CIFAR-10", "FMNIST", "MIXED"])
+        dataset_combobox.setFixedWidth(100)
+
+        partition_label = QLabel("Dataset Partition:")
+        partition_label.setStyleSheet("font-size: 12px; ; background:white")
+        partition_label.setAlignment(Qt.AlignLeft)
+        partition_combobox = QComboBox()
+        partition_combobox.addItems(["IID", "non-IID", "Random"])
+        partition_combobox.setFixedWidth(100)
+
+        row2_layout.addWidget(dataset_label)
+        row2_layout.addWidget(dataset_combobox)
+        row2_layout.addSpacing(10)
+        row2_layout.addWidget(partition_label)
+        row2_layout.addWidget(partition_combobox)
+        card_layout.addLayout(row2_layout)
+
+        # Riferimenti ai campi
+        config_dict = {
+            "cpu_input": cpu_input,
+            "ram_input": ram_input,
+            "dataset_combobox": dataset_combobox,
+            "data_distribution_type_combobox": partition_combobox
+        }
+
+        return card, config_dict
 
     def save_client_configurations_and_continue(self):
         """
-        Salva le configurazioni dei client e procede alla pagina di riepilogo.
+        Salva le configurazioni dei client e passa alla pagina di riepilogo.
         """
         client_details = []
         for idx, config in enumerate(self.client_configs):
@@ -501,15 +531,14 @@ class ClientConfigurationPage(QWidget):
                 "client_id": idx + 1,
                 "cpu": config["cpu_input"].value(),
                 "ram": config["ram_input"].value(),
-                "dataset": config["dataset_combobox"].currentText()
+                "dataset": config["dataset_combobox"].currentText(),
+                "data_distribution_type": config["data_distribution_type_combobox"].currentText()
             }
             client_details.append(client_info)
 
         self.user_choices[-1]["client_details"] = client_details
 
-        # Procede alla pagina di riepilogo
+        # Procede alla pagina di riepilogo (RecapSimulationPage)
         self.recap_simulation_page = RecapSimulationPage(self.user_choices)
         self.recap_simulation_page.show()
-
-        # Chiude la finestra attuale
         self.close()
