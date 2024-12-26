@@ -482,8 +482,26 @@ class PreSimulationPage(QWidget):
                 # Pulsante "Configure" -> compare/abilitato solo se checkbox = True
                 configure_button = QPushButton("Configure")
                 configure_button.setCursor(Qt.PointingHandCursor)
+                configure_button.setStyleSheet("""
+                    QPushButton {
+                    background-color: #ffc107;
+                    color: white;
+                    font-size: 10px;
+                    padding: 8px 16px;
+                    border-radius: 5px;
+                    text-align: left;
+                }
+                QPushButton:hover {
+                    background-color: #e0a800;
+                }
+                QPushButton:pressed {
+                    background-color: #c69500;
+                }
+                """)
                 configure_button.setVisible(False)  # Inizialmente nascosto
                 configure_button.setFixedWidth(80)
+
+                configure_button.clicked.connect(lambda _, p=pattern_name: open_config(p))
 
                 def on_checkbox_state_changed(state, btn=configure_button, p=pattern_name):
                     """
@@ -506,6 +524,24 @@ class PreSimulationPage(QWidget):
                 checkbox.stateChanged.connect(
                     lambda state, btn=configure_button, p=pattern_name: on_checkbox_state_changed(state, btn, p)
                 )
+                def open_config(pattern_name):
+                    """
+                    Apri una finestra di configurazione basata sul nome del pattern.
+                    """
+                    if pattern_name == "Client Selector":
+                        # Recupera i parametri precedenti, se disponibili
+                        existing_params = self.temp_pattern_config.get(pattern_name, {}).get("params", {})
+                        dlg = ClientSelectorDialog(existing_params)
+                        if dlg.exec_() == QDialog.Accepted:
+                            new_params = dlg.get_params()
+                            # Salva i nuovi parametri
+                            self.temp_pattern_config[pattern_name] = {
+                                "enabled": True,
+                                "params": new_params
+                            }
+                    else:
+                        # Logica per altri pattern generici (puoi estenderla successivamente)
+                        QMessageBox.information(self, "Not Implemented", f"The configuration for {pattern_name} is not implemented yet.")
 
                 # Se la checkbox cambia stato, abilitiamo/disabilitiamo Configure
                 def on_checkbox_state_changed(state, btn, p):
