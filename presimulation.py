@@ -8,13 +8,132 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QSize
 from recap_simulation import RecapSimulationPage
-from PyQt5.QtGui import QPixmap, QIcon, QDesktopServices
-from PyQt5.QtSvg import QSvgWidget
+from PyQt5.QtGui import QPixmap, QIcon
 
+# ------------------------------------------------------------------------------------------
+# Dialog specializzato per configurare i parametri di "Client Selector"
+# ------------------------------------------------------------------------------------------
+class ClientSelectorDialog(QDialog):
+    def __init__(self, existing_params=None):
+        super().__init__()
+        self.setWindowTitle("Configure Client Selector")
+        self.resize(400, 200)
+
+        self.existing_params = existing_params or {}
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignTop)
+
+        # Selection Strategy
+        self.strategy_label = QLabel("Selection Strategy:")
+        self.strategy_combo = QComboBox()
+        self.strategy_combo.addItems(["Resource-Based", "Data-based", "Performance-based"])
+        layout.addWidget(self.strategy_label)
+        layout.addWidget(self.strategy_combo)
+
+        # Selection Criteria
+        self.criteria_label = QLabel("Selection Criteria:")
+        self.criteria_combo = QComboBox()
+        layout.addWidget(self.criteria_label)
+        layout.addWidget(self.criteria_combo)
+
+        # Collegamento per aggiornare le opzioni in base alla strategy
+        self.strategy_combo.currentIndexChanged.connect(self.update_criteria_options)
+
+        # Se esistevano parametri precedenti, li ricarichiamo
+        if "selection_strategy" in self.existing_params:
+            self.strategy_combo.setCurrentText(self.existing_params["selection_strategy"])
+        self.update_criteria_options()  # Popoliamo le scelte
+
+        if "selection_criteria" in self.existing_params:
+            self.criteria_combo.setCurrentText(self.existing_params["selection_criteria"])
+
+        # Bottoni Ok/Cancel
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def update_criteria_options(self):
+        """
+        Aggiorna le opzioni di selection_criteria in base alla selection_strategy.
+        """
+        strategy = self.strategy_combo.currentText()
+        self.criteria_combo.clear()
+
+        if strategy == "Resource-Based":
+            self.criteria_combo.addItems(["CPU", "RAM"])
+        elif strategy == "Data-based":
+            self.criteria_combo.addItems(["IID", "non-IID"])
+        elif strategy == "Performance-based":
+            self.criteria_combo.addItems(["CPU", "RAM"])
+
+    def get_params(self):
+        """
+        Restituisce il dizionario con i parametri scelti.
+        """
+        return {
+            "selection_strategy": self.strategy_combo.currentText(),
+            "selection_criteria": self.criteria_combo.currentText()
+        }
+
+# ------------------------------------------------------------------------------------------
+# Dialog generico per configurare due parametri di esempio per tutti gli altri pattern
+# ------------------------------------------------------------------------------------------
+class GenericPatternDialog(QDialog):
+    def __init__(self, pattern_name, existing_params=None):
+        super().__init__()
+        self.setWindowTitle(f"Configure {pattern_name}")
+        self.resize(400, 200)
+
+        self.pattern_name = pattern_name
+        self.existing_params = existing_params or {}
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignTop)
+
+        # Esempio: variable1 come SpinBox, variable2 come ComboBox
+        self.var1_label = QLabel("Variable1:")
+        self.var1_input = QSpinBox()
+        self.var1_input.setRange(0, 999)
+        self.var1_input.setValue(self.existing_params.get("variable1", 0))
+
+        self.var2_label = QLabel("Variable2:")
+        self.var2_input = QComboBox()
+        self.var2_input.addItems(["OptionA", "OptionB", "OptionC"])
+        if "variable2" in self.existing_params:
+            self.var2_input.setCurrentText(self.existing_params["variable2"])
+
+        layout.addWidget(self.var1_label)
+        layout.addWidget(self.var1_input)
+        layout.addWidget(self.var2_label)
+        layout.addWidget(self.var2_input)
+
+        # Bottoni Ok/Cancel
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def get_params(self):
+        return {
+            "variable1": self.var1_input.value(),
+            "variable2": self.var2_input.currentText()
+        }
+
+# ------------------------------------------------------------------------------------------
+# Classe principale PreSimulationPage
+# ------------------------------------------------------------------------------------------
 class PreSimulationPage(QWidget):
+    """
+    Questa classe rappresenta la pagina di pre-simulazione dove l'utente può configurare
+    le impostazioni generali della simulazione, come il numero di round, il numero di client,
+    e selezionare (e configurare) i pattern architetturali da implementare.
+    """
     def __init__(self, user_choices, home_page_callback):
         super().__init__()
 
+        # Metadati su pattern (descrizione, immagine ecc.)
         self.pattern_data = {
             # Client Management Category
             "Client Registry": {
@@ -123,16 +242,27 @@ class PreSimulationPage(QWidget):
             }
         }
 
+        super().__init__()
+        self.user_choices = user_choices
+        self.home_page_callback = home_page_callback
+
+        # Dizionario dove memorizziamo param per ogni pattern
+        # Esempio: self.temp_pattern_config["Client Selector"] = {"enabled": True, "params": {...}}
+        self.temp_pattern_config = {}
+
+        self.setWindowTitle("Pre-Simulation Configuration")
+        self.resize(800, 600)
+
         self.setStyleSheet("""
             QWidget {
                 background-color: white;
-                color: black;  /* Testo nero */
+                color: black;
             }
             QLabel {
-                color: black;  /* Testo delle etichette in nero */
+                color: black;
             }
             QPushButton {
-                background-color: green;  /* Colore dei bottoni */
+                background-color: green;
                 color: white;
                 border-radius: 5px;
                 font-size: 14px;
@@ -144,23 +274,17 @@ class PreSimulationPage(QWidget):
                 background-color: #008000;
             }
         """)
-        self.user_choices = user_choices
-        self.home_page_callback = home_page_callback
 
-        self.setWindowTitle("Pre-Simulation Configuration")
-        self.resize(800, 600)
+        main_layout = QVBoxLayout()
+        main_layout.setAlignment(Qt.AlignTop)
+        self.setLayout(main_layout)
 
-        layout = QVBoxLayout()
-        layout.setAlignment(Qt.AlignTop)
-        self.setLayout(layout)
-
-        # Display the chosen configuration
         choice_label = QLabel(f"Type of Simulation: {self.user_choices[-1]['simulation_type']}")
         choice_label.setAlignment(Qt.AlignCenter)
         choice_label.setStyleSheet("font-size: 16px; color: #333;")
-        layout.addWidget(choice_label)
+        main_layout.addWidget(choice_label)
 
-        # General Settings GroupBox
+        # General Settings
         general_settings_group = QGroupBox("General Settings")
         general_settings_group.setStyleSheet("""
             QGroupBox {
@@ -173,44 +297,35 @@ class PreSimulationPage(QWidget):
                 subcontrol-origin: margin;
                 subcontrol-position: top center;
                 padding: 0 3px;
-                color: black;  /* Colore del titolo in nero */
+                color: black;
                 font-size: 14px;
                 font-weight: bold;
             }
         """)
-        general_settings_layout = QFormLayout()
+        g_layout = QFormLayout()
 
-        # Input per il numero di round
         self.rounds_input = QSpinBox()
-        self.rounds_input.setMinimum(1)
-        self.rounds_input.setMaximum(100)
+        self.rounds_input.setRange(1, 100)
         self.rounds_input.setValue(3)
-        general_settings_layout.addRow("Number of Rounds:", self.rounds_input)
+        g_layout.addRow("Number of Rounds:", self.rounds_input)
 
-        # Input per il numero di client
         self.clients_input = QSpinBox()
-        self.clients_input.setMinimum(1)  # Minimo 1 client
-        self.clients_input.setMaximum(100)
+        self.clients_input.setRange(1, 100)
         self.clients_input.setValue(3)
-        general_settings_layout.addRow("Number of Clients:", self.clients_input)
+        g_layout.addRow("Number of Clients:", self.clients_input)
 
-        # Verifica lo stato di Docker se la simulazione è Docker
         if self.user_choices[-1]["simulation_type"] == "Docker":
-            # Docker status layout
             docker_status_layout = QHBoxLayout()
             docker_status_layout.setAlignment(Qt.AlignLeft)
 
-            # Label "Docker Status:"
-            docker_status_text_label = QLabel("Docker Status:")
-            docker_status_text_label.setStyleSheet("font-size: 12px;")
-            docker_status_text_label.setAlignment(Qt.AlignLeft)
+            docker_status_label1 = QLabel("Docker Status:")
+            docker_status_label1.setStyleSheet("font-size: 12px;")
+            docker_status_label1.setAlignment(Qt.AlignLeft)
 
-            # Status label (Active or Not Active)
             self.docker_status_label = QLabel()
             self.docker_status_label.setStyleSheet("font-size: 12px;")
             self.docker_status_label.setAlignment(Qt.AlignLeft)
 
-            # Update button with spinning wheel icon
             update_button = QPushButton()
             update_button.setCursor(Qt.PointingHandCursor)
             update_button.setToolTip("Update Status")
@@ -227,29 +342,28 @@ class PreSimulationPage(QWidget):
             """)
             update_button.clicked.connect(self.update_docker_status)
 
-            # Add widgets to the layout
-            docker_status_layout.addWidget(docker_status_text_label)
+            docker_status_layout.addWidget(docker_status_label1)
             docker_status_layout.addWidget(self.docker_status_label)
             docker_status_layout.addWidget(update_button)
             docker_status_layout.addStretch()
-            general_settings_layout.addRow(docker_status_layout)
+            g_layout.addRow(docker_status_layout)
 
-            # Verifica iniziale dello stato di Docker
             self.check_docker_status()
 
-        general_settings_group.setLayout(general_settings_layout)
-        layout.addWidget(general_settings_group)
+        general_settings_group.setLayout(g_layout)
+        main_layout.addWidget(general_settings_group)
 
-        # Selezione dei Pattern Architetturali
+        # Label "Select AP"
         patterns_label = QLabel("Select Architectural Patterns to Implement in the Simulation:")
         patterns_label.setAlignment(Qt.AlignLeft)
         patterns_label.setStyleSheet("font-size: 14px; color: #333; margin-top: 10px;")
-        layout.addWidget(patterns_label)
+        main_layout.addWidget(patterns_label)
 
-        # Aggiungi i checkbox dei pattern divisi per macrocategorie in 2 colonne
         patterns_grid = QGridLayout()
-        patterns_grid.setSpacing(10)  # Spaziatura tra gli elementi
+        patterns_grid.setSpacing(10)
         self.pattern_checkboxes = {}
+
+        # Macrocategorie
         macrotopics = [
             ("Client Management Category", [
                 "Client Registry: Maintains information about all participating client devices for client management.",
@@ -276,7 +390,7 @@ class PreSimulationPage(QWidget):
         ]
 
         row, col = 0, 0
-        for topic, patterns in macrotopics:
+        for topic, patterns_list in macrotopics:
             topic_group = QGroupBox(topic)
             topic_group.setStyleSheet("""
                 QGroupBox {
@@ -289,35 +403,26 @@ class PreSimulationPage(QWidget):
                     subcontrol-origin: margin;
                     subcontrol-position: top center;
                     padding: 0 5px;
-                    color: black;  /* Colore del titolo in nero */
-                    font-size: 13px;  /* Ridotto a 13px */
+                    color: black;
+                    font-size: 13px;
                     font-weight: bold;
                 }
             """)
-            topic_group.setMinimumWidth(350)  # Larghezza minima per evitare che il testo vada a capo
-            topic_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
             topic_layout = QVBoxLayout()
             topic_layout.setSpacing(5)
 
-            for pattern in patterns:
-                # pattern contiene stringhe tipo "Client Registry: descrizione..."
-                pattern_name = pattern.split(":")[0].strip()
-                pattern_desc = pattern.split(":")[1].strip()  # La descrizione dopo i due punti
+            for pattern_entry in patterns_list:
+                pattern_name = pattern_entry.split(":")[0].strip()
+                pattern_desc = pattern_entry.split(":")[1].strip()
 
-                # Layout orizzontale per (pulsante info + checkbox)
-                pattern_layout = QHBoxLayout()
-                pattern_layout.setSpacing(6)
+                hl = QHBoxLayout()
+                hl.setSpacing(6)
 
-                # Pulsante con icona info
                 info_button = QPushButton()
                 info_button.setCursor(Qt.PointingHandCursor)
-                info_button.setToolTip(f"More info about {pattern_name}")
                 info_icon = self.style().standardIcon(QStyle.SP_MessageBoxInformation)
-                info_button.setCursor(Qt.PointingHandCursor)
                 info_button.setIcon(info_icon)
-                
                 info_button.setFixedSize(24, 24)
-                info_button.setIconSize(QSize(16, 16))
                 info_button.setStyleSheet("""
                     QPushButton {
                         background-color: transparent;
@@ -330,44 +435,28 @@ class PreSimulationPage(QWidget):
                     }
                 """)
 
-                # Funzione wrapper per recuperare i dati dal dizionario (self.pattern_data)
-                def info_clicked(checked, pname=pattern_name):
-                    # Se pattern_name esiste in self.pattern_data, mostriamo i dati custom
-                    if pname in self.pattern_data:
-                        data = self.pattern_data[pname]
+                def info_clicked(checked, p=pattern_name):
+                    if p in self.pattern_data:
+                        data = self.pattern_data[p]
                         cat_ = data["category"]
                         img_ = data["image"]
                         desc_ = data["description"]
                         ben_ = data["benefits"]
                         dr_  = data["drawbacks"]
-                        self.show_pattern_info(pname, cat_, img_, desc_, ben_, dr_)
+                        self.show_pattern_info(p, cat_, img_, desc_, ben_, dr_)
                     else:
-                        # fallback (se non c'è)
-                        self.show_pattern_info(
-                            pname,
-                            topic,
-                            "img/fittizio.png",
-                            pattern_desc,
-                            "No custom benefits",
-                            "No custom drawbacks"
-                        )
+                        self.show_pattern_info(p, topic, "img/fittizio.png", pattern_desc,
+                                               "No custom benefits", "No custom drawbacks")
 
                 info_button.clicked.connect(info_clicked)
 
-                # Creazione checkbox
                 checkbox = QCheckBox(pattern_name)
                 checkbox.setToolTip(pattern_desc)
-                checkbox.setStyleSheet("""
-                    QCheckBox {
-                        color: black;
-                        font-size: 12px;
-                    }
-                    QCheckBox:disabled {
-                        color: black;
-                    }
-                """)
+                checkbox.setStyleSheet("QCheckBox { color: black; font-size: 12px; }")
 
                 # Abilita/disabilita pattern
+                # Se vuoi tutti cliccabili, commenta la riga sotto.
+                # (Attuale: solo alcuni pattern abilitati)
                 enabled_patterns = [
                     "Client Registry",
                     "Client Selector",
@@ -379,7 +468,7 @@ class PreSimulationPage(QWidget):
                 if pattern_name not in enabled_patterns:
                     checkbox.setEnabled(False)
 
-                # Gestione speciale di "Client Registry (Active by default)"
+                # Gestione "Client Registry (Active by default)"
                 if pattern_name == "Client Registry":
                     checkbox.setText("Client Registry (Active by Default)")
                     checkbox.setChecked(True)
@@ -390,11 +479,57 @@ class PreSimulationPage(QWidget):
                             checkbox.blockSignals(False)
                     checkbox.stateChanged.connect(prevent_uncheck)
 
-                pattern_layout.addWidget(info_button)
-                pattern_layout.addWidget(checkbox)
-                topic_layout.addLayout(pattern_layout)
+                # Pulsante "Configure" -> compare/abilitato solo se checkbox = True
+                configure_button = QPushButton("Configure")
+                configure_button.setCursor(Qt.PointingHandCursor)
+                configure_button.setVisible(False)  # Inizialmente nascosto
+                configure_button.setFixedWidth(80)
 
-                # Salva riferimento al checkbox
+                def on_checkbox_state_changed(state, btn=configure_button, p=pattern_name):
+                    """
+                    Funzione per gestire il cambiamento di stato della checkbox.
+                    """
+                    btn.setVisible(state == Qt.Checked)  # Mostra/nasconde il pulsante "Configure"
+                    if state == Qt.Checked:
+                        # Aggiungi un valore di default se il pattern non è già presente
+                        if p not in self.temp_pattern_config:
+                            self.temp_pattern_config[p] = {
+                                "enabled": True,
+                                "params": {}
+                            }
+                    else:
+                        # Se deselezionato, disabilita il pattern nella configurazione
+                        if p in self.temp_pattern_config:
+                            self.temp_pattern_config[p]["enabled"] = False
+
+                # Collega lo stato della checkbox al pulsante specifico
+                checkbox.stateChanged.connect(
+                    lambda state, btn=configure_button, p=pattern_name: on_checkbox_state_changed(state, btn, p)
+                )
+
+                # Se la checkbox cambia stato, abilitiamo/disabilitiamo Configure
+                def on_checkbox_state_changed(state, btn, p):
+                    """
+                    Funzione per gestire il cambiamento di stato della checkbox.
+                    """
+                    btn.setVisible(state == Qt.Checked)  # Mostra/nasconde il pulsante "Configure"
+                    if state == Qt.Checked:
+                        # Aggiungi il pattern alla configurazione temporanea se non esiste
+                        if p not in self.temp_pattern_config:
+                            self.temp_pattern_config[p] = {
+                                "enabled": True,
+                                "params": {}
+                            }
+                    else:
+                        # Rimuovi il pattern dalla configurazione temporanea se deselezionato
+                        if p in self.temp_pattern_config:
+                            self.temp_pattern_config[p]["enabled"] = False
+
+                hl.addWidget(info_button)
+                hl.addWidget(checkbox)
+                hl.addWidget(configure_button)
+
+                topic_layout.addLayout(hl)
                 self.pattern_checkboxes[pattern_name] = checkbox
 
             topic_group.setLayout(topic_layout)
@@ -404,9 +539,8 @@ class PreSimulationPage(QWidget):
                 col = 0
                 row += 1
 
-        layout.addLayout(patterns_grid)
+        main_layout.addLayout(patterns_grid)
 
-        # Bottone per Salvare e Continuare
         save_button = QPushButton("Save and Continue")
         save_button.setCursor(Qt.PointingHandCursor)
         save_button.setStyleSheet("""
@@ -425,23 +559,17 @@ class PreSimulationPage(QWidget):
             }
         """)
         save_button.clicked.connect(self.save_preferences_and_open_client_config)
-        layout.addWidget(save_button)
+        main_layout.addWidget(save_button)
 
     def check_docker_status(self):
-        """
-        Metodo per verificare lo stato di Docker.
-        """
         try:
             subprocess.check_output(['docker', 'info'], stderr=subprocess.STDOUT)
-            # Docker è attivo
             self.docker_status_label.setText("Active")
             self.docker_status_label.setStyleSheet("color: green; font-size: 12px;")
-        except subprocess.CalledProcessError as e:
-            # Docker non è attivo o non installato
+        except subprocess.CalledProcessError:
             self.docker_status_label.setText("Not Active")
             self.docker_status_label.setStyleSheet("color: red; font-size: 12px;")
         except FileNotFoundError:
-            # Comando docker non trovato
             self.docker_status_label.setText("Not Installed")
             self.docker_status_label.setStyleSheet("color: red; font-size: 12px;")
 
@@ -458,20 +586,14 @@ class PreSimulationPage(QWidget):
         layout.addWidget(title_label, alignment=Qt.AlignCenter)
 
         base_dir = os.path.dirname(os.path.abspath(__file__)) 
-        # DEBUG: stampa il percorso e il risultato di os.path.exists
-        print(f"[DEBUG] Trying to load image at: {image_path}")
-        print(f"[DEBUG] os.path.exists(image_path) = {os.path.exists(os.path.join(base_dir, image_path))}")
-
-        image_label = QLabel()   
-        
-        if os.path.exists(os.path.join(base_dir, image_path)):            
-            image_path = os.path.join(base_dir, image_path)
-            pixmap = QPixmap(image_path)
+        full_path = os.path.join(base_dir, image_path)
+        image_label = QLabel()
+        if os.path.exists(full_path):
+            pixmap = QPixmap(full_path)
             pixmap = pixmap.scaled(200, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             image_label.setPixmap(pixmap)
             image_label.setAlignment(Qt.AlignCenter)
         else:
-            # Il file non esiste
             image_label.setText("Image not found")
             image_label.setStyleSheet("color: red;")
             image_label.setAlignment(Qt.AlignCenter)
@@ -495,69 +617,60 @@ class PreSimulationPage(QWidget):
 
         button_box = QDialogButtonBox(QDialogButtonBox.Close)
         button_box.rejected.connect(dialog.reject)
-        button_box.setCursor(Qt.PointingHandCursor)
-
-        button_box.setStyleSheet("""
-            QPushButton {
-                background-color: red;
-                color: white;
-                border-radius: 5px;
-                margin: 5px;   /* "Margine" esterno al pulsante */
-                padding: 8px;  /* Spazio interno al pulsante */
-                font-size: 13px;
-            }
-            QPushButton:hover {
-                background-color: #ff6666;
-            }
-            QPushButton:pressed {
-                background-color: #cc0000;
-            }
-        """)
-
         layout.addWidget(button_box, alignment=Qt.AlignCenter)
-        dialog.exec_()
 
-    def update_docker_status(self):
-        """
-        Metodo chiamato quando si clicca il pulsante per aggiornare lo stato di Docker.
-        """
-        self.check_docker_status()
+        dialog.exec_()
 
     def save_preferences_and_open_client_config(self):
         """
-        Salva le preferenze e apre la pagina di configurazione dei client.
+        Al salvataggio, creiamo un dict patterns_data:
+          pattern_key -> { "enabled": bool, "params": {...} }
         """
-        # Salva le configurazioni dei pattern selezionati
         patterns_data = {}
-        for key in ["Client Registry", "Client Selector", "Client Cluster",
-                    "Message Compressor", "Multi-Task Model Trainer", "Heterogeneous Data Handler"]:
-            patterns_data[key.lower().replace(" ", "_")] = (
-                self.pattern_checkboxes[key].isChecked() if key in self.pattern_checkboxes else False
-            )
+
+        relevant_patterns = [
+            "Client Registry",
+            "Client Selector",
+            "Client Cluster",
+            "Message Compressor",
+            "Multi-Task Model Trainer",
+            "Heterogeneous Data Handler",
+            "Incentive Registry"  # se vuoi abilitare anche Incentive Registry
+        ]
+
+        for pat_name in relevant_patterns:
+            cb_checked = (self.pattern_checkboxes[pat_name].isChecked()
+                          if pat_name in self.pattern_checkboxes else False)
+
+            if pat_name in self.temp_pattern_config:
+                # Abbiamo già un dict param
+                existing = self.temp_pattern_config[pat_name]
+                existing["enabled"] = cb_checked
+                patterns_data[pat_name.lower().replace(" ", "_")] = existing
+            else:
+                # Non abbiamo configurato => default
+                patterns_data[pat_name.lower().replace(" ", "_")] = {
+                    "enabled": cb_checked,
+                    "params": {}
+                }
 
         simulation_config = {
             "rounds": self.rounds_input.value(),
             "clients": self.clients_input.value(),
-            "patterns": patterns_data,
+            "patterns": patterns_data
         }
-
-        # Rimuovi la sezione Docker Configuration, dato che è stata eliminata
 
         self.user_choices.append(simulation_config)
 
-        # Passa alla pagina di configurazione dei client
+        # Passa alla pagina successiva
         self.client_config_page = ClientConfigurationPage(self.user_choices, self.home_page_callback)
         self.client_config_page.show()
-
-        # Chiudi la finestra attuale
         self.close()
+
 
 class ClientConfigurationPage(QWidget):
     """
-    Questa classe rappresenta la pagina di configurazione dei client,
-    con card verticali (una sotto l'altra), larghezza fissa
-    e centratura orizzontale.
-    Mantiene lo stile e le funzionalità precedenti.
+    Pagina di configurazione dei client, con card verticali e centratura orizzontale.
     """
     def __init__(self, user_choices, home_page_callback):
         super().__init__()
@@ -566,25 +679,24 @@ class ClientConfigurationPage(QWidget):
         self.user_choices = user_choices
         self.home_page_callback = home_page_callback
 
-        # Stile ripreso dal tuo codice precedente + card style
         self.setStyleSheet("""
             QWidget {
-                background-color: white;  /* Sfondo bianco */
+                background-color: white;
                 color: black;
             }
             QLabel {
                 color: black;
-                background-color: transparent;  /* Rimuove lo sfondo bianco dai label */
+                background-color: transparent;
             }
             QSpinBox, QComboBox {
                 background-color: white;
                 border: 1px solid gray;
                 border-radius: 3px;
-                height: 20px;  /* Riduce l'altezza dei widget */
+                height: 20px;
                 font-size: 12px;
             }
             QPushButton {
-                height: 30px;  /* Riduce l'altezza del pulsante */
+                height: 30px;
                 background-color: green;
                 color: white;
                 font-size: 12px;
@@ -597,7 +709,7 @@ class ClientConfigurationPage(QWidget):
                 background-color: #008000;
             }
             QFrame#ClientCard {
-                background-color: #f0f0f0; 
+                background-color: #f0f0f0;
                 border: 1px solid lightgray;
                 border-radius: 5px;
                 margin-top: 5px;
@@ -605,40 +717,45 @@ class ClientConfigurationPage(QWidget):
             }
         """)
 
-        # Layout orizzontale principale: a sinistra la lista dei pattern, a destra i client
         main_hlayout = QHBoxLayout()
         main_hlayout.setContentsMargins(10, 10, 10, 10)
         main_hlayout.setSpacing(10)
         self.setLayout(main_hlayout)
 
-        # ----------- Colonna di sinistra: Patterns selezionati -------------
+        # Colonna sinistra: Patterns selezionati
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
         left_layout.setAlignment(Qt.AlignTop)
-        left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(5)
 
         patterns_label = QLabel("Selected Patterns")
         patterns_label.setStyleSheet("font-size: 14px; font-weight: bold; margin-bottom: 5px;")
         left_layout.addWidget(patterns_label)
 
-        # Recuperiamo i pattern selezionati
-        selected_patterns = self.user_choices[-1].get("patterns", {})
-        for pattern_key, is_enabled in selected_patterns.items():
-            if is_enabled:
-                pattern_text = pattern_key.replace("_", " ").title()  # es: "client_registry" -> "Client Registry"
-                lbl = QLabel(f"• {pattern_text}")
-                lbl.setStyleSheet("font-size: 12px; color: black;")
-                left_layout.addWidget(lbl)
+        selected_patterns_dict = self.user_choices[-1].get("patterns", {})
+        # Filtriamo quelli con "enabled"=True
+        for p_key, p_val in selected_patterns_dict.items():
+            if isinstance(p_val, dict):
+                if p_val.get("enabled", False):
+                    pretty_name = p_key.replace("_", " ").title()
+                    lbl = QLabel(f"• {pretty_name}")
+                    lbl.setStyleSheet("font-size: 12px; color: black;")
+                    left_layout.addWidget(lbl)
+            else:
+                # Caso fallback se fosse bool
+                if p_val:
+                    pretty_name = p_key.replace("_", " ").title()
+                    lbl = QLabel(f"• {pretty_name}")
+                    lbl.setStyleSheet("font-size: 12px; color: black;")
+                    left_layout.addWidget(lbl)
 
         left_layout.addStretch()
         main_hlayout.addWidget(left_widget, stretch=1)
 
-        # ----------- Colonna di destra: Configurazione client -------------
+        # Colonna destra: configurazione client
         right_widget = QWidget()
         right_layout = QVBoxLayout(right_widget)
         right_layout.setAlignment(Qt.AlignTop)
-        right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(5)
 
         title_label = QLabel("Configure Each Client")
@@ -647,32 +764,26 @@ class ClientConfigurationPage(QWidget):
         right_layout.addWidget(title_label)
 
         scroll_area = QScrollArea()
-        scroll_area.setStyleSheet("background-color: transparent;")
         scroll_area.setWidgetResizable(True)
         right_layout.addWidget(scroll_area)
 
         scroll_widget = QWidget()
-        scroll_widget.setStyleSheet("background-color: transparent;")
         scroll_layout = QVBoxLayout(scroll_widget)
-        scroll_layout.setContentsMargins(0, 0, 0, 0)
+        scroll_layout.setContentsMargins(0,0,0,0)
         scroll_layout.setSpacing(5)
         scroll_area.setWidget(scroll_widget)
 
         self.client_configs = []
         num_clients = self.user_choices[-1]["clients"]
 
-        # Creiamo la card per ogni client
         for client_id in range(1, num_clients + 1):
             card_widget, config_dict = self.create_client_card(client_id)
-
             hbox = QHBoxLayout()
             hbox.setAlignment(Qt.AlignCenter)
             hbox.addWidget(card_widget)
             scroll_layout.addLayout(hbox)
-
             self.client_configs.append(config_dict)
 
-        # Pulsante in fondo
         confirm_button = QPushButton("Confirm and Continue")
         confirm_button.setCursor(Qt.PointingHandCursor)
         confirm_button.clicked.connect(self.save_client_configurations_and_continue)
@@ -681,38 +792,25 @@ class ClientConfigurationPage(QWidget):
         main_hlayout.addWidget(right_widget, stretch=3)
 
     def create_client_card(self, client_id):
-        """
-        Crea una card (QFrame) per un singolo client
-        restituendo (card_widget, dict_config).
-        """
-        card = QFrame(objectName="ClientCard")  # lo stile #ClientCard verrà applicato
+        card = QFrame(objectName="ClientCard")
         card_layout = QVBoxLayout()
         card_layout.setContentsMargins(8, 8, 8, 8)
         card_layout.setSpacing(5)
         card.setLayout(card_layout)
-        card.setStyleSheet("""
-                QMessageBox {
-                    background-color: #f9f9f9;
-                }
-            """)
 
-        # Larghezza fissa delle card
         card.setFixedWidth(600)
 
-        # Icona del computer come in Recap
         pc_icon = self.style().standardIcon(QStyle.SP_ComputerIcon)
         icon_label = QLabel()
         icon_label.setPixmap(pc_icon.pixmap(24, 24))
         icon_label.setAlignment(Qt.AlignCenter)
         card_layout.addWidget(icon_label)
 
-        # Titolo "Client X"
         client_title = QLabel(f"Client {client_id}")
         client_title.setStyleSheet("font-size: 12px; font-weight: bold;")
         client_title.setAlignment(Qt.AlignCenter)
         card_layout.addWidget(client_title)
 
-        # Layout per i campi di input
         # Riga 1: CPU, RAM
         row1_layout = QHBoxLayout()
         row1_layout.setSpacing(5)
@@ -747,22 +845,20 @@ class ClientConfigurationPage(QWidget):
         row2_layout.setSpacing(5)
 
         dataset_label = QLabel("Testing Dataset:")
-        dataset_label.setStyleSheet("font-size: 12px;; background:white")
+        dataset_label.setStyleSheet("font-size: 12px; background:white")
         dataset_label.setAlignment(Qt.AlignLeft)
         dataset_combobox = QComboBox()
-        dataset_combobox.setStyleSheet("background:white")
-        dataset_combobox.setCursor(Qt.PointingHandCursor)
         dataset_combobox.addItems(["CIFAR-10", "FMNIST", "MIXED"])
         dataset_combobox.setFixedWidth(100)
+        dataset_combobox.setStyleSheet("background:white")
 
         partition_label = QLabel("Dataset Partition:")
-        partition_label.setStyleSheet("font-size: 12px; ; background:white")
+        partition_label.setStyleSheet("font-size: 12px; background:white")
         partition_label.setAlignment(Qt.AlignLeft)
         partition_combobox = QComboBox()
-        partition_combobox.setStyleSheet("background:white")
-        partition_combobox.setCursor(Qt.PointingHandCursor)
         partition_combobox.addItems(["IID", "non-IID", "Random"])
         partition_combobox.setFixedWidth(100)
+        partition_combobox.setStyleSheet("background:white")
 
         row2_layout.addWidget(dataset_label)
         row2_layout.addWidget(dataset_combobox)
@@ -771,7 +867,6 @@ class ClientConfigurationPage(QWidget):
         row2_layout.addWidget(partition_combobox)
         card_layout.addLayout(row2_layout)
 
-        # Riferimenti ai campi
         config_dict = {
             "cpu_input": cpu_input,
             "ram_input": ram_input,
@@ -782,23 +877,19 @@ class ClientConfigurationPage(QWidget):
         return card, config_dict
 
     def save_client_configurations_and_continue(self):
-        """
-        Salva le configurazioni dei client e passa alla pagina di riepilogo.
-        """
         client_details = []
-        for idx, config in enumerate(self.client_configs):
+        for idx, cfg in enumerate(self.client_configs):
             client_info = {
                 "client_id": idx + 1,
-                "cpu": config["cpu_input"].value(),
-                "ram": config["ram_input"].value(),
-                "dataset": config["dataset_combobox"].currentText(),
-                "data_distribution_type": config["data_distribution_type_combobox"].currentText()
+                "cpu": cfg["cpu_input"].value(),
+                "ram": cfg["ram_input"].value(),
+                "dataset": cfg["dataset_combobox"].currentText(),
+                "data_distribution_type": cfg["data_distribution_type_combobox"].currentText()
             }
             client_details.append(client_info)
 
         self.user_choices[-1]["client_details"] = client_details
 
-        # Procede alla pagina di riepilogo (RecapSimulationPage)
         self.recap_simulation_page = RecapSimulationPage(self.user_choices)
         self.recap_simulation_page.show()
         self.close()
