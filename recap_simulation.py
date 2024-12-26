@@ -222,11 +222,15 @@ class RecapSimulationPage(QWidget):
         Visualizza i pattern raggruppati in 4 categorie.
         Se un pattern è True mostra una spunta verde, se False mostra una X rossa.
         """
-        # Merge configuration
-        merged_config = {}
-        for choice in self.user_choices:
-            if isinstance(choice, dict):
-                merged_config.update(choice)
+        # Carichiamo i dati dal file config.json
+        try:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            config_path = os.path.join(base_dir, 'configuration', 'config.json')
+            with open(config_path, 'r') as f:
+                merged_config = json.load(f)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to load config.json: {e}")
+            return
 
         # Sezione Patterns
         patterns_label = QLabel("Patterns")
@@ -291,10 +295,10 @@ class RecapSimulationPage(QWidget):
                 pattern_layout.setAlignment(Qt.AlignLeft)
 
                 # Icona verde (check) o rossa (X) PRIMA del nome pattern
-                is_enabled = all_patterns.get(pattern_key, False)
+                is_enabled = all_patterns.get(pattern_key, {}).get("enabled", False)  # Controllo sullo stato del pattern
                 icon_label = QLabel()
                 if is_enabled:
-                    icon_label.setText("✔")  # check unicode
+                    icon_label.setText("✔")  # Check unicode
                     icon_label.setStyleSheet("color: green; font-size: 14px; margin-right: 5px;")
                 else:
                     icon_label.setText("✘")  # X unicode
@@ -309,8 +313,8 @@ class RecapSimulationPage(QWidget):
 
                 cat_layout.addLayout(pattern_layout)
 
-                # Inseriamo il frame della categoria nella griglia 2x2
-                categories_grid.addWidget(cat_frame, row, col)
+            # Inseriamo il frame della categoria nella griglia 2x2
+            categories_grid.addWidget(cat_frame, row, col)
 
             col += 1
             if col >= 2:
@@ -375,18 +379,6 @@ class RecapSimulationPage(QWidget):
             try:
                 with open(file_name, 'w') as f:
                     json.dump(merged_config, f, indent=4)
-                
-                # Creazione del QMessageBox
-                msg_box = QMessageBox(self)
-                msg_box.setIcon(QMessageBox.Information)
-                msg_box.setWindowTitle("Success")
-                msg_box.setText(f"Configuration saved to {file_name}")
-                
-                # Imposta un timer per chiudere il box dopo 2 secondi
-                QTimer.singleShot(2000, msg_box.close)
-                
-                # Mostra il box
-                msg_box.exec_()
 
             except Exception as e:
                 msg_box = QMessageBox(self)
@@ -492,4 +484,4 @@ class RecapSimulationPage(QWidget):
         from simulation import SimulationPage  # Import SimulationPage
         self.simulation_page = SimulationPage(num_supernodes)
         self.simulation_page.show()
-        self.close()  # Close the recap page
+        self.close()  

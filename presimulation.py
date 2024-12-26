@@ -1,4 +1,5 @@
 import os
+import json
 import subprocess
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QFrame, QVBoxLayout, QLabel, QPushButton, QSpinBox,
@@ -652,6 +653,23 @@ class PreSimulationPage(QWidget):
         layout.addWidget(drawbacks_label)
 
         button_box = QDialogButtonBox(QDialogButtonBox.Close)
+        button_box.setCursor(Qt.PointingHandCursor)
+        button_box.setStyleSheet("""
+                    QPushButton {
+                    background-color: #green;
+                    color: white;
+                    font-size: 10px;
+                    padding: 8px 16px;
+                    border-radius: 5px;
+                    text-align: left;
+                }
+                QPushButton:hover {
+                    background-color: #e0a800;
+                }
+                QPushButton:pressed {
+                    background-color: #c69500;
+                }
+                """)
         button_box.rejected.connect(dialog.reject)
         layout.addWidget(button_box, alignment=Qt.AlignCenter)
 
@@ -659,8 +677,7 @@ class PreSimulationPage(QWidget):
 
     def save_preferences_and_open_client_config(self):
         """
-        Al salvataggio, creiamo un dict patterns_data:
-          pattern_key -> { "enabled": bool, "params": {...} }
+        Prepara i dati di configurazione e passa alla pagina successiva senza salvare il file.
         """
         patterns_data = {}
 
@@ -671,12 +688,11 @@ class PreSimulationPage(QWidget):
             "Message Compressor",
             "Multi-Task Model Trainer",
             "Heterogeneous Data Handler",
-            "Incentive Registry"  # se vuoi abilitare anche Incentive Registry
         ]
 
         for pat_name in relevant_patterns:
             cb_checked = (self.pattern_checkboxes[pat_name].isChecked()
-                          if pat_name in self.pattern_checkboxes else False)
+                        if pat_name in self.pattern_checkboxes else False)
 
             if pat_name in self.temp_pattern_config:
                 # Abbiamo già un dict param
@@ -690,28 +706,30 @@ class PreSimulationPage(QWidget):
                     "params": {}
                 }
 
+        # Prepariamo la configurazione senza salvare
         simulation_config = {
+            "simulation_type": self.user_choices[-1]["simulation_type"],  # Aggiungiamo il tipo di simulazione
             "rounds": self.rounds_input.value(),
             "clients": self.clients_input.value(),
-            "patterns": patterns_data
+            "patterns": patterns_data,
+            "client_details": []  # Sarà popolato successivamente
         }
 
         self.user_choices.append(simulation_config)
 
-        # Passa alla pagina successiva
+        # Passiamo alla pagina successiva
         self.client_config_page = ClientConfigurationPage(self.user_choices, self.home_page_callback)
         self.client_config_page.show()
-        self.close()
-
+        self.close()    
 
 class ClientConfigurationPage(QWidget):
     """
-    Pagina di configurazione dei client, con card verticali e centratura orizzontale.
+    Pagina di configurazione dei client, con card orizzontali in un layout a griglia e input per i parametri.
     """
     def __init__(self, user_choices, home_page_callback):
         super().__init__()
         self.setWindowTitle("Client Configuration")
-        self.resize(1200, 1000)
+        self.resize(800, 600)
         self.user_choices = user_choices
         self.home_page_callback = home_page_callback
 
@@ -745,169 +763,131 @@ class ClientConfigurationPage(QWidget):
                 background-color: #008000;
             }
             QFrame#ClientCard {
-                background-color: #f0f0f0;
+                background-color: #f9f9f9;
                 border: 1px solid lightgray;
                 border-radius: 5px;
-                margin-top: 5px;
-                margin-bottom: 5px;
+                padding: 10px;
+                margin: 5px;
             }
         """)
 
-        main_hlayout = QHBoxLayout()
-        main_hlayout.setContentsMargins(10, 10, 10, 10)
-        main_hlayout.setSpacing(10)
-        self.setLayout(main_hlayout)
+        # Layout principale
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(5)
+        self.setLayout(main_layout)
 
-        # Colonna sinistra: Patterns selezionati
-        left_widget = QWidget()
-        left_layout = QVBoxLayout(left_widget)
-        left_layout.setAlignment(Qt.AlignTop)
-        left_layout.setSpacing(5)
-
-        patterns_label = QLabel("Selected Patterns")
-        patterns_label.setStyleSheet("font-size: 14px; font-weight: bold; margin-bottom: 5px;")
-        left_layout.addWidget(patterns_label)
-
-        selected_patterns_dict = self.user_choices[-1].get("patterns", {})
-        # Filtriamo quelli con "enabled"=True
-        for p_key, p_val in selected_patterns_dict.items():
-            if isinstance(p_val, dict):
-                if p_val.get("enabled", False):
-                    pretty_name = p_key.replace("_", " ").title()
-                    lbl = QLabel(f"• {pretty_name}")
-                    lbl.setStyleSheet("font-size: 12px; color: black;")
-                    left_layout.addWidget(lbl)
-            else:
-                # Caso fallback se fosse bool
-                if p_val:
-                    pretty_name = p_key.replace("_", " ").title()
-                    lbl = QLabel(f"• {pretty_name}")
-                    lbl.setStyleSheet("font-size: 12px; color: black;")
-                    left_layout.addWidget(lbl)
-
-        left_layout.addStretch()
-        main_hlayout.addWidget(left_widget, stretch=1)
-
-        # Colonna destra: configurazione client
-        right_widget = QWidget()
-        right_layout = QVBoxLayout(right_widget)
-        right_layout.setAlignment(Qt.AlignTop)
-        right_layout.setSpacing(5)
-
+        # Titolo della pagina
         title_label = QLabel("Configure Each Client")
         title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("font-size: 14px; font-weight: bold; margin-bottom: 5px;")
-        right_layout.addWidget(title_label)
+        title_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 10px;")
+        main_layout.addWidget(title_label)
 
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        right_layout.addWidget(scroll_area)
+        # Layout a griglia per i client
+        grid_layout = QGridLayout()
+        grid_layout.setSpacing(20)
+        main_layout.addLayout(grid_layout)
 
-        scroll_widget = QWidget()
-        scroll_layout = QVBoxLayout(scroll_widget)
-        scroll_layout.setContentsMargins(0,0,0,0)
-        scroll_layout.setSpacing(5)
-        scroll_area.setWidget(scroll_widget)
-
+        # Configurazioni dei client
         self.client_configs = []
         num_clients = self.user_choices[-1]["clients"]
 
-        for client_id in range(1, num_clients + 1):
-            card_widget, config_dict = self.create_client_card(client_id)
-            hbox = QHBoxLayout()
-            hbox.setAlignment(Qt.AlignCenter)
-            hbox.addWidget(card_widget)
-            scroll_layout.addLayout(hbox)
+        for index in range(num_clients):
+            card_widget, config_dict = self.create_client_card(index + 1)
+            row = index // 3  # Massimo 3 card per riga
+            col = index % 3
+            grid_layout.addWidget(card_widget, row, col)
             self.client_configs.append(config_dict)
 
+        # Pulsante di conferma
         confirm_button = QPushButton("Confirm and Continue")
         confirm_button.setCursor(Qt.PointingHandCursor)
         confirm_button.clicked.connect(self.save_client_configurations_and_continue)
-        right_layout.addWidget(confirm_button, alignment=Qt.AlignCenter)
-
-        main_hlayout.addWidget(right_widget, stretch=3)
+        main_layout.addWidget(confirm_button, alignment=Qt.AlignCenter)
 
     def create_client_card(self, client_id):
         card = QFrame(objectName="ClientCard")
         card_layout = QVBoxLayout()
         card_layout.setContentsMargins(8, 8, 8, 8)
         card_layout.setSpacing(5)
+        card.setStyleSheet("background-color: #f9f9f9; border-radius: 5px;")
         card.setLayout(card_layout)
 
-        card.setFixedWidth(600)
+        card.setFixedWidth(300)  # Riduciamo la larghezza
 
+        # Icona del client
         pc_icon = self.style().standardIcon(QStyle.SP_ComputerIcon)
-        icon_label = QLabel()
-        icon_label.setPixmap(pc_icon.pixmap(24, 24))
-        icon_label.setAlignment(Qt.AlignCenter)
-        card_layout.addWidget(icon_label)
+        pc_icon_label = QLabel()
+        pc_icon_label.setPixmap(pc_icon.pixmap(48, 48))
+        card_layout.addWidget(pc_icon_label, alignment=Qt.AlignCenter)
 
+        # Titolo del client
         client_title = QLabel(f"Client {client_id}")
         client_title.setStyleSheet("font-size: 12px; font-weight: bold;")
         client_title.setAlignment(Qt.AlignCenter)
         card_layout.addWidget(client_title)
 
-        # Riga 1: CPU, RAM
-        row1_layout = QHBoxLayout()
-        row1_layout.setSpacing(5)
-
+        # Riga CPU Allocation
         cpu_label = QLabel("CPU Allocation:")
-        cpu_label.setStyleSheet("font-size: 12px; background:white")
+        cpu_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         cpu_label.setAlignment(Qt.AlignLeft)
         cpu_input = QSpinBox()
         cpu_input.setRange(1, 16)
         cpu_input.setValue(1)
         cpu_input.setSuffix(" CPUs")
-        cpu_input.setFixedWidth(80)
+        cpu_input.setFixedWidth(100)
 
+        cpu_layout = QHBoxLayout()
+        cpu_layout.addWidget(cpu_label)
+        cpu_layout.addWidget(cpu_input)
+        card_layout.addLayout(cpu_layout)
+
+        # Riga RAM Allocation
         ram_label = QLabel("RAM Allocation:")
-        ram_label.setStyleSheet("font-size: 12px; background:white")
+        ram_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         ram_label.setAlignment(Qt.AlignLeft)
         ram_input = QSpinBox()
         ram_input.setRange(1, 128)
         ram_input.setValue(2)
         ram_input.setSuffix(" GB")
-        ram_input.setFixedWidth(80)
+        ram_input.setFixedWidth(100)
 
-        row1_layout.addWidget(cpu_label)
-        row1_layout.addWidget(cpu_input)
-        row1_layout.addSpacing(10)
-        row1_layout.addWidget(ram_label)
-        row1_layout.addWidget(ram_input)
-        card_layout.addLayout(row1_layout)
+        ram_layout = QHBoxLayout()
+        ram_layout.addWidget(ram_label)
+        ram_layout.addWidget(ram_input)
+        card_layout.addLayout(ram_layout)
 
-        # Riga 2: Dataset, Partition
-        row2_layout = QHBoxLayout()
-        row2_layout.setSpacing(5)
-
+        # Riga Testing Dataset
         dataset_label = QLabel("Testing Dataset:")
-        dataset_label.setStyleSheet("font-size: 12px; background:white")
+        dataset_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         dataset_label.setAlignment(Qt.AlignLeft)
         dataset_combobox = QComboBox()
         dataset_combobox.addItems(["CIFAR-10", "FMNIST", "MIXED"])
         dataset_combobox.setFixedWidth(100)
-        dataset_combobox.setStyleSheet("background:white")
 
+        dataset_layout = QHBoxLayout()
+        dataset_layout.addWidget(dataset_label)
+        dataset_layout.addWidget(dataset_combobox)
+        card_layout.addLayout(dataset_layout)
+
+        # Riga Dataset Partition
         partition_label = QLabel("Dataset Partition:")
-        partition_label.setStyleSheet("font-size: 12px; background:white")
+        partition_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         partition_label.setAlignment(Qt.AlignLeft)
         partition_combobox = QComboBox()
         partition_combobox.addItems(["IID", "non-IID", "Random"])
         partition_combobox.setFixedWidth(100)
-        partition_combobox.setStyleSheet("background:white")
 
-        row2_layout.addWidget(dataset_label)
-        row2_layout.addWidget(dataset_combobox)
-        row2_layout.addSpacing(10)
-        row2_layout.addWidget(partition_label)
-        row2_layout.addWidget(partition_combobox)
-        card_layout.addLayout(row2_layout)
+        partition_layout = QHBoxLayout()
+        partition_layout.addWidget(partition_label)
+        partition_layout.addWidget(partition_combobox)
+        card_layout.addLayout(partition_layout)
 
         config_dict = {
             "cpu_input": cpu_input,
             "ram_input": ram_input,
             "dataset_combobox": dataset_combobox,
-            "data_distribution_type_combobox": partition_combobox
+            "partition_combobox": partition_combobox
         }
 
         return card, config_dict
@@ -920,12 +900,35 @@ class ClientConfigurationPage(QWidget):
                 "cpu": cfg["cpu_input"].value(),
                 "ram": cfg["ram_input"].value(),
                 "dataset": cfg["dataset_combobox"].currentText(),
-                "data_distribution_type": cfg["data_distribution_type_combobox"].currentText()
+                "data_distribution_type": cfg["partition_combobox"].currentText()
             }
             client_details.append(client_info)
 
         self.user_choices[-1]["client_details"] = client_details
 
+        self.save_configuration_to_file()  # Salviamo il file JSON aggiornato
+
         self.recap_simulation_page = RecapSimulationPage(self.user_choices)
         self.recap_simulation_page.show()
         self.close()
+
+    def save_configuration_to_file(self):
+        """
+        Salva la configurazione aggiornata come file JSON.
+        """
+        try:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            config_dir = os.path.join(base_dir, 'configuration')
+            if not os.path.exists(config_dir):
+                os.makedirs(config_dir)
+            config_file_path = os.path.join(config_dir, 'config.json')
+
+            with open(config_file_path, 'w') as f:
+                json.dump(self.user_choices[-1], f, indent=4)
+
+        except Exception as e:
+            error_box = QMessageBox(self)
+            error_box.setIcon(QMessageBox.Critical)
+            error_box.setWindowTitle("Error")
+            error_box.setText(f"An error occurred while saving the configuration: {e}")
+            error_box.exec_()
