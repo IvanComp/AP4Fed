@@ -54,28 +54,71 @@ class ClientSelectorDialog(QDialog):
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
+# ------------------------------------------------------------------------------------------
+# Dialog specializzato per configurare i parametri di "Client Cluster"
+# ------------------------------------------------------------------------------------------
+class ClientClusterDialog(QDialog):
+    def __init__(self, existing_params=None):
+        super().__init__()
+        self.setWindowTitle("Configure Client Cluster")
+        self.resize(400, 250)
 
-    def update_criteria_options(self):
-        """
-        Aggiorna le opzioni di selection_criteria in base alla selection_strategy.
-        """
-        strategy = self.strategy_combo.currentText()
-        self.criteria_combo.clear()
+        self.existing_params = existing_params or {}
 
-        if strategy == "Resource-Based":
-            self.criteria_combo.addItems(["CPU", "RAM"])
-        elif strategy == "Data-based":
-            self.criteria_combo.addItems(["IID", "non-IID"])
-        elif strategy == "Performance-based":
-            self.criteria_combo.addItems(["CPU", "RAM"])
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignTop)
+
+        # Clustering Criteria
+        self.criteria_label = QLabel("Clustering Criteria:")
+        self.criteria_combo = QComboBox()
+        self.criteria_combo.addItems(["Computational Resources", "Network Capabilities", "Data Partition Type"])
+        layout.addWidget(self.criteria_label)
+        layout.addWidget(self.criteria_combo)
+
+        # Clustering Strategy
+        self.strategy_label = QLabel("Clustering Strategy:")
+        self.strategy_combo = QComboBox()
+        layout.addWidget(self.strategy_label)
+        layout.addWidget(self.strategy_combo)
+
+        # Collegamento per aggiornare le opzioni di Clustering Strategy
+        self.criteria_combo.currentIndexChanged.connect(self.update_strategy_options)
+
+        # Se esistevano parametri precedenti, li ricarichiamo
+        if "clustering_criteria" in self.existing_params:
+            self.criteria_combo.setCurrentText(self.existing_params["clustering_criteria"])
+        self.update_strategy_options()  # Popoliamo le scelte
+
+        if "clustering_strategy" in self.existing_params:
+            self.strategy_combo.setCurrentText(self.existing_params["clustering_strategy"])
+
+        # Bottoni Ok/Cancel
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def update_strategy_options(self):
+        """
+        Aggiorna le opzioni di Clustering Strategy in base alla Clustering Criteria.
+        """
+        criteria = self.criteria_combo.currentText()
+        self.strategy_combo.clear()
+
+        if criteria == "Computational Resources":
+            self.strategy_combo.addItems(["CPU", "RAM"])
+        elif criteria == "Network Capabilities":
+            self.strategy_combo.addItems(["Default"])
+        elif criteria == "Data Partition Type":
+            self.strategy_combo.addItems(["IID", "non-IID"])
 
     def get_params(self):
         """
         Restituisce il dizionario con i parametri scelti.
         """
         return {
-            "selection_strategy": self.strategy_combo.currentText(),
-            "selection_criteria": self.criteria_combo.currentText()
+            "clustering_criteria": self.criteria_combo.currentText(),
+            "clustering_strategy": self.strategy_combo.currentText()
         }
 
 # ------------------------------------------------------------------------------------------
@@ -530,18 +573,24 @@ class PreSimulationPage(QWidget):
                     Apri una finestra di configurazione basata sul nome del pattern.
                     """
                     if pattern_name == "Client Selector":
-                        # Recupera i parametri precedenti, se disponibili
                         existing_params = self.temp_pattern_config.get(pattern_name, {}).get("params", {})
                         dlg = ClientSelectorDialog(existing_params)
                         if dlg.exec_() == QDialog.Accepted:
                             new_params = dlg.get_params()
-                            # Salva i nuovi parametri
+                            self.temp_pattern_config[pattern_name] = {
+                                "enabled": True,
+                                "params": new_params
+                            }
+                    elif pattern_name == "Client Cluster":
+                        existing_params = self.temp_pattern_config.get(pattern_name, {}).get("params", {})
+                        dlg = ClientClusterDialog(existing_params)
+                        if dlg.exec_() == QDialog.Accepted:
+                            new_params = dlg.get_params()
                             self.temp_pattern_config[pattern_name] = {
                                 "enabled": True,
                                 "params": new_params
                             }
                     else:
-                        # Logica per altri pattern generici (puoi estenderla successivamente)
                         QMessageBox.information(self, "Not Implemented", f"The configuration for {pattern_name} is not implemented yet.")
 
                 # Se la checkbox cambia stato, abilitiamo/disabilitiamo Configure
