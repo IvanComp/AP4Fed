@@ -7,6 +7,7 @@ from PyQt5.QtCore import Qt, QUrl, QSize
 from presimulation import PreSimulationPage  # Importa la pagina PreSimulation
 from recap_simulation import RecapSimulationPage  # Importa RecapSimulationPage per le configurazioni caricate
 
+# Array globale per salvare le scelte
 user_choices = []
 
 class HomePage(QWidget):

@@ -54,6 +54,20 @@ class ClientSelectorDialog(QDialog):
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
+
+    def update_criteria_options(self):
+        """
+        Aggiorna le opzioni di selection_criteria in base alla selection_strategy.
+        """
+        strategy = self.strategy_combo.currentText()
+        self.criteria_combo.clear()
+
+        if strategy == "Resource-Based":
+            self.criteria_combo.addItems(["CPU", "RAM"])
+        elif strategy == "Data-based":
+            self.criteria_combo.addItems(["IID", "non-IID"])
+        elif strategy == "Performance-based":
+            self.criteria_combo.addItems(["Accuracy", "Latency"])
 # ------------------------------------------------------------------------------------------
 # Dialog specializzato per configurare i parametri di "Client Cluster"
 # ------------------------------------------------------------------------------------------
@@ -205,7 +219,7 @@ class PreSimulationPage(QWidget):
             # Model Management Category
             "Message Compressor": {
                 "category": "Model Management Category",
-                "image": "img/patterns/Model-Management/message_compressor.png",
+                "image": "img/patterns/Model-Management/messagecompressor.png",
                 "description": "Compresses and reduces the size of message data before each model exchange round to improve communication efficiency.",
                 "benefits": "Reduces bandwidth usage; can speed up communication rounds.",
                 "drawbacks": "Compression/decompression overhead might offset gains for large data."
@@ -235,14 +249,14 @@ class PreSimulationPage(QWidget):
             # Model Training Category
             "Multi-Task Model Trainer": {
                 "category": "Model Training Category",
-                "image": "img/patterns/Model-Management/multi_task_model_trainer.svg",
+                "image": "img/patterns/Model-Management/multitaskmodeltrainer.png",
                 "description": "Utilizes data from related models on local devices to enhance efficiency.",
                 "benefits": "Potential knowledge sharing among similar tasks; improved training.",
                 "drawbacks": "Training logic may become more complex to handle multiple tasks."
             },
             "Heterogeneous Data Handler": {
                 "category": "Model Training Category",
-                "image": "img/patterns/Model-Management/heterogeneous_data_handler.svg",
+                "image": "img/patterns/Model-Management/heterogeneousdatahandler.png",
                 "description": "Addresses issues with non-IID and skewed data while preserving data privacy.",
                 "benefits": "Better management of varied data distributions.",
                 "drawbacks": "Requires more sophisticated data partitioning and handling logic."
@@ -568,6 +582,7 @@ class PreSimulationPage(QWidget):
                 checkbox.stateChanged.connect(
                     lambda state, btn=configure_button, p=pattern_name: on_checkbox_state_changed(state, btn, p)
                 )
+
                 def open_config(pattern_name):
                     """
                     Apri una finestra di configurazione basata sul nome del pattern.
@@ -680,7 +695,7 @@ class PreSimulationPage(QWidget):
             image_label.setPixmap(pixmap)
             image_label.setAlignment(Qt.AlignCenter)
         else:
-            image_label.setText("Image not found")
+            image_label.setText("Arhcitectural Pattern not Implemented!")
             image_label.setStyleSheet("color: red;")
             image_label.setAlignment(Qt.AlignCenter)
 
