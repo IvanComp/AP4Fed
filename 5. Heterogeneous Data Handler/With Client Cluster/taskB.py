@@ -82,30 +82,9 @@ def load_data(min_samples=25000, max_samples=27000, alpha=0.5):
     for class_index, count in class_distribution.items():
         print(f"  {class_names[class_index]}: {count} samples")
 
+    #print(f"Total Client samples: {len(selected_indices)}")
+
     return trainloader, testloader
-
-# Funzione per migliorare il dataset non-IID usando GAN
-def augment_with_gan_subset(dataset, class_distribution, target_samples_per_class=250):
-    """
-    Aggiunge campioni sintetici per bilanciare la distribuzione delle classi.
-    """
-    augmented_class_distribution = class_distribution.copy()
-    for cls in range(10):
-        if augmented_class_distribution[cls] < target_samples_per_class:
-            additional_samples = target_samples_per_class - augmented_class_distribution[cls]
-            augmented_class_distribution[cls] += additional_samples  # Simulazione di GAN
-    return augmented_class_distribution
-
-# Aggiunta della funzione per migliorare il dataset
-def improve_non_iid_dataset_with_gan(trainloader, trainset, class_distribution, target_samples_per_class=250):
-    """
-    Migliora il dataset non-IID bilanciando la distribuzione delle classi usando GAN.
-    """
-    new_class_distribution = augment_with_gan_subset(trainset, class_distribution, target_samples_per_class)
-    print("New Class Distribution After GAN Augmentation:")
-    for cls, count in new_class_distribution.items():
-        print(f"{CLASS_NAMES[cls]}: {count} samples")
-    return new_class_distribution
 
 def train(net, trainloader, valloader, epochs, device):
 
@@ -142,6 +121,7 @@ def train(net, trainloader, valloader, epochs, device):
 
     return results, training_time, comm_start_time
 
+
 def test(net, testloader):
     net.to(DEVICE)
     criterion = torch.nn.CrossEntropyLoss()
@@ -168,6 +148,7 @@ def test(net, testloader):
     f1 = f1_score_torch(all_labels, all_preds, num_classes=10, average='macro')
 
     return loss, accuracy, f1
+
 
 def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
 
@@ -201,8 +182,10 @@ def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
 
     return f1
 
+
 def get_weights(net):
     return [val.cpu().numpy() for _, val in net.state_dict().items()]
+
 
 def set_weights(net, parameters):
     params_dict = zip(net.state_dict().keys(), parameters)

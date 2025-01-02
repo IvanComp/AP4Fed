@@ -1,14 +1,12 @@
 from collections import OrderedDict
 from logging import INFO
+import time  # Added time to measure training times
 from collections import Counter
-import time  
-import random 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from flwr.common.logger import log
-from torch.utils.data import DataLoader, Subset, WeightedRandomSampler
+from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import Compose, Normalize, ToTensor
 
@@ -36,83 +34,47 @@ class Net(nn.Module):
         x = F.relu(self.fc2(x))
         return self.fc3(x)
 
-def count_classes_subset(dataset, subset_indices):
-    counts = {i: 0 for i in range(10)}
-    for idx in subset_indices:
-        _, label = dataset[idx]
-        counts[label] += 1
-    return counts
-
-def load_data(min_samples=25000, max_samples=27000, alpha=0.5):
+def load_data():
     trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
     trainset = CIFAR10("./", train=True, download=True, transform=trf)
     testset = CIFAR10("./", train=False, download=True, transform=trf)
 
     class_to_indices = {i: [] for i in range(10)}
     for idx, (_, label) in enumerate(trainset):
-        class_to_indices[label].append(idx)
+        if len(class_to_indices[label]) < 2500:
+            class_to_indices[label].append(idx)
 
-    proportions = np.random.dirichlet([alpha] * 10)
-    class_counts = (proportions * min_samples).astype(int)
-    discrepancy = min_samples - class_counts.sum()
-    if discrepancy > 0:
-        class_counts[np.argmax(proportions)] += discrepancy
-    elif discrepancy < 0:
-        discrepancy = abs(discrepancy)
-        class_counts[np.argmax(proportions)] -= min(discrepancy, class_counts[np.argmax(proportions)])
-
-    while class_counts.sum() < min_samples:
-        increment = min(max_samples - class_counts.sum(), np.random.randint(1, 100))
-        class_counts[np.argmax(proportions)] += increment
-
+    # Raccoglie tutti gli indici in un unico elenco
     selected_indices = []
-    for cls, count in enumerate(class_counts):
-        available_indices = class_to_indices[cls]
-        selected = random.sample(available_indices, min(count, len(available_indices)))
-        selected_indices.extend(selected)
+    for indices in class_to_indices.values():
+        selected_indices.extend(indices)
 
+    # Creazione del subset per 25.000 campioni (2.500 per classe)
     subset_train = Subset(trainset, selected_indices)
+
+    # Carica il subset con il DataLoader
     trainloader = DataLoader(subset_train, batch_size=32, shuffle=True)
     testloader = DataLoader(testset, batch_size=32, shuffle=False)
+
+    # Calcola la distribuzione effettiva delle classi nel subset
     subset_labels = [trainset[i][1] for i in selected_indices]
-    class_distribution = Counter(subset_labels)
+    class_counts = Counter(subset_labels)
     class_names = trainset.classes
 
-    print(f"Class Distribution:")
-    for class_index, count in class_distribution.items():
+    # Stampa la distribuzione effettiva delle classi
+    print("Class Distribution:")
+    for class_index, count in class_counts.items():
         print(f"  {class_names[class_index]}: {count} samples")
 
     return trainloader, testloader
 
-# Funzione per migliorare il dataset non-IID usando GAN
-def augment_with_gan_subset(dataset, class_distribution, target_samples_per_class=250):
-    """
-    Aggiunge campioni sintetici per bilanciare la distribuzione delle classi.
-    """
-    augmented_class_distribution = class_distribution.copy()
-    for cls in range(10):
-        if augmented_class_distribution[cls] < target_samples_per_class:
-            additional_samples = target_samples_per_class - augmented_class_distribution[cls]
-            augmented_class_distribution[cls] += additional_samples  # Simulazione di GAN
-    return augmented_class_distribution
-
-# Aggiunta della funzione per migliorare il dataset
-def improve_non_iid_dataset_with_gan(trainloader, trainset, class_distribution, target_samples_per_class=250):
-    """
-    Migliora il dataset non-IID bilanciando la distribuzione delle classi usando GAN.
-    """
-    new_class_distribution = augment_with_gan_subset(trainset, class_distribution, target_samples_per_class)
-    print("New Class Distribution After GAN Augmentation:")
-    for cls, count in new_class_distribution.items():
-        print(f"{CLASS_NAMES[cls]}: {count} samples")
-    return new_class_distribution
-
 def train(net, trainloader, valloader, epochs, device):
-
     log(INFO, "Starting training...")
 
+    # Start measuring training time
     start_time = time.time()
-    net.to(device) 
+
+    net.to(device)  # move model to GPU if available
     criterion = torch.nn.CrossEntropyLoss().to(device)
     optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
     net.train()
@@ -124,10 +86,11 @@ def train(net, trainloader, valloader, epochs, device):
             loss.backward()
             optimizer.step()
 
+    # End measuring training time
     training_time = time.time() - start_time
     log(INFO, f"Training completed in {training_time:.2f} seconds")
     comm_start_time = time.time()
-
+    
     train_loss, train_acc, train_f1 = test(net, trainloader)
     val_loss, val_acc, val_f1 = test(net, valloader)
 
@@ -163,18 +126,22 @@ def test(net, testloader):
 
     accuracy = correct / len(testloader.dataset)
 
+    # Concatenare tutte le predizioni e le etichette
     all_preds = torch.cat(all_preds)
     all_labels = torch.cat(all_labels)
+
+    # Calcolo dell'F1 score
     f1 = f1_score_torch(all_labels, all_preds, num_classes=10, average='macro')
 
     return loss, accuracy, f1
 
 def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
-
+    # Creazione della matrice di confusione
     confusion_matrix = torch.zeros(num_classes, num_classes)
     for t, p in zip(y_true, y_pred):
         confusion_matrix[t.long(), p.long()] += 1
 
+    # Calcolo di precision e recall per ogni classe
     precision = torch.zeros(num_classes)
     recall = torch.zeros(num_classes)
     f1_per_class = torch.zeros(num_classes)

@@ -8,15 +8,12 @@
             "params": {}
         },
         "client_selector": {
-            "enabled": false,
+            "enabled": true,
             "params": {}
         },
         "client_cluster": {
-            "enabled": true,
-            "params": {
-                "clustering_criteria": "Data Partition Type",
-                "clustering_strategy": "non-IID"
-            }
+            "enabled": false,
+            "params": {}
         },
         "message_compressor": {
             "enabled": false,
@@ -44,7 +41,7 @@
             "cpu": 1,
             "ram": 2,
             "dataset": "CIFAR-10",
-            "data_distribution_type": "non-IID"
+            "data_distribution_type": "IID"
         },
         {
             "client_id": 3,
