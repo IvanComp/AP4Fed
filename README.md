@@ -11,6 +11,7 @@ Version: [1.0.0]
 <img src="img/readme/logo.svg" width="340px" height="210px"/>
 </p>
 <img src="https://img.shields.io/badge/version-1.0-green" alt="Version">
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://github.com/IvanComp/AP4Fed)
 
 <tt>AP4FED</tt> is a Federated Learning Benchmark platform built on top of the [Flower](https://github.com/adap/flower) an open-source Python library that simplifies building Federated Learning systems. It enables the definition of customized Federated Learning system configurations by leveraging architectural patterns [2], aiming to extract and analyze system performance metrics.
 
@@ -87,8 +88,9 @@ The Architectural Patterns ([2]) implemented in our framework are:
 | **Client Selector** | `Client Management` | A mechanism to dynamically select clients based on specific criteria, such as data distribution, device capabilities, or network conditions, to optimize the federated learning process. | 
 | **Client Cluster** | `Client Management` | A strategy to group clients into clusters based on shared characteristics, such as data similarity or device attributes, improving model accuracy and convergence in non-IID data scenarios. | 
 | **Message Compressor** | `Model Management` | A component designed to reduce the size of data exchanged between clients and the server by compressing messages, which lowers communication latency and bandwidth usage in federated learning environments. |
-| **Multi-Task Model Trainer** | `Model Training` | In progress... |
-| **Heterogeneous Data Handler** | `Model Training` | In progress... |
+| **Multi-Task Model Trainer** | `Model Training` | Allow to train different global models
+simultaneously |
+| **Heterogeneous Data Handler** | `Model Training` | Enables pre-processing operations to enhance the quality of datasets for each client participating in the FL process. |
 
 The **Client Registry** architectural pattern is implemented by adding the following parameters:
 
