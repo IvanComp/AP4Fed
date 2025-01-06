@@ -20,13 +20,15 @@ Version: [1.0.0]
 
 <tt>AP4FED</tt> was utilized in the paper "_Performance Analysis of Architectural Patterns for Federated Learning Systems_" accepted for the 22nd IEEE International Conference on Software Architecture (ICSA 2025) [1].
 
+You can explore use cases and performance testing of architectural patterns using <tt>AP4FED</tt> in the following Zenodo repository: 
+
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14539962.svg)](https://zenodo.org/records/14539962)
 
 # Table of contents
 <!--ts-->
    * [Prerequisites](#prerequisites)
    * [How to Run](#how-to-run)
-   * [AP4FED](#ap4fed)
+   * [Framework](#framework)
    * [Architectural Patterns](#architectural-patterns)
    * [References](#references)
    
