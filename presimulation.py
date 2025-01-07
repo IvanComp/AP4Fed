@@ -673,6 +673,12 @@ class PreSimulationPage(QWidget):
         except FileNotFoundError:
             self.docker_status_label.setText("Not Installed")
             self.docker_status_label.setStyleSheet("color: red; font-size: 12px;")
+    
+    def update_docker_status(self):
+        """
+        Metodo chiamato quando si clicca il pulsante per aggiornare lo stato di Docker.
+        """
+        self.check_docker_status()
 
     def show_pattern_info(self, pattern_name, pattern_category, image_path, description, benefits, drawbacks):
         dialog = QDialog(self)
@@ -926,7 +932,7 @@ class ClientConfigurationPage(QWidget):
         dataset_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         dataset_label.setAlignment(Qt.AlignLeft)
         dataset_combobox = QComboBox()
-        dataset_combobox.addItems(["CIFAR-10", "FMNIST", "MIXED"])
+        dataset_combobox.addItems(["CIFAR-10", "FMNIST", "Fashion-MNIST", "IMDB", "HIGGS", "Titanic", "MIXED"])
         dataset_combobox.setFixedWidth(100)
 
         dataset_layout = QHBoxLayout()
