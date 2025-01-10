@@ -14,15 +14,11 @@ Version: [1.0.0]
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://github.com/IvanComp/AP4Fed)
 
-<tt>AP4FED</tt> is a Federated Learning Benchmark platform built on top of the [Flower](https://github.com/adap/flower) an open-source Python library that simplifies building Federated Learning systems. It enables the definition of customized Federated Learning system configurations by leveraging architectural patterns [2], aiming to extract and analyze system performance metrics.
+<tt>AP4FED</tt> is a Federated Learning Benchmark platform built on top of the [Flower](https://github.com/adap/flower) an open-source Python library that simplifies building Federated Learning systems. It enables the definition of customized Federated Learning system configurations by leveraging architectural patterns, aiming to extract and analyze system performance metrics.
 
 <tt>AP4FED</tt> supports software architects by offering a framework for the quantitative evaluation of specific design decisions, enabling a deeper understanding of their impact on system performance and guiding the optimization of Federated Learning architectures.
 
 <tt>AP4FED</tt> was utilized in the paper "_Performance Analysis of Architectural Patterns for Federated Learning Systems_" accepted for the 22nd IEEE International Conference on Software Architecture (ICSA 2025) [1].
-
-You can explore use cases and performance testing of architectural patterns using <tt>AP4FED</tt> in the following Zenodo repository: 
-
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14539962.svg)](https://zenodo.org/records/14539962)
 
 # Table of contents
 <!--ts-->
@@ -58,14 +54,21 @@ python home.py
 ```
 Follow the instructions in the command, which will launch the <tt>AP4FED</tt>. This interface allows you to configure the Federated Learning system and proceed with benchmarking, providing a user-friendly way to manage and test the setup (Please see the next [Section](#ap4fed))
 
-# AP4FED
+# Framework
+
+## FL Simulation
+
+<p align="center">
+<img src="img/readme/AP4FED_process.png" width="400px" height="300px"/>
+</p>
+
+Users can choose to create a new project or load an existing JSON configuration to define system parameters, such as dataset properties, client selection criteria, and training mechanisms. For example, the Heterogeneous Data Handler allows synthetic data generation to augment client datasets and address non-IID data distributions. After configuration, the simulation process orchestrates interactions between clients and the server, tracks system metrics such as training, communication, and round times, and outputs a detailed report. This enables users to test design decisions and optimize FL system performance with ease.
+
+## AP4FED GUI
 
 <p align="center">
 <img src="img/readme/1.png" width="400px" height="300px"/>
 <img src="img/readme/2.png" width="400px" height="300px"/>
-</p>
-
-<p align="center">
 <img src="img/readme/3.png" width="400px" height="300px"/>
 <img src="img/readme/4.png" width="400px" height="300px"/>
 </p>
@@ -83,7 +86,7 @@ Follow the instructions in the command, which will launch the <tt>AP4FED</tt>. T
 
 # Architectural Patterns
 
-The Architectural Patterns ([2]) implemented in our framework are:
+The Architectural Patterns implemented in our framework are:
 
 | Architectural Pattern | Pattern Category | Description |
 | --- | --- | --- | 
@@ -105,11 +108,11 @@ The **Client Registry** architectural pattern is implemented by adding the follo
 | **communication_time** | `float` | Client’s Communication Time | 
 | **total_round_time** | `float` | Client’s Total Round Time | 
 
+You can explore use cases and performance testing of architectural patterns [1] using <tt>AP4FED</tt> in the following Zenodo repository: 
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14539962.svg)](https://zenodo.org/records/14539962)
+
 # References
 
 [1] Compagnucci, I., Pinciroli, R., & Trubiani, C. (2025). **Performance Analysis of Architectural Patterns for Federated Learning Systems.**
 Accepted for the 22nd IEEE International Conference on Software Architecture. ICSA 2025.
-
-[2] Sin Kit Lo, Qinghua Lu, Liming Zhu, Hye-Young Paik, Xiwei Xu, Chen Wang,
-**Architectural patterns for the design of federated learning systems**,
-Journal of Systems and Software, Volume 191, 2022, 111357.
