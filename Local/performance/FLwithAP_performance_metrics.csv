@@ -1,6 +1,1 @@
 Client ID,FL Round,Training Time,Communication Time,Total Client Time,CPU Number,Task,Train Loss,Train Accuracy,Train F1,Val Loss,Val Accuracy,Val F1,Total Time of Training Round,Total Time of FL Round
-fbc3,1,13.96,9.83,23.79,11,taskA,,,,,,,,
-e78a,1,14.03,8.69,22.72,11,taskA,,,,,,,,
-2aff,1,14.15,8.57,22.72,11,taskA,,,,,,,,
-1544,1,14.08,8.63,22.71,11,taskA,,,,,,,,
-75a1,1,14.12,8.62,22.74,11,taskA,3147.7425,0.26,0.22,20075.8147,0.26,0.23,14.15,31.08

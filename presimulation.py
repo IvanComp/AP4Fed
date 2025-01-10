@@ -159,6 +159,14 @@ class MultiTaskModelTrainerDialog(QDialog):
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
 
+    def accept(self):
+        # Non possiamo selezionare lo stesso valore per model1 e model2
+        if self.m1_combo.currentText() == self.m2_combo.currentText():
+            QMessageBox.warning(self, "Configuration Error", 
+                                "Model1 and Model2 cannot be the same.")
+            return
+        super().accept()
+
     def get_params(self):
         return {
             "model1": self.m1_combo.currentText(),
@@ -167,7 +175,6 @@ class MultiTaskModelTrainerDialog(QDialog):
 
 # ------------------------------------------------------------------------------------------
 # Dialog generico per configurare due parametri di esempio per altri pattern
-# (Se un domani dovesse servire nuovamente un generico)
 # ------------------------------------------------------------------------------------------
 class GenericPatternDialog(QDialog):
     def __init__(self, pattern_name, existing_params=None):
@@ -383,7 +390,7 @@ class PreSimulationPage(QWidget):
 
         self.clients_input = QSpinBox()
         self.clients_input.setRange(1, 100)
-        self.clients_input.setValue(3)
+        self.clients_input.setValue(4)
         g_layout.addRow("Number of Clients:", self.clients_input)
 
         if self.user_choices[-1]["simulation_type"] == "Docker":
@@ -579,6 +586,16 @@ class PreSimulationPage(QWidget):
                     configure_button = None
 
                 def on_checkbox_state_changed(state, btn, p=pattern_name):
+                    # Se l'utente seleziona Multi-Task Model Trainer ma i client sono < 4 => impedisci
+                    if p == "Multi-Task Model Trainer" and state == Qt.Checked:
+                        if self.clients_input.value() < 4:
+                            QMessageBox.warning(self, "Configuration Error",
+                                                "Multi-Task Model Trainer requires at least 4 clients.")
+                            checkbox.blockSignals(True)
+                            checkbox.setChecked(False)
+                            checkbox.blockSignals(False)
+                            return
+
                     if btn is not None:
                         btn.setVisible(state == Qt.Checked)
                     if state == Qt.Checked:
@@ -756,7 +773,7 @@ class PreSimulationPage(QWidget):
                     msg_box.setIcon(QMessageBox.Warning)
                     msg_box.setText(f"Please configure '{p_name}' before continuing.")
 
-                    ok_button = msg_box.addButton("Ok", QMessageBox.AcceptRole)
+                    ok_button = msg_box.addButton("OK", QMessageBox.AcceptRole)
                     ok_button.setCursor(Qt.PointingHandCursor)
                     ok_button.setStyleSheet("""
                         QPushButton {
@@ -892,6 +909,22 @@ class ClientConfigurationPage(QWidget):
 
         confirm_button = QPushButton("Confirm and Continue")
         confirm_button.setCursor(Qt.PointingHandCursor)
+        confirm_button.setStyleSheet("""
+                        QPushButton {
+                            background-color: #green;
+                            color: white;
+                            font-size: 10px;
+                            padding: 8px 16px;
+                            border-radius: 5px;
+                            text-align: left;
+                        }
+                        QPushButton:hover {
+                            background-color: #e0a800;
+                        }
+                        QPushButton:pressed {
+                            background-color: #c69500;
+                        }
+                    """)
         confirm_button.clicked.connect(self.save_client_configurations_and_continue)
         main_layout.addWidget(confirm_button, alignment=Qt.AlignCenter)
 
@@ -946,7 +979,7 @@ class ClientConfigurationPage(QWidget):
         dataset_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         dataset_label.setAlignment(Qt.AlignLeft)
         dataset_combobox = QComboBox()
-        dataset_combobox.addItems(["CIFAR-10", "FMNIST", "Fashion-MNIST", "IMDB", "HIGGS", "Titanic", "MIXED"])
+        dataset_combobox.addItems(["CIFAR-10", "FMNIST", "IMDB", "HIGGS"])
         dataset_combobox.setFixedWidth(100)
 
         dataset_layout = QHBoxLayout()
@@ -988,6 +1021,25 @@ class ClientConfigurationPage(QWidget):
             client_details.append(client_info)
 
         self.user_choices[-1]["client_details"] = client_details
+        # Se Multi-Task Model Trainer è abilitato, controlliamo la regola dei 2 client per model1 e model2
+        patterns = self.user_choices[-1]["patterns"]
+        if "multi-task_model_trainer" in patterns:
+            mtt_data = patterns["multi-task_model_trainer"]
+            if mtt_data["enabled"]:
+                model1 = mtt_data["params"].get("model1", "")
+                model2 = mtt_data["params"].get("model2", "")
+                if model1 and model2:
+                    c1 = sum(1 for c in client_details if c["dataset"] == model1)
+                    c2 = sum(1 for c in client_details if c["dataset"] == model2)
+                    if c1 < 2 or c2 < 2:
+                        QMessageBox.warning(
+                            self,
+                            "Invalid Configuration",
+                            f"Multi-Task Model Trainer requires at least 2 clients using '{model1}'"
+                            f"and 2 clients using '{model2}' datsets."
+                        )
+                        return
+
         self.save_configuration_to_file()
 
         self.recap_simulation_page = RecapSimulationPage(self.user_choices)

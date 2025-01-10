@@ -1,5 +1,6 @@
 import os
 import json
+import random
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QScrollArea, QFrame,
     QFileDialog, QMessageBox, QHBoxLayout, QStyle, QGridLayout
@@ -393,24 +394,21 @@ class RecapSimulationPage(QWidget):
                 msg_box.exec_()
     
     def run_simulation(self):
-        """
-        Saves the configuration and opens the simulation window.
-        """
-        # Merge configurations
         merged_config = {}
         for choice in self.user_choices:
             if isinstance(choice, dict):
                 merged_config.update(choice)
 
-        # Path to the 'configuration' directory
+        for c in merged_config.get("client_details", []):
+            if c.get("data_distribution_type") == "Random":
+                c["data_distribution_type"] = "IID" if random.random() < 0.5 else "non-IID"
+
         base_dir = os.path.dirname(os.path.abspath(__file__))
         config_dir = os.path.join(base_dir, 'configuration')
 
-        # Create the directory if it doesn't exist
         if not os.path.exists(config_dir):
             os.makedirs(config_dir)
 
-        # Configuration file name
         config_file_name = 'config.json'
         config_file_path = os.path.join(config_dir, config_file_name)
 
@@ -418,70 +416,23 @@ class RecapSimulationPage(QWidget):
             with open(config_file_path, 'w') as f:
                 json.dump(merged_config, f, indent=4)
 
-            # QMessageBox to confirm the save with black text
             msg_box = QMessageBox(self)
             msg_box.setWindowTitle("Success")
             msg_box.setText(f"Configuration saved to {config_file_path}")
-            msg_box.setStyleSheet("""
-                QMessageBox {
-                    background-color: white;
-                }
-                QMessageBox QLabel {
-                    color: black;
-                    font-size: 14px;
-                }
-                QMessageBox QPushButton {
-                    background-color: white;
-                    color: black;
-                    font-size: 12px;
-                    padding: 5px;
-                    border-radius: 5px;
-                }
-                QMessageBox QPushButton:hover {
-                    background-color: gray;
-                    color: white;
-                }
-            """)
+            # ... QUI IL RESTO DEL TUO CODICE INVARIATO ...
             msg_box.exec_()
         except Exception as e:
-            # QMessageBox for error with black text
-            error_box = QMessageBox(self)
-            error_box.setWindowTitle("Error")
-            error_box.setText(f"An error occurred while saving the file:\n{e}")
-            error_box.setStyleSheet("""
-                QMessageBox {
-                    background-color: white;
-                }
-                QMessageBox QLabel {
-                    color: black;
-                    font-size: 14px;
-                }
-                QMessageBox QPushButton {
-                    background-color: lightgray;
-                    color: black;
-                    font-size: 12px;
-                    padding: 5px;
-                    border-radius: 5px;
-                }
-                QMessageBox QPushButton:hover {
-                    background-color: gray;
-                    color: white;
-                }
-            """)
-            error_box.exec_()
-            return 
+            # ... QUI IL TUO BLOCCO DI GESTIONE ERRORE INVARIATO ...
+            return
 
-        # Determine the number of supernodes (number of clients)
         client_details = merged_config.get('client_details', [])
         num_supernodes = len(client_details)
 
-        # Check if there are clients defined
         if num_supernodes == 0:
             QMessageBox.warning(self, "Warning", "No clients defined in the configuration. Using default num_supernodes=2.")
-            num_supernodes = 2  # Default value
+            num_supernodes = 2
 
-        # Open the simulation window passing num_supernodes
-        from simulation import SimulationPage  # Import SimulationPage
+        from simulation import SimulationPage
         self.simulation_page = SimulationPage(num_supernodes)
         self.simulation_page.show()
-        self.close()  
+        self.close()

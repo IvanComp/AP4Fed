@@ -1,18 +1,15 @@
 {
     "simulation_type": "Docker",
     "rounds": 3,
-    "clients": 3,
+    "clients": 4,
     "patterns": {
         "client_registry": {
             "enabled": true,
             "params": {}
         },
         "client_selector": {
-            "enabled": true,
-            "params": {
-                "selection_strategy": "Resource-Based",
-                "selection_criteria": "CPU"
-            }
+            "enabled": false,
+            "params": {}
         },
         "client_cluster": {
             "enabled": false,
@@ -23,11 +20,8 @@
             "params": {}
         },
         "multi-task_model_trainer": {
-            "enabled": true,
-            "params": {
-                "model1": "CIFAR-10",
-                "model2": "IMDB"
-            }
+            "enabled": false,
+            "params": {}
         },
         "heterogeneous_data_handler": {
             "enabled": false,
@@ -40,7 +34,7 @@
             "cpu": 1,
             "ram": 2,
             "dataset": "CIFAR-10",
-            "data_distribution_type": "IID"
+            "data_distribution_type": "non-IID"
         },
         {
             "client_id": 2,
@@ -51,6 +45,13 @@
         },
         {
             "client_id": 3,
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "CIFAR-10",
+            "data_distribution_type": "IID"
+        },
+        {
+            "client_id": 4,
             "cpu": 1,
             "ram": 2,
             "dataset": "CIFAR-10",
