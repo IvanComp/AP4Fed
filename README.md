@@ -52,14 +52,14 @@ In the main folder run the following command:
 ```bash
 python home.py
 ```
-Follow the instructions in the command, which will launch the <tt>AP4FED</tt>. This interface allows you to configure the Federated Learning system and proceed with benchmarking, providing a user-friendly way to manage and test the setup (Please see the next [Section](#ap4fed))
+Follow the instructions in the command, which will launch the <tt>AP4FED</tt>. This interface allows you to configure the Federated Learning system and proceed with benchmarking, providing a user-friendly way to manage and test the setup (Please see the next [Section](#Framework))
 
 # Framework
 
-## FL Simulation
+## FL Simulation Process
 
 <p align="center">
-<img src="img/readme/AP4FED_process.png" width="400px" height="300px"/>
+<img src="img/readme/AP4FED_process.png" width="850px" height="250px"/>
 </p>
 
 Users can choose to create a new project or load an existing JSON configuration to define system parameters, such as dataset properties, client selection criteria, and training mechanisms. For example, the Heterogeneous Data Handler allows synthetic data generation to augment client datasets and address non-IID data distributions. After configuration, the simulation process orchestrates interactions between clients and the server, tracks system metrics such as training, communication, and round times, and outputs a detailed report. This enables users to test design decisions and optimize FL system performance with ease.
@@ -69,14 +69,8 @@ Users can choose to create a new project or load an existing JSON configuration 
 <p align="center">
 <img src="img/readme/1.png" width="400px" height="300px"/>
 <img src="img/readme/2.png" width="400px" height="300px"/>
-<img src="img/readme/3.png" width="400px" height="300px"/>
-<img src="img/readme/4.png" width="400px" height="300px"/>
 </p>
 
-<p align="center">
-<img src="img/readme/5.png" width="400px" height="300px"/>
-<img src="img/readme/6.png" width="400px" height="300px"/>
-</p>
 
 ## Load/Save a Custom Configuration
 
