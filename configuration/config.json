@@ -1,5 +1,5 @@
 {
-    "simulation_type": "Local",
+    "simulation_type": "Docker",
     "rounds": 3,
     "clients": 3,
     "patterns": {
@@ -8,8 +8,11 @@
             "params": {}
         },
         "client_selector": {
-            "enabled": false,
-            "params": {}
+            "enabled": true,
+            "params": {
+                "selection_strategy": "Resource-Based",
+                "selection_criteria": "CPU"
+            }
         },
         "client_cluster": {
             "enabled": false,
@@ -20,8 +23,11 @@
             "params": {}
         },
         "multi-task_model_trainer": {
-            "enabled": false,
-            "params": {}
+            "enabled": true,
+            "params": {
+                "model1": "CIFAR-10",
+                "model2": "IMDB"
+            }
         },
         "heterogeneous_data_handler": {
             "enabled": false,
@@ -40,7 +46,7 @@
             "client_id": 2,
             "cpu": 1,
             "ram": 2,
-            "dataset": "Titanic",
+            "dataset": "CIFAR-10",
             "data_distribution_type": "IID"
         },
         {

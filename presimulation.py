@@ -25,49 +25,47 @@ class ClientSelectorDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignTop)
 
-        # Selection Strategy
         self.strategy_label = QLabel("Selection Strategy:")
         self.strategy_combo = QComboBox()
         self.strategy_combo.addItems(["Resource-Based", "Data-based", "Performance-based"])
         layout.addWidget(self.strategy_label)
         layout.addWidget(self.strategy_combo)
 
-        # Selection Criteria
         self.criteria_label = QLabel("Selection Criteria:")
         self.criteria_combo = QComboBox()
         layout.addWidget(self.criteria_label)
         layout.addWidget(self.criteria_combo)
 
-        # Collegamento per aggiornare le opzioni in base alla strategy
         self.strategy_combo.currentIndexChanged.connect(self.update_criteria_options)
 
-        # Se esistevano parametri precedenti, li ricarichiamo
         if "selection_strategy" in self.existing_params:
             self.strategy_combo.setCurrentText(self.existing_params["selection_strategy"])
-        self.update_criteria_options()  # Popoliamo le scelte
+        self.update_criteria_options()
 
         if "selection_criteria" in self.existing_params:
             self.criteria_combo.setCurrentText(self.existing_params["selection_criteria"])
 
-        # Bottoni Ok/Cancel
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
 
     def update_criteria_options(self):
-        """
-        Aggiorna le opzioni di selection_criteria in base alla selection_strategy.
-        """
         strategy = self.strategy_combo.currentText()
         self.criteria_combo.clear()
-
         if strategy == "Resource-Based":
             self.criteria_combo.addItems(["CPU", "RAM"])
         elif strategy == "Data-based":
             self.criteria_combo.addItems(["IID", "non-IID"])
         elif strategy == "Performance-based":
             self.criteria_combo.addItems(["Accuracy", "Latency"])
+
+    def get_params(self):
+        return {
+            "selection_strategy": self.strategy_combo.currentText(),
+            "selection_criteria": self.criteria_combo.currentText()
+        }
+
 # ------------------------------------------------------------------------------------------
 # Dialog specializzato per configurare i parametri di "Client Cluster"
 # ------------------------------------------------------------------------------------------
@@ -82,40 +80,32 @@ class ClientClusterDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignTop)
 
-        # Clustering Criteria
         self.criteria_label = QLabel("Clustering Criteria:")
         self.criteria_combo = QComboBox()
         self.criteria_combo.addItems(["Computational Resources", "Network Capabilities", "Data Partition Type"])
         layout.addWidget(self.criteria_label)
         layout.addWidget(self.criteria_combo)
 
-        # Clustering Strategy
         self.strategy_label = QLabel("Clustering Strategy:")
         self.strategy_combo = QComboBox()
         layout.addWidget(self.strategy_label)
         layout.addWidget(self.strategy_combo)
 
-        # Collegamento per aggiornare le opzioni di Clustering Strategy
         self.criteria_combo.currentIndexChanged.connect(self.update_strategy_options)
 
-        # Se esistevano parametri precedenti, li ricarichiamo
         if "clustering_criteria" in self.existing_params:
             self.criteria_combo.setCurrentText(self.existing_params["clustering_criteria"])
-        self.update_strategy_options()  # Popoliamo le scelte
+        self.update_strategy_options()
 
         if "clustering_strategy" in self.existing_params:
             self.strategy_combo.setCurrentText(self.existing_params["clustering_strategy"])
 
-        # Bottoni Ok/Cancel
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
 
     def update_strategy_options(self):
-        """
-        Aggiorna le opzioni di Clustering Strategy in base alla Clustering Criteria.
-        """
         criteria = self.criteria_combo.currentText()
         self.strategy_combo.clear()
 
@@ -127,16 +117,57 @@ class ClientClusterDialog(QDialog):
             self.strategy_combo.addItems(["IID", "non-IID"])
 
     def get_params(self):
-        """
-        Restituisce il dizionario con i parametri scelti.
-        """
         return {
             "clustering_criteria": self.criteria_combo.currentText(),
             "clustering_strategy": self.strategy_combo.currentText()
         }
 
 # ------------------------------------------------------------------------------------------
-# Dialog generico per configurare due parametri di esempio per tutti gli altri pattern
+# Dialog specializzato per configurare "Multi-Task Model Trainer"
+# ------------------------------------------------------------------------------------------
+class MultiTaskModelTrainerDialog(QDialog):
+    def __init__(self, existing_params=None):
+        super().__init__()
+        self.setWindowTitle("Configure Multi-Task Model Trainer")
+        self.resize(400, 200)
+
+        self.existing_params = existing_params or {}
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignTop)
+
+        self.m1_label = QLabel("Select Model M1:")
+        self.m1_combo = QComboBox()
+        self.m1_combo.addItems(["CIFAR-10", "FMNIST", "IMDB", "HIGGS"])
+        layout.addWidget(self.m1_label)
+        layout.addWidget(self.m1_combo)
+
+        self.m2_label = QLabel("Select Model M2:")
+        self.m2_combo = QComboBox()
+        self.m2_combo.addItems(["CIFAR-10", "FMNIST", "IMDB", "HIGGS"])
+        layout.addWidget(self.m2_label)
+        layout.addWidget(self.m2_combo)
+
+        # Se c’erano valori precedenti, li carico
+        if "model1" in self.existing_params:
+            self.m1_combo.setCurrentText(self.existing_params["model1"])
+        if "model2" in self.existing_params:
+            self.m2_combo.setCurrentText(self.existing_params["model2"])
+
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def get_params(self):
+        return {
+            "model1": self.m1_combo.currentText(),
+            "model2": self.m2_combo.currentText()
+        }
+
+# ------------------------------------------------------------------------------------------
+# Dialog generico per configurare due parametri di esempio per altri pattern
+# (Se un domani dovesse servire nuovamente un generico)
 # ------------------------------------------------------------------------------------------
 class GenericPatternDialog(QDialog):
     def __init__(self, pattern_name, existing_params=None):
@@ -150,7 +181,6 @@ class GenericPatternDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignTop)
 
-        # Esempio: variable1 come SpinBox, variable2 come ComboBox
         self.var1_label = QLabel("Variable1:")
         self.var1_input = QSpinBox()
         self.var1_input.setRange(0, 999)
@@ -167,7 +197,6 @@ class GenericPatternDialog(QDialog):
         layout.addWidget(self.var2_label)
         layout.addWidget(self.var2_input)
 
-        # Bottoni Ok/Cancel
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
@@ -183,20 +212,13 @@ class GenericPatternDialog(QDialog):
 # Classe principale PreSimulationPage
 # ------------------------------------------------------------------------------------------
 class PreSimulationPage(QWidget):
-    """
-    Questa classe rappresenta la pagina di pre-simulazione dove l'utente può configurare
-    le impostazioni generali della simulazione, come il numero di round, il numero di client,
-    e selezionare (e configurare) i pattern architetturali da implementare.
-    """
     def __init__(self, user_choices, home_page_callback):
         super().__init__()
 
-        # Metadati su pattern (descrizione, immagine ecc.)
         self.pattern_data = {
-            # Client Management Category
             "Client Registry": {
                 "category": "Client Management Category",
-                "image": "img/patterns/Client-Management/clientregistry.png",  
+                "image": "img/patterns/Client-Management/clientregistry.png",
                 "description": "Maintains information about all participating client devices for client management.",
                 "benefits": "Centralized tracking of client states; easier organization.",
                 "drawbacks": "Requires overhead for maintaining the registry."
@@ -215,8 +237,6 @@ class PreSimulationPage(QWidget):
                 "benefits": "Allows specialized training; can handle different groups more effectively.",
                 "drawbacks": "Additional overhead to manage cluster membership."
             },
-
-            # Model Management Category
             "Message Compressor": {
                 "category": "Model Management Category",
                 "image": "img/patterns/Model-Management/messagecompressor.png",
@@ -245,8 +265,6 @@ class PreSimulationPage(QWidget):
                 "benefits": "TODO",
                 "drawbacks": "TODO"
             },
-
-            # Model Training Category
             "Multi-Task Model Trainer": {
                 "category": "Model Training Category",
                 "image": "img/patterns/Model-Management/multitaskmodeltrainer.png",
@@ -268,8 +286,6 @@ class PreSimulationPage(QWidget):
                 "benefits": "TODO",
                 "drawbacks": "TODO"
             },
-
-            # Model Aggregation Category
             "Asynchronous Aggregator": {
                 "category": "Model Aggregation Category",
                 "image": "TODO",
@@ -304,8 +320,7 @@ class PreSimulationPage(QWidget):
         self.user_choices = user_choices
         self.home_page_callback = home_page_callback
 
-        # Dizionario dove memorizziamo param per ogni pattern
-        # Esempio: self.temp_pattern_config["Client Selector"] = {"enabled": True, "params": {...}}
+        # Dizionario per memorizzare i parametri dei pattern
         self.temp_pattern_config = {}
 
         self.setWindowTitle("Pre-Simulation Configuration")
@@ -342,7 +357,6 @@ class PreSimulationPage(QWidget):
         choice_label.setStyleSheet("font-size: 16px; color: #333;")
         main_layout.addWidget(choice_label)
 
-        # General Settings
         general_settings_group = QGroupBox("General Settings")
         general_settings_group.setStyleSheet("""
             QGroupBox {
@@ -411,7 +425,6 @@ class PreSimulationPage(QWidget):
         general_settings_group.setLayout(g_layout)
         main_layout.addWidget(general_settings_group)
 
-        # Label "Select AP"
         patterns_label = QLabel("Select Architectural Patterns to Implement in the Simulation:")
         patterns_label.setAlignment(Qt.AlignLeft)
         patterns_label.setStyleSheet("font-size: 14px; color: #333; margin-top: 10px;")
@@ -421,7 +434,6 @@ class PreSimulationPage(QWidget):
         patterns_grid.setSpacing(10)
         self.pattern_checkboxes = {}
 
-        # Macrocategorie
         macrotopics = [
             ("Client Management Category", [
                 "Client Registry: Maintains information about all participating client devices for client management.",
@@ -448,6 +460,16 @@ class PreSimulationPage(QWidget):
         ]
 
         row, col = 0, 0
+        # Pattern effettivamente disponibili al clic
+        enabled_patterns = [
+            "Client Registry",
+            "Client Selector",
+            "Client Cluster",
+            "Message Compressor",
+            "Multi-Task Model Trainer",
+            "Heterogeneous Data Handler",
+        ]
+
         for topic, patterns_list in macrotopics:
             topic_group = QGroupBox(topic)
             topic_group.setStyleSheet("""
@@ -512,21 +534,11 @@ class PreSimulationPage(QWidget):
                 checkbox.setToolTip(pattern_desc)
                 checkbox.setStyleSheet("QCheckBox { color: black; font-size: 12px; }")
 
-                # Abilita/disabilita pattern
-                # Se vuoi tutti cliccabili, commenta la riga sotto.
-                # (Attuale: solo alcuni pattern abilitati)
-                enabled_patterns = [
-                    "Client Registry",
-                    "Client Selector",
-                    "Client Cluster",
-                    "Message Compressor",
-                    "Multi-Task Model Trainer",
-                    "Heterogeneous Data Handler",
-                ]
+                # Disabilitiamo i pattern non in enabled_patterns
                 if pattern_name not in enabled_patterns:
                     checkbox.setEnabled(False)
 
-                # Gestione "Client Registry (Active by default)"
+                # Client Registry: attivo di default, non si può disattivare
                 if pattern_name == "Client Registry":
                     checkbox.setText("Client Registry (Active by Default)")
                     checkbox.setChecked(True)
@@ -537,98 +549,88 @@ class PreSimulationPage(QWidget):
                             checkbox.blockSignals(False)
                     checkbox.stateChanged.connect(prevent_uncheck)
 
-                # Pulsante "Configure" -> compare/abilitato solo se checkbox = True
-                configure_button = QPushButton("Configure")
-                configure_button.setCursor(Qt.PointingHandCursor)
-                configure_button.setStyleSheet("""
-                    QPushButton {
-                    background-color: #ffc107;
-                    color: white;
-                    font-size: 10px;
-                    padding: 8px 16px;
-                    border-radius: 5px;
-                    text-align: left;
-                }
-                QPushButton:hover {
-                    background-color: #e0a800;
-                }
-                QPushButton:pressed {
-                    background-color: #c69500;
-                }
-                """)
-                configure_button.setVisible(False)  # Inizialmente nascosto
-                configure_button.setFixedWidth(80)
+                # Se i pattern non necessitano parametri, non mostriamo pulsante Configure
+                if pattern_name in ["Message Compressor", "Heterogeneous Data Handler"]:
+                    configure_button = None
+                elif pattern_name in ["Client Selector", "Client Cluster", "Multi-Task Model Trainer"]:
+                    configure_button = QPushButton("Configure")
+                    configure_button.setCursor(Qt.PointingHandCursor)
+                    configure_button.setStyleSheet("""
+                        QPushButton {
+                            background-color: #ffc107;
+                            color: white;
+                            font-size: 10px;
+                            padding: 8px 16px;
+                            border-radius: 5px;
+                            text-align: left;
+                        }
+                        QPushButton:hover {
+                            background-color: #e0a800;
+                        }
+                        QPushButton:pressed {
+                            background-color: #c69500;
+                        }
+                    """)
+                    configure_button.setVisible(False)
+                    configure_button.setFixedWidth(80)
 
-                configure_button.clicked.connect(lambda _, p=pattern_name: open_config(p))
+                    configure_button.clicked.connect(lambda _, p=pattern_name: open_config(p))
+                else:
+                    configure_button = None
 
-                def on_checkbox_state_changed(state, btn=configure_button, p=pattern_name):
-                    """
-                    Funzione per gestire il cambiamento di stato della checkbox.
-                    """
-                    btn.setVisible(state == Qt.Checked)  # Mostra/nasconde il pulsante "Configure"
+                def on_checkbox_state_changed(state, btn, p=pattern_name):
+                    if btn is not None:
+                        btn.setVisible(state == Qt.Checked)
                     if state == Qt.Checked:
-                        # Aggiungi un valore di default se il pattern non è già presente
                         if p not in self.temp_pattern_config:
                             self.temp_pattern_config[p] = {
                                 "enabled": True,
                                 "params": {}
                             }
                     else:
-                        # Se deselezionato, disabilita il pattern nella configurazione
                         if p in self.temp_pattern_config:
                             self.temp_pattern_config[p]["enabled"] = False
 
-                # Collega lo stato della checkbox al pulsante specifico
                 checkbox.stateChanged.connect(
-                    lambda state, btn=configure_button, p=pattern_name: on_checkbox_state_changed(state, btn, p)
+                    lambda state, btn=configure_button, p=pattern_name:
+                    on_checkbox_state_changed(state, btn, p)
                 )
 
-                def open_config(pattern_name):
-                    """
-                    Apri una finestra di configurazione basata sul nome del pattern.
-                    """
-                    if pattern_name == "Client Selector":
-                        existing_params = self.temp_pattern_config.get(pattern_name, {}).get("params", {})
+                def open_config(p_name):
+                    if p_name == "Client Selector":
+                        existing_params = self.temp_pattern_config.get(p_name, {}).get("params", {})
                         dlg = ClientSelectorDialog(existing_params)
                         if dlg.exec_() == QDialog.Accepted:
                             new_params = dlg.get_params()
-                            self.temp_pattern_config[pattern_name] = {
+                            self.temp_pattern_config[p_name] = {
                                 "enabled": True,
                                 "params": new_params
                             }
-                    elif pattern_name == "Client Cluster":
-                        existing_params = self.temp_pattern_config.get(pattern_name, {}).get("params", {})
+                    elif p_name == "Client Cluster":
+                        existing_params = self.temp_pattern_config.get(p_name, {}).get("params", {})
                         dlg = ClientClusterDialog(existing_params)
                         if dlg.exec_() == QDialog.Accepted:
                             new_params = dlg.get_params()
-                            self.temp_pattern_config[pattern_name] = {
+                            self.temp_pattern_config[p_name] = {
+                                "enabled": True,
+                                "params": new_params
+                            }
+                    elif p_name == "Multi-Task Model Trainer":
+                        existing_params = self.temp_pattern_config.get(p_name, {}).get("params", {})
+                        dlg = MultiTaskModelTrainerDialog(existing_params)
+                        if dlg.exec_() == QDialog.Accepted:
+                            new_params = dlg.get_params()
+                            self.temp_pattern_config[p_name] = {
                                 "enabled": True,
                                 "params": new_params
                             }
                     else:
-                        QMessageBox.information(self, "Not Implemented", f"The configuration for {pattern_name} is not implemented yet.")
-
-                # Se la checkbox cambia stato, abilitiamo/disabilitiamo Configure
-                def on_checkbox_state_changed(state, btn, p):
-                    """
-                    Funzione per gestire il cambiamento di stato della checkbox.
-                    """
-                    btn.setVisible(state == Qt.Checked)  # Mostra/nasconde il pulsante "Configure"
-                    if state == Qt.Checked:
-                        # Aggiungi il pattern alla configurazione temporanea se non esiste
-                        if p not in self.temp_pattern_config:
-                            self.temp_pattern_config[p] = {
-                                "enabled": True,
-                                "params": {}
-                            }
-                    else:
-                        # Rimuovi il pattern dalla configurazione temporanea se deselezionato
-                        if p in self.temp_pattern_config:
-                            self.temp_pattern_config[p]["enabled"] = False
+                        QMessageBox.information(self, "Not Implemented", f"The configuration for {p_name} is not implemented yet.")
 
                 hl.addWidget(info_button)
                 hl.addWidget(checkbox)
-                hl.addWidget(configure_button)
+                if configure_button is not None:
+                    hl.addWidget(configure_button)
 
                 topic_layout.addLayout(hl)
                 self.pattern_checkboxes[pattern_name] = checkbox
@@ -673,11 +675,8 @@ class PreSimulationPage(QWidget):
         except FileNotFoundError:
             self.docker_status_label.setText("Not Installed")
             self.docker_status_label.setStyleSheet("color: red; font-size: 12px;")
-    
+
     def update_docker_status(self):
-        """
-        Metodo chiamato quando si clicca il pulsante per aggiornare lo stato di Docker.
-        """
         self.check_docker_status()
 
     def show_pattern_info(self, pattern_name, pattern_category, image_path, description, benefits, drawbacks):
@@ -692,7 +691,7 @@ class PreSimulationPage(QWidget):
         title_label.setStyleSheet("color: black; font-size: 16px; font-weight: bold; margin-bottom: 10px;")
         layout.addWidget(title_label, alignment=Qt.AlignCenter)
 
-        base_dir = os.path.dirname(os.path.abspath(__file__)) 
+        base_dir = os.path.dirname(os.path.abspath(__file__))
         full_path = os.path.join(base_dir, image_path)
         image_label = QLabel()
         if os.path.exists(full_path):
@@ -725,32 +724,62 @@ class PreSimulationPage(QWidget):
         button_box = QDialogButtonBox(QDialogButtonBox.Close)
         button_box.setCursor(Qt.PointingHandCursor)
         button_box.setStyleSheet("""
-                    QPushButton {
-                    background-color: #green;
-                    color: white;
-                    font-size: 10px;
-                    padding: 8px 16px;
-                    border-radius: 5px;
-                    text-align: left;
-                }
-                QPushButton:hover {
-                    background-color: #e0a800;
-                }
-                QPushButton:pressed {
-                    background-color: #c69500;
-                }
-                """)
+            QPushButton {
+                background-color: #green;
+                color: white;
+                font-size: 10px;
+                padding: 8px 16px;
+                border-radius: 5px;
+                text-align: left;
+            }
+            QPushButton:hover {
+                background-color: #e0a800;
+            }
+            QPushButton:pressed {
+                background-color: #c69500;
+            }
+        """)
         button_box.rejected.connect(dialog.reject)
         layout.addWidget(button_box, alignment=Qt.AlignCenter)
 
         dialog.exec_()
 
     def save_preferences_and_open_client_config(self):
-        """
-        Prepara i dati di configurazione e passa alla pagina successiva senza salvare il file.
-        """
-        patterns_data = {}
+        # Controllo se i pattern con pulsante "Configure" (Client Selector, Client Cluster, Multi-Task Model Trainer)
+        # sono selezionati ma non configurati, cioè se i loro params sono rimasti vuoti.
+        config_needed_patterns = ["Client Selector", "Client Cluster", "Multi-Task Model Trainer"]
+        for p_name in config_needed_patterns:
+            if p_name in self.pattern_checkboxes and self.pattern_checkboxes[p_name].isChecked():
+                if p_name not in self.temp_pattern_config or not self.temp_pattern_config[p_name]["params"]:
+                    msg_box = QMessageBox(self)
+                    msg_box.setWindowTitle("Configuration Needed")
+                    msg_box.setIcon(QMessageBox.Warning)
+                    msg_box.setText(f"Please configure '{p_name}' before continuing.")
 
+                    ok_button = msg_box.addButton("Ok", QMessageBox.AcceptRole)
+                    ok_button.setCursor(Qt.PointingHandCursor)
+                    ok_button.setStyleSheet("""
+                        QPushButton {
+                            background-color: #green;
+                            color: white;
+                            font-size: 10px;
+                            padding: 8px 16px;
+                            border-radius: 5px;
+                            text-align: left;
+                        }
+                        QPushButton:hover {
+                            background-color: #e0a800;
+                        }
+                        QPushButton:pressed {
+                            background-color: #c69500;
+                        }
+                    """)
+
+                    msg_box.exec_()
+                    return
+
+        # Se il controllo sopra è passato, procediamo con il salvataggio
+        patterns_data = {}
         relevant_patterns = [
             "Client Registry",
             "Client Selector",
@@ -762,40 +791,36 @@ class PreSimulationPage(QWidget):
 
         for pat_name in relevant_patterns:
             cb_checked = (self.pattern_checkboxes[pat_name].isChecked()
-                        if pat_name in self.pattern_checkboxes else False)
+                          if pat_name in self.pattern_checkboxes else False)
 
             if pat_name in self.temp_pattern_config:
-                # Abbiamo già un dict param
                 existing = self.temp_pattern_config[pat_name]
                 existing["enabled"] = cb_checked
                 patterns_data[pat_name.lower().replace(" ", "_")] = existing
             else:
-                # Non abbiamo configurato => default
                 patterns_data[pat_name.lower().replace(" ", "_")] = {
                     "enabled": cb_checked,
                     "params": {}
                 }
 
-        # Prepariamo la configurazione senza salvare
         simulation_config = {
-            "simulation_type": self.user_choices[-1]["simulation_type"],  # Aggiungiamo il tipo di simulazione
+            "simulation_type": self.user_choices[-1]["simulation_type"],
             "rounds": self.rounds_input.value(),
             "clients": self.clients_input.value(),
             "patterns": patterns_data,
-            "client_details": []  # Sarà popolato successivamente
+            "client_details": []
         }
 
         self.user_choices.append(simulation_config)
 
-        # Passiamo alla pagina successiva
         self.client_config_page = ClientConfigurationPage(self.user_choices, self.home_page_callback)
         self.client_config_page.show()
-        self.close()    
+        self.close()
 
+# ------------------------------------------------------------------------------------------
+# Pagina di configurazione dei client, con card orizzontali e input per i parametri
+# ------------------------------------------------------------------------------------------
 class ClientConfigurationPage(QWidget):
-    """
-    Pagina di configurazione dei client, con card orizzontali in un layout a griglia e input per i parametri.
-    """
     def __init__(self, user_choices, home_page_callback):
         super().__init__()
         self.setWindowTitle("Client Configuration")
@@ -841,35 +866,30 @@ class ClientConfigurationPage(QWidget):
             }
         """)
 
-        # Layout principale
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(5)
         self.setLayout(main_layout)
 
-        # Titolo della pagina
         title_label = QLabel("Configure Each Client")
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 10px;")
         main_layout.addWidget(title_label)
 
-        # Layout a griglia per i client
         grid_layout = QGridLayout()
         grid_layout.setSpacing(20)
         main_layout.addLayout(grid_layout)
 
-        # Configurazioni dei client
         self.client_configs = []
         num_clients = self.user_choices[-1]["clients"]
 
         for index in range(num_clients):
             card_widget, config_dict = self.create_client_card(index + 1)
-            row = index // 3  # Massimo 3 card per riga
+            row = index // 3
             col = index % 3
             grid_layout.addWidget(card_widget, row, col)
             self.client_configs.append(config_dict)
 
-        # Pulsante di conferma
         confirm_button = QPushButton("Confirm and Continue")
         confirm_button.setCursor(Qt.PointingHandCursor)
         confirm_button.clicked.connect(self.save_client_configurations_and_continue)
@@ -880,24 +900,20 @@ class ClientConfigurationPage(QWidget):
         card_layout = QVBoxLayout()
         card_layout.setContentsMargins(8, 8, 8, 8)
         card_layout.setSpacing(5)
-        card.setStyleSheet("background-color: #f9f9f9; border-radius: 5px;")
         card.setLayout(card_layout)
 
-        card.setFixedWidth(300)  # Riduciamo la larghezza
+        card.setFixedWidth(300)
 
-        # Icona del client
         pc_icon = self.style().standardIcon(QStyle.SP_ComputerIcon)
         pc_icon_label = QLabel()
         pc_icon_label.setPixmap(pc_icon.pixmap(48, 48))
         card_layout.addWidget(pc_icon_label, alignment=Qt.AlignCenter)
 
-        # Titolo del client
         client_title = QLabel(f"Client {client_id}")
         client_title.setStyleSheet("font-size: 12px; font-weight: bold;")
         client_title.setAlignment(Qt.AlignCenter)
         card_layout.addWidget(client_title)
 
-        # Riga CPU Allocation
         cpu_label = QLabel("CPU Allocation:")
         cpu_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         cpu_label.setAlignment(Qt.AlignLeft)
@@ -912,7 +928,6 @@ class ClientConfigurationPage(QWidget):
         cpu_layout.addWidget(cpu_input)
         card_layout.addLayout(cpu_layout)
 
-        # Riga RAM Allocation
         ram_label = QLabel("RAM Allocation:")
         ram_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         ram_label.setAlignment(Qt.AlignLeft)
@@ -927,7 +942,6 @@ class ClientConfigurationPage(QWidget):
         ram_layout.addWidget(ram_input)
         card_layout.addLayout(ram_layout)
 
-        # Riga Testing Dataset
         dataset_label = QLabel("Testing Dataset:")
         dataset_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         dataset_label.setAlignment(Qt.AlignLeft)
@@ -940,7 +954,6 @@ class ClientConfigurationPage(QWidget):
         dataset_layout.addWidget(dataset_combobox)
         card_layout.addLayout(dataset_layout)
 
-        # Riga Dataset Partition
         partition_label = QLabel("Dataset Partition:")
         partition_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         partition_label.setAlignment(Qt.AlignLeft)
@@ -975,17 +988,13 @@ class ClientConfigurationPage(QWidget):
             client_details.append(client_info)
 
         self.user_choices[-1]["client_details"] = client_details
-
-        self.save_configuration_to_file()  # Salviamo il file JSON aggiornato
+        self.save_configuration_to_file()
 
         self.recap_simulation_page = RecapSimulationPage(self.user_choices)
         self.recap_simulation_page.show()
         self.close()
 
     def save_configuration_to_file(self):
-        """
-        Salva la configurazione aggiornata come file JSON.
-        """
         try:
             base_dir = os.path.dirname(os.path.abspath(__file__))
             config_dir = os.path.join(base_dir, 'configuration')
