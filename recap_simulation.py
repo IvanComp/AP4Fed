@@ -419,11 +419,19 @@ class RecapSimulationPage(QWidget):
             msg_box = QMessageBox(self)
             msg_box.setWindowTitle("Success")
             msg_box.setText(f"Configuration saved to {config_file_path}")
-            # ... QUI IL RESTO DEL TUO CODICE INVARIATO ...
+            msg_box.setStyleSheet("""
+                QMessageBox {
+                    background-color: white;
+                }
+                QLabel {
+                    color: black;
+                }
+            """)
+            msg_box.setIcon(QMessageBox.Information)
+            msg_box.setStandardButtons(QMessageBox.Ok)
             msg_box.exec_()
         except Exception as e:
-            # ... QUI IL TUO BLOCCO DI GESTIONE ERRORE INVARIATO ...
-            return
+            return 
 
         client_details = merged_config.get('client_details', [])
         num_supernodes = len(client_details)

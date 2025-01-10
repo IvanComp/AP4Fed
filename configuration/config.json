@@ -1,5 +1,5 @@
 {
-    "simulation_type": "Docker",
+    "simulation_type": "Local",
     "rounds": 3,
     "clients": 4,
     "patterns": {
@@ -8,15 +8,18 @@
             "params": {}
         },
         "client_selector": {
-            "enabled": false,
-            "params": {}
+            "enabled": true,
+            "params": {
+                "selection_strategy": "Resource-Based",
+                "selection_criteria": "CPU"
+            }
         },
         "client_cluster": {
             "enabled": false,
             "params": {}
         },
         "message_compressor": {
-            "enabled": false,
+            "enabled": true,
             "params": {}
         },
         "multi-task_model_trainer": {
@@ -24,7 +27,7 @@
             "params": {}
         },
         "heterogeneous_data_handler": {
-            "enabled": false,
+            "enabled": true,
             "params": {}
         }
     },
@@ -34,7 +37,7 @@
             "cpu": 1,
             "ram": 2,
             "dataset": "CIFAR-10",
-            "data_distribution_type": "non-IID"
+            "data_distribution_type": "IID"
         },
         {
             "client_id": 2,

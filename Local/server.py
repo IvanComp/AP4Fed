@@ -229,19 +229,28 @@ class MultiModelStrategy(Strategy):
         self.parameters_a = initial_parameters_a
         self.parameters_b = initial_parameters_b
     
-    #time.sleep(3)
-    log(INFO, f"==========================================")
-    log(INFO, f"List of Implemented Architectural Patterns")
-    enabled_patterns = [pattern for pattern, enabled in config["patterns"].items() if enabled]
+    log(INFO, "==========================================")
+    log(INFO, "Starting the Simulation...")
+    time.sleep(5)
+    log(INFO, "==========================================")
+    log(INFO, "List of Implemented Architectural Patterns: ")
 
-    if enabled_patterns:
-        formatted_patterns = "\n".join(
-            [f"  {pattern.replace('_', ' ').title()} ✅" for pattern in enabled_patterns]
-        )
-        log(INFO, f"\n{formatted_patterns}")
-    
-    log(INFO, f"==========================================")
-    #time.sleep(5)
+    enabled_patterns = []
+    for pattern_name, pattern_info in config["patterns"].items():
+        if pattern_info["enabled"]:
+            enabled_patterns.append((pattern_name, pattern_info))
+
+    if not enabled_patterns:
+        log(INFO,"No patterns are enabled.")
+    else:
+        for pattern_name, pattern_info in enabled_patterns:
+            pattern_str = pattern_name.replace('_', ' ').title()
+            log(INFO, f"{pattern_str} ✅")
+            if pattern_info["params"]:
+                log(INFO, f"    Params: {pattern_info['params']}")
+
+    log(INFO, "==========================================")
+    # time.sleep(5)
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
         return None

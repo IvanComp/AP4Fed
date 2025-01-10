@@ -742,7 +742,7 @@ class PreSimulationPage(QWidget):
         button_box.setCursor(Qt.PointingHandCursor)
         button_box.setStyleSheet("""
             QPushButton {
-                background-color: #green;
+                background-color: green;
                 color: white;
                 font-size: 10px;
                 padding: 8px 16px;
@@ -777,7 +777,7 @@ class PreSimulationPage(QWidget):
                     ok_button.setCursor(Qt.PointingHandCursor)
                     ok_button.setStyleSheet("""
                         QPushButton {
-                            background-color: #green;
+                            background-color: green;
                             color: white;
                             font-size: 10px;
                             padding: 8px 16px;
@@ -911,7 +911,7 @@ class ClientConfigurationPage(QWidget):
         confirm_button.setCursor(Qt.PointingHandCursor)
         confirm_button.setStyleSheet("""
                         QPushButton {
-                            background-color: #green;
+                            background-color: green;
                             color: white;
                             font-size: 10px;
                             padding: 8px 16px;
