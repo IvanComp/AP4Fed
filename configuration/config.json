@@ -19,7 +19,7 @@
             "params": {}
         },
         "message_compressor": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         },
         "multi-task_model_trainer": {
@@ -27,7 +27,7 @@
             "params": {}
         },
         "heterogeneous_data_handler": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         }
     },

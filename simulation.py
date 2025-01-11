@@ -4,7 +4,7 @@ import json  # Imported for reading the configuration file
 import re
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPlainTextEdit, QPushButton, QMessageBox
 from PyQt5.QtCore import Qt, QProcess
-from simulation_results import SimulationResults  # Assumendo che esista un file simulation_results.py con una classe SimulationResults
+from simulation_results import SimulationResults  
 
 class SimulationPage(QWidget):
     def __init__(self, num_supernodes=None):
@@ -25,10 +25,12 @@ class SimulationPage(QWidget):
         self.output_area = QPlainTextEdit()
         self.output_area.setReadOnly(True)
         self.output_area.setStyleSheet("""
-            background-color: black;
-            color: white;
-            font-family: Courier;
-            font-size: 12px;
+            QPlainTextEdit {
+                background-color: black;
+                font-family: Courier;
+                font-size: 12px;
+                color: white;
+            }
         """)
         layout.addWidget(self.output_area)
 
@@ -125,8 +127,31 @@ class SimulationPage(QWidget):
     def handle_stdout(self):
         data = self.process.readAllStandardOutput()
         stdout = bytes(data).decode('utf-8')
-        cleaned_stdout = self.remove_ansi_sequences(stdout)
-        self.output_area.appendPlainText(cleaned_stdout)
+        # Suddividiamo in righe e le elaboriamo una a una
+        lines = stdout.splitlines()
+        for line in lines:
+            cleaned_line = self.remove_ansi_sequences(line)
+
+            # Filtra le righe che contengono i messaggi di deprecazione
+            if "This is a deprecated feature." in cleaned_line or "entirely in future versions of Flower." in cleaned_line:
+                continue
+
+            # Se la riga contiene WARNING, la saltiamo
+            if "WARNING" in cleaned_line or "warning" in cleaned_line:
+                continue
+
+            # Se la riga contiene "Client", la coloriamo di verde
+            if "Client" in cleaned_line or "client" in cleaned_line:
+                colored_line = f"<span style='color: #4caf50;'>{cleaned_line}</span>"
+            # Se la riga contiene "Server", la coloriamo di blu
+            elif "Server" in cleaned_line or "server" in cleaned_line:
+                colored_line = f"<span style='color: #2196f3;'>{cleaned_line}</span>"
+            # Altrimenti, lasciamo il colore bianco
+            else:
+                colored_line = f"<span style='color: white;'>{cleaned_line}</span>"
+            
+            self.output_area.appendHtml(colored_line)
+
         self.output_area.verticalScrollBar().setValue(self.output_area.verticalScrollBar().maximum())
 
     def remove_ansi_sequences(self, text):

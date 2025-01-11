@@ -27,7 +27,12 @@ class ClientSelectorDialog(QDialog):
 
         self.strategy_label = QLabel("Selection Strategy:")
         self.strategy_combo = QComboBox()
-        self.strategy_combo.addItems(["Resource-Based", "Data-based", "Performance-based"])
+        self.strategy_combo.addItem("Resource-Based")  # Aggiungi prima la voce selezionabile
+        self.strategy_combo.addItem("Data-based")  # Aggiungi le altre voci
+        self.strategy_combo.addItem("Performance-based")
+        # Disabilita le altre voci
+        self.strategy_combo.model().item(1).setEnabled(False)
+        self.strategy_combo.model().item(2).setEnabled(False)
         layout.addWidget(self.strategy_label)
         layout.addWidget(self.strategy_combo)
 
@@ -82,7 +87,9 @@ class ClientClusterDialog(QDialog):
 
         self.criteria_label = QLabel("Clustering Criteria:")
         self.criteria_combo = QComboBox()
-        self.criteria_combo.addItems(["Computational Resources", "Network Capabilities", "Data Partition Type"])
+        self.criteria_combo.addItems(["Resource-Based", "Data Partition Type", "Network Capabilities" ])
+        # Disabilita le altre opzioni tranne la prima
+        self.criteria_combo.model().item(2).setEnabled(False)  # Disabilita "Data Partition Type"
         layout.addWidget(self.criteria_label)
         layout.addWidget(self.criteria_combo)
 
@@ -109,12 +116,12 @@ class ClientClusterDialog(QDialog):
         criteria = self.criteria_combo.currentText()
         self.strategy_combo.clear()
 
-        if criteria == "Computational Resources":
+        if criteria == "Resource-Based":
             self.strategy_combo.addItems(["CPU", "RAM"])
-        elif criteria == "Network Capabilities":
-            self.strategy_combo.addItems(["Default"])
         elif criteria == "Data Partition Type":
             self.strategy_combo.addItems(["IID", "non-IID"])
+        elif criteria == "Network Capabilities":
+            self.strategy_combo.addItems(["Default"])
 
     def get_params(self):
         return {
@@ -385,12 +392,12 @@ class PreSimulationPage(QWidget):
 
         self.rounds_input = QSpinBox()
         self.rounds_input.setRange(1, 100)
-        self.rounds_input.setValue(3)
+        self.rounds_input.setValue(2)
         g_layout.addRow("Number of Rounds:", self.rounds_input)
 
         self.clients_input = QSpinBox()
-        self.clients_input.setRange(1, 100)
-        self.clients_input.setValue(4)
+        self.clients_input.setRange(1, 128)
+        self.clients_input.setValue(2)
         g_layout.addRow("Number of Clients:", self.clients_input)
 
         if self.user_choices[-1]["simulation_type"] == "Docker":
@@ -544,6 +551,7 @@ class PreSimulationPage(QWidget):
                 # Disabilitiamo i pattern non in enabled_patterns
                 if pattern_name not in enabled_patterns:
                     checkbox.setEnabled(False)
+                    checkbox.setStyleSheet("QCheckBox { color: darkgray; font-size: 12px; }")
 
                 # Client Registry: attivo di default, non si può disattivare
                 if pattern_name == "Client Registry":

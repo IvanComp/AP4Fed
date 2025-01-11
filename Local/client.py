@@ -6,7 +6,7 @@ from flwr.common import (
     Context,
 )
 from typing import Dict
-import time
+import json
 from datetime import datetime
 import csv
 import os
@@ -36,25 +36,70 @@ from taskB import (
 )
 
 CLIENT_ID = os.getenv("HOSTNAME")
-
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class FlowerClient(NumPyClient):
-    def __init__(self, cid: str, model_type):
+    def __init__(self, cid: str, model_type: str):
         self.cid = cid  
-        self.model_type = "taskA"
+        self.model_type = model_type
         self.net = NetA().to(DEVICE_A)
         self.trainloader, self.testloader = load_data_A()  
         self.device = DEVICE_A
 
-    def fit(self, parameters, config):
-        n_cpu = query_cpu()        
+    def fit(self, parameters, configJSON):
+        global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
+        CLIENT_SELECTOR = False
+        CLIENT_CLUSTER = False
+        MESSAGE_COMPRESSOR = False
+        MULTI_TASK_MODEL_TRAINER = False
+        HETEROGENEOUS_DATA_HANDLER = False
+        current_dir = os.path.abspath(os.path.dirname(__file__))
+        config_dir = os.path.join(current_dir, '..', 'configuration') 
+        config_file = os.path.join(config_dir, 'config.json')
+
+        if os.path.exists(config_file):
+                with open(config_file, 'r') as f:
+                    configJSON = json.load(f)
+                for pattern_name, pattern_info in configJSON["patterns"].items():
+                    if pattern_info["enabled"]:
+                        if pattern_name == "client_selector":
+                            CLIENT_SELECTOR = True
+                        elif pattern_name == "client_cluster":
+                            CLIENT_CLUSTER = True
+                        elif pattern_name == "message_compressor":
+                            MESSAGE_COMPRESSOR = True
+                        elif pattern_name == "multi-task_model_trainer":
+                            MULTI_TASK_MODEL_TRAINER = True
+                        elif pattern_name == "heterogeneous_data_handler":
+                            HETEROGENEOUS_DATA_HANDLER = True
+
+        n_cpu = query_cpu()     
+        ram = query_ram()
+        
+        # AP CLIENT_SELECTOR
+        if CLIENT_SELECTOR:
+            # Se tutti i controlli sono superati, estrai i parametri
+            selector_params = configJSON["patterns"]["client_selector"]["params"]
+            selection_strategy = selector_params.get("selection_strategy", "")
+            selection_criteria = selector_params.get("selection_criteria", "")
+            selection_value = 1  # Default value for selection_value
+
+            # SELECTION STRATEGY 1."Resource-Based"
+            if selection_strategy == "Resource-Based":
+                if selection_criteria == "CPU":
+                    if n_cpu < selection_value:
+                        log(INFO, f"Client {self.cid} has insufficient CPU ({n_cpu} < {selection_value}). It will not participate in the FL round.")
+                        log(INFO, f"Preparing empty reply")
+                        return parameters, 0, {}
+                elif selection_criteria == "RAM":
+                    if ram < selection_value:
+                        log(INFO, f"Client {self.cid} has insufficient RAM ({ram} GB < {selection_value} GB). It will not participate in the FL round.")
+                        log(INFO, f"Preparing empty reply")
+                        return parameters, 0, {}
+
         set_weights_A(self.net, parameters)
         results, training_time, start_comm_time = train_A(self.net, self.trainloader, self.testloader, epochs=1, device=self.device)       
-
         new_parameters = get_weights_A(self.net)
-
-        cpu_usage = n_cpu
 
         metrics = {
             "train_loss": results["train_loss"],
@@ -64,8 +109,8 @@ class FlowerClient(NumPyClient):
             "val_accuracy": results["val_accuracy"],
             "val_f1": results["val_f1"],
             "training_time": training_time,
-            "cpu_usage": cpu_usage,
-            "n_cpu": n_cpu,
+            "cpu_usage": n_cpu,
+            "ram": ram,
             "client_id": self.cid,
             "model_type": self.model_type,
             "start_comm_time": start_comm_time,
@@ -93,6 +138,21 @@ def query_cpu():
         cpu_quota = os.cpu_count()
 
     return cpu_quota
+
+def query_ram():
+    import os
+    try:
+        # Controlla la memoria massima configurata nei cgroup
+        with open("/sys/fs/cgroup/memory.max", "rt") as f:
+            memory_limit = int(f.read().strip())
+            if memory_limit == -1:  # Se non c'è un limite (illimitato)
+                total_memory = os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES')
+            else:
+                total_memory = memory_limit
+    except FileNotFoundError:
+        total_memory = os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES')
+
+    return total_memory // (1024 * 1024 * 1024)
 
 def client_fn(context: Context):
     original_cid = context.node_id

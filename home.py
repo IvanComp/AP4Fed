@@ -247,34 +247,6 @@ class SecondScreen(QWidget):
         button_layout = QHBoxLayout()
         button_layout.setSpacing(20)
 
-        docker_button = QPushButton()
-        docker_button.setStyleSheet("""
-            QPushButton {
-                background-color: white;
-                color: black;
-                font-size: 14px; 
-                padding: 10px;
-                border: 2px solid black;
-                border-radius: 10px;
-                width: 250px;
-                height: 150px;
-            }
-            QPushButton:hover {
-                background-color: #f0f0f0;
-            }
-            QPushButton:pressed {
-                background-color: #d0d0d0;
-            }
-        """)
-        if os.path.exists(docker_path):
-            docker_icon = QIcon(docker_path)
-            docker_button.setIcon(docker_icon)
-            docker_button.setIconSize(QSize(50, 50))
-        docker_button.setText("Create project with Docker")
-        docker_button.setCursor(Qt.PointingHandCursor)
-        docker_button.clicked.connect(self.select_docker) 
-        button_layout.addWidget(docker_button)
-
         local_button = QPushButton()
         local_button.setStyleSheet("""
             QPushButton {
@@ -308,6 +280,36 @@ class SecondScreen(QWidget):
         local_button.setCursor(Qt.PointingHandCursor)
         local_button.clicked.connect(self.select_local)
         button_layout.addWidget(local_button)
+
+        docker_button = QPushButton()
+        docker_button.setStyleSheet("""
+            QPushButton {
+                background-color: white;
+                color: black;
+                font-size: 14px; 
+                padding: 10px;
+                border: 2px solid black;
+                border-radius: 10px;
+                width: 250px;
+                height: 150px;
+            }
+            QPushButton:hover {
+                background-color: #f0f0f0;
+            }
+            QPushButton:pressed {
+                background-color: #d0d0d0;
+            }
+        """)
+        if os.path.exists(docker_path):
+            docker_icon = QIcon(docker_path)
+            docker_button.setIcon(docker_icon)
+            docker_button.setIconSize(QSize(50, 50))
+        docker_button.setText("Create project with Docker")
+        docker_button.setCursor(Qt.PointingHandCursor)
+        docker_button.clicked.connect(self.select_docker) 
+        button_layout.addWidget(docker_button)
+
+        
 
         main_layout.addLayout(button_layout)
         self.setStyleSheet("background-color: white;")

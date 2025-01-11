@@ -36,6 +36,14 @@ import seaborn as sns
 import psutil
 import json  
 
+################### GLOBAL PARAMETERS
+global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
+CLIENT_SELECTOR = False
+CLIENT_CLUSTER = False
+MESSAGE_COMPRESSOR = False
+MULTI_TASK_MODEL_TRAINER = False
+HETEROGENEOUS_DATA_HANDLER = False
+
 global_metrics = {
     "taskA": {"train_loss": [], "train_accuracy": [], "train_f1": [], "val_loss": [], "val_accuracy": [], "val_f1": []},
     "taskB": {"train_loss": [], "train_accuracy": [], "train_f1": [], "val_loss": [], "val_accuracy": [], "val_f1": []},
@@ -50,19 +58,22 @@ config_file = os.path.join(config_dir, 'config.json')
 
 # Read 'rounds' and 'clients' from config.json
 if os.path.exists(config_file):
-    try:
         with open(config_file, 'r') as f:
             config = json.load(f)
         num_rounds = int(config.get('rounds', 10))  # Use 'rounds' from config.json, default to 10
         client_count = int(config.get('clients', 2))  # Use 'clients' from config.json, default to 2
-    except Exception as e:
-        log(INFO, f"Error reading config.json: {e}")
-        num_rounds = 10  # Default value in case of error
-        client_count = 2  # Default value in case of error
-else:
-    log(INFO, f"config.json not found at {config_file}. Using default num_rounds=10 and client_count=2.")
-    num_rounds = 10  # Default value if config.json does not exist
-    client_count = 2  # Default value if config.json does not exist
+        for pattern_name, pattern_info in config["patterns"].items():
+            if pattern_info["enabled"]:
+                if pattern_name == "client_selector":
+                    CLIENT_SELECTOR = True
+                elif pattern_name == "client_cluster":
+                    CLIENT_CLUSTER = True
+                elif pattern_name == "message_compressor":
+                    MESSAGE_COMPRESSOR = True
+                elif pattern_name == "multi-task_model_trainer":
+                    MULTI_TASK_MODEL_TRAINER = True
+                elif pattern_name == "heterogeneous_data_handler":
+                    HETEROGENEOUS_DATA_HANDLER = True
 
 currentRnd = 0
 
@@ -209,14 +220,7 @@ def weighted_average_global(metrics, task_type, srt1, srt2, time_between_rounds)
             already_logged = True
         log_round_time(client_id, currentRnd-1, training_time, communication_time, total_time, cpu_usage, model_type, already_logged, srt1, srt2)
 
-    return {
-        "train_loss": avg_train_loss,
-        "train_accuracy": avg_train_accuracy,
-        "train_f1": avg_train_f1,
-        "val_loss": avg_val_loss,
-        "val_accuracy": avg_val_accuracy,
-        "val_f1": avg_val_f1,
-    }
+
 
 parametersA = ndarrays_to_parameters(get_weights_A(NetA()))
 parametersB = ndarrays_to_parameters(get_weights_B(NetB()))
@@ -231,9 +235,9 @@ class MultiModelStrategy(Strategy):
     
     log(INFO, "==========================================")
     log(INFO, "Starting the Simulation...")
-    time.sleep(5)
     log(INFO, "==========================================")
-    log(INFO, "List of Implemented Architectural Patterns: ")
+    time.sleep(2)
+    log(INFO, "List of Architectural Patterns Implemented: ")
 
     enabled_patterns = []
     for pattern_name, pattern_info in config["patterns"].items():
@@ -248,9 +252,9 @@ class MultiModelStrategy(Strategy):
             log(INFO, f"{pattern_str} ✅")
             if pattern_info["params"]:
                 log(INFO, f"    Params: {pattern_info['params']}")
-
+            time.sleep(3)
     log(INFO, "==========================================")
-    # time.sleep(5)
+    time.sleep(5)
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
         return None
@@ -337,8 +341,8 @@ class MultiModelStrategy(Strategy):
                 for key in global_metrics["taskB"]
             }
 
-        if metrics_aggregated:
-            print(metrics_aggregated)
+        #if metrics_aggregated:
+            #print(metrics_aggregated)
 
         if currentRnd == num_rounds:
             preprocess_csv()
