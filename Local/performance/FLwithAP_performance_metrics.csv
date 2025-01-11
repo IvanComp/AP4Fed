@@ -1,17 +1,1 @@
 Client ID,FL Round,Training Time,Communication Time,Total Client Time,CPU Number,Task,Train Loss,Train Accuracy,Train F1,Val Loss,Val Accuracy,Val F1,Total Time of Training Round,Total Time of FL Round
-Client 1,1,13.95,27.14,41.09,11,CIFAR-10,,,,,,,,
-Client 2,1,10.91,7.06,17.97,11,CIFAR-10,,,,,,,,
-Client 3,1,13.93,27.14,41.07,11,CIFAR-10,,,,,,,,
-Client 4,1,13.94,27.19,41.13,11,CIFAR-10,,,,,,,,
-Client 5,1,10.88,6.49,17.37,11,CIFAR-10,,,,,,,,
-Client 6,1,13.88,28.2,42.08,11,CIFAR-10,,,,,,,,
-Client 7,1,13.98,27.11,41.09,11,CIFAR-10,,,,,,,,
-Client 8,1,10.83,6.61,17.44,11,CIFAR-10,3043.8249,0.3,0.26,19400.5042,0.3,0.26,13.98,49.63
-Client 1,2,13.58,25.7,39.28,11,CIFAR-10,,,,,,,,
-Client 2,2,9.91,6.74,16.65,11,CIFAR-10,,,,,,,,
-Client 3,2,13.51,25.82,39.33,11,CIFAR-10,,,,,,,,
-Client 4,2,13.6,25.71,39.31,11,CIFAR-10,,,,,,,,
-Client 5,2,9.95,6.54,16.49,11,CIFAR-10,,,,,,,,
-Client 6,2,13.56,25.71,39.27,11,CIFAR-10,,,,,,,,
-Client 7,2,13.63,25.7,39.33,11,CIFAR-10,,,,,,,,
-Client 8,2,10.01,6.49,16.5,11,CIFAR-10,2584.261,0.39,0.38,16444.6969,0.39,0.38,13.63,40.82
