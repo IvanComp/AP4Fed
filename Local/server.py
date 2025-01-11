@@ -17,12 +17,14 @@ from flwr.server import (
     ServerAppComponents,
     start_server
 )
+from io import BytesIO
 from rich.panel import Panel
 from flwr.server.strategy import Strategy
 from flwr.server.client_manager import ClientManager
 from flwr.server.client_proxy import ClientProxy
 from flwr.common.logger import log
 from logging import INFO
+import numpy as np
 from taskA import Net as NetA, get_weights as get_weights_A
 from taskB import Net as NetB, get_weights as get_weights_B
 from rich.console import Console
@@ -35,6 +37,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import psutil
 import json  
+import zlib
+import pickle
+import docker
 
 ################### GLOBAL PARAMETERS
 global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
@@ -252,9 +257,8 @@ class MultiModelStrategy(Strategy):
             log(INFO, f"{pattern_str} ✅")
             if pattern_info["params"]:
                 log(INFO, f"    Params: {pattern_info['params']}")
-            time.sleep(3)
+            time.sleep(1)
     log(INFO, "==========================================")
-    time.sleep(5)
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
         return None
@@ -271,10 +275,41 @@ class MultiModelStrategy(Strategy):
 
         fit_configurations = []
 
+        if MESSAGE_COMPRESSOR:
+            fake_tensors = []
+            for tensor in self.parameters_a.tensors:
+                buffer = BytesIO(tensor)
+                loaded_array = np.load(buffer)
+                
+                reduced_shape = tuple(max(dim // 10, 1) for dim in loaded_array.shape)
+                fake_array = np.zeros(reduced_shape, dtype=loaded_array.dtype)
+                
+                fake_serialized = BytesIO()
+                np.save(fake_serialized, fake_array)
+                fake_serialized.seek(0)
+                fake_tensors.append(fake_serialized.read())
+
+            fake_parameters = Parameters(tensors=fake_tensors, tensor_type=self.parameters_a.tensor_type)
+
+            serialized_parameters = pickle.dumps(self.parameters_a)
+            original_size = len(serialized_parameters)  
+            compressed_parameters = zlib.compress(serialized_parameters)
+            compressed_size = len(compressed_parameters) 
+            compressed_parameters_hex = compressed_parameters.hex()
+
+            reduction_bytes = original_size - compressed_size
+            reduction_percentage = (reduction_bytes / original_size) * 100
+
+            log(INFO,f"Global Model Parameters compressed (from Server to Client) reduction of {reduction_bytes} bytes ({reduction_percentage:.2f}%)")
+
         for client in clients:
 
-            fit_ins = FitIns(self.parameters_a, {})
             model_type = "taskA"
+
+            if MESSAGE_COMPRESSOR:
+                fit_ins = FitIns(fake_parameters, {"compressed_parameters_hex": compressed_parameters_hex})
+            else:
+                fit_ins = FitIns(self.parameters_a, {})
 
             client_model_mapping[client.cid] = model_type
 
@@ -307,8 +342,14 @@ class MultiModelStrategy(Strategy):
             client_id = fit_res.metrics.get("client_id")
             model_type = fit_res.metrics.get("model_type")
             training_time = fit_res.metrics.get("training_time")
+            compressed_parameters_hex = fit_res.metrics.get("compressed_parameters_hex")
 
             client_model_mapping[client_id] = model_type
+
+            if MESSAGE_COMPRESSOR:            
+                compressed_parameters = bytes.fromhex(compressed_parameters_hex)
+                decompressed_parameters = pickle.loads(zlib.decompress(compressed_parameters))
+                fit_res.parameters = ndarrays_to_parameters(decompressed_parameters)
 
             if training_time is not None:
                 training_times.append(training_time)              
@@ -340,9 +381,6 @@ class MultiModelStrategy(Strategy):
                 key: global_metrics["taskB"][key][-1] if global_metrics["taskB"][key] else None
                 for key in global_metrics["taskB"]
             }
-
-        #if metrics_aggregated:
-            #print(metrics_aggregated)
 
         if currentRnd == num_rounds:
             preprocess_csv()

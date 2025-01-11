@@ -1,7 +1,6 @@
 from collections import OrderedDict
 from logging import INFO
-import time  # Added time to measure training times
-
+import time  
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -40,7 +39,6 @@ def load_data():
     trainset = CIFAR10("./data", train=True, download=True, transform=trf)
     testset = CIFAR10("./data", train=False, download=True, transform=trf)
     return DataLoader(trainset, batch_size=32, shuffle=True), DataLoader(testset)
-
 
 def train(net, trainloader, valloader, epochs, device):
     """Train the model on the training set, measuring time."""
@@ -111,7 +109,6 @@ def test(net, testloader):
 
     return loss, accuracy, f1
 
-
 def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
     # Creazione della matrice di confusione
     confusion_matrix = torch.zeros(num_classes, num_classes)
@@ -145,10 +142,8 @@ def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
 
     return f1
 
-
 def get_weights(net):
     return [val.cpu().numpy() for _, val in net.state_dict().items()]
-
 
 def set_weights(net, parameters):
     params_dict = zip(net.state_dict().keys(), parameters)

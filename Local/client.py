@@ -1,19 +1,17 @@
 from flwr.client import ClientApp, NumPyClient
 from flwr.common import (
-    parameters_to_ndarrays,
-    ndarrays_to_parameters,
-    Scalar,
     Context,
 )
 from typing import Dict
 import json
 from datetime import datetime
-import csv
 import os
 import hashlib
-import psutil
-import random
 import torch
+from io import BytesIO
+import zlib
+import pickle
+import numpy as np
 from flwr.common.logger import log
 from logging import INFO
 from taskA import (
@@ -46,7 +44,10 @@ class FlowerClient(NumPyClient):
         self.trainloader, self.testloader = load_data_A()  
         self.device = DEVICE_A
 
-    def fit(self, parameters, configJSON):
+    def fit(self, parameters, config):
+        
+        compressed_parameters_hex = config.get("compressed_parameters_hex")
+
         global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
         CLIENT_SELECTOR = False
         CLIENT_CLUSTER = False
@@ -56,6 +57,8 @@ class FlowerClient(NumPyClient):
         current_dir = os.path.abspath(os.path.dirname(__file__))
         config_dir = os.path.join(current_dir, '..', 'configuration') 
         config_file = os.path.join(config_dir, 'config.json')
+        
+        numpy_arrays = None
 
         if os.path.exists(config_file):
                 with open(config_file, 'r') as f:
@@ -82,24 +85,76 @@ class FlowerClient(NumPyClient):
             selector_params = configJSON["patterns"]["client_selector"]["params"]
             selection_strategy = selector_params.get("selection_strategy", "")
             selection_criteria = selector_params.get("selection_criteria", "")
-            selection_value = 1  # Default value for selection_value
+            selection_value = selector_params.get("selection_value", "")
 
             # SELECTION STRATEGY 1."Resource-Based"
             if selection_strategy == "Resource-Based":
                 if selection_criteria == "CPU":
                     if n_cpu < selection_value:
-                        log(INFO, f"Client {self.cid} has insufficient CPU ({n_cpu} < {selection_value}). It will not participate in the FL round.")
+                        log(INFO, f"Client {self.cid} has insufficient CPU ({n_cpu} / {selection_value}). It will not participate in the FL round.")
                         log(INFO, f"Preparing empty reply")
                         return parameters, 0, {}
+                    else:
+                        log(INFO, f"Client {self.cid} will participate in the FL round. (CPU: ({n_cpu})")
                 elif selection_criteria == "RAM":
                     if ram < selection_value:
-                        log(INFO, f"Client {self.cid} has insufficient RAM ({ram} GB < {selection_value} GB). It will not participate in the FL round.")
+                        log(INFO, f"Client {self.cid} has insufficient RAM ({ram} GB / {selection_value} GB). It will not participate in the FL round.")
                         log(INFO, f"Preparing empty reply")
                         return parameters, 0, {}
+                    else:
+                        log(INFO, f"Client {self.cid} will participate in the FL round. (RAM: ({ram} GB)")
+                        
+                    
+        # AP CLIENT_SELECTOR
+        if CLIENT_CLUSTER:
+            # Se tutti i controlli sono superati, estrai i parametri
+            selector_params = configJSON["patterns"]["client_cluster"]["params"]
+            clustering_strategy = selector_params.get("clustering_strategy", "")
+            clustering_criteria = selector_params.get("clustering_criteria", "")
+            selection_value = selector_params.get("selection_value", "")
+
+            # SELECTION STRATEGY 1."Resource-Based"
+            if clustering_strategy == "Resource-Based":
+                if clustering_criteria == "CPU":
+                    if n_cpu < selection_value:
+                        log(INFO, f"Client {self.cid} assigned to Cluster A {self.model_type}")
+                    else:
+                        log(INFO, f"Client {self.cid} assigned to Cluster B {self.model_type}")
+                elif clustering_criteria == "RAM":
+                    if ram < selection_value:
+                        log(INFO, f"Client {self.cid} assigned to Cluster A {self.model_type}")
+                    else:
+                        log(INFO, f"Client {self.cid} assigned to Cluster B {self.model_type}")
+            elif clustering_strategy == "Data-Based":
+                if clustering_criteria == "IID":
+                        log(INFO, f"Client {self.cid} assigned to IID Cluster {self.model_type}")
+                elif clustering_criteria == "non-IID":
+                        log(INFO, f"Client {self.cid} assigned to non-IID Cluster B {self.model_type}")
+        
+        # AP MESSAGE_COMPRESSOR
+        if MESSAGE_COMPRESSOR:
+            compressed_parameters = bytes.fromhex(compressed_parameters_hex)
+            decompressed_parameters = pickle.loads(zlib.decompress(compressed_parameters))
+            numpy_arrays = [np.load(BytesIO(tensor)) for tensor in decompressed_parameters.tensors]
+            numpy_arrays = [arr.astype(np.float32) for arr in numpy_arrays]
+            parameters = numpy_arrays
 
         set_weights_A(self.net, parameters)
         results, training_time, start_comm_time = train_A(self.net, self.trainloader, self.testloader, epochs=1, device=self.device)       
         new_parameters = get_weights_A(self.net)
+        compressed_parameters_hex = None
+
+        # AP MESSAGE_COMPRESSOR
+        if MESSAGE_COMPRESSOR:
+            serialized_parameters = pickle.dumps(new_parameters)
+            original_size = len(serialized_parameters)  
+            compressed_parameters = zlib.compress(serialized_parameters)
+            compressed_size = len(compressed_parameters)  
+            compressed_parameters_hex = compressed_parameters.hex()
+            reduction_bytes = original_size - compressed_size
+            reduction_percentage = (reduction_bytes / original_size) * 100
+
+            log(INFO,f"Local Model Parameters compressed (from Client to Server) reduction of {reduction_bytes} bytes ({reduction_percentage:.2f}%)")
 
         metrics = {
             "train_loss": results["train_loss"],
@@ -114,9 +169,13 @@ class FlowerClient(NumPyClient):
             "client_id": self.cid,
             "model_type": self.model_type,
             "start_comm_time": start_comm_time,
+            "compressed_parameters_hex": compressed_parameters_hex,
         }
 
-        return new_parameters, len(self.trainloader.dataset), metrics
+        if MESSAGE_COMPRESSOR:
+            return [], len(self.trainloader.dataset), metrics
+        else:
+            return new_parameters, len(self.trainloader.dataset), metrics
 
     def evaluate(self, parameters, config):
         set_weights_A(self.net, parameters)

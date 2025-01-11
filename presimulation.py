@@ -18,17 +18,18 @@ class ClientSelectorDialog(QDialog):
     def __init__(self, existing_params=None):
         super().__init__()
         self.setWindowTitle("Configure Client Selector")
-        self.resize(400, 200)
+        self.resize(400, 300)  # Modificato per aggiungere spazio al layout
 
         self.existing_params = existing_params or {}
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignTop)
 
+        # Selection Strategy
         self.strategy_label = QLabel("Selection Strategy:")
         self.strategy_combo = QComboBox()
         self.strategy_combo.addItem("Resource-Based")  # Aggiungi prima la voce selezionabile
-        self.strategy_combo.addItem("Data-based")  # Aggiungi le altre voci
+        self.strategy_combo.addItem("Data-Based")  # Aggiungi le altre voci
         self.strategy_combo.addItem("Performance-based")
         # Disabilita le altre voci
         self.strategy_combo.model().item(1).setEnabled(False)
@@ -36,6 +37,7 @@ class ClientSelectorDialog(QDialog):
         layout.addWidget(self.strategy_label)
         layout.addWidget(self.strategy_combo)
 
+        # Selection Criteria
         self.criteria_label = QLabel("Selection Criteria:")
         self.criteria_combo = QComboBox()
         layout.addWidget(self.criteria_label)
@@ -43,13 +45,31 @@ class ClientSelectorDialog(QDialog):
 
         self.strategy_combo.currentIndexChanged.connect(self.update_criteria_options)
 
+        # Selection Value
+        self.value_label = QLabel("Minimum Value:")
+        self.value_spinbox = QSpinBox()
+        self.value_spinbox.setRange(1, 128)  # Gamma personalizzabile
+        self.value_spinbox.setValue(1)  # Valore predefinito
+        layout.addWidget(self.value_label)
+        layout.addWidget(self.value_spinbox)
+
+        # Messaggio esplicativo
+        self.explanation_label = QLabel("The client should have at least a minimum value CPU or RAM based on the selected criteria.")
+        self.explanation_label.setWordWrap(True)
+        self.explanation_label.setStyleSheet("font-size: 12px; color: gray;")
+        layout.addWidget(self.explanation_label)
+
+        # Prepopolazione dai parametri esistenti
         if "selection_strategy" in self.existing_params:
             self.strategy_combo.setCurrentText(self.existing_params["selection_strategy"])
         self.update_criteria_options()
 
         if "selection_criteria" in self.existing_params:
             self.criteria_combo.setCurrentText(self.existing_params["selection_criteria"])
+        if "selection_value" in self.existing_params:
+            self.value_spinbox.setValue(self.existing_params["selection_value"])
 
+        # Buttons
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
@@ -60,7 +80,7 @@ class ClientSelectorDialog(QDialog):
         self.criteria_combo.clear()
         if strategy == "Resource-Based":
             self.criteria_combo.addItems(["CPU", "RAM"])
-        elif strategy == "Data-based":
+        elif strategy == "Data-Based":
             self.criteria_combo.addItems(["IID", "non-IID"])
         elif strategy == "Performance-based":
             self.criteria_combo.addItems(["Accuracy", "Latency"])
@@ -68,7 +88,8 @@ class ClientSelectorDialog(QDialog):
     def get_params(self):
         return {
             "selection_strategy": self.strategy_combo.currentText(),
-            "selection_criteria": self.criteria_combo.currentText()
+            "selection_criteria": self.criteria_combo.currentText(),
+            "selection_value": self.value_spinbox.value()
         }
 
 # ------------------------------------------------------------------------------------------
@@ -78,55 +99,76 @@ class ClientClusterDialog(QDialog):
     def __init__(self, existing_params=None):
         super().__init__()
         self.setWindowTitle("Configure Client Cluster")
-        self.resize(400, 250)
+        self.resize(400, 300)  # Modificato per aggiungere spazio al layout
 
         self.existing_params = existing_params or {}
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignTop)
 
-        self.criteria_label = QLabel("Clustering Criteria:")
-        self.criteria_combo = QComboBox()
-        self.criteria_combo.addItems(["Resource-Based", "Data Partition Type", "Network Capabilities" ])
-        # Disabilita le altre opzioni tranne la prima
-        self.criteria_combo.model().item(2).setEnabled(False)  # Disabilita "Data Partition Type"
-        layout.addWidget(self.criteria_label)
-        layout.addWidget(self.criteria_combo)
-
+        # Clustering Strategy
         self.strategy_label = QLabel("Clustering Strategy:")
         self.strategy_combo = QComboBox()
+        self.strategy_combo.addItem("Resource-Based")  # Aggiungi prima la voce selezionabile
+        self.strategy_combo.addItem("Data-Based")  # Aggiungi le altre voci
+        self.strategy_combo.addItem("Network-Based")
+        self.strategy_combo.model().item(2).setEnabled(False)
         layout.addWidget(self.strategy_label)
         layout.addWidget(self.strategy_combo)
 
-        self.criteria_combo.currentIndexChanged.connect(self.update_strategy_options)
+        # Clustering Criteria
+        self.criteria_label = QLabel("Clustering Criteria:")
+        self.criteria_combo = QComboBox()
+        layout.addWidget(self.criteria_label)
+        layout.addWidget(self.criteria_combo)
+
+        self.strategy_combo.currentIndexChanged.connect(self.update_criteria_options)
+
+        # Clustering Value
+        self.value_label = QLabel("Minimum Value:")
+        self.value_spinbox = QSpinBox()
+        self.value_spinbox.setRange(1, 128)  # Gamma personalizzabile
+        self.value_spinbox.setValue(1)  # Valore predefinito
+        layout.addWidget(self.value_label)
+        layout.addWidget(self.value_spinbox)
+
+        # Messaggio esplicativo
+        self.explanation_label = QLabel("The clients will be clustered based on the selected criteria and a minimum [VALUE] if applicable.")
+        self.explanation_label.setWordWrap(True)
+        self.explanation_label.setStyleSheet("font-size: 12px; color: gray;")
+        layout.addWidget(self.explanation_label)
+
+        # Prepopolazione dai parametri esistenti
+        if "clustering_strategy" in self.existing_params:
+            self.strategy_combo.setCurrentText(self.existing_params["clustering_strategy"])
+        self.update_criteria_options()
 
         if "clustering_criteria" in self.existing_params:
             self.criteria_combo.setCurrentText(self.existing_params["clustering_criteria"])
-        self.update_strategy_options()
+        if "clustering_value" in self.existing_params:
+            self.value_spinbox.setValue(self.existing_params["clustering_value"])
 
-        if "clustering_strategy" in self.existing_params:
-            self.strategy_combo.setCurrentText(self.existing_params["clustering_strategy"])
-
+        # Buttons
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
 
-    def update_strategy_options(self):
-        criteria = self.criteria_combo.currentText()
-        self.strategy_combo.clear()
-
-        if criteria == "Resource-Based":
-            self.strategy_combo.addItems(["CPU", "RAM"])
-        elif criteria == "Data Partition Type":
-            self.strategy_combo.addItems(["IID", "non-IID"])
-        elif criteria == "Network Capabilities":
-            self.strategy_combo.addItems(["Default"])
+    def update_criteria_options(self):
+        strategy = self.strategy_combo.currentText()
+        self.criteria_combo.clear()
+        if strategy == "Resource-Based":
+            self.criteria_combo.addItems(["CPU", "RAM"])
+        elif strategy == "Data-Based":
+            self.criteria_combo.addItems(["IID", "non-IID"])
+        elif strategy == "Network-Based":
+            self.criteria_combo.addItems(["Latency", "Bandwidth"])
 
     def get_params(self):
         return {
+            "clustering_strategy": self.strategy_combo.currentText(),
             "clustering_criteria": self.criteria_combo.currentText(),
-            "clustering_strategy": self.strategy_combo.currentText()
+            "clustering_value": self.value_spinbox.value()
         }
 
 # ------------------------------------------------------------------------------------------
@@ -232,101 +274,101 @@ class PreSimulationPage(QWidget):
         self.pattern_data = {
             "Client Registry": {
                 "category": "Client Management Category",
-                "image": "img/patterns/Client-Management/clientregistry.png",
+                "image": "img/patterns/clientregistry.png",
                 "description": "Maintains information about all participating client devices for client management.",
                 "benefits": "Centralized tracking of client states; easier organization.",
                 "drawbacks": "Requires overhead for maintaining the registry."
             },
             "Client Selector": {
                 "category": "Client Management Category",
-                "image": "img/patterns/Client-Management/clientselector.png",
+                "image": "img/patterns/clientselector.png",
                 "description": "Actively selects client devices for a specific training round based on predefined criteria to enhance model performance and system efficiency.",
                 "benefits": "Ensures only the most relevant clients train each round, potentially improving performance.",
                 "drawbacks": "May exclude important data from non-selected clients."
             },
             "Client Cluster": {
                 "category": "Client Management Category",
-                "image": "img/patterns/Client-Management/clientcluster.png",
+                "image": "img/patterns/clientcluster.png",
                 "description": "Groups client devices based on their similarity (e.g., resources, data distribution) to improve model performance and training efficiency.",
                 "benefits": "Allows specialized training; can handle different groups more effectively.",
                 "drawbacks": "Additional overhead to manage cluster membership."
             },
             "Message Compressor": {
                 "category": "Model Management Category",
-                "image": "img/patterns/Model-Management/messagecompressor.png",
+                "image": "img/patterns/messagecompressor.png",
                 "description": "Compresses and reduces the size of message data before each model exchange round to improve communication efficiency.",
                 "benefits": "Reduces bandwidth usage; can speed up communication rounds.",
                 "drawbacks": "Compression/decompression overhead might offset gains for large data."
             },
             "Model co-Versioning Registry": {
                 "category": "Model Management Category",
-                "image": "TODO",
+                "image": "",
                 "description": "This Architectural Pattern is not yet implemented",
-                "benefits": "TODO",
-                "drawbacks": "TODO"
+                "benefits": "",
+                "drawbacks": ""
             },
             "Model Replacement Trigger": {
                 "category": "Model Management Category",
-                "image": "TODO",
+                "image": "",
                 "description": "This Architectural Pattern is not yet implemented",
-                "benefits": "TODO",
-                "drawbacks": "TODO"
+                "benefits": "",
+                "drawbacks": ""
             },
             "Deployment Selector": {
                 "category": "Model Management Category",
-                "image": "TODO",
+                "image": "",
                 "description": "This Architectural Pattern is not yet implemented",
-                "benefits": "TODO",
-                "drawbacks": "TODO"
+                "benefits": "",
+                "drawbacks": ""
             },
             "Multi-Task Model Trainer": {
                 "category": "Model Training Category",
-                "image": "img/patterns/Model-Management/multitaskmodeltrainer.png",
+                "image": "img/patterns/multitaskmodeltrainer.png",
                 "description": "Utilizes data from related models on local devices to enhance efficiency.",
                 "benefits": "Potential knowledge sharing among similar tasks; improved training.",
                 "drawbacks": "Training logic may become more complex to handle multiple tasks."
             },
             "Heterogeneous Data Handler": {
                 "category": "Model Training Category",
-                "image": "img/patterns/Model-Management/heterogeneousdatahandler.png",
+                "image": "img/patterns/heterogeneousdatahandler.png",
                 "description": "Addresses issues with non-IID and skewed data while preserving data privacy.",
                 "benefits": "Better management of varied data distributions.",
                 "drawbacks": "Requires more sophisticated data partitioning and handling logic."
             },
             "Incentive Registry": {
                 "category": "Model Training Category",
-                "image": "TODO",
+                "image": "",
                 "description": "This Architectural Pattern is not yet implemented",
-                "benefits": "TODO",
-                "drawbacks": "TODO"
+                "benefits": "",
+                "drawbacks": ""
             },
             "Asynchronous Aggregator": {
                 "category": "Model Aggregation Category",
-                "image": "TODO",
+                "image": "",
                 "description": "This Architectural Pattern is not yet implemented",
-                "benefits": "TODO",
-                "drawbacks": "TODO"
+                "benefits": "",
+                "drawbacks": ""
             },
             "Decentralised Aggregator": {
                 "category": "Model Aggregation Category",
-                "image": "TODO",
+                "image": "",
                 "description": "This Architectural Pattern is not yet implemented",
-                "benefits": "TODO",
-                "drawbacks": "TODO"
+                "benefits": "",
+                "drawbacks": ""
             },
             "Hierarchical Aggregator": {
                 "category": "Model Aggregation Category",
-                "image": "TODO",
+                "image": "",
                 "description": "This Architectural Pattern is not yet implemented",
-                "benefits": "TODO",
-                "drawbacks": "TODO"
+                "benefits": "",
+                "drawbacks": ""
             },
             "Secure Aggregator": {
                 "category": "Model Aggregation Category",
-                "image": "TODO",
+                "image": "",
                 "description": "This Architectural Pattern is not yet implemented",
-                "benefits": "TODO",
-                "drawbacks": "TODO"
+                "benefits": "",
+                "drawbacks": ""
             }
         }
 
@@ -594,11 +636,33 @@ class PreSimulationPage(QWidget):
                     configure_button = None
 
                 def on_checkbox_state_changed(state, btn, p=pattern_name):
-                    # Se l'utente seleziona Multi-Task Model Trainer ma i client sono < 4 => impedisci
                     if p == "Multi-Task Model Trainer" and state == Qt.Checked:
                         if self.clients_input.value() < 4:
-                            QMessageBox.warning(self, "Configuration Error",
-                                                "Multi-Task Model Trainer requires at least 4 clients.")
+                            msg_box = QMessageBox(self)
+                            msg_box.setWindowTitle("Configuration Error")
+                            msg_box.setText("Multi-Task Model Trainer requires at least 4 clients.")
+                            msg_box.setIcon(QMessageBox.Warning)
+
+                            ok_button = msg_box.addButton("OK", QMessageBox.AcceptRole)
+                            ok_button.setCursor(Qt.PointingHandCursor)
+                            ok_button.setStyleSheet("""
+                                QPushButton {
+                                    background-color: green;
+                                    color: white;
+                                    font-size: 10px;
+                                    padding: 8px 16px;
+                                    border-radius: 5px;
+                                }
+                                QPushButton:hover {
+                                    background-color: #00b300;
+                                }
+                                QPushButton:pressed {
+                                    background-color: #008000;
+                                }
+                            """)
+
+                            msg_box.exec_()
+
                             checkbox.blockSignals(True)
                             checkbox.setChecked(False)
                             checkbox.blockSignals(False)
@@ -712,7 +776,7 @@ class PreSimulationPage(QWidget):
         layout = QVBoxLayout(dialog)
         layout.setAlignment(Qt.AlignTop)
 
-        title_label = QLabel(f"{pattern_name} ({pattern_category})")
+        title_label = QLabel(f"{pattern_name}")
         title_label.setStyleSheet("color: black; font-size: 16px; font-weight: bold; margin-bottom: 10px;")
         layout.addWidget(title_label, alignment=Qt.AlignCenter)
 
@@ -725,7 +789,7 @@ class PreSimulationPage(QWidget):
             image_label.setPixmap(pixmap)
             image_label.setAlignment(Qt.AlignCenter)
         else:
-            image_label.setText("Arhcitectural Pattern not Implemented!")
+            image_label.setText("Architectural Pattern not Implemented!")
             image_label.setStyleSheet("color: red;")
             image_label.setAlignment(Qt.AlignCenter)
 
@@ -1040,12 +1104,32 @@ class ClientConfigurationPage(QWidget):
                     c1 = sum(1 for c in client_details if c["dataset"] == model1)
                     c2 = sum(1 for c in client_details if c["dataset"] == model2)
                     if c1 < 2 or c2 < 2:
-                        QMessageBox.warning(
-                            self,
-                            "Invalid Configuration",
-                            f"Multi-Task Model Trainer requires at least 2 clients using '{model1}'"
-                            f"and 2 clients using '{model2}' datsets."
-                        )
+                        msg_box = QMessageBox(self)
+                        msg_box.setWindowTitle("Invalid Configuration")
+                        msg_box.setIcon(QMessageBox.Warning)
+                        msg_box.setText(f"Multi-Task Model Trainer requires at least 2 clients using '{model1}'"
+                                        f" and 2 clients using '{model2}' datasets.")
+
+                        ok_button = msg_box.addButton("OK", QMessageBox.AcceptRole)
+                        ok_button.setCursor(Qt.PointingHandCursor)
+                        ok_button.setStyleSheet("""
+                            QPushButton {
+                                background-color: green;
+                                color: white;
+                                font-size: 10px;
+                                padding: 8px 16px;
+                                border-radius: 5px;
+                                text-align: left;
+                            }
+                            QPushButton:hover {
+                                background-color: #e0a800;
+                            }
+                            QPushButton:pressed {
+                                background-color: #c69500;
+                            }
+                        """)
+
+                        msg_box.exec_()
                         return
 
         self.save_configuration_to_file()
