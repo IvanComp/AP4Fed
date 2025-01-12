@@ -138,6 +138,8 @@ class FlowerClient(NumPyClient):
             numpy_arrays = [np.load(BytesIO(tensor)) for tensor in decompressed_parameters.tensors]
             numpy_arrays = [arr.astype(np.float32) for arr in numpy_arrays]
             parameters = numpy_arrays
+        else:
+            parameters = parameters
 
         set_weights_A(self.net, parameters)
         results, training_time, start_comm_time = train_A(self.net, self.trainloader, self.testloader, epochs=1, device=self.device)       
@@ -153,25 +155,39 @@ class FlowerClient(NumPyClient):
             compressed_parameters_hex = compressed_parameters.hex()
             reduction_bytes = original_size - compressed_size
             reduction_percentage = (reduction_bytes / original_size) * 100
-
             log(INFO,f"Local Model Parameters compressed (from Client to Server) reduction of {reduction_bytes} bytes ({reduction_percentage:.2f}%)")
-
-        metrics = {
-            "train_loss": results["train_loss"],
-            "train_accuracy": results["train_accuracy"],
-            "train_f1": results["train_f1"],
-            "val_loss": results["val_loss"],
-            "val_accuracy": results["val_accuracy"],
-            "val_f1": results["val_f1"],
-            "training_time": training_time,
-            "cpu_usage": n_cpu,
-            "ram": ram,
-            "client_id": self.cid,
-            "model_type": self.model_type,
-            "start_comm_time": start_comm_time,
-            "compressed_parameters_hex": compressed_parameters_hex,
-        }
-
+            
+            metrics = {
+                "train_loss": results["train_loss"],
+                "train_accuracy": results["train_accuracy"],
+                "train_f1": results["train_f1"],
+                "val_loss": results["val_loss"],
+                "val_accuracy": results["val_accuracy"],
+                "val_f1": results["val_f1"],
+                "training_time": training_time,
+                "cpu_usage": n_cpu,
+                "ram": ram,
+                "client_id": self.cid,
+                "model_type": self.model_type,
+                "start_comm_time": start_comm_time,
+                "compressed_parameters_hex": compressed_parameters_hex,
+            }
+        else:
+            metrics = {
+                "train_loss": results["train_loss"],
+                "train_accuracy": results["train_accuracy"],
+                "train_f1": results["train_f1"],
+                "val_loss": results["val_loss"],
+                "val_accuracy": results["val_accuracy"],
+                "val_f1": results["val_f1"],
+                "training_time": training_time,
+                "cpu_usage": n_cpu,
+                "ram": ram,
+                "client_id": self.cid,
+                "model_type": self.model_type,
+                "start_comm_time": start_comm_time,
+            }
+            
         if MESSAGE_COMPRESSOR:
             return [], len(self.trainloader.dataset), metrics
         else:

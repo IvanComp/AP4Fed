@@ -1,1 +1,5 @@
 Client ID,FL Round,Training Time,Communication Time,Total Client Time,CPU Number,Task,Train Loss,Train Accuracy,Train F1,Val Loss,Val Accuracy,Val F1,Total Time of Training Round,Total Time of FL Round
+Client 1,1,8.29,6.44,14.73,11,CIFAR-10,,,,,,,,
+Client 2,1,8.33,5.56,13.89,11,CIFAR-10,3160.7683,0.25,0.19,20169.2071,0.25,0.19,8.33,22.18
+Client 1,2,8.3,5.59,13.89,11,CIFAR-10,,,,,,,,
+Client 2,2,8.3,5.59,13.89,11,CIFAR-10,2588.2269,0.4,0.38,16507.0492,0.4,0.38,8.3,15.21

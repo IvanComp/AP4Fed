@@ -16,7 +16,7 @@
             "params": {}
         },
         "message_compressor": {
-            "enabled": false,
+            "enabled": true,
             "params": {}
         },
         "multi-task_model_trainer": {
@@ -38,7 +38,7 @@
         },
         {
             "client_id": 2,
-            "cpu": 3,
+            "cpu": 1,
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID"

@@ -272,7 +272,6 @@ class MultiModelStrategy(Strategy):
         
         client_manager.wait_for(client_count) 
         clients = client_manager.sample(num_clients=client_count)
-
         fit_configurations = []
 
         if MESSAGE_COMPRESSOR:
@@ -290,13 +289,11 @@ class MultiModelStrategy(Strategy):
                 fake_tensors.append(fake_serialized.read())
 
             fake_parameters = Parameters(tensors=fake_tensors, tensor_type=self.parameters_a.tensor_type)
-
             serialized_parameters = pickle.dumps(self.parameters_a)
             original_size = len(serialized_parameters)  
             compressed_parameters = zlib.compress(serialized_parameters)
             compressed_size = len(compressed_parameters) 
             compressed_parameters_hex = compressed_parameters.hex()
-
             reduction_bytes = original_size - compressed_size
             reduction_percentage = (reduction_bytes / original_size) * 100
 
@@ -304,13 +301,12 @@ class MultiModelStrategy(Strategy):
 
         for client in clients:
 
-            model_type = "taskA"
-
             if MESSAGE_COMPRESSOR:
                 fit_ins = FitIns(fake_parameters, {"compressed_parameters_hex": compressed_parameters_hex})
             else:
                 fit_ins = FitIns(self.parameters_a, {})
 
+            model_type = "taskA"
             client_model_mapping[client.cid] = model_type
 
             fit_configurations.append((client, fit_ins))
@@ -343,10 +339,9 @@ class MultiModelStrategy(Strategy):
             model_type = fit_res.metrics.get("model_type")
             training_time = fit_res.metrics.get("training_time")
             compressed_parameters_hex = fit_res.metrics.get("compressed_parameters_hex")
-
             client_model_mapping[client_id] = model_type
 
-            if MESSAGE_COMPRESSOR:            
+            if MESSAGE_COMPRESSOR:                          
                 compressed_parameters = bytes.fromhex(compressed_parameters_hex)
                 decompressed_parameters = pickle.loads(zlib.decompress(compressed_parameters))
                 fit_res.parameters = ndarrays_to_parameters(decompressed_parameters)
