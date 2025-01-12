@@ -14,12 +14,31 @@ from PyQt5.QtWidgets import (
     QPushButton, QFileDialog, QToolButton, QApplication, 
     QStyle, QLabel, QWidget, QGridLayout, QSizePolicy
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QSize, QTimer
+from PyQt5.QtGui import QMovie
+
+# Imposta i parametri di Matplotlib globalmente
+plt.rcParams.update({
+    'font.size': 10,               # Dimensione del font predefinita
+    'font.family': 'Helvetica',    # Sostituisci con un font esistente
+    'axes.titlesize': 10,          # Uniforma la dimensione del titolo dell'asse
+    'axes.labelsize': 10,          # Dimensione delle etichette degli assi
+    'legend.fontsize': 8,          # Dimensione della legenda
+    'xtick.labelsize': 8,          # Dimensione dei tick dell'asse x
+    'ytick.labelsize': 8           # Dimensione dei tick dell'asse y
+})
+
+# Definisci una palette di colori pastello
+PASTEL_COLORS = [
+    '#AEC6CF', '#FFB347', '#77DD77', '#CFCFC4', '#FFD1DC',
+    '#B39EB5', '#FF6961', '#FDFD96', '#CB99C9', '#C23B22'
+]
 
 class SingleChartWidget(QWidget):
     """
     Un widget personalizzato che contiene:
-      - Un titolo (QLabel) con accanto un QToolButton per il download
+      - Un titolo (QLabel) centrato in alto
+      - Un QToolButton per il download posizionato alla destra del titolo
       - Un canvas Matplotlib per il grafico
     """
     def __init__(self, parent=None, title="Chart", figure=None):
@@ -27,22 +46,29 @@ class SingleChartWidget(QWidget):
 
         # Layout principale verticale (titolo+icona in alto, poi il canvas)
         layout = QVBoxLayout()
-        layout.setContentsMargins(0,0,0,0)
+        layout.setContentsMargins(5, 5, 5, 5)  # Ridotti i margini per aumentare lo spazio
         self.setLayout(layout)
 
-        # Riga orizzontale con: LABEL TITOLO + QToolButton (icona di download)
+        # Riga orizzontale con: QLabel TITOLO (centrato) + QToolButton (icona di download)
         title_layout = QHBoxLayout()
         layout.addLayout(title_layout)
 
+        # Spacer iniziale per spingere il titolo al centro
+        title_layout.addStretch()
+
         self.title_label = QLabel(title)
-        # Font un po' più grande o grassetto se vuoi
-        # self.title_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self.title_label.setAlignment(Qt.AlignCenter)  # Centra il testo nel QLabel
+        self.title_label.setStyleSheet("font-weight: bold; font-size: 16px;")  # Stile del titolo
         title_layout.addWidget(self.title_label)
+
+        # Spacer tra il titolo e il pulsante di download
+        title_layout.addStretch()
 
         self.download_button = QToolButton()
         self.download_button.setIcon(QApplication.style().standardIcon(QStyle.SP_DialogSaveButton))
         self.download_button.setToolTip("Save this chart as SVG")
         self.download_button.setCursor(Qt.PointingHandCursor)
+        self.download_button.setStyleSheet("padding: 5px;")  # Padding per migliorare l'aspetto
         title_layout.addWidget(self.download_button)
 
         # Canvas Matplotlib
@@ -55,7 +81,7 @@ class SimulationResults(QDialog):
         super().__init__()
         self.setWindowTitle("Simulation Results")
         self.setStyleSheet("background-color: white;")
-        self.resize(1400, 900)  # Un po' più grande di 1200x800
+        self.resize(1600, 1000)  # Un po' più grande di 1200x800
 
         # Se esiste data_file, carichiamo i dati.
         self.data = None
@@ -67,93 +93,80 @@ class SimulationResults(QDialog):
         main_layout = QVBoxLayout()
         self.setLayout(main_layout)
 
+        # --- Aggiunta della sezione di simulazione in esecuzione ---
+        simulation_layout = QHBoxLayout()
+        main_layout.addLayout(simulation_layout)
+
+        # Etichetta "Simulation Running..."
+        self.simulation_label = QLabel("Simulation Running...")
+        self.simulation_label.setStyleSheet("font-size: 16px; font-weight: bold;")
+        simulation_layout.addWidget(self.simulation_label)
+
+        # Gif animata
+        self.loading_gif = QLabel()
+        self.movie = QMovie("path_to_your_loading.gif")  # Sostituisci con il percorso della tua gif
+        self.loading_gif.setMovie(self.movie)
+        self.movie.start()
+        simulation_layout.addWidget(self.loading_gif)
+
+        # Timer
+        self.timer_label = QLabel("0 min : 0 s")
+        self.timer_label.setStyleSheet("font-size: 16px;")
+        simulation_layout.addWidget(self.timer_label)
+
+        # Spacer per allineare gli elementi a sinistra
+        simulation_layout.addStretch()
+
+        self.elapsed_time = 0  # Tempo trascorso in secondi
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_timer)
+        self.timer.start(1000)  # Aggiorna ogni secondo
+
         # Griglia 3x3 per i 9 grafici
         self.grid = QGridLayout()
         main_layout.addLayout(self.grid)
 
-        # Creiamo 9 figure separate (ognuna con il proprio SingleChartWidget)
+        # Creiamo 3 figure separate (ognuna con il proprio SingleChartWidget)
         self.figures = []
         self.chart_widgets = []
 
-        # -- Riga 1: Dedicata ai Clients ---------------------
-        # In ciascun grafico confrontiamo training time, communication time, total round time
-        # su base "Client ID" (o come si chiama la colonna del tuo CSV).
-        # Qui diamo solo un esempio di come potresti gestire i dati.
-
-        # Primo grafico (riga=0,col=0)
-        fig1 = plt.Figure(figsize=(4,3), facecolor="white")
+        # -- Grafico 1: Tempo Medio per Client ID ---------------------
+        fig1 = plt.Figure(figsize=(6, 4), facecolor="white", constrained_layout=True)
         ax1 = fig1.add_subplot(111)
-        chart1 = SingleChartWidget(title="(1,1) Clients - Times", figure=fig1)
-        # Disegno
-        self.plot_clients_times(ax1, kind="line")  
-        # Callback download
-        chart1.download_button.clicked.connect(lambda _, f=fig1: self.save_figure_svg(f, "(1,1)_clients_times"))
+        chart1 = SingleChartWidget(title="Average Times per Client", figure=fig1)
+        self.plot_average_times_per_client(ax1)
+        chart1.download_button.clicked.connect(lambda _, f=fig1: self.save_figure_svg(f, "average_times_per_client"))
         self.add_chart_to_grid(chart1, 0, 0)
 
-        # Secondo grafico (riga=0,col=1)
-        fig2 = plt.Figure(figsize=(4,3), facecolor="white")
+        # -- Grafico 2: Tempo di Comunicazione vs FL Rounds -------
+        fig2 = plt.Figure(figsize=(6, 4), facecolor="white", constrained_layout=True)
         ax2 = fig2.add_subplot(111)
-        chart2 = SingleChartWidget(title="(1,2) Clients - Times (Bar)", figure=fig2)
-        self.plot_clients_times(ax2, kind="bar")  
-        chart2.download_button.clicked.connect(lambda _, f=fig2: self.save_figure_svg(f, "(1,2)_clients_times_bar"))
+        chart2 = SingleChartWidget(title="Communication Time per FL Round", figure=fig2)
+        self.plot_communication_time_per_round(ax2)
+        chart2.download_button.clicked.connect(lambda _, f=fig2: self.save_figure_svg(f, "communication_time_per_round"))
         self.add_chart_to_grid(chart2, 0, 1)
 
-        # Terzo grafico (riga=0,col=2)
-        fig3 = plt.Figure(figsize=(4,3), facecolor="white")
+        # -- Grafico 3: Tempo di Training vs FL Rounds ------------
+        fig3 = plt.Figure(figsize=(6, 4), facecolor="white", constrained_layout=True)
         ax3 = fig3.add_subplot(111)
-        chart3 = SingleChartWidget(title="(1,3) Clients - Times (Stacked?)", figure=fig3)
-        self.plot_clients_times(ax3, kind="stacked")  
-        chart3.download_button.clicked.connect(lambda _, f=fig3: self.save_figure_svg(f, "(1,3)_clients_times_stacked"))
+        chart3 = SingleChartWidget(title="Training Time per FL Round", figure=fig3)
+        self.plot_training_time_per_round(ax3)
+        chart3.download_button.clicked.connect(lambda _, f=fig3: self.save_figure_svg(f, "training_time_per_round"))
         self.add_chart_to_grid(chart3, 0, 2)
 
-        # -- Riga 2: Dedicata ai tempi (FL Rounds) -----------
-        # Stessi 3 parametri (training time, comm. time, total round time),
-        # ma su base round (x-axis = round).
-        
-        fig4 = plt.Figure(figsize=(4,3), facecolor="white")
-        ax4 = fig4.add_subplot(111)
-        chart4 = SingleChartWidget(title="(2,1) Rounds - Times", figure=fig4)
-        self.plot_rounds_times(ax4, kind="line")
-        chart4.download_button.clicked.connect(lambda _, f=fig4: self.save_figure_svg(f, "(2,1)_rounds_times"))
-        self.add_chart_to_grid(chart4, 1, 0)
-
-        fig5 = plt.Figure(figsize=(4,3), facecolor="white")
-        ax5 = fig5.add_subplot(111)
-        chart5 = SingleChartWidget(title="(2,2) Rounds - Times (Bar)", figure=fig5)
-        self.plot_rounds_times(ax5, kind="bar")
-        chart5.download_button.clicked.connect(lambda _, f=fig5: self.save_figure_svg(f, "(2,2)_rounds_times_bar"))
-        self.add_chart_to_grid(chart5, 1, 1)
-
-        fig6 = plt.Figure(figsize=(4,3), facecolor="white")
-        ax6 = fig6.add_subplot(111)
-        chart6 = SingleChartWidget(title="(2,3) Rounds - Times (Mix)", figure=fig6)
-        self.plot_rounds_times(ax6, kind="mix")
-        chart6.download_button.clicked.connect(lambda _, f=fig6: self.save_figure_svg(f, "(2,3)_rounds_times_mix"))
-        self.add_chart_to_grid(chart6, 1, 2)
-
-        # -- Riga 3: Dedicata alla qualità del modello -------
-        # Confrontiamo Val Loss, Val Accuracy, Val F1 su base round.
-        
-        fig7 = plt.Figure(figsize=(4,3), facecolor="white")
-        ax7 = fig7.add_subplot(111)
-        chart7 = SingleChartWidget(title="(3,1) Model Quality (Line)", figure=fig7)
-        self.plot_model_quality(ax7, kind="line")
-        chart7.download_button.clicked.connect(lambda _, f=fig7: self.save_figure_svg(f, "(3,1)_model_quality_line"))
-        self.add_chart_to_grid(chart7, 2, 0)
-
-        fig8 = plt.Figure(figsize=(4,3), facecolor="white")
-        ax8 = fig8.add_subplot(111)
-        chart8 = SingleChartWidget(title="(3,2) Model Quality (Bar)", figure=fig8)
-        self.plot_model_quality(ax8, kind="bar")
-        chart8.download_button.clicked.connect(lambda _, f=fig8: self.save_figure_svg(f, "(3,2)_model_quality_bar"))
-        self.add_chart_to_grid(chart8, 2, 1)
-
-        fig9 = plt.Figure(figsize=(4,3), facecolor="white")
-        ax9 = fig9.add_subplot(111)
-        chart9 = SingleChartWidget(title="(3,3) Model Quality (Mix)", figure=fig9)
-        self.plot_model_quality(ax9, kind="mix")
-        chart9.download_button.clicked.connect(lambda _, f=fig9: self.save_figure_svg(f, "(3,3)_model_quality_mix"))
-        self.add_chart_to_grid(chart9, 2, 2)
+        # -- Grafici 4-9: Placeholder per futuri implementazioni --
+        for row in range(1, 3):
+            for col in range(3):
+                fig = plt.Figure(figsize=(6,4), facecolor="white", constrained_layout=True)
+                ax = fig.add_subplot(111)
+                chart = SingleChartWidget(title=f"Grafico {row*3 + col +1}", figure=fig)
+                # Placeholder: nessuna funzione di plotting
+                ax.text(0.5, 0.5, "In attesa di implementazione", 
+                        horizontalalignment='center', verticalalignment='center',
+                        transform=ax.transAxes, fontsize=10)
+                ax.set_axis_off()
+                chart.download_button.setEnabled(False)  # Disabilita il pulsante di download
+                self.add_chart_to_grid(chart, row, col)
 
         # -- Layout finale con i pulsanti in basso -----------
         button_layout = QHBoxLayout()
@@ -196,167 +209,155 @@ class SimulationResults(QDialog):
                 background-color: #388e3c;
             }
         """)
+        # Aggiungi l'icona del file sul pulsante download the csv report
+        json_icon = self.style().standardIcon(QStyle.SP_DialogSaveButton)
+        self.download_button.setIcon(json_icon)
+        self.download_button.setIconSize(QSize(24, 24))
+        
         self.download_button.clicked.connect(self.download_report)
         button_layout.addWidget(self.download_button)
 
     # -------------------- FUNZIONI DI SUPPORTO ----------------------------
-
+    
     def add_chart_to_grid(self, chart_widget, row, col):
         """Inserisce un SingleChartWidget nella griglia row,col."""
         self.grid.addWidget(chart_widget, row, col)
 
-    def plot_clients_times(self, ax, kind="line"):
+    def plot_average_times_per_client(self, ax):
         """
-        Confronta su un unico grafico:
-          - Training Time
-          - Communication Time
-          - Total Round Time
-        raggruppando per 'Client ID' (o come si chiama da te).
+        Grafico 1: Tempo Medio per Client ID
+        Y: Tempo (Training Time, Communication Time, Total Client Time)
+        X: Client ID
         """
         if self.data is None:
-            ax.set_title("No data")
+            ax.set_title("No data", fontsize=10)
             return
 
-        # Adatta i nomi delle colonne al tuo CSV
-        if all(col in self.data.columns for col in ["Client ID","Training Time","Communication Time","Total Round Time"]):
+        required_columns = ["Client ID", "Training Time", "Communication Time", "Total Client Time"]
+        if all(col in self.data.columns for col in required_columns):
+            # Calcola la media dei tempi per ogni client
             grouped = self.data.groupby("Client ID", as_index=False)[
-                ["Training Time","Communication Time","Total Round Time"]
+                ["Training Time", "Communication Time", "Total Client Time"]
             ].mean()
-            x_vals = grouped["Client ID"]
 
-            if kind == "line":
-                ax.plot(x_vals, grouped["Training Time"], marker='o', label="Training")
-                ax.plot(x_vals, grouped["Communication Time"], marker='o', label="Comm")
-                ax.plot(x_vals, grouped["Total Round Time"], marker='o', label="Total")
-            elif kind == "bar":
-                # Esempio di bar affiancate
-                width = 0.25
-                import numpy as np
-                idx = np.arange(len(x_vals))
-                ax.bar(idx - width, grouped["Training Time"], width=width, label="Training")
-                ax.bar(idx, grouped["Communication Time"], width=width, label="Comm")
-                ax.bar(idx + width, grouped["Total Round Time"], width=width, label="Total")
-                ax.set_xticks(idx)
-                ax.set_xticklabels(x_vals.astype(str))
-            elif kind == "stacked":
-                # Esempio di bar stacked
-                import numpy as np
-                idx = np.arange(len(x_vals))
-                ax.bar(idx, grouped["Training Time"], label="Training")
-                ax.bar(idx, grouped["Communication Time"], bottom=grouped["Training Time"], label="Comm")
-                bottom_sum = grouped["Training Time"] + grouped["Communication Time"]
-                ax.bar(idx, grouped["Total Round Time"], bottom=bottom_sum, label="Total")
-                ax.set_xticks(idx)
-                ax.set_xticklabels(x_vals.astype(str))
+            x = grouped["Client ID"].astype(str)
+            training = grouped["Training Time"]
+            communication = grouped["Communication Time"]
+            total = grouped["Total Client Time"]
 
-            ax.set_xlabel("Clients")
-            ax.set_ylabel("Time")
-            ax.legend()
-            ax.set_title("Clients Times")
+            # Indici per le barre
+            import numpy as np
+            ind = np.arange(len(x))  # L'indice dei client
+            width = 0.25  # Larghezza delle barre
 
+            # Assegna colori pastello
+            ax.bar(ind - width, training, width, label="Training Time", color=PASTEL_COLORS[0])
+            ax.bar(ind, communication, width, label="Communication Time", color=PASTEL_COLORS[1])
+            ax.bar(ind + width, total, width, label="Total Time", color=PASTEL_COLORS[2])
+
+            ax.set_xlabel("Client ID", fontsize=10)
+            ax.set_ylabel("Time", fontsize=10)
+            ax.set_title("Average Times per Client", fontsize=10)  # Uniformato a 10
+            ax.set_xticks(ind)
+            ax.set_xticklabels(x, fontsize=8, rotation=45)
+            ax.legend(fontsize=8)
+
+            # Rimuovi le griglie di sfondo
+            ax.grid(False)
+
+            # Imposta le dimensioni dei tick
+            ax.tick_params(axis='both', which='major', labelsize=8)
+
+            # Utilizza constrained_layout per evitare sovrapposizioni
+            # Non è necessario chiamare tight_layout() qui
         else:
-            ax.set_title("Missing columns (Client ID, Training Time, etc.)")
+            ax.set_title("Missing columns (Client ID, Training Time, etc.)", fontsize=10)
 
-    def plot_rounds_times(self, ax, kind="line"):
+    def plot_communication_time_per_round(self, ax):
         """
-        Confronta in un unico grafico:
-          - Training Time
-          - Communication Time
-          - Total Round Time
-        raggruppando per 'FL Round'.
+        Grafico 2: Tempo di Comunicazione vs FL Rounds
+        Y: Tempo di Comunicazione
+        X: FL Rounds
+        Tipo di Grafico: Line plot multiplo per ogni client
         """
         if self.data is None:
-            ax.set_title("No data")
+            ax.set_title("No data", fontsize=10)
             return
 
-        # Adatta i nomi delle colonne
-        if all(col in self.data.columns for col in ["FL Round","Training Time","Communication Time","Total Round Time"]):
-            grouped = self.data.groupby("FL Round", as_index=False)[
-                ["Training Time","Communication Time","Total Round Time"]
-            ].mean()
+        required_columns = ["FL Round", "Client ID", "Communication Time"]
+        if all(col in self.data.columns for col in required_columns):
+            # Pivot dei dati per avere FL Round come indice e Client ID come colonne
+            pivot = self.data.pivot_table(index="FL Round", columns="Client ID", values="Communication Time", aggfunc='mean')
 
-            x_vals = grouped["FL Round"]
-            # Se vuoi forzare i tick a numeri naturali:
-            ax.set_xticks(x_vals)
-            ax.set_xticklabels(x_vals.astype(int))
+            # Plot delle linee per ogni client con colori pastello
+            for i, column in enumerate(pivot.columns):
+                ax.plot(pivot.index, pivot[column], marker='o', linewidth=1, label=str(column), color=PASTEL_COLORS[i % len(PASTEL_COLORS)])
 
-            if kind == "line":
-                ax.plot(x_vals, grouped["Training Time"], marker='o', label="Training")
-                ax.plot(x_vals, grouped["Communication Time"], marker='o', label="Comm")
-                ax.plot(x_vals, grouped["Total Round Time"], marker='o', label="Total")
-            elif kind == "bar":
-                import numpy as np
-                idx = np.arange(len(x_vals))
-                width = 0.25
-                ax.bar(idx - width, grouped["Training Time"], width=width, label="Training")
-                ax.bar(idx, grouped["Communication Time"], width=width, label="Comm")
-                ax.bar(idx + width, grouped["Total Round Time"], width=width, label="Total")
-                ax.set_xticks(idx)
-                ax.set_xticklabels(x_vals.astype(int))
-            elif kind == "mix":
-                # Esempio "mix": line per Training, bar per Communication e Total
-                import numpy as np
-                idx = np.arange(len(x_vals))
-                width = 0.3
-                ax.plot(x_vals, grouped["Training Time"], marker='o', label="Training (line)")
-                ax.bar(idx, grouped["Communication Time"], width=width, label="Comm (bar)")
-                ax.bar(idx+width, grouped["Total Round Time"], width=width, label="Total (bar)")
-                ax.set_xticks(idx+width/2)
-                ax.set_xticklabels(x_vals.astype(int))
+            ax.set_xlabel("FL Rounds", fontsize=10)
+            ax.set_ylabel("Communication Time", fontsize=10)
+            ax.set_title("Communication Time per FL Round", fontsize=10)  # Uniformato a 10
+            ax.legend(title="Client ID", fontsize=8, title_fontsize=8)
+            
+            # Rimuovi le griglie di sfondo
+            ax.grid(False)
 
-            ax.set_xlabel("FL Rounds")
-            ax.set_ylabel("Time")
-            ax.legend()
-            ax.set_title("Rounds Times")
+            # Imposta le dimensioni dei tick
+            ax.tick_params(axis='both', which='major', labelsize=8)
+
+            # Imposta i tick dell'asse X a valori interi
+            if not pivot.index.is_integer():
+                ax.set_xticks(pivot.index.astype(int))
+            else:
+                ax.set_xticks(pivot.index)
+            ax.set_xticklabels(pivot.index.astype(int), fontsize=8, rotation=45)
+
+            # Utilizza constrained_layout per evitare sovrapposizioni
+            # Non è necessario chiamare tight_layout() qui
         else:
-            ax.set_title("Missing columns (FL Round, Training Time, etc.)")
+            ax.set_title("Missing columns (FL Round, Client ID, Communication Time)", fontsize=10)
 
-    def plot_model_quality(self, ax, kind="line"):
+    def plot_training_time_per_round(self, ax):
         """
-        Confronta Val Loss, Val Accuracy, Val F1 su base 'FL Round'.
+        Grafico 3: Tempo di Training vs FL Rounds
+        Y: Tempo di Training
+        X: FL Rounds
+        Tipo di Grafico: Line plot multiplo per ogni client
         """
         if self.data is None:
-            ax.set_title("No data")
+            ax.set_title("No data", fontsize=10)
             return
 
-        # Adatta i nomi delle colonne
-        if all(col in self.data.columns for col in ["FL Round","Val Loss","Val Accuracy","Val F1"]):
-            grouped = self.data.groupby("FL Round", as_index=False)[
-                ["Val Loss","Val Accuracy","Val F1"]
-            ].mean()
-            x_vals = grouped["FL Round"]
-            ax.set_xticks(x_vals)
-            ax.set_xticklabels(x_vals.astype(int))
+        required_columns = ["FL Round", "Client ID", "Training Time"]
+        if all(col in self.data.columns for col in required_columns):
+            # Pivot dei dati per avere FL Round come indice e Client ID come colonne
+            pivot = self.data.pivot_table(index="FL Round", columns="Client ID", values="Training Time", aggfunc='mean')
 
-            if kind == "line":
-                ax.plot(x_vals, grouped["Val Loss"], marker='o', label="Val Loss")
-                ax.plot(x_vals, grouped["Val Accuracy"], marker='o', label="Val Accuracy")
-                ax.plot(x_vals, grouped["Val F1"], marker='o', label="Val F1")
-            elif kind == "bar":
-                import numpy as np
-                idx = np.arange(len(x_vals))
-                width = 0.25
-                ax.bar(idx - width, grouped["Val Loss"], width=width, label="Val Loss")
-                ax.bar(idx, grouped["Val Accuracy"], width=width, label="Val Accuracy")
-                ax.bar(idx + width, grouped["Val F1"], width=width, label="Val F1")
-                ax.set_xticks(idx)
-                ax.set_xticklabels(x_vals.astype(int))
-            elif kind == "mix":
-                import numpy as np
-                idx = np.arange(len(x_vals))
-                width = 0.3
-                ax.plot(x_vals, grouped["Val Loss"], marker='o', label="Val Loss (line)")
-                ax.bar(idx, grouped["Val Accuracy"], width=width, label="Val Accuracy (bar)")
-                ax.bar(idx+width, grouped["Val F1"], width=width, label="Val F1 (bar)")
-                ax.set_xticks(idx+width/2)
-                ax.set_xticklabels(x_vals.astype(int))
+            # Plot delle linee per ogni client con colori pastello
+            for i, column in enumerate(pivot.columns):
+                ax.plot(pivot.index, pivot[column], marker='o', linewidth=1, label=str(column), color=PASTEL_COLORS[i % len(PASTEL_COLORS)])
 
-            ax.set_xlabel("FL Rounds")
-            ax.set_ylabel("Quality Metric")
-            ax.legend()
-            ax.set_title("Model Quality")
+            ax.set_xlabel("FL Rounds", fontsize=10)
+            ax.set_ylabel("Training Time", fontsize=10)
+            ax.set_title("Training Time per FL Round", fontsize=10)  # Uniformato a 10
+            ax.legend(title="Client ID", fontsize=8, title_fontsize=8)
+            
+            # Rimuovi le griglie di sfondo
+            ax.grid(False)
+
+            # Imposta le dimensioni dei tick
+            ax.tick_params(axis='both', which='major', labelsize=8)
+
+            # Imposta i tick dell'asse X a valori interi
+            if not pivot.index.is_integer():
+                ax.set_xticks(pivot.index.astype(int))
+            else:
+                ax.set_xticks(pivot.index)
+            ax.set_xticklabels(pivot.index.astype(int), fontsize=8, rotation=45)
+
+            # Utilizza constrained_layout per evitare sovrapposizioni
+            # Non è necessario chiamare tight_layout() qui
         else:
-            ax.set_title("Missing columns (FL Round, Val Loss, Val Accuracy, Val F1)")
+            ax.set_title("Missing columns (FL Round, Client ID, Training Time)", fontsize=10)
 
     def save_figure_svg(self, figure, default_name="chart"):
         """
@@ -388,3 +389,16 @@ class SimulationResults(QDialog):
             )
             if file_name:
                 self.data.to_csv(file_name, index=False)
+
+    # --- Funzione per aggiornare il timer ---
+    def update_timer(self):
+        self.elapsed_time += 1
+        minutes = self.elapsed_time // 60
+        seconds = self.elapsed_time % 60
+        self.timer_label.setText(f"{minutes} min : {seconds} s")
+
+    # --- Funzione per fermare il timer e la gif alla fine della simulazione ---
+    def finish_simulation(self):
+        self.timer.stop()
+        self.movie.stop()
+        self.simulation_label.setText("Simulation Completed")

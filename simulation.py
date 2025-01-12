@@ -2,9 +2,11 @@ import os
 import sys
 import json  # Imported for reading the configuration file
 import re
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel, QPlainTextEdit, QPushButton, QMessageBox
-from PyQt5.QtCore import Qt, QProcess
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton, QMessageBox
+from PyQt5.QtCore import Qt, QProcess, QTimer
+from PyQt5.QtGui import QMovie
 from simulation_results import SimulationResults  
+
 
 class SimulationPage(QWidget):
     def __init__(self, num_supernodes=None):
@@ -17,10 +19,48 @@ class SimulationPage(QWidget):
         layout.setAlignment(Qt.AlignTop)
         self.setLayout(layout)
 
+        # Layout per il titolo, indicatore di caricamento e timer
+        title_layout = QHBoxLayout()
+        title_layout.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+
+        # Titolo
         self.title_label = QLabel("Running the Simulation...")
-        self.title_label.setAlignment(Qt.AlignCenter)
+        self.title_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.title_label.setStyleSheet("color: black; font-size: 24px; font-weight: bold;")
-        layout.addWidget(self.title_label)
+        title_layout.addWidget(self.title_label)
+
+        # Indicatore di caricamento (GIF animata o alternativa)
+        self.loading_label = QLabel()
+        loading_gif_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "loading.gif")  # Percorso al tuo GIF di caricamento
+        if os.path.exists(loading_gif_path):
+            self.loading_movie = QMovie(loading_gif_path)
+            self.loading_label.setMovie(self.loading_movie)
+            self.loading_movie.start()
+            title_layout.addWidget(self.loading_label)
+            self.animated_loading = False  # Flag per sapere se stiamo usando il GIF
+        else:
+            # Fallback a un'animazione di emoji se il GIF non è disponibile
+            self.animated_loading = True
+            self.loading_emojis = ['🔄', '↻', '↺', '🔃']
+            self.current_emoji_index = 0
+            self.loading_label.setText(self.loading_emojis[self.current_emoji_index])
+            title_layout.addWidget(self.loading_label)
+
+            # Timer per animare gli emoji
+            self.loading_timer = QTimer(self)
+            self.loading_timer.timeout.connect(self.update_loading_animation)
+            self.loading_timer.start(500)  # Aggiorna ogni 500 ms
+
+        # Spacer per spingere il timer a destra
+        title_layout.addStretch()
+
+        # Timer per mostrare il tempo trascorso
+        self.timer_label = QLabel("0 h: 0 m: 0 s")
+        self.timer_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.timer_label.setStyleSheet("color: black; font-size: 16px;")
+        title_layout.addWidget(self.timer_label)
+
+        layout.addLayout(title_layout)
 
         self.output_area = QPlainTextEdit()
         self.output_area.setReadOnly(True)
@@ -55,7 +95,7 @@ class SimulationPage(QWidget):
         self.stop_button.clicked.connect(self.stop_simulation)
         layout.addWidget(self.stop_button, alignment=Qt.AlignCenter)
 
-        self.view_report_button = QPushButton("View Simulation Report")
+        self.view_report_button = QPushButton("📊 View Simulation Report")
         self.view_report_button.setCursor(Qt.PointingHandCursor)
         self.view_report_button.setStyleSheet("""
             QPushButton {
@@ -83,7 +123,29 @@ class SimulationPage(QWidget):
         self.process.readyReadStandardError.connect(self.handle_stdout)
         self.process.finished.connect(self.process_finished)
 
+        # Inizializzazione del timer
+        self.elapsed_seconds = 0
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_timer)
+        self.start_timer()
+
         self.start_simulation(num_supernodes)
+
+    def update_loading_animation(self):
+        """Aggiorna l'emoji di caricamento per simulare un'animazione."""
+        self.current_emoji_index = (self.current_emoji_index + 1) % len(self.loading_emojis)
+        self.loading_label.setText(self.loading_emojis[self.current_emoji_index])
+
+    def start_timer(self):
+        self.elapsed_seconds = 0
+        self.timer.start(1000)  # Aggiorna ogni secondo
+
+    def update_timer(self):
+        self.elapsed_seconds += 1
+        hours = self.elapsed_seconds // 3600
+        minutes = (self.elapsed_seconds % 3600) // 60
+        seconds = self.elapsed_seconds % 60
+        self.timer_label.setText(f"{hours} h: {minutes} m: {seconds} s")
 
     def start_simulation(self, num_supernodes):
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -167,11 +229,34 @@ class SimulationPage(QWidget):
         self.stop_button.clicked.connect(self.close_application)
         self.process = None
 
+        # Ferma il timer
+        self.timer.stop()
+
+        # Ferma l'animazione di caricamento
+        if self.animated_loading:
+            self.loading_timer.stop()
+        elif hasattr(self, 'loading_movie'):
+            self.loading_movie.stop()
+
     def stop_simulation(self):
         if self.process:
             self.process.terminate()
             self.process.waitForFinished()
             self.output_area.appendPlainText("Simulation terminated by the user.")
+            self.title_label.setText("Simulation Terminated")
+            self.view_report_button.hide()
+            self.stop_button.setText("Close")
+            self.stop_button.clicked.disconnect()
+            self.stop_button.clicked.connect(self.close_application)
+
+            # Ferma il timer
+            self.timer.stop()
+
+            # Ferma l'animazione di caricamento
+            if self.animated_loading:
+                self.loading_timer.stop()
+            elif hasattr(self, 'loading_movie'):
+                self.loading_movie.stop()
 
     def open_simulation_results(self):
         from simulation_results import SimulationResults

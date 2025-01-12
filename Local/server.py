@@ -239,9 +239,9 @@ class MultiModelStrategy(Strategy):
         self.parameters_b = initial_parameters_b
     
     log(INFO, "==========================================")
-    log(INFO, "Starting the Simulation...")
+    log(INFO, "Simulation Started!")
     log(INFO, "==========================================")
-    time.sleep(2)
+    time.sleep(1)
     log(INFO, "List of Architectural Patterns Implemented: ")
 
     enabled_patterns = []
