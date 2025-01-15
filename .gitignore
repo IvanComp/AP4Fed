@@ -1,2 +1,4 @@
 **/data
+**/Local/img
+**/Docker/img
 .DS_Store
