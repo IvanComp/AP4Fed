@@ -20,7 +20,6 @@ from flwr.server import (
 from flwr.server.strategy import Strategy
 from flwr.server.client_manager import ClientManager
 from flwr.server.client_proxy import ClientProxy
-from prometheus_client import Gauge, start_http_server
 from flwr.common.logger import log
 from taskA import Net as NetA, get_weights as get_weights_A
 from taskB import Net as NetB, get_weights as get_weights_B
@@ -243,16 +242,9 @@ class MultiModelStrategy(Strategy):
         clientb_count = len(client.containers.list(filters={"label": "type=clientb"}))
         min_clients = clienta_count + clientb_count
 
-        client_manager.wait_for(min_clients)  
-        time.sleep(3)
-        log(INFO, f"Client Cluster is enabled for this experiment...")
-        time.sleep(5)
-        log(INFO, f"Clustering Criteria: IID (Cluster A), non-IID (Cluster B)")
-        time.sleep(3)
-        log(INFO, f"# of Clients in Cluster A: {clienta_count} , # of Clients in Cluster B: {clientb_count}")
-        time.sleep(3)
-        
+        client_manager.wait_for(min_clients)        
         clients = client_manager.sample(num_clients=min_clients)
+        
         fit_configurations = []
         task_flag = True 
 
@@ -397,8 +389,6 @@ class MultiModelStrategy(Strategy):
         return None
 
 if __name__ == "__main__":
-    # Start Prometheus Metrics Server
-    start_http_server(8000)
     
     strategy = MultiModelStrategy(
         initial_parameters_a=parametersA,  

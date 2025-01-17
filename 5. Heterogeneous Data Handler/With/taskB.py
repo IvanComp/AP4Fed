@@ -43,7 +43,8 @@ def count_classes_subset(dataset, subset_indices):
         counts[label] += 1
     return counts
 
-def load_data(min_samples=25000, max_samples=27000, alpha=0.5):
+def load_data(num_non_iid_clients=1, samples_per_client=25000, alpha=0.5, target_samples_per_class=2500):
+
     trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
     trainset = CIFAR10("./", train=True, download=True, transform=trf)
     testset = CIFAR10("./", train=False, download=True, transform=trf)
@@ -51,40 +52,66 @@ def load_data(min_samples=25000, max_samples=27000, alpha=0.5):
     class_to_indices = {i: [] for i in range(10)}
     for idx, (_, label) in enumerate(trainset):
         class_to_indices[label].append(idx)
-
-    proportions = np.random.dirichlet([alpha] * 10)
-    class_counts = (proportions * min_samples).astype(int)
-    discrepancy = min_samples - class_counts.sum()
-    if discrepancy > 0:
-        class_counts[np.argmax(proportions)] += discrepancy
-    elif discrepancy < 0:
-        discrepancy = abs(discrepancy)
-        class_counts[np.argmax(proportions)] -= min(discrepancy, class_counts[np.argmax(proportions)])
-
-    while class_counts.sum() < min_samples:
-        increment = min(max_samples - class_counts.sum(), np.random.randint(1, 100))
-        class_counts[np.argmax(proportions)] += increment
-
-    selected_indices = []
-    for cls, count in enumerate(class_counts):
-        available_indices = class_to_indices[cls]
-        selected = random.sample(available_indices, min(count, len(available_indices)))
-        selected_indices.extend(selected)
-
-    subset_train = Subset(trainset, selected_indices)
-    trainloader = DataLoader(subset_train, batch_size=32, shuffle=True)
+    
+    clients_data = []
+    
+    # Creazione dei client non-IID (solo 1 client)
+    for client_id in range(num_non_iid_clients):
+        proportions = np.random.dirichlet([alpha] * 10)
+        class_counts = (proportions * samples_per_client).astype(int)
+        
+        # Gestione della discrepanza dovuta alla conversione a int
+        discrepancy = samples_per_client - class_counts.sum()
+        if discrepancy > 0:
+            class_counts[np.argmax(proportions)] += discrepancy
+        elif discrepancy < 0:
+            discrepancy = abs(discrepancy)
+            class_counts[np.argmax(proportions)] -= min(discrepancy, class_counts[np.argmax(proportions)])
+        
+        selected_indices = []
+        for cls, count in enumerate(class_counts):
+            available_indices = class_to_indices[cls]
+            if count > len(available_indices):
+                selected = available_indices.copy()
+            else:
+                selected = random.sample(available_indices, min(count, len(available_indices)))
+            selected_indices.extend(selected)
+        
+        subset_train = Subset(trainset, selected_indices)
+        subset_labels = [trainset[i][1] for i in selected_indices]
+        class_distribution = Counter(subset_labels)
+        clients_data.append((subset_train, class_distribution))
+        
+        distribution_str = ", ".join([f"{CLASS_NAMES[cls]}: {class_distribution.get(cls, 0)} samples" for cls in range(10)])
+        print(f"Client non-IID-{client_id+1} Class Distribution: {distribution_str}")
+    
+    augmented_clients = augment_with_gan(clients_data, target_samples_per_class)
+    subset_augmented, _ = augmented_clients[0]
+    trainloader = DataLoader(subset_augmented, batch_size=32, shuffle=True)
     testloader = DataLoader(testset, batch_size=32, shuffle=False)
-    subset_labels = [trainset[i][1] for i in selected_indices]
-    class_distribution = Counter(subset_labels)
-    class_names = trainset.classes
-
-    print(f"Class Distribution:")
-    for class_index, count in class_distribution.items():
-        print(f"  {class_names[class_index]}: {count} samples")
-
-    #print(f"Total Client samples: {len(selected_indices)}")
 
     return trainloader, testloader
+
+def augment_with_gan(clients_data, target_samples_per_class=2500):
+    augmented_clients_data = []
+    for idx, (subset, class_distribution) in enumerate(clients_data):
+        new_class_distribution = Counter(class_distribution)  # Crea una copia del Counter
+        print("\nApplying GAN Augmentation to non-IID Clients...")
+        print(f"\nAugmenting non-IID Client {idx+1}:")
+        for cls in range(10):
+            current_count = new_class_distribution[cls]
+            if current_count < target_samples_per_class:
+                additional_samples = target_samples_per_class - current_count
+                new_class_distribution[cls] += additional_samples
+                print(f"  {CLASS_NAMES[cls]} - Adding {additional_samples} samples to reach {target_samples_per_class}")
+            elif current_count > target_samples_per_class:
+                samples_to_remove = current_count - target_samples_per_class
+                new_class_distribution[cls] -= samples_to_remove
+                print(f"  {CLASS_NAMES[cls]} - Removing {samples_to_remove} samples to reach {target_samples_per_class}")
+            else:
+                print(f"  {CLASS_NAMES[cls]} - No augmentation needed (current: {current_count})")
+        augmented_clients_data.append((subset, new_class_distribution))
+    return augmented_clients_data
 
 def train(net, trainloader, valloader, epochs, device):
 
@@ -120,7 +147,6 @@ def train(net, trainloader, valloader, epochs, device):
     }
 
     return results, training_time, comm_start_time
-
 
 def test(net, testloader):
     net.to(DEVICE)

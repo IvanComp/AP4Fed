@@ -11,7 +11,6 @@ from torchvision.transforms import Compose, Normalize, ToTensor
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-
 class Net(nn.Module):
     
     def __init__(self) -> None:
@@ -30,7 +29,6 @@ class Net(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         return self.fc3(x)
-
 
 def load_data():
     """Load CIFAR-10 (training and test set)."""
@@ -76,7 +74,6 @@ def train(net, trainloader, valloader, epochs, device):
     }
 
     return results, training_time, start_comm_time # Return the training time as well
-
 
 def test(net, testloader):
     net.to(DEVICE)

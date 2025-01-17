@@ -61,10 +61,8 @@ def load_data():
     class_counts = Counter(subset_labels)
     class_names = trainset.classes
 
-    # Stampa la distribuzione effettiva delle classi
-    print("Class Distribution:")
-    for class_index, count in class_counts.items():
-        print(f"  {class_names[class_index]}: {count} samples")
+    distribution_str = ", ".join([f"{class_names[class_index]}: {count} samples" for class_index, count in class_counts.items()])
+    print(f"IID Client - Class Distribution: {distribution_str}")
 
     return trainloader, testloader
 
