@@ -52,19 +52,17 @@ class Net(nn.Module):
 
     def __init__(self) -> None:
         super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5)  # Input channels set to 3
+        self.conv1 = nn.Conv2d(3, 6, 5)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(6, 16, 5)
-        # Adjusted for image size after pooling (from 4*4 to 5*5)
         self.fc1 = nn.Linear(16 * 5 * 5, 120)
         self.fc2 = nn.Linear(120, 84)
-        # For consistency with CIFAR-10 model (10 classes)
         self.fc3 = nn.Linear(84, 10)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.pool(F.relu(self.conv1(x)))  # Output: [batch_size, 6, 14, 14]
-        x = self.pool(F.relu(self.conv2(x)))  # Output: [batch_size, 16, 5, 5]
-        x = x.view(-1, 16 * 5 * 5)  # Flatten
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = x.view(-1, 16 * 5 * 5)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         return self.fc3(x)
@@ -84,69 +82,21 @@ class SubsetWithTransform(Dataset):
     def __len__(self):
         return len(self.indices)
 
-def non_iid_partition(dataset, num_clients, alpha):
-    """Partition dataset among `num_clients` using a Dirichlet distribution with parameter `alpha`."""
-    # Number of classes
-    num_classes = 10
-    # Label distribution
-    label_distribution = np.zeros((num_clients, num_classes))
+def load_data():
+    """Load FashionMNIST (training and test set) with appropriate transformations."""
+    train_transform = TRAIN_TRANSFORMS
+    test_transform = EVAL_TRANSFORMS
 
-    # Get labels for all data points
-    targets = np.array(dataset.targets)
-    idxs = np.arange(len(targets))
-
-    # For each class in the dataset
-    class_indices = [np.where(targets == i)[0] for i in range(num_classes)]
-
-    # For each client, sample a proportion for each class from a Dirichlet distribution
-    proportions = np.random.dirichlet(alpha=np.repeat(alpha, num_clients), size=num_classes)
-
-    # For each client, collect the indices
-    client_indices = [[] for _ in range(num_clients)]
-    for c, fracs in zip(class_indices, proportions):
-        # Shuffle the indices of the class
-        np.random.shuffle(c)
-        # Split the indices according to the sampled proportions
-        splits = np.array_split(c, (np.cumsum(fracs)[:-1] * len(c)).astype(int))
-        for idx, split in enumerate(splits):
-            client_indices[idx].extend(split)
-
-    return client_indices
-
-def load_data(client_id, num_clients):
-    """Load data for the client with given `client_id` using Dirichlet partitioning."""
-    # Directory where the data is stored
-    data_dir = "./data"
-
-    # Ensure the data directory exists
-    os.makedirs(data_dir, exist_ok=True)
-
-    # Download the dataset only if it doesn't exist
-    full_dataset = FashionMNIST(
-        root=data_dir,
-        train=True,
-        download=True,
-        transform=None,  # We'll apply transforms later
+    trainset = FashionMNIST(
+        "./data", train=True, download=True, transform=train_transform
     )
-
-    # Perform non-IID data partitioning using Dirichlet distribution
-    alpha = 0.5  # Adjust alpha as needed; smaller alpha => more heterogeneous data
-    client_indices = non_iid_partition(full_dataset, num_clients, alpha)
-
-    # Get the indices for this client
-    indices = client_indices[client_id]
-
-    # Create the subsets for this client
-    train_indices, val_indices = train_test_split(indices, test_size=0.2, random_state=42)
-
-    train_dataset = SubsetWithTransform(full_dataset, train_indices, transform=TRAIN_TRANSFORMS)
-    val_dataset = SubsetWithTransform(full_dataset, val_indices, transform=EVAL_TRANSFORMS)
-
-    # Create data loaders
-    trainloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    testloader = DataLoader(val_dataset, batch_size=32)
-
-    return trainloader, testloader
+    testset = FashionMNIST(
+        "./data", train=False, download=True, transform=test_transform
+    )
+    return (
+        DataLoader(trainset, batch_size=32, shuffle=True),
+        DataLoader(testset),
+    )
 
 def train_test_split(indices, test_size=0.2, random_state=42):
     """Split indices into train and test sets."""

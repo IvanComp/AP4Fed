@@ -41,8 +41,6 @@ class FlowerClient(NumPyClient):
         self.trainloader, self.testloader = load_data_A()  
         self.device = DEVICE_A
 
-        client_registry.register_client(cid, model_type)
-
     def fit(self, parameters, config):
         #print(f"CLIENT {self.cid} Successfully Configured. Target Model: {self.model_type}", flush=True)
         cpu_start = psutil.cpu_percent(interval=None)

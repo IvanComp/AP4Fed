@@ -16,7 +16,6 @@ import hashlib
 import psutil
 import random
 import torch
-
 from taskB import (
     DEVICE as DEVICE_B,
     Net as NetB,
@@ -37,19 +36,13 @@ client_registry = ClientRegistry()
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class FlowerClient(NumPyClient):
-    def __init__(self, cid: str, model_type, num_clients):
+    def __init__(self, cid: str, model_type):
         self.cid = cid
+        self.model_type = "taskB"
         self.model_type = model_type
         self.net = NetB().to(DEVICE_B)
-
-        # Extract client_id as an integer index (e.g., clientb-1 => 0)
-        client_id_str = ''.join(filter(str.isdigit, cid))
-        client_id = int(client_id_str) - 1 if client_id_str else 0
-
-        self.trainloader, self.testloader = load_data_B(client_id, num_clients)
         self.device = DEVICE_B
-
-        client_registry.register_client(cid, model_type)
+        self.trainloader, self.testloader = load_data_B()
 
     def fit(self, parameters, config):
         # print(f"CLIENT {self.cid} Successfully Configured. Target Model: {self.model_type}", flush=True)
@@ -62,7 +55,7 @@ class FlowerClient(NumPyClient):
             self.testloader,
             epochs=2,
             device=self.device,
-            lr=float(config.get("lr", 0.001))  # Use learning rate from config if provided
+            lr=float(config.get("lr", 0.001))
         )
         communication_start_time = time.time()
 
@@ -104,9 +97,7 @@ class FlowerClient(NumPyClient):
 if __name__ == "__main__":
     from flwr.client import start_client
 
-    NUM_CLIENTS = int(os.getenv("NUM_CLIENTS", "2"))  # Adjust as needed
-
     start_client(
         server_address="server:8080",
-        client=FlowerClient(cid=CLIENT_ID, model_type="taskB", num_clients=NUM_CLIENTS).to_client(),
+        client=FlowerClient(cid=CLIENT_ID, model_type="taskB").to_client(),
     )
