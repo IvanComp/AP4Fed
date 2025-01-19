@@ -216,7 +216,7 @@ def print_results():
     print(f"  Train accuracy: {global_metrics['taskB']['train_accuracy']}")
     print(f"  Train F1: {global_metrics['taskB']['train_f1']}")
     print(f"  Val loss: {global_metrics['taskB']['val_loss']}")
-    print(f"  Val accuracy: {global_metrics['taskB']['val_accuracy']}\n")
+    print(f"  Val accuracy: {global_metrics['taskB']['val_accuracy']}")
     print(f"  Val F1: {global_metrics['taskB']['val_f1']}\n")
 
 client_model_mapping = {}

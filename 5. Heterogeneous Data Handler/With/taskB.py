@@ -43,7 +43,7 @@ def count_classes_subset(dataset, subset_indices):
         counts[label] += 1
     return counts
 
-def load_data(num_non_iid_clients=1, samples_per_client=25000, alpha=0.5, target_samples_per_class=2500):
+def load_data(num_non_iid_clients=1, samples_per_client=25000, alpha=0.5, target_samples_per_class=2500, apply_gan=True):
 
     trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
     trainset = CIFAR10("./", train=True, download=True, transform=trf)
@@ -85,8 +85,12 @@ def load_data(num_non_iid_clients=1, samples_per_client=25000, alpha=0.5, target
         distribution_str = ", ".join([f"{CLASS_NAMES[cls]}: {class_distribution.get(cls, 0)} samples" for cls in range(10)])
         print(f"Client non-IID-{client_id+1} Class Distribution: {distribution_str}")
     
-    augmented_clients = augment_with_gan(clients_data, target_samples_per_class)
-    subset_augmented, _ = augmented_clients[0]
+    if apply_gan:
+        augmented_clients = augment_with_gan(clients_data, target_samples_per_class)
+        subset_augmented, _ = augmented_clients[0]
+    else:
+        subset_augmented, _ = clients_data[0]
+
     trainloader = DataLoader(subset_augmented, batch_size=32, shuffle=True)
     testloader = DataLoader(testset, batch_size=32, shuffle=False)
 

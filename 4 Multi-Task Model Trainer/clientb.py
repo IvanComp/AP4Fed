@@ -39,7 +39,6 @@ class FlowerClient(NumPyClient):
     def __init__(self, cid: str, model_type):
         self.cid = cid
         self.model_type = "taskB"
-        self.model_type = model_type
         self.net = NetB().to(DEVICE_B)
         self.device = DEVICE_B
         self.trainloader, self.testloader = load_data_B()
@@ -50,12 +49,11 @@ class FlowerClient(NumPyClient):
 
         set_weights_B(self.net, parameters)
         results, training_time = train_B(
-            self.net,
-            self.trainloader,
-            self.testloader,
-            epochs=2,
-            device=self.device,
-            lr=float(config.get("lr", 0.001))
+        self.net,
+        self.trainloader,
+        self.testloader,
+        epochs=1,
+        device=self.device
         )
         communication_start_time = time.time()
 
@@ -78,7 +76,7 @@ class FlowerClient(NumPyClient):
             "communication_start_time": communication_start_time,
         }
 
-        return get_weights_B(self.net), len(self.trainloader.dataset), metrics
+        return new_parameters, len(self.trainloader.dataset), metrics
 
     def evaluate(self, parameters, config):
         print(f"CLIENT {self.cid} ({self.model_type}): Starting evaluation.", flush=True)

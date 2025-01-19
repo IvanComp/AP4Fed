@@ -20,7 +20,6 @@ from flwr.server import (
 from flwr.server.strategy import Strategy
 from flwr.server.client_manager import ClientManager
 from flwr.server.client_proxy import ClientProxy
-from prometheus_client import Gauge, start_http_server
 from flwr.common.logger import log
 from taskA import Net as NetA, get_weights as get_weights_A
 from taskB import Net as NetB, get_weights as get_weights_B
@@ -350,7 +349,7 @@ def print_results():
     print(f"  Train accuracy: {global_metrics['taskB']['train_accuracy']}")
     print(f"  Train F1: {global_metrics['taskB']['train_f1']}")
     print(f"  Val loss: {global_metrics['taskB']['val_loss']}")
-    print(f"  Val accuracy: {global_metrics['taskB']['val_accuracy']}\n")
+    print(f"  Val accuracy: {global_metrics['taskB']['val_accuracy']}")
     print(f"  Val F1: {global_metrics['taskB']['val_f1']}\n")
 
 # Initialize the client_model_mapping dictionary
@@ -544,8 +543,6 @@ class MultiModelStrategy(Strategy):
         return None
 
 if __name__ == "__main__":
-    # Start Prometheus Metrics Server
-    start_http_server(8000)
     
     strategy = MultiModelStrategy(
         initial_parameters_a=parametersA,  

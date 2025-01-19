@@ -6,9 +6,6 @@ services:
     container_name: flwr_server
     ports:
       - "8080:8080"
-    #depends_on:
-    # - prometheus
-    # - grafana
     volumes:
       - ./data:/app/data
       - ./performance:/app/performance
@@ -38,7 +35,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
+          cpus: '1'
     command: sh -c "sleep 2 && python clienta.py"
 
   clientb:
@@ -55,7 +52,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2'
+          cpus: '1'
     command: sh -c "sleep 2 && python clientb.py"
 
 networks:
