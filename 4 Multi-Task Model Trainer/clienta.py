@@ -1,18 +1,11 @@
 from flwr.client import ClientApp, NumPyClient
-from flwr.common import (
-    parameters_to_ndarrays,
-    ndarrays_to_parameters,
-    Scalar,
-    Context,
-)
 from typing import Dict
+from flwr.common.logger import log
+from logging import INFO
 import time
 from datetime import datetime
-import csv
 import os
-import hashlib
 import psutil
-import random
 import torch
 from taskA import (
     DEVICE as DEVICE_A,
@@ -24,13 +17,7 @@ from taskA import (
     test as test_A
 )
 
-from APClient import ClientRegistry
-
 CLIENT_ID = os.getenv("HOSTNAME")
-
-# Instantiate a single instance of ClientRegistry for the client
-client_registry = ClientRegistry()
-
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class FlowerClient(NumPyClient):

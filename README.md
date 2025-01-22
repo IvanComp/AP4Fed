@@ -1,6 +1,6 @@
 ---
 Framework: [Flower, PyTorch, Torchvision, TorchGAN]
-Testing Datasets: [CIFAR-10, FMNIST, Fashion-MNIST, IMDB, HIGGS, Titanic]
+Testing Datasets: [CIFAR-10, FMNIST, NYUv2, IMDB, HIGGS, Titanic]
 Testing Models: [Convolutional Neural Network, Recurrent Neural Networks]
 Version: [1.0.0]
 ---

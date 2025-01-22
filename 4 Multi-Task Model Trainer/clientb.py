@@ -1,20 +1,11 @@
 from flwr.client import ClientApp, NumPyClient
-from flwr.common import (
-    parameters_to_ndarrays,
-    ndarrays_to_parameters,
-    Scalar,
-    Context,
-)
+from typing import Dict
 from flwr.common.logger import log
 from logging import INFO
-from typing import Dict
 import time
 from datetime import datetime
-import csv
 import os
-import hashlib
 import psutil
-import random
 import torch
 from taskB import (
     DEVICE as DEVICE_B,
@@ -26,35 +17,23 @@ from taskB import (
     test as test_B
 )
 
-from APClient import ClientRegistry
-
 CLIENT_ID = os.getenv("HOSTNAME")
-
-# Instantiate a single instance of ClientRegistry for the client
-client_registry = ClientRegistry()
-
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class FlowerClient(NumPyClient):
     def __init__(self, cid: str, model_type):
         self.cid = cid
         self.model_type = "taskB"
-        self.net = NetB().to(DEVICE_B)
-        self.device = DEVICE_B
+        self.net = NetB().to(DEVICE_B)       
         self.trainloader, self.testloader = load_data_B()
+        self.device = DEVICE_B
 
     def fit(self, parameters, config):
         # print(f"CLIENT {self.cid} Successfully Configured. Target Model: {self.model_type}", flush=True)
         cpu_start = psutil.cpu_percent(interval=None)
 
         set_weights_B(self.net, parameters)
-        results, training_time = train_B(
-        self.net,
-        self.trainloader,
-        self.testloader,
-        epochs=1,
-        device=self.device
-        )
+        results, training_time = train_B(self.net, self.trainloader, self.testloader, epochs=1, device=self.device)
         communication_start_time = time.time()
 
         new_parameters = get_weights_B(self.net)
@@ -86,7 +65,6 @@ class FlowerClient(NumPyClient):
         print(f"CLIENT {self.cid} ({self.model_type}): Evaluation completed", flush=True)
         metrics = {
             "accuracy": accuracy,
-            "f1_score": f1_score,
             "client_id": self.cid,
             "model_type": self.model_type,
         }

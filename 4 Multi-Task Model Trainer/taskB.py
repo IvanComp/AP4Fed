@@ -1,140 +1,124 @@
-import json
-import time  # Keep time to measure training times
+import time
 from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
 import os
-from flwr.common.logger import log
 from logging import INFO
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, Dataset, Subset
-from torchvision.datasets import FashionMNIST
-from torchvision.transforms import (
-    Compose,
-    Normalize,
-    RandomCrop,
-    RandomHorizontalFlip,
-    ToTensor,
-    Lambda,
-    Resize,
-)
+from torch.utils.data import Dataset, DataLoader, random_split
+from PIL import Image
 import numpy as np
-import hashlib
+from flwr.common.logger import log
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-# Normalization constants for Fashion-MNIST
-FM_NORMALIZATION = ((0.2860,), (0.3530,))
-
-def expand_channels(image):
-    return image.expand(3, -1, -1)
-
-EVAL_TRANSFORMS = Compose([
-    Resize(32),
-    ToTensor(),
-    Lambda(expand_channels),
-    Normalize((0.2860,) * 3, (0.3530,) * 3),
-])
-
-TRAIN_TRANSFORMS = Compose([
-    Resize(32),
-    RandomCrop(32, padding=4),
-    RandomHorizontalFlip(),
-    ToTensor(),
-    Lambda(expand_channels),
-    Normalize((0.2860,) * 3, (0.3530,) * 3),
-])
-
-class Net(nn.Module):
-    """Model (simple CNN adapted for Fashion-MNIST)"""
-
-    def __init__(self) -> None:
-        super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5)
-        self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(-1, 16 * 5 * 5)
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        return self.fc3(x)
-
-class SubsetWithTransform(Dataset):
-    def __init__(self, dataset, indices, transform=None):
-        self.dataset = dataset
-        self.indices = indices
-        self.transform = transform
-
-    def __getitem__(self, idx):
-        img, target = self.dataset[self.indices[idx]]
-        if self.transform:
-            img = self.transform(img)
-        return img, target
+# Dataset per la Depth Estimation: input = immagine RGB, label = immagine di profondità (grayscale)
+class DepthDataset(Dataset):
+    def __init__(self, rgb_dir, depth_dir, transform_rgb=None, transform_depth=None):
+        super().__init__()
+        self.rgb_dir = rgb_dir
+        self.depth_dir = depth_dir
+        self.transform_rgb = transform_rgb
+        self.transform_depth = transform_depth
+        self.image_paths = []
+        for idx in range(101):
+            self.image_paths.append(idx)
 
     def __len__(self):
-        return len(self.indices)
+        return len(self.image_paths)
+
+    def __getitem__(self, idx):
+        index = self.image_paths[idx]
+        rgb_path = f"{self.rgb_dir}/rgb_{index}.png"
+        depth_path = f"{self.depth_dir}/depth_{index}.png"
+
+        rgb = Image.open(rgb_path).convert("RGB")
+        depth = Image.open(depth_path).convert("L")  # grayscale
+
+        if self.transform_rgb:
+            rgb = self.transform_rgb(rgb)
+        if self.transform_depth:
+            depth = self.transform_depth(depth)
+
+        # depth è un singolo canale. Usiamo float per la regression. Normalizziamo in [0,1] se vogliamo
+        depth_tensor = depth.float()  # shape [1, H, W]
+        return rgb, depth_tensor
+
+# Rete semplificata per la Depth Estimation: input=3 canali, output=1 canale con la stima di profondità
+class Net(nn.Module):
+    def __init__(self):
+        super(Net, self).__init__()
+        self.conv1 = nn.Conv2d(3, 16, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.up = nn.Upsample(scale_factor=2, mode='nearest')
+        self.conv4 = nn.Conv2d(64, 32, kernel_size=3, padding=1)
+        self.conv5 = nn.Conv2d(32, 16, kernel_size=3, padding=1)
+        self.out = nn.Conv2d(16, 1, kernel_size=1)
+
+    def forward(self, x):
+        x1 = F.relu(self.conv1(x))
+        x2 = self.pool(F.relu(self.conv2(x1)))
+        x3 = self.pool(F.relu(self.conv3(x2)))
+        x4 = self.up(x3)
+        x5 = F.relu(self.conv4(x4))
+        x6 = self.up(x5)
+        x7 = F.relu(self.conv5(x6))
+        out = self.out(x7)
+        return out  # [batch,1,H,W], stima della mappa di profondità
 
 def load_data():
-    """Load FashionMNIST (training and test set) with appropriate transformations."""
-    train_transform = TRAIN_TRANSFORMS
-    test_transform = EVAL_TRANSFORMS
+    # Carica dataset di Depth. Normalizziamo l'RGB in [0,1], e la depth in [0,1].
+    from torchvision import transforms
+    transform_rgb = transforms.Compose([
+        transforms.Resize((240, 320)),
+        transforms.ToTensor()
+    ])
+    transform_depth = transforms.Compose([
+        transforms.Resize((240, 320)),
+        transforms.ToTensor()
+    ])
 
-    trainset = FashionMNIST(
-        "./data", train=True, download=True, transform=train_transform
-    )
-    testset = FashionMNIST(
-        "./data", train=False, download=True, transform=test_transform
-    )
-    return (
-        DataLoader(trainset, batch_size=32, shuffle=True),
-        DataLoader(testset),
-    )
+    dataset = DepthDataset(rgb_dir="data/rgb_images",
+                           depth_dir="data/depth_maps",
+                           transform_rgb=transform_rgb,
+                           transform_depth=transform_depth)
 
-def train_test_split(indices, test_size=0.2, random_state=42):
-    """Split indices into train and test sets."""
-    np.random.seed(random_state)
-    np.random.shuffle(indices)
-    split = int(np.floor(test_size * len(indices)))
-    return indices[split:], indices[:split]
+    n = len(dataset)
+    n_train = int(0.8 * n)
+    n_test = n - n_train
+    train_ds, test_ds = random_split(dataset, [n_train, n_test])
+
+    train_loader = DataLoader(train_ds, batch_size=2, shuffle=True)
+    test_loader = DataLoader(test_ds, batch_size=2, shuffle=False)
+    return train_loader, test_loader
 
 def train(net, trainloader, valloader, epochs, device, lr=0.001):
-    """Train the model on the training set, measuring time."""
     log(INFO, "Starting training...")
-
-    # Start measuring training time
     start_time = time.time()
 
-    net.to(device)  # move model to GPU if available
-    criterion = torch.nn.CrossEntropyLoss().to(device)
+    net.to(device)
+    # Usando MSE come loss di base
+    criterion = nn.MSELoss()
     optimizer = torch.optim.SGD(net.parameters(), lr=lr, momentum=0.9)
     net.train()
-    running_loss = 0.0
     for _ in range(epochs):
-        for images, labels in trainloader:
-            images = images.to(device)
-            labels = labels.to(device)
+        for rgb, depth in trainloader:
+            rgb, depth = rgb.to(device), depth.to(device)
             optimizer.zero_grad()
-            outputs = net(images)
-            loss = criterion(outputs, labels)
+            outputs = net(rgb)
+            # outputs [batch,1,H,W], depth [batch,1,H,W]
+            loss = criterion(outputs, depth)
             loss.backward()
             optimizer.step()
-            running_loss += loss.item()
 
-    # End measuring training time
     training_time = time.time() - start_time
     log(INFO, f"Training completed in {training_time:.2f} seconds")
 
-    avg_trainloss = running_loss / len(trainloader)
-
-    # Evaluate on training and validation sets
+    # Calcolo delle metriche su train e val
     train_loss, train_acc, train_f1 = test(net, trainloader, device)
     val_loss, val_acc, val_f1 = test(net, valloader, device)
 
@@ -146,74 +130,28 @@ def train(net, trainloader, valloader, epochs, device, lr=0.001):
         "val_accuracy": val_acc,
         "val_f1": val_f1,
     }
-
     return results, training_time
 
 def test(net, testloader, device):
-    """Evaluate the model on the test set."""
     net.to(device)
-    criterion = torch.nn.CrossEntropyLoss()
-    correct = 0
-    loss = 0.0
-    all_preds = []
-    all_labels = []
+    criterion = nn.MSELoss()
+    net.eval()
 
-    net.eval()  # Set model to evaluation mode
+    total_loss = 0.0
+    count = 0
+    # Per “accuracy” e “f1”, non essendo una classificazione, restituiamo valori simbolici (o potremmo inventare metriche)
     with torch.no_grad():
-        for images, labels in testloader:
-            images = images.to(device)
-            labels = labels.to(device)
-            outputs = net(images)
-            loss += criterion(outputs, labels).item()
-            _, predicted = torch.max(outputs.data, 1)
-            correct += (predicted == labels).sum().item()
-            all_preds.append(predicted.cpu())
-            all_labels.append(labels.cpu())
+        for rgb, depth in testloader:
+            rgb, depth = rgb.to(device), depth.to(device)
+            outputs = net(rgb)
+            loss = criterion(outputs, depth)
+            total_loss += loss.item()
+            count += 1
 
-    accuracy = correct / len(testloader.dataset)
-    loss = loss / len(testloader)
-
-    # Concatenate all predictions and labels
-    all_preds = torch.cat(all_preds)
-    all_labels = torch.cat(all_labels)
-
-    # Calculate F1 score
-    f1 = f1_score_torch(all_labels, all_preds, num_classes=10, average='macro')
-
-    return loss, accuracy, f1
-
-def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
-    # Create confusion matrix
-    confusion_matrix = torch.zeros(num_classes, num_classes)
-    for t, p in zip(y_true, y_pred):
-        confusion_matrix[t.long(), p.long()] += 1
-
-    # Calculate precision and recall for each class
-    precision = torch.zeros(num_classes)
-    recall = torch.zeros(num_classes)
-    f1_per_class = torch.zeros(num_classes)
-    for i in range(num_classes):
-        TP = confusion_matrix[i, i]
-        FP = confusion_matrix[:, i].sum() - TP
-        FN = confusion_matrix[i, :].sum() - TP
-
-        precision[i] = TP / (TP + FP + 1e-8)
-        recall[i] = TP / (TP + FN + 1e-8)
-        f1_per_class[i] = 2 * (precision[i] * recall[i]) / (precision[i] + recall[i] + 1e-8)
-
-    if average == 'macro':
-        f1 = f1_per_class.mean().item()
-    elif average == 'micro':
-        TP = torch.diag(confusion_matrix).sum()
-        FP = confusion_matrix.sum() - torch.diag(confusion_matrix).sum()
-        FN = FP
-        precision_micro = TP / (TP + FP + 1e-8)
-        recall_micro = TP / (TP + FN + 1e-8)
-        f1 = (2 * precision_micro * recall_micro / (precision_micro + recall_micro + 1e-8)).item()
-    else:
-        raise ValueError("Average must be 'macro' or 'micro'")
-
-    return f1
+    avg_loss = total_loss / count if count > 0 else 0.0
+    dummy_accuracy = 0.0
+    dummy_f1 = 0.0
+    return avg_loss, dummy_accuracy, dummy_f1
 
 def get_weights(net):
     return [val.cpu().numpy() for _, val in net.state_dict().items()]
@@ -222,4 +160,3 @@ def set_weights(net, parameters):
     params_dict = zip(net.state_dict().keys(), parameters)
     state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
     net.load_state_dict(state_dict, strict=True)
-
