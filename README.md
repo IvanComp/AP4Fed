@@ -13,6 +13,7 @@ Version: [1.0.0]
 
 <p align="center">
   <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status">
+  <img src="https://img.shields.io/badge/python-3.10+-important">
   <img src="https://img.shields.io/badge/version-1.0-green" alt="Version">
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open to Colab">
 </p>
@@ -119,3 +120,17 @@ You can explore use cases and performance testing of architectural patterns [1] 
 
 [1] Compagnucci, I., Pinciroli, R., & Trubiani, C. (2025). **Performance Analysis of Architectural Patterns for Federated Learning Systems.**
 Accepted for the 22nd IEEE International Conference on Software Architecture. ICSA 2025.
+
+Check out the paper _[Performance Analysis of Architectural Patterns for Federated Learning Systems](), ICSA 2025_, and please cite it if you use <tt>AP4FED</tt> in your work.
+
+```
+@inproceedings{CompagnucciFL,
+  author       = {Compagnucci, Ivan and Pinciroli, Riccardo and Trubiani, Catia},
+  title        = {{Performance Analysis of Architectural Patterns for Federated Learning Systems}},
+  booktitle    = {International Conference on Software Architecture, {ICSA 25}},
+  pages        = {},
+  publisher    = {{IEEE}},
+  year         = {2025},
+}
+```
+
