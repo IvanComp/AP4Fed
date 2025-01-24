@@ -236,24 +236,45 @@ class MultiModelStrategy(Strategy):
         client_manager: ClientManager,
     ) -> List[Tuple[ClientProxy, FitIns]]:
         
-        client = docker.from_env()
-        clienta_count = len(client.containers.list(filters={"label": "type=clienta"}))
-        clientb_count = len(client.containers.list(filters={"label": "type=clientb"}))
-        min_clients = clienta_count + clientb_count
+        docker_client = docker.from_env()
 
-        client_manager.wait_for(min_clients)        
-        clients = client_manager.sample(num_clients=min_clients)
-        
+        # Ottieni tutti i container con etichetta type=clienta
+        clienta_containers = docker_client.containers.list(
+            filters={"label": "type=clienta"}
+        )
+        # Ottieni tutti i container con etichetta type=clientb
+        clientb_containers = docker_client.containers.list(
+            filters={"label": "type=clientb"}
+        )
+
+        # Costruisci il mapping da Hostname a model_type basandosi sulle etichette Docker
+        for container in clienta_containers:
+            hostname = container.attrs["Config"]["Hostname"]
+            client_model_mapping[hostname] = "taskA"
+            #client_model_mapping[client_id] = model_type
+
+        for container in clientb_containers:
+            hostname = container.attrs["Config"]["Hostname"]
+            client_model_mapping[hostname] = "taskB"
+            #client_model_mapping[client_id] = model_type
+
+        #print(f"Mapping Hostname to Model Type: {client_model_mapping}")
+
+        min_clients = len(clienta_containers) + len(clientb_containers)
+        client_manager.wait_for(min_clients)
+        sampled_clients = client_manager.sample(num_clients=min_clients)
         fit_configurations = []
         task_flag = True 
+        A_config = {"model_type": "taskA"}
+        B_config = {"model_type": "taskB"}
 
-        for i, client in enumerate(clients):
+        for i, client in enumerate(sampled_clients):
             client_id = client.cid
             if task_flag:
-                fit_ins = FitIns(self.parameters_a, {})
+                fit_ins = FitIns(self.parameters_a, A_config)
                 model_type = "taskA"
             else:
-                fit_ins = FitIns(self.parameters_b, {})
+                fit_ins = FitIns(self.parameters_b, B_config)
                 model_type = "taskB"
             
             task_flag = not task_flag
