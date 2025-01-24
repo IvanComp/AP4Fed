@@ -1,5 +1,5 @@
 ---
-Framework: [Flower, PyTorch, Torchvision, TorchGAN]
+Framework Main Libraries: [Flower, PyTorch, Torchvision, TorchGAN]
 Testing Datasets: [CIFAR-10, FMNIST, NYUv2, IMDB, HIGGS, Titanic]
 Testing Models: [Convolutional Neural Network, Recurrent Neural Network]
 Version: [1.0.0]
@@ -14,13 +14,8 @@ Version: [1.0.0]
 <p align="center">
   <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status">
   <img src="https://img.shields.io/badge/version-1.0-green" alt="Version">
-  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Version">
+  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open to Colab">
 </p>
-
-
-<img src="https://img.shields.io/badge/version-1.0-green" alt="Version">
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://github.com/IvanComp/AP4Fed)
 
 <tt>AP4FED</tt> is a Federated Learning Benchmark platform built on top of the [Flower](https://github.com/adap/flower) an open-source Python library that simplifies building Federated Learning systems. It enables the definition of customized Federated Learning system configurations by leveraging architectural patterns, aiming to extract and analyze system performance metrics.
 
