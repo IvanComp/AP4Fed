@@ -1,7 +1,7 @@
 ---
 Framework: [Flower, PyTorch, Torchvision, TorchGAN]
 Testing Datasets: [CIFAR-10, FMNIST, NYUv2, IMDB, HIGGS, Titanic]
-Testing Models: [Convolutional Neural Network, Recurrent Neural Networks]
+Testing Models: [Convolutional Neural Network, Recurrent Neural Network]
 Version: [1.0.0]
 ---
 
@@ -10,6 +10,14 @@ Version: [1.0.0]
 <p align="center">
 <img src="img/readme/logo.svg" width="340px" height="210px"/>
 </p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status">
+  <img src="https://img.shields.io/badge/version-1.0-green" alt="Version">
+  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Version">
+</p>
+
+
 <img src="https://img.shields.io/badge/version-1.0-green" alt="Version">
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://github.com/IvanComp/AP4Fed)

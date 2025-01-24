@@ -161,7 +161,7 @@ class SimulationResults(QDialog):
                 ax = fig.add_subplot(111)
                 chart = SingleChartWidget(title=f"Grafico {row*3 + col +1}", figure=fig)
                 # Placeholder: nessuna funzione di plotting
-                ax.text(0.5, 0.5, "In attesa di implementazione", 
+                ax.text(0.5, 0.5, "TODO", 
                         horizontalalignment='center', verticalalignment='center',
                         transform=ax.transAxes, fontsize=10)
                 ax.set_axis_off()

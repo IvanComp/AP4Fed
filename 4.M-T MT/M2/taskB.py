@@ -45,7 +45,6 @@ def load_data():
 
     return trainloader, testloader
 
-
 def train(net, trainloader, valloader, epochs, device):
 
     log(INFO, "Starting training...")

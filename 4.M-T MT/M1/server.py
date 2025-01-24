@@ -270,6 +270,9 @@ class MultiModelStrategy(Strategy):
 
         for i, client in enumerate(sampled_clients):
             client_id = client.cid
+            
+            fit_ins = FitIns(self.parameters_b, B_config)
+            model_type = "taskB"
 
             fit_ins = FitIns(self.parameters_a, A_config)
             model_type = "taskA"
