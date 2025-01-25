@@ -12,7 +12,7 @@ Testing Models: [Convolutional Neural Network, Recurrent Neural Network]
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/python-3.10+-important">
+  <img src="https://img.shields.io/badge/python-3.10+-yellow">
   <img src="https://img.shields.io/badge/docker-3.10+-blue">
   <img src="https://img.shields.io/badge/docker%20compose-2.29+-blue">
   <img src="https://img.shields.io/badge/Tool%20v.-1.0-green" alt="Version">
@@ -21,8 +21,9 @@ Testing Models: [Convolutional Neural Network, Recurrent Neural Network]
 
 
 <p align="center">
+  <img src="https://img.shields.io/badge/PyTorch-ee4b2b?logo=numpy&logoColor=fff">  
+  <img src="https://img.shields.io/badge/NumPy-4DABCF?logo=numpy&logoColor=fff"> 
   <img src="https://custom-icon-badges.demolab.com/badge/Matplotlib-71D291?logo=matplotlib&logoColor=fff">
-  <img src="https://img.shields.io/badge/NumPy-4DABCF?logo=numpy&logoColor=fff">
 </p>
 
 <tt>AP4FED</tt> is a Federated Learning Benchmark platform built on top of the [Flower](https://github.com/adap/flower) an open-source Python library that simplifies building Federated Learning systems. It enables the definition of customized Federated Learning system configurations by leveraging architectural patterns, aiming to extract and analyze system performance metrics.
