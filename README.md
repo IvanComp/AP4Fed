@@ -41,15 +41,11 @@ An initial version of <tt>AP4FED</tt> was developed and tested in the research p
    
 # Prerequisites
 
+To run <tt>AP4FED</tt>, ensure that the following prerequisites are met:
+
 - [Python (version 3.10.X or higher)](https://www.python.org/downloads/) 
 - [Docker](https://docs.docker.com/get-docker/)
 - [Docker Compose (version v2.29.X or higher)](https://docs.docker.com/compose/install/)
-
-First of all, install Python libraries by running the following command:
-
-```bash
-pip install -r requirements.txt
-```
 
 Docker and Docker Compose are not strictly required to run Federated Learning projects, but they are valuable tools for configurations that emulate real clients, particularly by distributing physical resources such as CPUs while avoiding CPU overcommitment. The framework allows flexibility between running a fully containerized setup or opting for a local simulation, depending on the project’s requirements and the desired level of fidelity in emulating a distributed system.
 
@@ -63,6 +59,12 @@ docker compose version
 ```
 
 # How To Run
+
+First of all, install Python libraries by running the following command:
+
+```bash
+pip install -r requirements.txt
+```
 
 In the main folder run the following command:
 
