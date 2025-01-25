@@ -2,7 +2,7 @@
 Framework Main Libraries: [Flower, PyTorch, Torchvision, TorchGAN]
 Testing Datasets: [CIFAR-10, FMNIST, NYUv2, IMDB, HIGGS, Titanic]
 Testing Models: [Convolutional Neural Network, Recurrent Neural Network]
-Version: [1.0.0]
+Version: [Alpha-1.0.0]
 ---
 
 # AP4FED
@@ -13,7 +13,9 @@ Version: [1.0.0]
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10+-important">
-  <img src="https://img.shields.io/badge/version-1.0-green" alt="Version">
+  <img src="https://img.shields.io/badge/docker-3.10+-blue">
+  <img src="https://img.shields.io/badge/docker%20compose-2.29+-blue">
+  <img src="https://img.shields.io/badge/Tool%20v.-1.0-green" alt="Version">
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open to Colab">
 </p>
 
@@ -33,9 +35,9 @@ Version: [1.0.0]
    
 # Prerequisites
 
-- [Python (version 3.9.X or higher)](https://www.python.org/downloads/) 
+- [Python (version 3.10.X or higher)](https://www.python.org/downloads/) 
 - [Docker](https://docs.docker.com/get-docker/)
-- [Docker Compose (version v2.29.2 or higher)](https://docs.docker.com/compose/install/)
+- [Docker Compose (version v2.29.X or higher)](https://docs.docker.com/compose/install/)
 
 First of all, install Python libraries by running the following command:
 
