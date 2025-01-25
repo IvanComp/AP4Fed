@@ -12,7 +12,6 @@ Version: [1.0.0]
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="Build Status">
   <img src="https://img.shields.io/badge/python-3.10+-important">
   <img src="https://img.shields.io/badge/version-1.0-green" alt="Version">
   <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open to Colab">
