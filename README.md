@@ -1,8 +1,8 @@
 ---
+Version: [Alpha-1.0.0]
 Framework Main Libraries: [Flower, PyTorch, Torchvision, TorchGAN]
 Testing Datasets: [CIFAR-10, FMNIST, NYUv2, IMDB, HIGGS, Titanic]
 Testing Models: [Convolutional Neural Network, Recurrent Neural Network]
-Version: [Alpha-1.0.0]
 ---
 
 # AP4FED
