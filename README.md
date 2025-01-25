@@ -76,7 +76,7 @@ Follow the instructions in the command, which will launch the <tt>AP4FED</tt>. T
 
 # Framework
 
-## FL Simulation Process
+## FL Simulation Process General Overview
 
 <p align="center">
 <img src="img/readme/AP4FED_process.png" width="850px" height="250px"/>
