@@ -61,18 +61,16 @@ docker compose version
 
 # How To Run
 
-First of all, install Python libraries by running the following command:
-
-```bash
-pip install -r requirements.txt
-```
-
+Please ensure that all [Prerequisites](#Prerequisites) are met before proceeding with the installation.
 In the main folder run the following command:
 
 ```bash
-python home.py
+pip install -r requirements.txt && python home.py
 ```
-Follow the instructions in the command, which will launch the <tt>AP4FED</tt>. This interface allows you to configure the Federated Learning system and proceed with benchmarking, providing a user-friendly way to manage and test the setup (Please see the next [Section](#Framework))
+
+It will install all the required Python libraries. 
+
+Then, follow the instructions on the GUI of <tt>AP4FED</tt> to configure and run a FL simulation. This interface allows you to configure the Federated Learning system and proceed with benchmarking, providing a user-friendly way to manage and test the setup (Please see the next [Section](#Framework))
 
 # Framework
 
