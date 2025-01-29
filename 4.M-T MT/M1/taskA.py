@@ -34,21 +34,16 @@ class Net(nn.Module):
 def load_data():
     transform_rgb = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
     transform_depth = Compose([ToTensor(), Normalize((0.5,), (0.5,))])
-
-    # Percorsi delle immagini
     rgb_dir = './data/rgb_images'
     depth_dir = './data/depth_maps'
-
-    # Carica i nomi dei file
     rgb_images = sorted(os.listdir(rgb_dir))
     depth_maps = sorted(os.listdir(depth_dir))
 
     assert len(rgb_images) == len(depth_maps), "Mismatch between RGB and depth files."
 
-    # Suddivisione in train e test
     indices = list(range(len(rgb_images)))
     random.shuffle(indices)
-    train_size = int(0.8 * len(indices))  # 80% per il training
+    train_size = int(0.8 * len(indices))  
     train_indices = indices[:train_size]
     test_indices = indices[train_size:]
 

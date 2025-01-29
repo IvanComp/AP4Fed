@@ -89,6 +89,21 @@ Users can choose to create a new project or load an existing JSON configuration 
 <img src="img/readme/2.png" width="400px" height="300px"/>
 </p>
 
+<p align="center">
+<img src="img/readme/3.png" width="400px" height="300px"/>
+<img src="img/readme/4.png" width="400px" height="300px"/>
+</p>
+
+<p align="center">
+<img src="img/readme/5.png" width="400px" height="300px"/>
+<img src="img/readme/6.png" width="400px" height="300px"/>
+</p>
+
+<p align="center">
+<img src="img/readme/7.png" width="400px" height="300px"/>
+<img src="img/readme/8.png" width="400px" height="300px"/>
+</p>
+
 
 ## Load/Save a Custom Configuration
 
