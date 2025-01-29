@@ -290,7 +290,7 @@ class SimulationResults(QDialog):
             for i, column in enumerate(pivot.columns):
                 ax.plot(pivot.index, pivot[column], marker='o', linewidth=1,
                         label=f"F1 Score",
-                        color="C0E8E0")
+                        color="#C0E8E0")
             ax.set_xlabel("Federated Learning Round", fontsize=10)
             ax.set_ylabel("F1 Score", fontsize=10)
             ax.set_title("F1 Score per Federated Learning Round", fontsize=10)
@@ -315,7 +315,7 @@ class SimulationResults(QDialog):
             for i, column in enumerate(pivot.columns):
                 ax.plot(pivot.index, pivot[column], marker='o', linewidth=1,
                         label=f"Val. Loss",
-                        color="F8F0C4")
+                        color="#F8F0C4")
             ax.set_xlabel("Federated Learning Round", fontsize=10)
             ax.set_ylabel("Val. Loss", fontsize=10)
             ax.set_title("Validation Loss per Federated Learning Round", fontsize=10)
