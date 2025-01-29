@@ -1,6 +1,6 @@
 {
     "simulation_type": "Local",
-    "rounds": 10,
+    "rounds": 100,
     "clients": 8,
     "patterns": {
         "client_registry": {
