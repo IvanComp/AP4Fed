@@ -17,6 +17,7 @@ COPY taskA.py /app/taskA.py
 COPY taskB.py /app/taskB.py
 COPY APClient.py /app/APClient.py
 COPY performance/ /app/performance/
+COPY data /app/data
 
 # Create the folder for data
 RUN mkdir -p data

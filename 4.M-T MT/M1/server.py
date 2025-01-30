@@ -258,15 +258,16 @@ class MultiModelStrategy(Strategy):
             client_model_mapping[hostname] = "taskB"
             #client_model_mapping[client_id] = model_type
 
-        #print(f"Mapping Hostname to Model Type: {client_model_mapping}")
+        
 
         min_clients = len(clienta_containers) + len(clientb_containers)
+        print(f"num of clients: {min_clients}")
         client_manager.wait_for(min_clients)
         sampled_clients = client_manager.sample(num_clients=min_clients)
         fit_configurations = []
         task_flag = True 
-        A_config = {"model_type": "taskA"}
         B_config = {"model_type": "taskB"}
+        A_config = {"model_type": "taskA"}
 
         for i, client in enumerate(sampled_clients):
             client_id = client.cid
