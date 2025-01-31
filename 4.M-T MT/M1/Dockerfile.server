@@ -23,7 +23,6 @@ EXPOSE 8080
 
 # Create the folder for reports
 RUN mkdir -p performance
-COPY data /app/data
 
 # Execution command
 CMD ["python", "server.py"]

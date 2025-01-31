@@ -20,7 +20,6 @@ COPY performance/ /app/performance/
 
 # Create the folder for data
 RUN mkdir -p data
-COPY data /app/data
 
 # Execution command
 CMD ["python", "clienta.py"]
