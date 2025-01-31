@@ -23,21 +23,21 @@ class Net(nn.Module):
                 nn.ReLU(inplace=True)
             )
         
-        self.enc1 = conv_block(3, 32)
-        self.enc2 = conv_block(32, 64)
-        self.enc3 = conv_block(64, 128)
-        
-        self.pool = nn.MaxPool2d(2, 2)
-        self.bottleneck = conv_block(128, 256)
+        self.enc1 = conv_block(3, 16)
+        self.enc2 = conv_block(16, 32)
+        self.enc3 = conv_block(32, 64)
 
-        self.up3 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)
-        self.dec3 = conv_block(256, 128)
-        self.up2 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
-        self.dec2 = conv_block(128, 64)
-        self.up1 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
-        self.dec1 = conv_block(64, 32)
-        
-        self.final = nn.Conv2d(32, num_classes, kernel_size=1)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.bottleneck = conv_block(64, 128)
+
+        self.up3 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
+        self.dec3 = conv_block(128, 64)
+        self.up2 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
+        self.dec2 = conv_block(64, 32)
+        self.up1 = nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2)
+        self.dec1 = conv_block(32, 16)
+
+        self.final = nn.Conv2d(16, num_classes, kernel_size=1)
 
     def forward(self, x):
         e1 = self.enc1(x)
@@ -88,11 +88,11 @@ class NYUv2SegDataset(Dataset):
 
 def load_data():
     transform_img = Compose([
-        Resize((256, 320), interpolation=Image.NEAREST),
+        Resize((32, 32), interpolation=Image.NEAREST),
         ToTensor(),
         Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     ])
-    transform_lbl = Resize((256, 320), interpolation=Image.NEAREST)
+    transform_lbl = Resize((32, 32), interpolation=Image.NEAREST)
 
     dataset = NYUv2SegDataset(
         data_dir="./data", 
@@ -105,8 +105,8 @@ def load_data():
     test_len = total_len - train_len
     train_set, test_set = random_split(dataset, [train_len, test_len])
     
-    train_loader = DataLoader(train_set, batch_size=2, shuffle=True)
-    test_loader  = DataLoader(test_set, batch_size=2, shuffle=False)
+    train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
+    test_loader  = DataLoader(test_set, batch_size=32, shuffle=False)
     
     return train_loader, test_loader
 
@@ -122,8 +122,6 @@ def train(net, trainloader, valloader, epochs, device):
     net.train()
     for _ in range(epochs):
         for images, labels in trainloader:
-            print(f"Labels shape after processing: {labels.shape}")
-            print(f"Unique label values: {labels.unique()}")
             images, labels = images.to(device), labels.to(device)  
             optimizer.zero_grad()
             loss = criterion(net(images), labels.squeeze(1))
