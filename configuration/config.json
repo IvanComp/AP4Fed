@@ -24,15 +24,15 @@
             "params": {}
         },
         "heterogeneous_data_handler": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         }
     },
     "client_details": [
         {
             "client_id": 1,
-            "cpu": 1,
-            "ram": 2,
+            "cpu": 2,
+            "ram": 4,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID"
         },

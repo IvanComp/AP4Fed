@@ -83,6 +83,20 @@ if os.path.exists(config_file):
                 elif pattern_name == "heterogeneous_data_handler":
                     HETEROGENEOUS_DATA_HANDLER = True
 
+        CLIENT_DETAILS = config.get("client_details", [])
+        # Per maggiore comodità, puoi trasformarlo in una lista di dizionari strutturati
+        client_details_structure = []
+        for client in CLIENT_DETAILS:
+            client_details_structure.append({
+                "client_id": client.get("client_id"),
+                "cpu": client.get("cpu"),
+                "ram": client.get("ram"),
+                "dataset": client.get("dataset"),
+                "data_distribution_type": client.get("data_distribution_type")
+            })
+        # Puoi memorizzare questa struttura in una variabile globale, se necessario:
+        GLOBAL_CLIENT_DETAILS = client_details_structure
+
 currentRnd = 0
 
 performance_dir = './performance/'
