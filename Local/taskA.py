@@ -1,18 +1,58 @@
 from collections import OrderedDict
 from logging import INFO
+from collections import Counter
 import time  
+import os
+import numpy as np
+import json
+import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from flwr.common.logger import log
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import CIFAR10
 from torchvision.transforms import Compose, Normalize, ToTensor
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-class Net(nn.Module):
-    
+CLASS_NAMES = ['airplane', 'automobile', 'bird', 'cat', 'deer',
+               'dog', 'frog', 'horse', 'ship', 'truck']
+
+#AP
+global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
+CLIENT_SELECTOR = False
+CLIENT_CLUSTER = False
+MESSAGE_COMPRESSOR = False
+MULTI_TASK_MODEL_TRAINER = False
+HETEROGENEOUS_DATA_HANDLER = False
+
+#CLIENT
+global DATASET_TYPE
+DATASET_TYPE = ""
+current_dir = os.path.abspath(os.path.dirname(__file__))
+config_dir = os.path.join(current_dir, '..', 'configuration') 
+config_file = os.path.join(config_dir, 'config.json')
+
+
+if os.path.exists(config_file):
+                with open(config_file, 'r') as f:
+                    configJSON = json.load(f)
+
+                for pattern_name, pattern_info in configJSON["patterns"].items():
+                    if pattern_info["enabled"]:
+                        if pattern_name == "client_selector":
+                            CLIENT_SELECTOR = True
+                        elif pattern_name == "client_cluster":
+                            CLIENT_CLUSTER = True
+                        elif pattern_name == "message_compressor":
+                            MESSAGE_COMPRESSOR = True
+                        elif pattern_name == "multi-task_model_trainer":
+                            MULTI_TASK_MODEL_TRAINER = True
+                        elif pattern_name == "heterogeneous_data_handler":
+                            HETEROGENEOUS_DATA_HANDLER = True
+
+class Net(nn.Module):   
     def __init__(self) -> None:
         super(Net, self).__init__()
         self.conv1 = nn.Conv2d(3, 6, 5)
@@ -31,12 +71,116 @@ class Net(nn.Module):
         return self.fc3(x)
 
 def load_data():
-    """Load CIFAR-10 (training and test set)."""
-    trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-    trainset = CIFAR10("./data", train=True, download=True, transform=trf)
-    testset = CIFAR10("./data", train=False, download=True, transform=trf)
-    return DataLoader(trainset, batch_size=32, shuffle=True), DataLoader(testset)
+    if HETEROGENEOUS_DATA_HANDLER:
+        with open(config_file, 'r') as f:
+            configJSON = json.load(f)
+            DATASET_TYPE = configJSON["client_details"][0]["data_distribution_type"]
 
+        if DATASET_TYPE == "Random":
+           DATASET_TYPE = random.choice(["iid", "non-iid"])
+
+        if DATASET_TYPE == "IID":
+            """Load CIFAR-10 (training and test set)."""
+            trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+            trainset = CIFAR10("./data", train=True, download=True, transform=trf)
+            testset = CIFAR10("./data", train=False, download=True, transform=trf)
+            class_to_indices = {i: [] for i in range(10)}
+            for idx, (_, label) in enumerate(trainset):
+                if len(class_to_indices[label]) < 2500:
+                    class_to_indices[label].append(idx)
+            selected_indices = []
+            for indices in class_to_indices.values():
+                selected_indices.extend(indices)
+            subset_train = Subset(trainset, selected_indices)               
+            subset_labels = [trainset[i][1] for i in selected_indices]
+            class_counts = Counter(subset_labels)
+            class_names = trainset.classes
+            distribution_str = ", ".join([f"{class_names[class_index]}: {count} samples" for class_index, count in class_counts.items()])
+            print(f"IID Client - Class Distribution: {distribution_str}")
+
+            return DataLoader(trainset, batch_size=32, shuffle=True), DataLoader(testset)
+
+        if DATASET_TYPE == "non-IID":
+            num_non_iid_clients= sum(1 for client in configJSON["client_details"] if client["data_distribution_type"] == "non-IID")
+            print(f"Creating {num_non_iid_clients} non-IID clients...")
+            samples_per_client=25000
+            alpha=0.5
+            target_samples_per_class=2500 
+
+            trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+            trainset = CIFAR10("./data", train=True, download=True, transform=trf)
+            testset = CIFAR10("./data", train=False, download=True, transform=trf)
+
+            class_to_indices = {i: [] for i in range(10)}
+            for idx, (_, label) in enumerate(trainset):
+                class_to_indices[label].append(idx)
+            
+            clients_data = []
+            
+            # Creazione dei client non-IID (solo 1 client)
+            for client_id in range(num_non_iid_clients):
+                proportions = np.random.dirichlet([alpha] * 10)
+                class_counts = (proportions * samples_per_client).astype(int)
+                
+                # Gestione della discrepanza dovuta alla conversione a int
+                discrepancy = samples_per_client - class_counts.sum()
+                if discrepancy > 0:
+                    class_counts[np.argmax(proportions)] += discrepancy
+                elif discrepancy < 0:
+                    discrepancy = abs(discrepancy)
+                    class_counts[np.argmax(proportions)] -= min(discrepancy, class_counts[np.argmax(proportions)])
+                
+                selected_indices = []
+                for cls, count in enumerate(class_counts):
+                    available_indices = class_to_indices[cls]
+                    if count > len(available_indices):
+                        selected = available_indices.copy()
+                    else:
+                        selected = random.sample(available_indices, min(count, len(available_indices)))
+                    selected_indices.extend(selected)
+                
+                subset_train = Subset(trainset, selected_indices)
+                subset_labels = [trainset[i][1] for i in selected_indices]
+                class_distribution = Counter(subset_labels)
+                clients_data.append((subset_train, class_distribution))
+                
+                distribution_str = ", ".join([f"{CLASS_NAMES[cls]}: {class_distribution.get(cls, 0)} samples" for cls in range(10)])
+                print(f"Client non-IID-{client_id+1} Class Distribution: {distribution_str}")
+                augmented_clients = augment_with_gan(clients_data, target_samples_per_class)
+                subset_augmented, _ = augmented_clients[0]
+
+            trainloader = DataLoader(subset_augmented, batch_size=32, shuffle=True)
+            testloader = DataLoader(testset, batch_size=32, shuffle=False)
+
+            return trainloader, testloader
+    else:
+        """Load CIFAR-10 (training and test set)."""
+        trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+        trainset = CIFAR10("./data", train=True, download=True, transform=trf)
+        testset = CIFAR10("./data", train=False, download=True, transform=trf)
+        return DataLoader(trainset, batch_size=32, shuffle=True), DataLoader(testset)
+    
+def augment_with_gan(clients_data, target_samples_per_class=2500):
+    augmented_clients_data = []
+    for idx, (subset, class_distribution) in enumerate(clients_data):
+        new_class_distribution = Counter(class_distribution)  # Crea una copia del Counter
+        print("\nApplying GAN Augmentation to non-IID Clients...")
+        print(f"\nAugmenting non-IID Client {idx+1}:")
+        for cls in range(10):
+            current_count = new_class_distribution[cls]
+            if current_count < target_samples_per_class:
+                additional_samples = target_samples_per_class - current_count
+                new_class_distribution[cls] += additional_samples
+                print(f"  {CLASS_NAMES[cls]} - Adding {additional_samples} samples to reach {target_samples_per_class}")
+            elif current_count > target_samples_per_class:
+                samples_to_remove = current_count - target_samples_per_class
+                new_class_distribution[cls] -= samples_to_remove
+                print(f"  {CLASS_NAMES[cls]} - Removing {samples_to_remove} samples to reach {target_samples_per_class}")
+            else:
+                print(f"  {CLASS_NAMES[cls]} - No augmentation needed (current: {current_count})")
+        augmented_clients_data.append((subset, new_class_distribution))
+    return augmented_clients_data
+    
 def train(net, trainloader, valloader, epochs, device):
     """Train the model on the training set, measuring time."""
     log(INFO, "Starting training...")

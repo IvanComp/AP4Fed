@@ -13,42 +13,78 @@ from torch.utils.data import DataLoader, Subset, WeightedRandomSampler, Dataset
 from torchvision.datasets import CIFAR10  # Non utilizzato, ma lasciato per non rompere l'interfaccia
 from torchvision.transforms import Compose, Normalize, ToTensor, Resize
 from PIL import Image
-from torchvision.models import densenet121
+from torchvision import models  # Per utilizzare DenseNet169
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-# Abbiamo scelto una architettura molto semplice per accelerare il training:
+# Definizione del blocco UpSample utilizzato nel decoder
+class UpSample(nn.Sequential):
+    def __init__(self, skip_input, output_features):
+        super(UpSample, self).__init__()
+        self.convA = nn.Conv2d(skip_input, output_features, kernel_size=3, stride=1, padding=1)
+        self.leakyreluA = nn.LeakyReLU(0.2)
+        self.convB = nn.Conv2d(output_features, output_features, kernel_size=3, stride=1, padding=1)
+        self.leakyreluB = nn.LeakyReLU(0.2)
+
+    def forward(self, x, concat_with):
+        up_x = F.interpolate(x, size=[concat_with.size(2), concat_with.size(3)], mode='bilinear', align_corners=True)
+        x_cat = torch.cat([up_x, concat_with], dim=1)
+        x_conv = self.convA(x_cat)
+        x_act = self.leakyreluA(x_conv)
+        x_conv2 = self.convB(x_act)
+        return self.leakyreluB(x_conv2)
+
+# Definizione del Decoder che utilizza i blocchi di upsampling
+class Decoder(nn.Module):
+    def __init__(self, num_features=1664, decoder_width=1.0):
+        super(Decoder, self).__init__()
+        features = int(num_features * decoder_width)
+        self.conv2 = nn.Conv2d(num_features, features, kernel_size=1, stride=1, padding=0)
+        self.up1 = UpSample(skip_input=features + 256, output_features=features // 2)
+        self.up2 = UpSample(skip_input=features // 2 + 128, output_features=features // 4)
+        self.up3 = UpSample(skip_input=features // 4 + 64, output_features=features // 8)
+        self.up4 = UpSample(skip_input=features // 8 + 64, output_features=features // 16)
+        self.conv3 = nn.Conv2d(features // 16, 1, kernel_size=3, stride=1, padding=1)
+
+    def forward(self, features):
+        # Selezione delle feature da utilizzare come skip connections:
+        # Gli indici scelti corrispondono alle uscite intermedie della DenseNet169
+        x_block0 = features[3]
+        x_block1 = features[4]
+        x_block2 = features[6]
+        x_block3 = features[8]
+        x_block4 = features[12]
+        x_d0 = self.conv2(F.relu(x_block4))
+        x_d1 = self.up1(x_d0, x_block3)
+        x_d2 = self.up2(x_d1, x_block2)
+        x_d3 = self.up3(x_d2, x_block1)
+        x_d4 = self.up4(x_d3, x_block0)
+        return self.conv3(x_d4)
+
+# Definizione dell'Encoder che sfrutta DenseNet169
+class Encoder(nn.Module):
+    def __init__(self):
+        super(Encoder, self).__init__()
+        self.original_model = models.densenet169(pretrained=False)
+
+    def forward(self, x):
+        features = [x]
+        # Propagazione dell'input attraverso ciascun modulo della parte 'features' della DenseNet
+        for k, v in self.original_model.features._modules.items():
+            features.append(v(features[-1]))
+        return features
+
+# La classe Net viene ridefinita per integrare l'architettura encoder-decoder basata su DenseNet
 class Net(nn.Module):
     def __init__(self) -> None:
         super(Net, self).__init__()
-        # Encoder: 3 convoluzioni con pooling progressivo
-        self.encoder = nn.Sequential(
-            nn.Conv2d(3, 16, kernel_size=3, padding=1),   # da 256x256 a 256x256, 16 canali
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2),                               # 256x256 -> 128x128
-            nn.Conv2d(16, 32, kernel_size=3, padding=1),    # 128x128, 32 canali
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2),                               # 128x128 -> 64x64
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),    # 64x64, 64 canali
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2)                                # 64x64 -> 32x32
-        )
-        # Decoder: 3 upsampling per riportare la risoluzione a 256x256
-        self.decoder = nn.Sequential(
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),  # 32x32 -> 64x64
-            nn.Conv2d(64, 32, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),  # 64x64 -> 128x128
-            nn.Conv2d(32, 16, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),  # 128x128 -> 256x256
-            nn.Conv2d(16, 1, kernel_size=3, padding=1)
-        )
+        self.encoder = Encoder()
+        self.decoder = Decoder()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         features = self.encoder(x)
         out = self.decoder(features)
-        # Assicuriamo l'output abbia la stessa dimensione spaziale dell'input
+        # Garantiamo che l'output abbia le stesse dimensioni spaziali dell'input
         out = F.interpolate(out, size=x.shape[2:], mode='bilinear', align_corners=False)
         return out
 
@@ -71,7 +107,7 @@ class DepthEstimationDataset(Dataset):
         rgb_path = f"{self.rgb_dir}/{self.rgb_files[idx]}"
         depth_path = f"{self.depth_dir}/{self.depth_files[idx]}"
         rgb_img = Image.open(rgb_path).convert("RGB")
-        depth_img = Image.open(depth_path).convert("L")  
+        depth_img = Image.open(depth_path).convert("L")
         if self.transform_rgb:
             rgb_img = self.transform_rgb(rgb_img)
         if self.transform_depth:
@@ -80,15 +116,14 @@ class DepthEstimationDataset(Dataset):
 
 # La funzione load_data rimane invariata
 def load_data():
-    # Riduciamo la risoluzione a 256x256 per contenere l'uso della memoria
     transform_rgb = Compose([
-        Resize((256,256), interpolation=Image.BILINEAR),
+        Resize((256, 256), interpolation=Image.BILINEAR),
         ToTensor(),
-        Normalize((0.5,0.5,0.5), (0.5,0.5,0.5))
+        Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
     transform_depth = Compose([
-        Resize((256,256), interpolation=Image.NEAREST),
-        ToTensor()  # Restituisce tensore [1,H,W] con valori in [0,1]
+        Resize((256, 256), interpolation=Image.NEAREST),
+        ToTensor()  # Restituisce tensore [1, H, W] con valori in [0, 1]
     ])
     dataset = DepthEstimationDataset(data_dir="./data", transform_rgb=transform_rgb, transform_depth=transform_depth)
     total_len = len(dataset)
@@ -100,7 +135,6 @@ def load_data():
     test_indices = indices[train_len:]
     trainset = Subset(dataset, train_indices)
     testset  = Subset(dataset, test_indices)
-    # Batch size ridotto (ad es. 4)
     trainloader = DataLoader(trainset, batch_size=4, shuffle=True)
     testloader  = DataLoader(testset, batch_size=4, shuffle=False)
     return trainloader, testloader
@@ -108,10 +142,9 @@ def load_data():
 # Funzione per il calcolo del MAE (Mean Absolute Error)
 def mae_score_torch(y_true, y_pred):
     eps = 1e-6
-    # Calcola il Mean Absolute Percentage Error (MAPE)
     return torch.mean(torch.abs((y_true - y_pred) / (y_true + eps))).item() * 100
 
-# Il metodo test è aggiornato per calcolare loss, accuracy, F1 e MAE.
+# Il metodo test rimane invariato per calcolare loss, accuracy, F1 e MAE.
 def test(net, testloader):
     net.to(DEVICE)
     criterion = torch.nn.MSELoss()
@@ -122,7 +155,6 @@ def test(net, testloader):
     all_labels_quant = []
     all_preds_cont = []
     all_labels_cont = []
-    # Soglia per l'accuracy (pixel con errore assoluto < 0.1 considerati corretti)
     threshold = 0.1
     with torch.no_grad():
         for images, depths in testloader:
@@ -131,35 +163,30 @@ def test(net, testloader):
             outputs = net(images)
             loss = criterion(outputs, depths)
             total_loss += loss.item()
-            # Accuracy pixel-wise
             abs_diff = torch.abs(outputs - depths)
             correct_pixels += (abs_diff < threshold).sum().item()
             total_pixels += depths.numel()
-            # Conserviamo le predizioni continue per il calcolo del MAE
             all_preds_cont.append(outputs.cpu())
             all_labels_cont.append(depths.cpu())
-            # Per il F1 quantizziamo in 10 classi (classe = int(pixel*9))
             preds_class = (torch.clamp(outputs, 0, 1) * 9).long().squeeze(1)
             depths_class = (torch.clamp(depths, 0, 1) * 9).long().squeeze(1)
             all_preds_quant.append(preds_class.cpu())
             all_labels_quant.append(depths_class.cpu())
     avg_loss = total_loss / len(testloader)
     accuracy = correct_pixels / total_pixels
-    # Calcolo F1 score (come già presente)
     all_preds_quant = torch.cat(all_preds_quant)
     all_labels_quant = torch.cat(all_labels_quant)
     f1 = f1_score_torch(all_labels_quant, all_preds_quant, num_classes=10, average='macro')
-    # Calcolo MAE sui valori continui
     all_preds_cont = torch.cat(all_preds_cont).squeeze(1)
     all_labels_cont = torch.cat(all_labels_cont).squeeze(1)
     mae = mae_score_torch(all_labels_cont, all_preds_cont)
     return avg_loss, accuracy, f1, mae
 
-# Il metodo train viene aggiornato per includere anche il MAE nei risultati.
+# Il metodo train rimane invariato per includere anche il MAE nei risultati.
 def train(net, trainloader, valloader, epochs, device):
     log(INFO, "Starting training...")
     start_time = time.time()
-    net.to(device) 
+    net.to(device)
     criterion = torch.nn.MSELoss().to(device)
     optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
     net.train()
@@ -188,7 +215,7 @@ def train(net, trainloader, valloader, epochs, device):
     }
     return results, training_time, comm_start_time
 
-# La funzione f1_score_torch rimane invariata
+# La funzione f1_score_torch rimane invariata.
 def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
     confusion_matrix = torch.zeros(num_classes, num_classes)
     for t, p in zip(y_true, y_pred):

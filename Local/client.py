@@ -14,6 +14,7 @@ import pickle
 import numpy as np
 from flwr.common.logger import log
 from logging import INFO
+from APClient import ClientRegistry
 from taskA import (
     DEVICE as DEVICE_A,
     Net as NetA,
@@ -34,6 +35,7 @@ from taskB import (
 )
 
 CLIENT_ID = os.getenv("HOSTNAME")
+client_registry = ClientRegistry()
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class FlowerClient(NumPyClient):
@@ -43,6 +45,7 @@ class FlowerClient(NumPyClient):
         self.net = NetA().to(DEVICE_A)
         self.trainloader, self.testloader = load_data_A()  
         self.device = DEVICE_A
+        client_registry.register_client(cid, model_type)
 
     def fit(self, parameters, config):
         

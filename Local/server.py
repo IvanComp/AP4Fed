@@ -40,6 +40,9 @@ import json
 import zlib
 import pickle
 import docker
+from APClient import ClientRegistry
+
+client_registry = ClientRegistry()
 
 ################### GLOBAL PARAMETERS
 global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
