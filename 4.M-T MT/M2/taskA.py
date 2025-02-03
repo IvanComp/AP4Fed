@@ -1,6 +1,5 @@
 from collections import OrderedDict
 from logging import INFO
-from collections import Counter
 import time  
 import os
 import random 
@@ -10,14 +9,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 from flwr.common.logger import log
 from torch.utils.data import DataLoader, Subset, WeightedRandomSampler, Dataset
-from torchvision.datasets import CIFAR10  # Non utilizzato, ma lasciato per non rompere l'interfaccia
+from torchvision.datasets import CIFAR10
 from torchvision.transforms import Compose, Normalize, ToTensor, Resize, CenterCrop
 from PIL import Image
-from torchvision import models  # Per utilizzare DenseNet121
+from torchvision import models
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-# Definizione del blocco UpSample utilizzato nel decoder
 class UpSample(nn.Sequential):
     def __init__(self, skip_input, output_features):
         super(UpSample, self).__init__()
@@ -34,18 +32,11 @@ class UpSample(nn.Sequential):
         x_conv2 = self.convB(x_act)
         return self.leakyreluB(x_conv2)
 
-# Definizione del Decoder che utilizza i blocchi di upsampling
 class Decoder(nn.Module):
     def __init__(self, num_features=1024, decoder_width=1.0):
         super(Decoder, self).__init__()
         features = int(num_features * decoder_width)
         self.conv2 = nn.Conv2d(num_features, features, kernel_size=1, stride=1, padding=0)
-        # Per DenseNet121 le feature skip vengono prelevate dai seguenti moduli:
-        # x_block0: output di 'pool0' (canali = 64)
-        # x_block1: output di 'denseblock1' (canali = 256)
-        # x_block2: output di 'denseblock2' (canali = 512)
-        # x_block3: output di 'denseblock3' (canali = 1024)
-        # x_block4: output finale 'norm5' (canali = 1024)
         self.up1 = UpSample(skip_input=features + 1024, output_features=features // 2)
         self.up2 = UpSample(skip_input=features // 2 + 512, output_features=features // 4)
         self.up3 = UpSample(skip_input=features // 4 + 256, output_features=features // 8)
@@ -53,25 +44,11 @@ class Decoder(nn.Module):
         self.conv3 = nn.Conv2d(features // 16, 1, kernel_size=3, stride=1, padding=1)
 
     def forward(self, features):
-        # Per DenseNet121, la lista features ha la seguente struttura:
-        # features[0] = input
-        # features[1] = conv0
-        # features[2] = norm0
-        # features[3] = relu0
-        # features[4] = pool0
-        # features[5] = denseblock1
-        # features[6] = transition1
-        # features[7] = denseblock2
-        # features[8] = transition2
-        # features[9] = denseblock3
-        # features[10] = transition3
-        # features[11] = denseblock4
-        # features[12] = norm5
-        x_block0 = features[4]   # pool0: 64 canali
-        x_block1 = features[5]   # denseblock1: 256 canali
-        x_block2 = features[7]   # denseblock2: 512 canali
-        x_block3 = features[9]   # denseblock3: 1024 canali
-        x_block4 = features[12]  # norm5: 1024 canali
+        x_block0 = features[4]
+        x_block1 = features[5]
+        x_block2 = features[7]
+        x_block3 = features[9]
+        x_block4 = features[12]
         x_d0 = self.conv2(F.relu(x_block4))
         x_d1 = self.up1(x_d0, x_block3)
         x_d2 = self.up2(x_d1, x_block2)
@@ -79,7 +56,6 @@ class Decoder(nn.Module):
         x_d4 = self.up4(x_d3, x_block0)
         return self.conv3(x_d4)
 
-# Definizione dell'Encoder che sfrutta DenseNet121
 class Encoder(nn.Module):
     def __init__(self):
         super(Encoder, self).__init__()
@@ -87,12 +63,10 @@ class Encoder(nn.Module):
 
     def forward(self, x):
         features = [x]
-        # Propagazione dell'input attraverso ciascun modulo della parte 'features' della DenseNet121
         for k, v in self.original_model.features._modules.items():
             features.append(v(features[-1]))
         return features
 
-# La classe Net viene ridefinita per integrare l'architettura encoder-decoder basata su DenseNet121
 class Net(nn.Module):
     def __init__(self) -> None:
         super(Net, self).__init__()
@@ -102,11 +76,9 @@ class Net(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         features = self.encoder(x)
         out = self.decoder(features)
-        # Garantiamo che l'output abbia le stesse dimensioni spaziali dell'input
         out = F.interpolate(out, size=x.shape[2:], mode='bilinear', align_corners=False)
         return out
 
-# Dataset per depth estimation (non modificato)
 class DepthEstimationDataset(Dataset):
     def __init__(self, data_dir="./data", transform_rgb=None, transform_depth=None):
         super().__init__()
@@ -132,7 +104,6 @@ class DepthEstimationDataset(Dataset):
             depth_img = self.transform_depth(depth_img)
         return rgb_img, depth_img
 
-# La funzione load_data rimane invariata
 def load_data():
     transform_rgb = Compose([
         Resize((240, 320), interpolation=Image.BILINEAR),  
@@ -143,7 +114,7 @@ def load_data():
     transform_depth = Compose([
         Resize((240, 320), interpolation=Image.NEAREST),
         CenterCrop((228, 304)),
-        ToTensor()  # Restituisce tensore [1, H, W] con valori in [0, 1]
+        ToTensor()
     ])
     dataset = DepthEstimationDataset(data_dir="./data", transform_rgb=transform_rgb, transform_depth=transform_depth)
     total_len = len(dataset)
@@ -159,11 +130,9 @@ def load_data():
     testloader  = DataLoader(testset, batch_size=2, shuffle=False)
     return trainloader, testloader
 
-# Funzione per il calcolo del MAE (Mean Absolute Error)
 def mae_score_torch(y_true, y_pred):
     return torch.mean(torch.abs(y_true - y_pred)).item()
 
-# Il metodo test rimane invariato per calcolare loss, accuracy, F1 e MAE.
 def test(net, testloader):
     net.to(DEVICE)
     criterion = torch.nn.MSELoss()
@@ -201,7 +170,6 @@ def test(net, testloader):
     mae = mae_score_torch(all_labels_cont, all_preds_cont)
     return avg_loss, accuracy, f1, mae
 
-# Il metodo train rimane invariato per includere anche il MAE nei risultati.
 def train(net, trainloader, valloader, epochs, device):
     log(INFO, "Starting training...")
     start_time = time.time()
@@ -234,7 +202,6 @@ def train(net, trainloader, valloader, epochs, device):
     }
     return results, training_time, comm_start_time
 
-# La funzione f1_score_torch rimane invariata.
 def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
     confusion_matrix = torch.zeros(num_classes, num_classes)
     for t, p in zip(y_true, y_pred):
