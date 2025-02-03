@@ -31,9 +31,9 @@
     "client_details": [
         {
             "client_id": 1,
-            "cpu": 2,
-            "ram": 4,
-            "dataset": "CIFAR-10",
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "FMNIST",
             "data_distribution_type": "IID"
         },
         {
