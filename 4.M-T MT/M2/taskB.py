@@ -136,7 +136,6 @@ def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
 
     return f1
 
-
 def get_weights(net):
     return [val.cpu().numpy() for _, val in net.state_dict().items()]
 

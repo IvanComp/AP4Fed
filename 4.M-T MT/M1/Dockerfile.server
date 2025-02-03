@@ -5,7 +5,8 @@ FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1
 
 # Installation of the libraries
-RUN pip install flwr[simulations] docker flwr-datasets[vision] torch==2.2.1 torchvision==0.17.1 matplotlib seaborn pandas ray==2.36.0 docker grpcio==1.66.1 numpy==1.26.2 psutil 
+RUN pip install flwr[simulations] docker flwr-datasets[vision] torch==2.2.1 torchvision==0.17.1 matplotlib seaborn pandas ray==2.36.0 docker grpcio==1.66.1 numpy==1.26.2 psutil monai
+
 # Create the working directory
 WORKDIR /app
 
