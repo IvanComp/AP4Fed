@@ -28,7 +28,13 @@ from APClient import ClientRegistry
 
 CLIENT_ID = os.getenv("HOSTNAME")
 client_registry = ClientRegistry()
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+if torch.cuda.is_available():
+    current_device = torch.cuda.current_device()
+    print(f"Using CUDA")
+else:
+    print(f"Using CPU")
 
 class FlowerClient(NumPyClient):
     def __init__(self, cid: str, model_type):
@@ -54,9 +60,11 @@ class FlowerClient(NumPyClient):
             "train_loss": results["train_loss"],
             "train_accuracy": results["train_accuracy"],
             "train_f1": results["train_f1"],
+            "train_mae": results["train_mae"],
             "val_loss": results["val_loss"],
             "val_accuracy": results["val_accuracy"],
             "val_f1": results["val_f1"],
+            "val_mae": results["val_mae"],
             "training_time": training_time,
             "cpu_usage": cpu_usage,
             "client_id": self.cid,

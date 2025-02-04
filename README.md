@@ -12,7 +12,7 @@ Testing Models: [CNN, U-Net, DenseNet]
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/python-3.10+-yellow">
+  <img src="https://img.shields.io/badge/python-3.12+-yellow">
   <img src="https://img.shields.io/badge/docker-3.10+-blue">
   <img src="https://img.shields.io/badge/docker%20compose-2.29+-blue">
   <img src="https://img.shields.io/badge/Tool%20v.-1.0-green" alt="Version">
@@ -44,11 +44,10 @@ An initial version of <tt>AP4FED</tt> was developed and tested in the research p
 
 To run <tt>AP4FED</tt>, ensure that the following prerequisites are met:
 
-- [Python (version 3.10.X or higher)](https://www.python.org/downloads/) 
+- [Python (version 3.12.X or higher)](https://www.python.org/downloads/) 
 - [Docker](https://docs.docker.com/get-docker/)
-- [Docker Compose (version v2.29.X or higher)](https://docs.docker.com/compose/install/)
 
-Docker and Docker Compose are not strictly required to run Federated Learning projects, but they are valuable tools for configurations that emulate real clients, particularly by distributing physical resources such as CPUs while avoiding CPU overcommitment. The framework allows flexibility between running a fully containerized setup or opting for a local simulation, depending on the project’s requirements and the desired level of fidelity in emulating a distributed system.
+Docker (Docker Compose) is not required to run local Federated Learning projects, but they are valuable tools for configurations that emulate real clients, particularly by distributing physical resources such as CPUs while avoiding CPU overcommitment. The framework allows flexibility between running a fully containerized setup or opting for a local simulation, depending on the project’s requirements and the desired level of fidelity in emulating a distributed system.
 
 - **Docker**: Required to create and run containers.
 - **Docker Compose**: Enables running multi-container applications with Docker using the `docker-compose.yml` file.

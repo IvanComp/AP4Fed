@@ -11,16 +11,14 @@ RUN pip install flwr[simulations] flwr-datasets[vision] torch==2.2.1 torchvision
 WORKDIR /app
 
 # Copy the client code
-COPY clientb.py /app/clientb.py
+COPY client.py /app/client.py
 COPY server.py /app/server.py
 COPY taskA.py /app/taskA.py
-COPY taskB.py /app/taskB.py
 COPY APClient.py /app/APClient.py
 COPY performance/ /app/performance/
-COPY data /app/data
 
 # Create the folder for data
 RUN mkdir -p data
 
 # Execution command
-CMD ["python", "clientb.py"]
+CMD ["python", "client.py"]

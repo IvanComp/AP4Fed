@@ -1,1 +1,7 @@
 Client ID,FL Round,Training Time,Communication Time,Total Client Time,CPU Usage (%),Task,Train Loss,Train Accuracy,Train F1,Val Loss,Val Accuracy,Val F1,Total Time of Training Round,Total Time of FL Round
+4bfe51e23405,1,6,5.07,12,39,taskA,,,,,,,,
+a86b6bbf32b7,1,7,4.87,11,38,taskA,4,0.01,0.01,4,0.0,0.0,7,14
+4bfe51e23405,2,4,4.93,9,33,taskA,,,,,,,,
+a86b6bbf32b7,2,4,4.99,9,39,taskA,4,0.01,0.01,4,0.0,0.0,4,9
+4bfe51e23405,3,4,6.22,10,33,taskA,,,,,,,,
+a86b6bbf32b7,3,4,6.2,10,33,taskA,4,0.01,0.01,4,0.0,0.0,4,10

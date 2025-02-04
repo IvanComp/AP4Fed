@@ -22,7 +22,6 @@ from flwr.server.client_manager import ClientManager
 from flwr.server.client_proxy import ClientProxy
 from flwr.common.logger import log
 from taskA import Net as NetA, get_weights as get_weights_A
-from taskB import Net as NetB, get_weights as get_weights_B
 from flwr.common.logger import log
 from logging import INFO
 import time
@@ -205,7 +204,6 @@ def weighted_average_global(metrics, task_type, srt1, srt2, time_between_rounds)
     }
 
 parametersA = ndarrays_to_parameters(get_weights_A(NetA()))
-parametersB = ndarrays_to_parameters(get_weights_B(NetB()))
 
 def print_results():
 
@@ -238,9 +236,8 @@ client_model_mapping = {}
 previous_round_end_time = time.time() 
 
 class MultiModelStrategy(Strategy):
-    def __init__(self, initial_parameters_a: Parameters, initial_parameters_b: Parameters):
+    def __init__(self, initial_parameters_a: Parameters):
         self.parameters_a = initial_parameters_a
-        self.parameters_b = initial_parameters_b
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
         return None
@@ -255,38 +252,18 @@ class MultiModelStrategy(Strategy):
         docker_client = docker.from_env()
 
         # Ottieni tutti i container con etichetta type=clienta
-        clienta_containers = docker_client.containers.list(
-            filters={"label": "type=clienta"}
-        )
-        # Ottieni tutti i container con etichetta type=clientb
-        clientb_containers = docker_client.containers.list(
-            filters={"label": "type=clientb"}
+        client_containers = docker_client.containers.list(
+            filters={"label": "type=client"}
         )
 
-        # Costruisci il mapping da Hostname a model_type basandosi sulle etichette Docker
-        for container in clienta_containers:
-            hostname = container.attrs["Config"]["Hostname"]
-            client_model_mapping[hostname] = "taskA"
-            #client_model_mapping[client_id] = model_type
-
-        for container in clientb_containers:
-            hostname = container.attrs["Config"]["Hostname"]
-            client_model_mapping[hostname] = "taskB"
-            #client_model_mapping[client_id] = model_type
-
-        min_clients = len(clienta_containers) + len(clientb_containers)
+        min_clients = len(client_containers)
         client_manager.wait_for(min_clients)
         sampled_clients = client_manager.sample(num_clients=min_clients)
         fit_configurations = []
-        task_flag = True 
-        B_config = {"model_type": "taskB"}
         A_config = {"model_type": "taskA"}
 
         for i, client in enumerate(sampled_clients):
             client_id = client.cid
-            
-            #fit_ins = FitIns(self.parameters_b, B_config)
-            #model_type = "taskB"
 
             fit_ins = FitIns(self.parameters_a, A_config)
             model_type = "taskA"
@@ -382,7 +359,7 @@ class MultiModelStrategy(Strategy):
         if currentRnd == num_rounds:
             preprocess_csv()
 
-        return (self.parameters_a, self.parameters_b), metrics_aggregated
+        return self.parameters_a, metrics_aggregated
 
     def aggregate_parameters(self, results, task_type, srt1, srt2,time_between_rounds):
         total_examples = sum([num_examples for _, num_examples, _ in results])
@@ -429,7 +406,6 @@ if __name__ == "__main__":
     
     strategy = MultiModelStrategy(
         initial_parameters_a=parametersA,  
-        initial_parameters_b=parametersB,  
     )
 
     start_server(

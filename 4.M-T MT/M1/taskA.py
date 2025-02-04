@@ -132,17 +132,17 @@ def train(net, trainloader, valloader, epochs, device):
     training_time = time.time() - start_time
     log(INFO, f"Training completed in {training_time:.2f} seconds")
     comm_start_time = time.time()
-
-    train_loss, train_acc, train_f1 = test(net, trainloader)
-    val_loss, val_acc, val_f1 = test(net, valloader)
-
+    train_loss, train_acc, train_f1, train_mae = test(net, trainloader)
+    val_loss, val_acc, val_f1, val_mae = test(net, valloader)
     results = {
         "train_loss": train_loss,
         "train_accuracy": train_acc,
         "train_f1": train_f1,
+        "train_mae": train_mae,
         "val_loss": val_loss,
         "val_accuracy": val_acc,
         "val_f1": val_f1,
+        "val_mae": val_mae,
     }
 
     return results, training_time, comm_start_time
@@ -178,8 +178,9 @@ def test(net, testloader):
     all_preds = torch.cat(all_preds)
     all_labels = torch.cat(all_labels)
     f1_val = f1_score_torch(all_labels, all_preds, num_classes=40, average='macro')
+    mae = 0.0
 
-    return avg_loss, pixel_accuracy, f1_val
+    return avg_loss, pixel_accuracy, f1_val, mae
 
 def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
     confusion_matrix = torch.zeros(num_classes, num_classes, device=DEVICE)

@@ -22,7 +22,6 @@ from flwr.server.client_manager import ClientManager
 from flwr.server.client_proxy import ClientProxy
 from flwr.common.logger import log
 from taskA import Net as NetA, get_weights as get_weights_A
-from taskB import Net as NetB, get_weights as get_weights_B
 from flwr.common.logger import log
 from logging import INFO
 import time
@@ -39,8 +38,8 @@ import docker
 client_registry = ClientRegistry()
 
 global_metrics = {
-    "taskA": {"train_loss": [], "train_accuracy": [], "train_f1": [],"val_loss": [], "val_accuracy": [], "val_f1": []},
-    "taskB": {"train_loss": [], "train_accuracy": [], "train_f1": [],"val_loss": [], "val_accuracy": [], "val_f1": []},
+    "taskA": {"train_loss": [], "train_accuracy": [], "train_f1": [], "train_mae": [],"val_loss": [], "val_accuracy": [], "val_f1": [], "val_mae": []},
+    "taskB": {"train_loss": [], "train_accuracy": [], "train_f1": [], "train_mae": [], "val_loss": [], "val_accuracy": [], "val_f1": [], "val_mae": []},
 }
 
 matplotlib.use('Agg')
@@ -70,17 +69,21 @@ def log_round_time(client_id, fl_round, training_time, communication_time, total
     train_loss = round(global_metrics[model_type]["train_loss"][-1]) if global_metrics[model_type]["train_loss"] else 'N/A'
     train_accuracy = round(global_metrics[model_type]["train_accuracy"][-1], 2) if global_metrics[model_type]["train_accuracy"] else 'N/A'
     train_f1 = round(global_metrics[model_type]["train_f1"][-1], 2) if global_metrics[model_type]["train_f1"] else 'N/A'
+    train_mae = round(global_metrics[model_type]["train_mae"][-1], 2) if global_metrics[model_type]["train_mae"] else 'N/A'
     val_loss = round(global_metrics[model_type]["val_loss"][-1]) if global_metrics[model_type]["val_loss"] else 'N/A'
     val_accuracy = round(global_metrics[model_type]["val_accuracy"][-1], 2) if global_metrics[model_type]["val_accuracy"] else 'N/A'
     val_f1 = round(global_metrics[model_type]["val_f1"][-1], 2) if global_metrics[model_type]["val_f1"] else 'N/A'
+    val_mae = round(global_metrics[model_type]["val_mae"][-1], 2) if global_metrics[model_type]["val_mae"] else 'N/A'
 
     if already_logged:
         train_loss = ""
         train_accuracy = ""
+        train_mae = ""
         train_f1 = ""
         val_loss = ""
         val_accuracy = ""
         val_f1 = ""
+        val_mae = ""
         srt1 = ""
         srt2 = ""
 
@@ -138,23 +141,29 @@ def weighted_average_global(metrics, task_type, srt1, srt2, time_between_rounds)
     train_losses = [num_examples * m["train_loss"] for num_examples, m in metrics]
     train_accuracies = [num_examples * m["train_accuracy"] for num_examples, m in metrics]
     train_f1s = [num_examples * m["train_f1"] for num_examples, m in metrics]
+    train_mae = [num_examples * m["train_mae"] for num_examples, m in metrics]
     val_losses = [num_examples * m["val_loss"] for num_examples, m in metrics]
     val_accuracies = [num_examples * m["val_accuracy"] for num_examples, m in metrics]
-    val_f1s = [num_examples * m["val_f1"] for num_examples, m in metrics]
+    val_f1 = [num_examples * m["val_f1"] for num_examples, m in metrics]
+    val_mae = [num_examples * m["val_mae"] for num_examples, m in metrics]
 
     avg_train_loss = sum(train_losses) / total_examples
     avg_train_accuracy = sum(train_accuracies) / total_examples
     avg_train_f1 = sum(train_f1s) / total_examples
+    avg_train_mae = sum(train_mae) / total_examples
     avg_val_loss = sum(val_losses) / total_examples
     avg_val_accuracy = sum(val_accuracies) / total_examples
-    avg_val_f1 = sum(val_f1s) / total_examples
+    avg_val_f1 = sum(val_f1) / total_examples
+    avg_val_mae = sum(val_mae) / total_examples
 
     global_metrics[task_type]["train_loss"].append(avg_train_loss)
     global_metrics[task_type]["train_accuracy"].append(avg_train_accuracy)
     global_metrics[task_type]["train_f1"].append(avg_train_f1)
+    global_metrics[task_type]["train_mae"].append(avg_train_mae)
     global_metrics[task_type]["val_loss"].append(avg_val_loss)
     global_metrics[task_type]["val_accuracy"].append(avg_val_accuracy)
     global_metrics[task_type]["val_f1"].append(avg_val_f1)
+    global_metrics[task_type]["val_mae"].append(avg_val_mae)
 
     client_data_list = []
     for num_examples, m in metrics:
@@ -187,13 +196,14 @@ def weighted_average_global(metrics, task_type, srt1, srt2, time_between_rounds)
         "train_loss": avg_train_loss,
         "train_accuracy": avg_train_accuracy,
         "train_f1": avg_train_f1,
+        "train_mae": avg_train_mae,
         "val_loss": avg_val_loss,
         "val_accuracy": avg_val_accuracy,
         "val_f1": avg_val_f1,
+        "val_mae": avg_val_mae,
     }
 
 parametersA = ndarrays_to_parameters(get_weights_A(NetA()))
-parametersB = ndarrays_to_parameters(get_weights_B(NetB()))
 
 def print_results():
 
@@ -205,26 +215,29 @@ def print_results():
     print(f"  Train loss: {global_metrics['taskA']['train_loss']}")
     print(f"  Train accuracy: {global_metrics['taskA']['train_accuracy']}")
     print(f"  Train F1: {global_metrics['taskA']['train_f1']}")
+    print(f"  Train MAE: {global_metrics['taskA']['train_mae']}")
     print(f"  Val loss: {global_metrics['taskA']['val_loss']}")
     print(f"  Val accuracy: {global_metrics['taskA']['val_accuracy']}")
     print(f"  Val F1: {global_metrics['taskA']['val_f1']}")
+    print(f"  MAE: {global_metrics['taskA']['val_mae']}")
 
     print(f"\nResults for Model B, round {currentRnd}:")
     print(f"  Clients: {clients_taskB}")
     print(f"  Train loss: {global_metrics['taskB']['train_loss']}")
     print(f"  Train accuracy: {global_metrics['taskB']['train_accuracy']}")
     print(f"  Train F1: {global_metrics['taskB']['train_f1']}")
+    print(f"  Train MAE: {global_metrics['taskB']['train_mae']}")
     print(f"  Val loss: {global_metrics['taskB']['val_loss']}")
     print(f"  Val accuracy: {global_metrics['taskB']['val_accuracy']}")
-    print(f"  Val F1: {global_metrics['taskB']['val_f1']}\n")
+    print(f"  Val F1: {global_metrics['taskB']['val_f1']}")
+    print(f"  MAE: {global_metrics['taskB']['val_mae']}\n")
 
 client_model_mapping = {}
 previous_round_end_time = time.time() 
 
 class MultiModelStrategy(Strategy):
-    def __init__(self, initial_parameters_a: Parameters, initial_parameters_b: Parameters):
+    def __init__(self, initial_parameters_a: Parameters):
         self.parameters_a = initial_parameters_a
-        self.parameters_b = initial_parameters_b
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
         return None
@@ -239,38 +252,18 @@ class MultiModelStrategy(Strategy):
         docker_client = docker.from_env()
 
         # Ottieni tutti i container con etichetta type=clienta
-        clienta_containers = docker_client.containers.list(
-            filters={"label": "type=clienta"}
-        )
-        # Ottieni tutti i container con etichetta type=clientb
-        clientb_containers = docker_client.containers.list(
-            filters={"label": "type=clientb"}
+        client_containers = docker_client.containers.list(
+            filters={"label": "type=client"}
         )
 
-        # Costruisci il mapping da Hostname a model_type basandosi sulle etichette Docker
-        for container in clienta_containers:
-            hostname = container.attrs["Config"]["Hostname"]
-            client_model_mapping[hostname] = "taskA"
-            #client_model_mapping[client_id] = model_type
-
-        for container in clientb_containers:
-            hostname = container.attrs["Config"]["Hostname"]
-            client_model_mapping[hostname] = "taskB"
-            #client_model_mapping[client_id] = model_type
-
-        min_clients = len(clienta_containers) + len(clientb_containers)
+        min_clients = len(client_containers)
         client_manager.wait_for(min_clients)
         sampled_clients = client_manager.sample(num_clients=min_clients)
         fit_configurations = []
-        task_flag = True 
-        B_config = {"model_type": "taskB"}
         A_config = {"model_type": "taskA"}
 
         for i, client in enumerate(sampled_clients):
             client_id = client.cid
-            
-            #fit_ins = FitIns(self.parameters_b, B_config)
-            #model_type = "taskB"
 
             fit_ins = FitIns(self.parameters_a, A_config)
             model_type = "taskA"
@@ -343,17 +336,21 @@ class MultiModelStrategy(Strategy):
                 "train_loss": global_metrics["taskA"]["train_loss"][-1] if global_metrics["taskA"]["train_loss"] else None,
                 "train_accuracy": global_metrics["taskA"]["train_accuracy"][-1] if global_metrics["taskA"]["train_accuracy"] else None,
                 "train_f1": global_metrics["taskA"]["train_f1"][-1] if global_metrics["taskA"]["train_f1"] else None,
+                "train_mae": global_metrics["taskA"]["train_mae"][-1] if global_metrics["taskA"]["train_mae"] else None,
                 "val_loss": global_metrics["taskA"]["val_loss"][-1] if global_metrics["taskA"]["val_loss"] else None,
                 "val_accuracy": global_metrics["taskA"]["val_accuracy"][-1] if global_metrics["taskA"]["val_accuracy"] else None,
                 "val_f1": global_metrics["taskA"]["val_f1"][-1] if global_metrics["taskA"]["val_f1"] else None,
+                "val_mae": global_metrics["taskA"]["val_mae"][-1] if global_metrics["taskA"]["val_mae"] else None,
             },
             "Final Results for Model B": {
                 "train_loss": global_metrics["taskB"]["train_loss"][-1] if global_metrics["taskB"]["train_loss"] else None,
                 "train_accuracy": global_metrics["taskB"]["train_accuracy"][-1] if global_metrics["taskB"]["train_accuracy"] else None,
                 "train_f1": global_metrics["taskB"]["train_f1"][-1] if global_metrics["taskB"]["train_f1"] else None,
+                "train_mae": global_metrics["taskB"]["train_mae"][-1] if global_metrics["taskB"]["train_mae"] else None,
                 "val_loss": global_metrics["taskB"]["val_loss"][-1] if global_metrics["taskB"]["val_loss"] else None,
                 "val_accuracy": global_metrics["taskB"]["val_accuracy"][-1] if global_metrics["taskB"]["val_accuracy"] else None,
                 "val_f1": global_metrics["taskB"]["val_f1"][-1] if global_metrics["taskB"]["val_f1"] else None,
+                "val_mae": global_metrics["taskB"]["val_mae"][-1] if global_metrics["taskB"]["val_mae"] else None,
             },
         }
 
@@ -362,7 +359,7 @@ class MultiModelStrategy(Strategy):
         if currentRnd == num_rounds:
             preprocess_csv()
 
-        return (self.parameters_a, self.parameters_b), metrics_aggregated
+        return self.parameters_a, metrics_aggregated
 
     def aggregate_parameters(self, results, task_type, srt1, srt2,time_between_rounds):
         total_examples = sum([num_examples for _, num_examples, _ in results])
@@ -409,7 +406,6 @@ if __name__ == "__main__":
     
     strategy = MultiModelStrategy(
         initial_parameters_a=parametersA,  
-        initial_parameters_b=parametersB,  
     )
 
     start_server(
