@@ -21,10 +21,10 @@ services:
         limits:
           cpus: '0.5'   
 
-  clienta:
+  client:
     build:
       context: .
-      dockerfile: Dockerfile.clienta
+      dockerfile: Dockerfile.client
     labels:
       - "type=clienta"
     depends_on:
@@ -39,27 +39,7 @@ services:
         limits:
           cpus: '1'
           memory: '2g'
-    command: sh -c "sleep 5 && python clienta.py"
-
-  clientb:
-    build:
-      context: .
-      dockerfile: Dockerfile.clientb
-    labels:
-      - "type=clientb"
-    depends_on:
-      - server
-    networks:
-      - flwr_network
-    volumes:
-      - ./data:/app/data
-      - ./performance:/app/performance
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: '4g'
-    command: sh -c "sleep 5 && python clientb.py"
+    command: sh -c "sleep 5 && python client.py"
 
 networks:
   flwr_network:

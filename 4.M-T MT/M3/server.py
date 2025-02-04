@@ -204,8 +204,8 @@ def weighted_average_global(metrics, task_type, srt1, srt2, time_between_rounds)
         "val_mae": avg_val_mae,
     }
 
-parametersA = ndarrays_to_parameters(get_weights_A(NetA()))
-parametersB = ndarrays_to_parameters(get_weights_B(NetB()))
+#parametersA = ndarrays_to_parameters(get_weights_A(NetA()))
+#parametersB = ndarrays_to_parameters(get_weights_B(NetB()))
 
 def print_results():
 
@@ -255,43 +255,18 @@ class MultiModelStrategy(Strategy):
         docker_client = docker.from_env()
 
         # Ottieni tutti i container con etichetta type=clienta
-        clienta_containers = docker_client.containers.list(
-            filters={"label": "type=clienta"}
-        )
-        # Ottieni tutti i container con etichetta type=clientb
-        clientb_containers = docker_client.containers.list(
-            filters={"label": "type=clientb"}
+        client_containers = docker_client.containers.list(
+            filters={"label": "type=client"}
         )
 
-        # Costruisci il mapping da Hostname a model_type basandosi sulle etichette Docker
-        for container in clienta_containers:
-            hostname = container.attrs["Config"]["Hostname"]
-            client_model_mapping[hostname] = "taskA"
-            #client_model_mapping[client_id] = model_type
-
-        for container in clientb_containers:
-            hostname = container.attrs["Config"]["Hostname"]
-            client_model_mapping[hostname] = "taskB"
-            #client_model_mapping[client_id] = model_type
-
-        min_clients = len(clienta_containers) + len(clientb_containers)
+        min_clients = len(client_containers)
         client_manager.wait_for(min_clients)
         sampled_clients = client_manager.sample(num_clients=min_clients)
         fit_configurations = []
-        task_flag = True 
-        B_config = {"model_type": "taskB"}
-        A_config = {"model_type": "taskA"}
+        config = {"taskA": self.parameters_a, "taskB": self.parameters_b}
 
         for i, client in enumerate(sampled_clients):
-            client_id = client.cid
-            
-            #fit_ins = FitIns(self.parameters_b, B_config)
-            #model_type = "taskB"
-
-            fit_ins = FitIns(self.parameters_a, A_config)
-            model_type = "taskA"
-
-            client_model_mapping[client_id] = model_type
+            fit_ins = FitIns(parameters=None, config=config)
             fit_configurations.append((client, fit_ins))
         
         return fit_configurations
@@ -304,76 +279,50 @@ class MultiModelStrategy(Strategy):
     ) -> Optional[Tuple[Parameters, Dict[str, Scalar]]]:
         from logging import INFO
         
-        global previous_round_end_time
+        global currentRnd, previous_round_end_time
         aggregation_start_time = time.time()
+        time_between_rounds = aggregation_start_time - previous_round_end_time if previous_round_end_time else 0
+        previous_round_end_time = time.time()
+        currentRnd += 1
 
-        if previous_round_end_time is not None:
-            if server_round-1 == 1:
-                time_between_rounds = aggregation_start_time - previous_round_end_time
-                log(INFO, f"Results Aggregated in {time_between_rounds:.2f} seconds.")
-            else:
-                time_between_rounds = aggregation_start_time - previous_round_end_time
-                log(INFO, f"Results Aggregated in {time_between_rounds:.2f} seconds")
-     
         results_a = []
         results_b = []
         training_times = []
-        global currentRnd
-        currentRnd += 1
-        srt1 = 'N/A'
-        srt2 = 'N/A'
-        
+
         for client_proxy, fit_res in results:
+            # fit_res.parameters è ora una lista di due elementi: [parameters_taskA, parameters_taskB]
+            paramsA = fit_res.parameters[0]
+            paramsB = fit_res.parameters[1]
+            num_examples = fit_res.num_examples
+            metricsA = fit_res.metrics["taskA"]
+            metricsB = fit_res.metrics["taskB"]
 
-            client_id = fit_res.metrics.get("client_id")
-            model_type = fit_res.metrics.get("model_type")
-            training_time = fit_res.metrics.get("training_time")
-            communication_start_time = fit_res.metrics.get("communication_start_time") 
+            training_times.append(metricsA.get("training_time", 0))
+            results_a.append((paramsA, num_examples, metricsA))
+            results_b.append((paramsB, num_examples, metricsB))
 
-            client_model_mapping[client_id] = model_type
+        # Aggregazione separata per ciascun task
+        srt1 = max(training_times) if training_times else 'N/A'
+        self.parameters_a = self.aggregate_parameters(results_a, "taskA", srt1, 'N/A', time_between_rounds)
+        self.parameters_b = self.aggregate_parameters(results_b, "taskB", srt1, 'N/A', time_between_rounds)
 
-            if training_time is not None:
-                training_times.append(training_time)              
-
-            if model_type == "taskA":
-                results_a.append((fit_res.parameters, fit_res.num_examples, fit_res.metrics))
-            elif model_type == "taskB":
-                results_b.append((fit_res.parameters, fit_res.num_examples, fit_res.metrics))
-            else:
-                print(f"Unknown Model Type for client {client_id}")
-                continue
-
-        previous_round_end_time = time.time()
-
-        if results_a:
-            srt1 = max(training_times)
-            self.parameters_a = self.aggregate_parameters(results_a, "taskA", srt1, srt2, time_between_rounds)
-
-        if results_b:
-            srt1 = max(training_times)
-            self.parameters_b = self.aggregate_parameters(results_b, "taskB", srt1, srt2, time_between_rounds)
- 
-
+        # Restituisco i nuovi pesi per entrambi i modelli e le metriche aggregate (se necessario)
         metrics_aggregated = {
             "Final Results for Model A": {
                 "train_loss": global_metrics["taskA"]["train_loss"][-1] if global_metrics["taskA"]["train_loss"] else None,
                 "train_accuracy": global_metrics["taskA"]["train_accuracy"][-1] if global_metrics["taskA"]["train_accuracy"] else None,
                 "train_f1": global_metrics["taskA"]["train_f1"][-1] if global_metrics["taskA"]["train_f1"] else None,
-                "train_mae": global_metrics["taskA"]["train_mae"][-1] if global_metrics["taskA"]["train_mae"] else None,
                 "val_loss": global_metrics["taskA"]["val_loss"][-1] if global_metrics["taskA"]["val_loss"] else None,
                 "val_accuracy": global_metrics["taskA"]["val_accuracy"][-1] if global_metrics["taskA"]["val_accuracy"] else None,
                 "val_f1": global_metrics["taskA"]["val_f1"][-1] if global_metrics["taskA"]["val_f1"] else None,
-                "val_mae": global_metrics["taskA"]["val_mae"][-1] if global_metrics["taskA"]["val_mae"] else None,
             },
             "Final Results for Model B": {
                 "train_loss": global_metrics["taskB"]["train_loss"][-1] if global_metrics["taskB"]["train_loss"] else None,
                 "train_accuracy": global_metrics["taskB"]["train_accuracy"][-1] if global_metrics["taskB"]["train_accuracy"] else None,
                 "train_f1": global_metrics["taskB"]["train_f1"][-1] if global_metrics["taskB"]["train_f1"] else None,
-                "train_mae": global_metrics["taskB"]["train_mae"][-1] if global_metrics["taskB"]["train_mae"] else None,
                 "val_loss": global_metrics["taskB"]["val_loss"][-1] if global_metrics["taskB"]["val_loss"] else None,
                 "val_accuracy": global_metrics["taskB"]["val_accuracy"][-1] if global_metrics["taskB"]["val_accuracy"] else None,
                 "val_f1": global_metrics["taskB"]["val_f1"][-1] if global_metrics["taskB"]["val_f1"] else None,
-                "val_mae": global_metrics["taskB"]["val_mae"][-1] if global_metrics["taskB"]["val_mae"] else None,
             },
         }
 
@@ -382,12 +331,11 @@ class MultiModelStrategy(Strategy):
         if currentRnd == num_rounds:
             preprocess_csv()
 
-        return (self.parameters_a, self.parameters_b), metrics_aggregated
+        return ([self.parameters_a, self.parameters_b], metrics_aggregated)
 
-    def aggregate_parameters(self, results, task_type, srt1, srt2,time_between_rounds):
-        total_examples = sum([num_examples for _, num_examples, _ in results])
+    def aggregate_parameters(self, results, task_type, srt1, srt2, time_between_rounds):
+        total_examples = sum(num_examples for _, num_examples, _ in results)
         new_weights = None
-
         metrics = []
         for client_params, num_examples, client_metrics in results:
             client_weights = parameters_to_ndarrays(client_params)
@@ -397,7 +345,6 @@ class MultiModelStrategy(Strategy):
             else:
                 new_weights = [nw + w * weight for nw, w in zip(new_weights, client_weights)]
             metrics.append((num_examples, client_metrics))
-
         weighted_average_global(metrics, task_type, srt1, srt2, time_between_rounds)
 
         return ndarrays_to_parameters(new_weights)
@@ -427,6 +374,9 @@ class MultiModelStrategy(Strategy):
 
 if __name__ == "__main__":
     
+    parametersA = ndarrays_to_parameters(get_weights_A(NetA()))
+    parametersB = ndarrays_to_parameters(get_weights_B(NetB()))
+
     strategy = MultiModelStrategy(
         initial_parameters_a=parametersA,  
         initial_parameters_b=parametersB,  
