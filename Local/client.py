@@ -115,8 +115,13 @@ class FlowerClient(NumPyClient):
                         MULTI_TASK_MODEL_TRAINER = True
                     elif pattern_name == "heterogeneous_data_handler":
                         HETEROGENEOUS_DATA_HANDLER = True
+
+        #Extracting client specifications 
         n_cpu = self.n_cpu
         ram = self.ram
+        dataset = self.dataset
+        data_distribution_type = self.data_distribution_type
+
         if CLIENT_SELECTOR:
             selector_params = configJSON["patterns"]["client_selector"]["params"]
             selection_strategy = selector_params.get("selection_strategy", "")
