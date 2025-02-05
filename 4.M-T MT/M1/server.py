@@ -108,21 +108,31 @@ def preprocess_csv():
     df['Total Time of FL Round'] = df.groupby('FL Round')['Total Time of FL Round'].transform('max')
     df['Total Client Time'] = df['Training Time'] + df['Communication Time']
 
-    unique_tasks = df['Task'].unique()
+    # Dizionario per mappare (old_id, task) -> "Client n - A/B"
     client_mappings = {}
-    for task in unique_tasks:
-        task_clients = sorted(df[df['Task'] == task]['Client ID'].unique())
-        for i, old_id in enumerate(task_clients):
-            client_number = i + 1
-            client_id_new = f'Client {client_number} - {task[-1].upper()}'
-            client_mappings[old_id] = client_id_new
 
-    df['Client ID'] = df['Client ID'].map(client_mappings)
-    df['Client Number'] = df['Client ID'].str.extract(r'Client (\d+)').astype(int)
+    # Itera riga per riga, assegnando etichette coerenti per ogni (ID, Task) 
+    for i in range(len(df)):
+        old_id = df.at[i, 'Client ID']
+        task = df.at[i, 'Task']
+        if (old_id, task) not in client_mappings:
+            # Contiamo quanti client abbiamo già assegnato a quello stesso task
+            existing_for_task = [k for k in client_mappings if k[1] == task]
+            client_number = len(existing_for_task) + 1
+            # Crea un’etichetta: "Client 1 - A" (o B), "Client 2 - A" (o B), ecc.
+            client_mappings[(old_id, task)] = f"Client {client_number} - {task[-1].upper()}"
+        # Sovrascrivi la colonna con l’etichetta trovata o appena creata
+        df.at[i, 'Client ID'] = client_mappings[(old_id, task)]
+
+    # Imposta l’ordine taskA prima di taskB
     task_order = ['taskA', 'taskB']
     df['Task'] = pd.Categorical(df['Task'], categories=task_order, ordered=True)
+
+    # Estrae il numero di client dall’etichetta per ordinare correttamente
+    df['Client Number'] = df['Client ID'].str.extract(r'Client (\d+)').astype(int)
     df.sort_values(by=['FL Round', 'Task', 'Client Number'], inplace=True)
-    df.drop(columns=['Client Number'], inplace=True)  
+    df.drop(columns=['Client Number'], inplace=True)
+
     df.to_csv(csv_file, index=False)
 
 def weighted_average_global(metrics, task_type, srt1, srt2, time_between_rounds):

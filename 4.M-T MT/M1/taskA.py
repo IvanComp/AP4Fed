@@ -128,6 +128,8 @@ def train(net, trainloader, valloader, epochs, device):
             loss = criterion(net(images), labels.squeeze(1))
             loss.backward()
             optimizer.step()
+            images.to("cpu")
+            labels.to("cpu")  
 
     training_time = time.time() - start_time
     log(INFO, f"Training completed in {training_time:.2f} seconds")
