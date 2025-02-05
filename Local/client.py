@@ -36,25 +36,6 @@ import ray
 import psutil
 import resource
 
-def set_resource_limits(cpu_limit, ram_limit_gb):
-    try:
-        p = psutil.Process(os.getpid())
-        available_cpus = psutil.cpu_count(logical=True)
-        cpus_to_use = list(range(min(cpu_limit, available_cpus)))
-        if hasattr(p, "cpu_affinity"):
-            p.cpu_affinity(cpus_to_use)
-            print(f"[DEBUG] CPU affinity set to: {cpus_to_use}")
-        else:
-            print("[DEBUG] CPU affinity not supported on this platform.")
-    except Exception as e:
-        print(f"[DEBUG] Unable to set CPU affinity: {e}")
-    try:
-        ram_limit_bytes = ram_limit_gb * 1024 * 1024 * 1024
-        resource.setrlimit(resource.RLIMIT_AS, (ram_limit_bytes, ram_limit_bytes))
-        print(f"[DEBUG] Memory limit set to: {ram_limit_bytes} bytes")
-    except Exception as e:
-        print(f"[DEBUG] Unable to set memory limit: {e}")
-
 @ray.remote
 class ConfigServer:
     def __init__(self, config_list):
@@ -91,35 +72,19 @@ def load_client_details():
     return global_client_details
 
 CLIENT_REGISTRY = ClientRegistry()
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class FlowerClient(NumPyClient):
     def __init__(self, client_config: dict, model_type: str):
         self.client_config = client_config
         self.cid = client_config.get("client_id", "unknown")
-        self.cpu_limit = client_config.get("cpu")
-        self.ram_limit = client_config.get("ram")
+        self.n_cpu = client_config.get("cpu")
+        self.ram = client_config.get("ram")
         self.dataset = client_config.get("dataset")
         self.data_distribution_type = client_config.get("data_distribution_type")
         self.model_type = model_type
-        print(f"[DEBUG] Creazione FlowerClient: id={self.cid}, cpu (config)={self.cpu_limit}, ram (config)={self.ram_limit}, dataset={self.dataset}, distribution={self.data_distribution_type}")
+        #print(f"[DEBUG] Creating FlowerClient: id={self.cid}, cpu (config)={self.n_cpu}, ram (config)={self.ram}, dataset={self.dataset}, distribution={self.data_distribution_type}")
         CLIENT_REGISTRY.register_client(self.cid, model_type)
-        set_resource_limits(self.cpu_limit, self.ram_limit)
-        try:
-            p = psutil.Process(os.getpid())
-            if hasattr(p, "cpu_affinity"):
-                effective_cpu_list = p.cpu_affinity()
-                effective_cpu = len(effective_cpu_list)
-            else:
-                effective_cpu = psutil.cpu_count(logical=True)
-        except Exception as e:
-            effective_cpu = f"Error: {e}"
-        try:
-            mem_limit_bytes, _ = resource.getrlimit(resource.RLIMIT_AS)
-            effective_ram = f"{mem_limit_bytes // (1024**3)}GB" if mem_limit_bytes != resource.RLIM_INFINITY else "Unlimited"
-        except Exception as e:
-            effective_ram = f"Error: {e}"
-        print(f"[DEBUG] Effective configuration for client {self.cid}: Effective CPU count = {effective_cpu}, RAM limit (config) = {self.ram_limit}GB, Effective RAM = {effective_ram}")
         self.net = NetA().to(DEVICE_A)
         self.trainloader, self.testloader = load_data_A()
         self.device = DEVICE_A
@@ -150,8 +115,8 @@ class FlowerClient(NumPyClient):
                         MULTI_TASK_MODEL_TRAINER = True
                     elif pattern_name == "heterogeneous_data_handler":
                         HETEROGENEOUS_DATA_HANDLER = True
-        n_cpu = query_cpu()
-        ram = query_ram()
+        n_cpu = self.n_cpu
+        ram = self.ram
         if CLIENT_SELECTOR:
             selector_params = configJSON["patterns"]["client_selector"]["params"]
             selection_strategy = selector_params.get("selection_strategy", "")
@@ -160,18 +125,18 @@ class FlowerClient(NumPyClient):
             if selection_strategy == "Resource-Based":
                 if selection_criteria == "CPU":
                     if n_cpu < selection_value:
-                        log(INFO, f"Client {self.cid} ha CPU insufficiente ({n_cpu} / {selection_value}). Non parteciperà al round FL.")
-                        log(INFO, "Preparazione risposta vuota")
+                        log(INFO, f"Client {self.cid} has insufficient CPU ({n_cpu} / {selection_value}). Will not participate in this FL round.")
+                        log(INFO, "Preparing empty response")
                         return parameters, 0, {}
                     else:
-                        log(INFO, f"Client {self.cid} partecipa al round FL. (CPU: {n_cpu})")
+                        log(INFO, f"Client {self.cid} participates in the FL round. (CPU: {n_cpu})")
                 elif selection_criteria == "RAM":
                     if ram < selection_value:
-                        log(INFO, f"Client {self.cid} ha RAM insufficiente ({ram} GB / {selection_value} GB). Non parteciperà al round FL.")
-                        log(INFO, "Preparazione risposta vuota")
+                        log(INFO, f"Client {self.cid} has insufficient RAM ({ram} GB / {selection_value} GB). Will not participate in this FL round.")
+                        log(INFO, "Preparing empty response")
                         return parameters, 0, {}
                     else:
-                        log(INFO, f"Client {self.cid} parteciperà al round FL. (RAM: {ram} GB)")
+                        log(INFO, f"Client {self.cid} participates in the FL round. (RAM: {ram} GB)")
         if CLIENT_CLUSTER:
             selector_params = configJSON["patterns"]["client_cluster"]["params"]
             clustering_strategy = selector_params.get("clustering_strategy", "")
@@ -180,19 +145,19 @@ class FlowerClient(NumPyClient):
             if clustering_strategy == "Resource-Based":
                 if clustering_criteria == "CPU":
                     if n_cpu < selection_value:
-                        log(INFO, f"Client {self.cid} assegnato al Cluster A {self.model_type}")
+                        log(INFO, f"Client {self.cid} assigned to Cluster A {self.model_type}")
                     else:
-                        log(INFO, f"Client {self.cid} assegnato al Cluster B {self.model_type}")
+                        log(INFO, f"Client {self.cid} assigned to Cluster B {self.model_type}")
                 elif clustering_criteria == "RAM":
                     if ram < selection_value:
-                        log(INFO, f"Client {self.cid} assegnato al Cluster A {self.model_type}")
+                        log(INFO, f"Client {self.cid} assigned to Cluster A {self.model_type}")
                     else:
-                        log(INFO, f"Client {self.cid} assegnato al Cluster B {self.model_type}")
+                        log(INFO, f"Client {self.cid} assigned to Cluster B {self.model_type}")
             elif clustering_strategy == "Data-Based":
                 if clustering_criteria == "IID":
-                    log(INFO, f"Client {self.cid} assegnato al Cluster IID {self.model_type}")
+                    log(INFO, f"Client {self.cid} assigned to IID Cluster {self.model_type}")
                 elif clustering_criteria == "non-IID":
-                    log(INFO, f"Client {self.cid} assegnato al Cluster non-IID {self.model_type}")
+                    log(INFO, f"Client {self.cid} assigned to non-IID Cluster {self.model_type}")
         if MESSAGE_COMPRESSOR:
             compressed_parameters = bytes.fromhex(compressed_parameters_hex)
             decompressed_parameters = pickle.loads(zlib.decompress(compressed_parameters))
@@ -213,7 +178,7 @@ class FlowerClient(NumPyClient):
             compressed_parameters_hex = compressed_parameters.hex()
             reduction_bytes = original_size - compressed_size
             reduction_percentage = (reduction_bytes / original_size) * 100
-            log(INFO, f"Parametri locali compressi (Client -> Server): riduzione di {reduction_bytes} bytes ({reduction_percentage:.2f}%)")
+            log(INFO, f"Local parameters compressed (Client -> Server): reduced by {reduction_bytes} bytes ({reduction_percentage:.2f}%)")
             metrics = {
                 "train_loss": results["train_loss"],
                 "train_accuracy": results["train_accuracy"],
@@ -290,7 +255,6 @@ def client_fn(context: Context):
         except Exception:
             config_server = ray.get_actor("config_server")
     config = ray.get(config_server.get_config_for.remote(client_identifier))
-    #print(f"[DEBUG] Assegnazione configurazione globale per client '{client_identifier}': {config}")
     model_type = "taskA"
     return FlowerClient(client_config=config, model_type=model_type).to_client()
 

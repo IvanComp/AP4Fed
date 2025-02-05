@@ -260,6 +260,7 @@ class MultiModelStrategy(Strategy):
         )
 
         min_clients = len(client_containers)
+        print(f"Waiting for {min_clients} clients to connect...")
         client_manager.wait_for(min_clients)
         sampled_clients = client_manager.sample(num_clients=min_clients)
         fit_configurations = []
@@ -278,51 +279,72 @@ class MultiModelStrategy(Strategy):
         failures: List[BaseException],
     ) -> Optional[Tuple[Parameters, Dict[str, Scalar]]]:
         from logging import INFO
-        
         global currentRnd, previous_round_end_time
         aggregation_start_time = time.time()
         time_between_rounds = aggregation_start_time - previous_round_end_time if previous_round_end_time else 0
         previous_round_end_time = time.time()
         currentRnd += 1
 
-        results_a = []
-        results_b = []
+        results_a = []  # per task A
+        results_b = []  # per task B
         training_times = []
 
+        # Separiamo i risultati per i due task
         for client_proxy, fit_res in results:
-            # fit_res.parameters è ora una lista di due elementi: [parameters_taskA, parameters_taskB]
-            paramsA = fit_res.parameters[0]
-            paramsB = fit_res.parameters[1]
+            # Supponiamo che fit_res.parameters sia una lista con [paramsA, paramsB]
+            try:
+                paramsA = fit_res.parameters[0]
+                paramsB = fit_res.parameters[1]
+            except (TypeError, IndexError):
+                log(INFO, "Il client non ha restituito una lista di parametri per entrambi i task")
+                continue
+
             num_examples = fit_res.num_examples
-            metricsA = fit_res.metrics["taskA"]
-            metricsB = fit_res.metrics["taskB"]
+            metricsA = fit_res.metrics.get("taskA")
+            metricsB = fit_res.metrics.get("taskB")
 
-            training_times.append(metricsA.get("training_time", 0))
-            results_a.append((paramsA, num_examples, metricsA))
-            results_b.append((paramsB, num_examples, metricsB))
+            # Se il client ha inviato metriche per entrambi i task, li aggiungiamo
+            if metricsA is not None and metricsB is not None:
+                training_time = metricsA.get("training_time", 0)
+                training_times.append(training_time)
+                results_a.append((paramsA, num_examples, metricsA))
+                results_b.append((paramsB, num_examples, metricsB))
+            else:
+                log(INFO, f"Client {client_proxy.cid} non ha fornito metriche per entrambi i task.")
 
-        # Aggregazione separata per ciascun task
-        srt1 = max(training_times) if training_times else 'N/A'
-        self.parameters_a = self.aggregate_parameters(results_a, "taskA", srt1, 'N/A', time_between_rounds)
-        self.parameters_b = self.aggregate_parameters(results_b, "taskB", srt1, 'N/A', time_between_rounds)
+        # Per la parte di aggregazione, se non ci sono risultati validi per un task, ripristino i pesi precedenti.
+        if results_a:
+            srt1 = max(training_times)
+            self.parameters_a = self.aggregate_parameters(results_a, "taskA", srt1, 'N/A', time_between_rounds)
+        else:
+            log(INFO, "Nessun risultato valido per taskA in questo round. Mantenimento dei pesi precedenti per taskA.")
 
-        # Restituisco i nuovi pesi per entrambi i modelli e le metriche aggregate (se necessario)
+        if results_b:
+            srt1 = max(training_times)
+            self.parameters_b = self.aggregate_parameters(results_b, "taskB", srt1, 'N/A', time_between_rounds)
+        else:
+            log(INFO, "Nessun risultato valido per taskB in questo round. Mantenimento dei pesi precedenti per taskB.")
+
         metrics_aggregated = {
             "Final Results for Model A": {
                 "train_loss": global_metrics["taskA"]["train_loss"][-1] if global_metrics["taskA"]["train_loss"] else None,
                 "train_accuracy": global_metrics["taskA"]["train_accuracy"][-1] if global_metrics["taskA"]["train_accuracy"] else None,
                 "train_f1": global_metrics["taskA"]["train_f1"][-1] if global_metrics["taskA"]["train_f1"] else None,
+                "train_mae": global_metrics["taskA"]["train_mae"][-1] if global_metrics["taskA"]["train_mae"] else None,
                 "val_loss": global_metrics["taskA"]["val_loss"][-1] if global_metrics["taskA"]["val_loss"] else None,
                 "val_accuracy": global_metrics["taskA"]["val_accuracy"][-1] if global_metrics["taskA"]["val_accuracy"] else None,
                 "val_f1": global_metrics["taskA"]["val_f1"][-1] if global_metrics["taskA"]["val_f1"] else None,
+                "val_mae": global_metrics["taskA"]["val_mae"][-1] if global_metrics["taskA"]["val_mae"] else None,
             },
             "Final Results for Model B": {
                 "train_loss": global_metrics["taskB"]["train_loss"][-1] if global_metrics["taskB"]["train_loss"] else None,
                 "train_accuracy": global_metrics["taskB"]["train_accuracy"][-1] if global_metrics["taskB"]["train_accuracy"] else None,
                 "train_f1": global_metrics["taskB"]["train_f1"][-1] if global_metrics["taskB"]["train_f1"] else None,
+                "train_mae": global_metrics["taskB"]["train_mae"][-1] if global_metrics["taskB"]["train_mae"] else None,
                 "val_loss": global_metrics["taskB"]["val_loss"][-1] if global_metrics["taskB"]["val_loss"] else None,
                 "val_accuracy": global_metrics["taskB"]["val_accuracy"][-1] if global_metrics["taskB"]["val_accuracy"] else None,
                 "val_f1": global_metrics["taskB"]["val_f1"][-1] if global_metrics["taskB"]["val_f1"] else None,
+                "val_mae": global_metrics["taskB"]["val_mae"][-1] if global_metrics["taskB"]["val_mae"] else None,
             },
         }
 
@@ -331,10 +353,15 @@ class MultiModelStrategy(Strategy):
         if currentRnd == num_rounds:
             preprocess_csv()
 
+        # Restituisco entrambi i set di parametri come lista, in modo che il client sappia come aggiornarsi
         return ([self.parameters_a, self.parameters_b], metrics_aggregated)
 
     def aggregate_parameters(self, results, task_type, srt1, srt2, time_between_rounds):
         total_examples = sum(num_examples for _, num_examples, _ in results)
+        if total_examples == 0:
+            log(INFO, f"Nessun esempio ricevuto per {task_type} in questo round. Restituisco i pesi precedenti.")
+            return self.parameters_a if task_type == "taskA" else self.parameters_b
+
         new_weights = None
         metrics = []
         for client_params, num_examples, client_metrics in results:
@@ -345,8 +372,8 @@ class MultiModelStrategy(Strategy):
             else:
                 new_weights = [nw + w * weight for nw, w in zip(new_weights, client_weights)]
             metrics.append((num_examples, client_metrics))
-        weighted_average_global(metrics, task_type, srt1, srt2, time_between_rounds)
 
+        weighted_average_global(metrics, task_type, srt1, srt2, time_between_rounds)
         return ndarrays_to_parameters(new_weights)
 
     def configure_evaluate(
