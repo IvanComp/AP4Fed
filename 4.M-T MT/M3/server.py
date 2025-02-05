@@ -58,11 +58,50 @@ previous_round_end_time = time.time()
 
 def preprocess_csv():
     import pandas as pd
+
     df = pd.read_csv(csv_file)
     df['Training Time'] = pd.to_numeric(df['Training Time'], errors='coerce')
     df['Total Time of FL Round'] = pd.to_numeric(df['Total Time of FL Round'], errors='coerce')
     df['Total Time of FL Round'] = df.groupby('FL Round')['Total Time of FL Round'].transform('max')
     df['Total Client Time'] = df['Training Time'] + df['Communication Time']
+
+    # Vogliamo creare un mapping separato per (old_id, task)
+    unique_tasks = df['Task'].unique()
+    client_mappings = {}  
+    # Esempio: {('flwr_abcde', 'taskA'): 'Client 1 - A'}
+    #          {('flwr_abcde', 'taskB'): 'Client 1 - B'}
+
+    for task in unique_tasks:
+        # Filtra i client usati da questo task
+        task_clients = sorted(df[df['Task'] == task]['Client ID'].unique())
+        for i, old_id in enumerate(task_clients):
+            key = (old_id, task)
+            if key not in client_mappings:
+                client_number = i + 1
+                # Ricava l'ultima lettera del task come suffisso: 'A' o 'B'
+                # Se hai "taskA" => task[-1].upper() == 'A'
+                # Se hai "taskB" => 'B', ecc.
+                client_id_new = f'Client {client_number} - {task[-1].upper()}'
+                client_mappings[key] = client_id_new
+
+    # Applichiamo la mappatura riga per riga in base a (old_id, Task)
+    # In ogni riga, 'Client ID' era old_id e 'Task' era il task
+    df['RenamedID'] = df.apply(lambda row: client_mappings[(row['Client ID'], row['Task'])], axis=1)
+
+    # Estraiamo il numero per permettere l'ordinamento
+    df['Client Number'] = df['RenamedID'].str.extract(r'Client (\d+)').astype(int)
+
+    # Impostiamo un ordinamento preferito: prima i record "taskA", poi "taskB"
+    task_order = ['taskA', 'taskB']
+    df['Task'] = pd.Categorical(df['Task'], categories=task_order, ordered=True)
+
+    # Ordina in base a round, poi Task, poi numero client
+    df.sort_values(by=['FL Round', 'Task', 'Client Number'], inplace=True)
+
+    # Sovrascriviamo la colonna 'Client ID' con 'RenamedID'
+    df['Client ID'] = df['RenamedID']
+    df.drop(columns=['RenamedID', 'Client Number'], inplace=True)
+
     df.to_csv(csv_file, index=False)
 
 def log_round_time(client_id, fl_round, training_time, communication_time, total_time, cpu_usage,
@@ -375,6 +414,5 @@ if __name__ == "__main__":
         config=ServerConfig(num_rounds=num_rounds),
         strategy=strategy,
     )
-
 
 

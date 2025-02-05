@@ -29,6 +29,12 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 CLIENT_ID = os.getenv("HOSTNAME", "default_client_id")
 client_registry = ClientRegistry()
 
+if torch.cuda.is_available():
+    current_device = torch.cuda.current_device()
+    print(f"Using CUDA")
+else:
+    print(f"Using CPU")
+
 class FlowerClient(NumPyClient):
     def __init__(self, cid: str):
         self.cid = cid
