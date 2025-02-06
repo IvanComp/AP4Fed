@@ -88,15 +88,15 @@ class NYUv2SegDataset(Dataset):
 
 def load_data():
     transform_img = Compose([
-        Resize((240, 320), interpolation=Image.NEAREST),
-        CenterCrop((224, 304)),
+        Resize((96, 128), interpolation=Image.NEAREST),
+        CenterCrop((80, 112)),
         ToTensor(),
         Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     ])
 
     transform_lbl = Compose([
-        Resize((240, 320), interpolation=Image.NEAREST),
-        CenterCrop((224, 304))
+        Resize((96, 128), interpolation=Image.NEAREST),
+        CenterCrop((80, 112))
     ])
 
     dataset = NYUv2SegDataset(

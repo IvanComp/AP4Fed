@@ -1,7 +1,7 @@
 ---
 Version: [Alpha-1.0.0]
 Main Libraries: [Flower, PyTorch, PyTorchGAN, Torchvision]
-Testing Datasets: [CIFAR-10, FMNIST, NYUv2, IMDB, HIGGS, Titanic]
+Testing Datasets: [CIFAR-10, FMNIST, NYUv2, IMDB, HIGGS, iv4N]
 Testing Models: [CNN, U-Net, DenseNet]
 ---
 
