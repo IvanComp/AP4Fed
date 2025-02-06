@@ -27,8 +27,7 @@ class Net(nn.Module):
                 nn.ReLU(inplace=True)
             )
 
-        self.pool = nn.MaxPool2d(2, 2)  
-        
+        self.pool = nn.MaxPool2d(2, 2)          
         self.enc1 = conv_block(3, 16)
         self.enc2 = conv_block(16, 32)
         self.enc3 = conv_block(32, 64)
@@ -128,9 +127,6 @@ def train(net, trainloader, valloader, epochs, device):
             loss = criterion(net(images), labels.squeeze(1))
             loss.backward()
             optimizer.step()
-            images.to("cpu")
-            labels.to("cpu")  
-
     training_time = time.time() - start_time
     log(INFO, f"Training completed in {training_time:.2f} seconds")
     comm_start_time = time.time()
