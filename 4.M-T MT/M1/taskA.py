@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from flwr.common.logger import log
 from torch.utils.data import Dataset, DataLoader, random_split
-from torchvision.transforms import Compose, ToTensor, Normalize, Resize
+from torchvision.transforms import Compose, ToTensor, Normalize, Resize, CenterCrop
 from PIL import Image
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -89,10 +89,15 @@ class NYUv2SegDataset(Dataset):
 def load_data():
     transform_img = Compose([
         Resize((240, 320), interpolation=Image.NEAREST),
+        CenterCrop((224, 304)),
         ToTensor(),
         Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     ])
-    transform_lbl = Resize((240, 320), interpolation=Image.NEAREST)
+
+    transform_lbl = Compose([
+        Resize((240, 320), interpolation=Image.NEAREST),
+        CenterCrop((224, 304))
+    ])
 
     dataset = NYUv2SegDataset(
         data_dir="./data", 
@@ -105,8 +110,8 @@ def load_data():
     test_len = total_len - train_len
     train_set, test_set = random_split(dataset, [train_len, test_len])
     
-    train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
-    test_loader  = DataLoader(test_set, batch_size=32, shuffle=False)
+    train_loader = DataLoader(train_set, batch_size=2, shuffle=True)
+    test_loader  = DataLoader(test_set, batch_size=2, shuffle=False)
     
     return train_loader, test_loader
 
@@ -163,12 +168,15 @@ def test(net, testloader):
             loss = criterion(outputs, labels)
             total_loss += loss.item()
 
-            preds = torch.argmax(outputs, dim=1)  
+            preds = torch.argmax(outputs, dim=1)
             correct_pixels += (preds == labels).sum().item()
-            total_pixels   += labels.numel()
+            total_pixels += labels.numel()
 
-            all_preds.append(preds.view(-1))
-            all_labels.append(labels.view(-1))
+            preds_cpu = preds.view(-1).detach().cpu()
+            labels_cpu = labels.view(-1).detach().cpu()
+
+            all_preds.append(preds_cpu)
+            all_labels.append(labels_cpu)
 
     avg_loss = total_loss / len(testloader)
     pixel_accuracy = correct_pixels / total_pixels

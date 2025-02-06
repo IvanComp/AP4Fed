@@ -107,13 +107,13 @@ class DepthEstimationDataset(Dataset):
 def load_data():
     transform_rgb = Compose([
         Resize((240, 320), interpolation=Image.BILINEAR),  
-        CenterCrop((228, 304)),                              
+        CenterCrop((224, 304)),                              
         ToTensor(),
         Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
     transform_depth = Compose([
         Resize((240, 320), interpolation=Image.NEAREST),
-        CenterCrop((228, 304)),
+        CenterCrop((224, 304)),
         ToTensor()
     ])
     dataset = DepthEstimationDataset(data_dir="./data", transform_rgb=transform_rgb, transform_depth=transform_depth)
@@ -139,11 +139,14 @@ def test(net, testloader):
     total_loss = 0.0
     total_pixels = 0
     correct_pixels = 0
+
     all_preds_quant = []
     all_labels_quant = []
     all_preds_cont = []
     all_labels_cont = []
+    
     threshold = 0.1
+
     with torch.no_grad():
         for images, depths in testloader:
             images = images.to(DEVICE)
@@ -154,20 +157,23 @@ def test(net, testloader):
             abs_diff = torch.abs(outputs - depths)
             correct_pixels += (abs_diff < threshold).sum().item()
             total_pixels += depths.numel()
-            all_preds_cont.append(outputs.cpu())
-            all_labels_cont.append(depths.cpu())
-            preds_class = (torch.clamp(outputs, 0, 1) * 9).long().squeeze(1)
-            depths_class = (torch.clamp(depths, 0, 1) * 9).long().squeeze(1)
-            all_preds_quant.append(preds_class.cpu())
-            all_labels_quant.append(depths_class.cpu())
+            outputs_cpu = outputs.detach().cpu()
+            depths_cpu = depths.detach().cpu()
+            all_preds_cont.append(outputs_cpu)
+            all_labels_cont.append(depths_cpu)
+            preds_class = (torch.clamp(outputs_cpu, 0, 1) * 9).long().squeeze(1)
+            depths_class = (torch.clamp(depths_cpu, 0, 1) * 9).long().squeeze(1)
+            all_preds_quant.append(preds_class)
+            all_labels_quant.append(depths_class)
     avg_loss = total_loss / len(testloader)
     accuracy = correct_pixels / total_pixels
     all_preds_quant = torch.cat(all_preds_quant)
     all_labels_quant = torch.cat(all_labels_quant)
-    f1 = f1_score_torch(all_labels_quant, all_preds_quant, num_classes=10, average='macro')
+    f1 = f1_score_torch(all_labels_quant, all_preds_quant, num_classes=10, average='macro')   
     all_preds_cont = torch.cat(all_preds_cont).squeeze(1)
     all_labels_cont = torch.cat(all_labels_cont).squeeze(1)
     mae = mae_score_torch(all_labels_cont, all_preds_cont)
+
     return avg_loss, accuracy, f1, mae
 
 def train(net, trainloader, valloader, epochs, device):
