@@ -1,168 +1,94 @@
 from collections import OrderedDict
 from logging import INFO
-import time
-import os
+import time  
+import random 
+from collections import Counter
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from flwr.common.logger import log
-from torch.utils.data import Dataset, DataLoader, random_split
-from torchvision.transforms import Compose, ToTensor, Normalize, Resize, CenterCrop
-from PIL import Image
+from torch.utils.data import DataLoader, Subset, WeightedRandomSampler
+from torchvision.datasets import CIFAR10
+from torchvision.transforms import Compose, Normalize, ToTensor
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-num_classes = 6
+
+CLASS_NAMES = ['airplane', 'automobile', 'bird', 'cat', 'deer',
+               'dog', 'frog', 'horse', 'ship', 'truck']
 
 class Net(nn.Module):
-    def __init__(self, num_classes=6):  
+
+    def __init__(self) -> None:
         super(Net, self).__init__()
-        
-        def conv_block(in_channels, out_channels, kernel_size=3, padding=1):
-            return nn.Sequential(
-                nn.Conv2d(in_channels, out_channels, kernel_size, padding=padding),
-                nn.BatchNorm2d(out_channels),
-                nn.ReLU(inplace=True),
-                nn.Conv2d(out_channels, out_channels, kernel_size, padding=padding),
-                nn.BatchNorm2d(out_channels),
-                nn.ReLU(inplace=True)
-            )
+        self.conv1 = nn.Conv2d(3, 3, 5)  
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(3, 8, 5)  
+        self.fc1 = nn.Linear(8 * 5 * 5, 60)  
+        self.fc2 = nn.Linear(60, 42)  
+        self.fc3 = nn.Linear(42, 10)  
 
-        self.pool = nn.MaxPool2d(2, 2)          
-        self.enc1 = conv_block(3, 16)
-        self.enc2 = conv_block(16, 32)
-        self.enc3 = conv_block(32, 64)
-        self.bottleneck = conv_block(64, 128)
-        self.up3 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
-        self.dec3 = conv_block(128, 64)
-        self.up2 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
-        self.dec2 = conv_block(64, 32)
-        self.up1 = nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2)
-        self.dec1 = conv_block(32, 16)
-
-        self.final = nn.Conv2d(16, num_classes, kernel_size=1)
-
-    def forward(self, x):
-        e1 = self.enc1(x)
-        e2 = self.enc2(self.pool(e1))
-        e3 = self.enc3(self.pool(e2))   
-        b = self.bottleneck(self.pool(e3))       
-        d3 = self.dec3(torch.cat((self.up3(b), e3), dim=1))
-        d2 = self.dec2(torch.cat((self.up2(d3), e2), dim=1))
-        d1 = self.dec1(torch.cat((self.up1(d2), e1), dim=1))
-        
-        return self.final(d1)
-
-class NYUv2SegDataset(Dataset):
-    def __init__(self, data_dir="./data", transform_rgb=None, transform_label=None):
-        super().__init__()
-        self.data_dir = data_dir
-        self.rgb_dir = os.path.join(data_dir, "rgb_images")
-        self.labels_dir = os.path.join(data_dir, "labels")        
-        self.rgb_files = sorted(os.listdir(self.rgb_dir))
-        self.label_files = sorted(os.listdir(self.labels_dir))
-        self.transform_rgb = transform_rgb
-        self.transform_label = transform_label
-
-    def __len__(self):
-        return len(self.rgb_files)
-
-    def __getitem__(self, idx):
-        rgb_path = os.path.join(self.rgb_dir, self.rgb_files[idx])
-        label_path = os.path.join(self.labels_dir, self.label_files[idx])
-        
-        img = Image.open(rgb_path).convert("RGB")
-        label_map = np.load(label_path)
-        label_map_pil = Image.fromarray(label_map.astype(np.uint8), mode='L')
-        
-        if self.transform_rgb:
-            img = self.transform_rgb(img)
-        if self.transform_label:
-            label_map_pil = self.transform_label(label_map_pil)
-        
-        label_tensor = torch.from_numpy(np.array(label_map_pil)).long()
-        return img, label_tensor
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = x.view(-1, 8 * 5 * 5)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        return self.fc3(x)
 
 def load_data():
-
-    #transform_img = Compose([
-       # ToTensor(),
-        #Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-    #])
-
-    #transform_lbl = Compose([
-    #])
-
-    transform_img = Compose([
-        Resize((96, 128), interpolation=Image.NEAREST),
-        CenterCrop((80, 112)),
-        ToTensor(),
-        Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-    ])
-
-    transform_lbl = Compose([
-        Resize((96, 128), interpolation=Image.NEAREST),
-        CenterCrop((80, 112)),
-    ])
-
-    dataset = NYUv2SegDataset(
-        data_dir="./data", 
-        transform_rgb=transform_img,
-        transform_label=transform_lbl
-    )
-    
-    total_len = len(dataset)
-    train_len = int(0.8 * total_len)
-    test_len = total_len - train_len
-    train_set, test_set = random_split(dataset, [train_len, test_len])
-    
-    train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
-    test_loader  = DataLoader(test_set, batch_size=32, shuffle=False)
-    
-    return train_loader, test_loader
+    """Load CIFAR-10 (training and test set)."""
+    trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+    trainset = CIFAR10("./", train=True, download=True, transform=trf)
+    testset = CIFAR10("./", train=False, download=True, transform=trf)
+    return DataLoader(trainset, batch_size=32, shuffle=True), DataLoader(testset)
 
 def train(net, trainloader, valloader, epochs, device):
+
     log(INFO, "Starting training...")
 
+    # Start measuring training time
     start_time = time.time()
-    net.to(device)
-    
+
+    net.to(device)  # sposta il modello sulla GPU se disponibile
     criterion = torch.nn.CrossEntropyLoss().to(device)
-    optimizer = torch.optim.Adam(net.parameters(), lr=0.001)  
-    
+    optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
     net.train()
     for _ in range(epochs):
         for images, labels in trainloader:
-            images, labels = images.to(device), labels.to(device)  
+            images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
-            loss = criterion(net(images), labels.squeeze(1))
+            loss = criterion(net(images), labels)
             loss.backward()
             optimizer.step()
+
+    # End measuring training time
     training_time = time.time() - start_time
     log(INFO, f"Training completed in {training_time:.2f} seconds")
-    comm_start_time = time.time()
-    train_loss, train_acc, train_f1, train_mae = test(net, trainloader)
-    val_loss, val_acc, val_f1, val_mae = test(net, valloader)
+    start_comm_time = time.time()
+
+    train_loss, train_acc, train_f1 = test(net, trainloader)
+    val_loss, val_acc, val_f1 = test(net, valloader)
+
     results = {
         "train_loss": train_loss,
         "train_accuracy": train_acc,
         "train_f1": train_f1,
-        "train_mae": train_mae,
+        "train_mae": 0.0,
         "val_loss": val_loss,
         "val_accuracy": val_acc,
         "val_f1": val_f1,
-        "val_mae": val_mae,
+        "val_mae": 0.0,
     }
 
-    return results, training_time, comm_start_time
+    return results, training_time, start_comm_time
+
 
 def test(net, testloader):
     net.to(DEVICE)
     criterion = torch.nn.CrossEntropyLoss()
-    total_loss = 0.0
-    correct_pixels = 0
-    total_pixels = 0
-
+    correct = 0
+    loss = 0.0
     all_preds = []
     all_labels = []
 
@@ -171,39 +97,34 @@ def test(net, testloader):
             images = images.to(DEVICE)
             labels = labels.to(DEVICE)
             outputs = net(images)
-            loss = criterion(outputs, labels)  # Assicurati che le etichette siano [batch_size, H, W]
-            total_loss += loss.item()
+            loss += criterion(outputs, labels).item()
+            _, predicted = torch.max(outputs.data, 1)
+            correct += (predicted == labels).sum().item()
+            all_preds.append(predicted)
+            all_labels.append(labels)
 
-            preds = torch.argmax(outputs, dim=1)  # Assicuriamoci che i valori siano tra 0 e 4
-            correct_pixels += (preds == labels).sum().item()
-            total_pixels += labels.numel()
+    accuracy = correct / len(testloader.dataset)
 
-            preds_cpu = preds.view(-1).detach().cpu()
-            labels_cpu = labels.view(-1).detach().cpu()
-
-            all_preds.append(preds_cpu)
-            all_labels.append(labels_cpu)
-
-    avg_loss = total_loss / len(testloader)
-    pixel_accuracy = correct_pixels / total_pixels
-
+    # Concatenare tutte le predizioni e le etichette
     all_preds = torch.cat(all_preds)
     all_labels = torch.cat(all_labels)
-    f1_val = f1_score_torch(all_labels, all_preds, num_classes=6, average='macro')
-    mae = 0.0
 
-    return avg_loss, pixel_accuracy, f1_val, mae
+    # Calcolo dell'F1 score
+    f1 = f1_score_torch(all_labels, all_preds, num_classes=10, average='macro')
 
-def f1_score_torch(y_true, y_pred, num_classes=6, average='macro'):  # Cambiato da 40 a 5
-    confusion_matrix = torch.zeros(num_classes, num_classes, device=DEVICE)
+    return loss, accuracy, f1
 
+
+def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
+    # Creazione della matrice di confusione
+    confusion_matrix = torch.zeros(num_classes, num_classes)
     for t, p in zip(y_true, y_pred):
         confusion_matrix[t.long(), p.long()] += 1
 
-    precision = torch.zeros(num_classes, device=DEVICE)
-    recall = torch.zeros(num_classes, device=DEVICE)
-    f1_per_class = torch.zeros(num_classes, device=DEVICE)
-
+    # Calcolo di precision e recall per ogni classe
+    precision = torch.zeros(num_classes)
+    recall = torch.zeros(num_classes)
+    f1_per_class = torch.zeros(num_classes)
     for i in range(num_classes):
         TP = confusion_matrix[i, i]
         FP = confusion_matrix[:, i].sum() - TP
@@ -213,12 +134,26 @@ def f1_score_torch(y_true, y_pred, num_classes=6, average='macro'):  # Cambiato 
         recall[i] = TP / (TP + FN + 1e-8)
         f1_per_class[i] = 2 * (precision[i] * recall[i]) / (precision[i] + recall[i] + 1e-8)
 
-    return f1_per_class.mean().item()
+    if average == 'macro':
+        f1 = f1_per_class.mean().item()
+    elif average == 'micro':
+        TP = torch.diag(confusion_matrix).sum()
+        FP = confusion_matrix.sum() - torch.diag(confusion_matrix).sum()
+        FN = FP
+        precision_micro = TP / (TP + FP + 1e-8)
+        recall_micro = TP / (TP + FN + 1e-8)
+        f1 = (2 * precision_micro * recall_micro / (precision_micro + recall_micro + 1e-8)).item()
+    else:
+        raise ValueError("Average must be 'macro' or 'micro'")
+
+    return f1
+
 
 def get_weights(net):
     return [val.cpu().numpy() for _, val in net.state_dict().items()]
 
+
 def set_weights(net, parameters):
     params_dict = zip(net.state_dict().keys(), parameters)
     state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
-    net.load_state_dict(state_dict, strict=False)
+    net.load_state_dict(state_dict, strict=True)
