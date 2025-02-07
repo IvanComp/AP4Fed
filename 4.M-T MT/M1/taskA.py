@@ -18,14 +18,12 @@ num_classes = 6  # Ricorda: per NYUv2 in realtà questo valore potrebbe essere 4
 class Net(nn.Module):
     def __init__(self, num_classes=6):  
         super(Net, self).__init__()
-        self.enc_conv1 = nn.Conv2d(3, 8, kernel_size=3, padding=1)  # Da 16 a 8 filtri
+        self.enc_conv1 = nn.Conv2d(3, 8, kernel_size=3, padding=1)
         self.enc_conv2 = nn.Conv2d(8, 8, kernel_size=3, padding=1)
         self.pool = nn.MaxPool2d(2, 2)
-
-        self.bottleneck_conv1 = nn.Conv2d(8, 16, kernel_size=3, padding=1)  # Da 32 a 16 filtri
+        self.bottleneck_conv1 = nn.Conv2d(8, 16, kernel_size=3, padding=1)
         self.bottleneck_conv2 = nn.Conv2d(16, 16, kernel_size=3, padding=1)
-
-        self.dec_conv1 = nn.Conv2d(16 + 8, 8, kernel_size=3, padding=1)  # Da 32+16 a 16+8
+        self.dec_conv1 = nn.Conv2d(16 + 8, 8, kernel_size=3, padding=1)
         self.dec_conv2 = nn.Conv2d(8, 8, kernel_size=3, padding=1)
         self.final = nn.Conv2d(8, num_classes, kernel_size=1)
         
@@ -34,18 +32,14 @@ class Net(nn.Module):
         x1 = F.relu(self.enc_conv2(x1))
         skip = x1  # Skip connection
         x2 = self.pool(x1)
-
         x3 = F.relu(self.bottleneck_conv1(x2))
         x3 = F.relu(self.bottleneck_conv2(x3))
-
-        x4 = F.interpolate(x3, size=skip.shape[2:], mode='nearest')  # Bilinear → Nearest
+        x4 = F.interpolate(x3, size=skip.shape[2:], mode='nearest')
         x_cat = torch.cat([x4, skip], dim=1)
-
         x5 = F.relu(self.dec_conv1(x_cat))
         x5 = F.relu(self.dec_conv2(x5))
         out = self.final(x5)
         return out
-        
 
 class NYUv2SegDataset(Dataset):
     def __init__(self, data_dir="./data", transform_rgb=None, transform_label=None):
@@ -77,19 +71,43 @@ class NYUv2SegDataset(Dataset):
         label_tensor = torch.from_numpy(np.array(label_map_pil)).long()
         return img, label_tensor
 
+# Implementazione della Dice Loss
+class DiceLoss(nn.Module):
+    def __init__(self, smooth=1e-6):
+        super(DiceLoss, self).__init__()
+        self.smooth = smooth
+
+    def forward(self, logits, targets):
+        # logits: (B, C, H, W); targets: (B, H, W)
+        num_classes = logits.size(1)
+        targets_onehot = F.one_hot(targets, num_classes).permute(0, 3, 1, 2).float()
+        probs = torch.softmax(logits, dim=1)
+        intersection = torch.sum(probs * targets_onehot, dim=(2,3))
+        union = torch.sum(probs + targets_onehot, dim=(2,3))
+        dice_score = (2. * intersection + self.smooth) / (union + self.smooth)
+        dice_loss = 1 - dice_score
+        return dice_loss.mean()
+
+# Loss combinata: CrossEntropy + Dice Loss
+class CombinedLoss(nn.Module):
+    def __init__(self, dice_weight=0.5, smooth=1e-6):
+        super(CombinedLoss, self).__init__()
+        self.cross_entropy = nn.CrossEntropyLoss()
+        self.dice_loss = DiceLoss(smooth)
+        self.dice_weight = dice_weight
+
+    def forward(self, logits, targets):
+        ce_loss = self.cross_entropy(logits, targets)
+        dice_loss = self.dice_loss(logits, targets)
+        return ce_loss + self.dice_weight * dice_loss
+
 def load_data():
     transform_img = Compose([
-        # Se desideri forzare una dimensione fissa, decommenta Resize/CenterCrop
-        # Resize((96, 128), interpolation=Image.NEAREST),
-        # CenterCrop((80, 112)),
         ToTensor(),
         Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     ])
 
-    transform_lbl = Compose([
-        # Resize((96, 128), interpolation=Image.NEAREST),
-        # CenterCrop((80, 112)),
-    ])
+    transform_lbl = Compose([])
 
     dataset = NYUv2SegDataset(
         data_dir="./data", 
@@ -112,22 +130,23 @@ def train(net, trainloader, valloader, epochs, device):
     start_time = time.time()
     net.to(device)
     
-    criterion = torch.nn.CrossEntropyLoss().to(device)
-    optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+    # Usa la CombinedLoss invece della sola CrossEntropyLoss
+    criterion = CombinedLoss(dice_weight=0.5, smooth=1e-6).to(device)
+    optimizer = torch.optim.AdamW(net.parameters(), lr=0.001)
 
     net.train()
     for _ in range(epochs):
         for images, labels in trainloader:
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
-            loss = criterion(net(images), labels.squeeze(1))
+            # Le immagini sono (B, 3, H, W) e le labels (B, H, W)
+            loss = criterion(net(images), labels)
             loss.backward()
             optimizer.step()
     training_time = time.time() - start_time
     log(INFO, f"Training completed in {training_time:.2f} seconds")
     start_comm_time = time.time()
     
-    # Utilizzo esattamente dello stesso procedimento di Task1 per il test
     train_loss, train_acc, train_f1 = test(net, trainloader)
     val_loss, val_acc, val_f1 = test(net, valloader)
 
@@ -147,7 +166,7 @@ def train(net, trainloader, valloader, epochs, device):
 
 def test(net, testloader):
     net.to(DEVICE)
-    criterion = torch.nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss()
     correct = 0
     loss = 0.0
     all_preds = []
@@ -159,8 +178,6 @@ def test(net, testloader):
             labels = labels.to(DEVICE)
             outputs = net(images)
             loss += criterion(outputs, labels).item()
-            # Per la segmentazione, le uscite hanno forma (B, H, W); 
-            # appiattiamo le predizioni e le etichette come in Task1
             _, predicted = torch.max(outputs.data, 1)
             predicted_flat = predicted.view(-1)
             labels_flat = labels.view(-1)
@@ -173,12 +190,10 @@ def test(net, testloader):
 
     all_preds = torch.cat(all_preds)
     all_labels = torch.cat(all_labels)
-    # Uso della stessa funzione f1_score_torch di Task1
     f1 = f1_score_torch(all_labels, all_preds, num_classes=6, average='macro')
     return loss, accuracy, f1
 
 def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
-    # Creazione della matrice di confusione (identica a Task1)
     confusion_matrix = torch.zeros(num_classes, num_classes)
     for t, p in zip(y_true, y_pred):
         confusion_matrix[t.long(), p.long()] += 1
@@ -190,7 +205,6 @@ def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
         TP = confusion_matrix[i, i]
         FP = confusion_matrix[:, i].sum() - TP
         FN = confusion_matrix[i, :].sum() - TP
-
         precision[i] = TP / (TP + FP + 1e-8)
         recall[i] = TP / (TP + FN + 1e-8)
         f1_per_class[i] = 2 * (precision[i] * recall[i]) / (precision[i] + recall[i] + 1e-8)
