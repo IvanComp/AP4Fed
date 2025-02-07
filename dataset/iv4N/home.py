@@ -1,6 +1,7 @@
 import os
 import random
 import threading
+import numpy as np
 from PIL import Image, ImageDraw
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -43,7 +44,8 @@ def generate_dataset(num_images, img_size, min_shapes, max_shapes, num_classes, 
     output_dirs = {
         'rgb': os.path.join(data_dir, 'rgb_images'),
         'label': os.path.join(data_dir, 'labels'),
-        'depth': os.path.join(data_dir, 'depth_maps')
+        'depth': os.path.join(data_dir, 'depth_maps'),
+        'labels_npy': os.path.join(data_dir, 'labels_npy')
     }
     for dir_path in output_dirs.values():
         os.makedirs(dir_path, exist_ok=True)
@@ -75,6 +77,12 @@ def generate_dataset(num_images, img_size, min_shapes, max_shapes, num_classes, 
         rgb_img.save(rgb_filename)
         label_img.save(label_filename)
         depth_img.save(depth_filename)
+
+        # Salva l'array NumPy delle etichette nella cartella labels_npy
+        npy_filename = os.path.join(output_dirs['labels_npy'], f"label_{i}.npy")
+        # Convertiamo la label in array NumPy
+        label_array = np.array(label_img)
+        np.save(npy_filename, label_array)
 
         progress_callback(i + 1, num_images)
 
@@ -124,37 +132,31 @@ root.resizable(False, False)  # La finestra non è ridimensionabile
 frame = tk.Frame(root, padx=10, pady=10, bg="white")
 frame.pack(fill=tk.BOTH, expand=True)
 
-# Number of images
 tk.Label(frame, text="Number of images", bg="white", fg="black").grid(row=0, column=0, sticky="w", pady=2)
 num_images_scale = tk.Scale(frame, from_=100, to=100000, orient=tk.HORIZONTAL, bg="white", fg="black")
 num_images_scale.set(50000)
 num_images_scale.grid(row=0, column=1, padx=5, pady=2)
 
-# Image size
 tk.Label(frame, text="Image size (NxN)", bg="white", fg="black").grid(row=1, column=0, sticky="w", pady=2)
 img_size_scale = tk.Scale(frame, from_=16, to=256, orient=tk.HORIZONTAL, bg="white", fg="black")
 img_size_scale.set(32)
 img_size_scale.grid(row=1, column=1, padx=5, pady=2)
 
-# Minimum number of shapes
 tk.Label(frame, text="Minimum number of shapes", bg="white", fg="black").grid(row=2, column=0, sticky="w", pady=2)
 min_shapes_scale = tk.Scale(frame, from_=1, to=10, orient=tk.HORIZONTAL, bg="white", fg="black")
 min_shapes_scale.set(1)
 min_shapes_scale.grid(row=2, column=1, padx=5, pady=2)
 
-# Maximum number of shapes
 tk.Label(frame, text="Maximum number of shapes", bg="white", fg="black").grid(row=3, column=0, sticky="w", pady=2)
 max_shapes_scale = tk.Scale(frame, from_=1, to=10, orient=tk.HORIZONTAL, bg="white", fg="black")
 max_shapes_scale.set(4)
 max_shapes_scale.grid(row=3, column=1, padx=5, pady=2)
 
-# Number of classes
 tk.Label(frame, text="Number of classes", bg="white", fg="black").grid(row=4, column=0, sticky="w", pady=2)
 num_classes_scale = tk.Scale(frame, from_=2, to=10, orient=tk.HORIZONTAL, bg="white", fg="black")
 num_classes_scale.set(5)
 num_classes_scale.grid(row=4, column=1, padx=5, pady=2)
 
-# Generate button
 generate_button = tk.Button(frame, text="Generate Dataset", command=start_generation, bg="white", fg="black")
 generate_button.grid(row=5, column=0, columnspan=2, pady=10)
 

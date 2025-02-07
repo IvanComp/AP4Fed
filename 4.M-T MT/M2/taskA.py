@@ -105,15 +105,11 @@ class DepthEstimationDataset(Dataset):
         return rgb_img, depth_img
 
 def load_data():
-    transform_rgb = Compose([
-        Resize((240, 320), interpolation=Image.BILINEAR),  
-        CenterCrop((224, 304)),                              
+    transform_rgb = Compose([                     
         ToTensor(),
         Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
     transform_depth = Compose([
-        Resize((240, 320), interpolation=Image.NEAREST),
-        CenterCrop((224, 304)),
         ToTensor()
     ])
     dataset = DepthEstimationDataset(data_dir="./data", transform_rgb=transform_rgb, transform_depth=transform_depth)
@@ -183,19 +179,44 @@ def train(net, trainloader, valloader, epochs, device):
     criterion = torch.nn.MSELoss().to(device)
     optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
     net.train()
-    for _ in range(epochs):
-        for images, depths in trainloader:
+
+    for epoch in range(epochs):
+        print(f"Epoch {epoch + 1}/{epochs}")  # Debug epoch
+
+        epoch_loss = 0.0
+        batch_count = 0
+
+        for i, (images, depths) in enumerate(trainloader):
+            print(f"Batch {i + 1}/{len(trainloader)}")  # Debug batch
+            
             images, depths = images.to(device), depths.to(device)
             optimizer.zero_grad()
             outputs = net(images)
+
             loss = criterion(outputs, depths)
             loss.backward()
+
+            # Debug: Controlliamo se il gradiente è NaN
+            for name, param in net.named_parameters():
+                if param.grad is not None:
+                    if torch.isnan(param.grad).any():
+                        print(f"NaN detected in gradients of {name}")
+
             optimizer.step()
+            epoch_loss += loss.item()
+            batch_count += 1
+
+        avg_epoch_loss = epoch_loss / batch_count
+        print(f"Epoch {epoch + 1} finished, Loss: {avg_epoch_loss:.6f}")
+
     training_time = time.time() - start_time
     log(INFO, f"Training completed in {training_time:.2f} seconds")
+
+    # **Eseguiamo il test per calcolare le metriche**
     comm_start_time = time.time()
     train_loss, train_acc, train_f1, train_mae = test(net, trainloader)
     val_loss, val_acc, val_f1, val_mae = test(net, valloader)
+
     results = {
         "train_loss": train_loss,
         "train_accuracy": train_acc,
@@ -206,6 +227,7 @@ def train(net, trainloader, valloader, epochs, device):
         "val_f1": val_f1,
         "val_mae": val_mae,
     }
+
     return results, training_time, comm_start_time
 
 def f1_score_torch(y_true, y_pred, num_classes, average='macro'):

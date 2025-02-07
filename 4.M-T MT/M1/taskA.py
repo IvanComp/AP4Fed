@@ -12,9 +12,10 @@ from torchvision.transforms import Compose, ToTensor, Normalize, Resize, CenterC
 from PIL import Image
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+num_classes = 6
 
 class Net(nn.Module):
-    def __init__(self, num_classes=40):
+    def __init__(self, num_classes=6):  
         super(Net, self).__init__()
         
         def conv_block(in_channels, out_channels, kernel_size=3, padding=1):
@@ -57,13 +58,9 @@ class NYUv2SegDataset(Dataset):
         super().__init__()
         self.data_dir = data_dir
         self.rgb_dir = os.path.join(data_dir, "rgb_images")
-        self.labels_dir = os.path.join(data_dir, "labels")
-        
+        self.labels_dir = os.path.join(data_dir, "labels")        
         self.rgb_files = sorted(os.listdir(self.rgb_dir))
         self.label_files = sorted(os.listdir(self.labels_dir))
-        
-        #assert len(self.rgb_files) == len(self.label_files), "Mismatch tra numero di immagini RGB e file label"
-        
         self.transform_rgb = transform_rgb
         self.transform_label = transform_label
 
@@ -87,6 +84,15 @@ class NYUv2SegDataset(Dataset):
         return img, label_tensor
 
 def load_data():
+
+    #transform_img = Compose([
+       # ToTensor(),
+        #Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+    #])
+
+    #transform_lbl = Compose([
+    #])
+
     transform_img = Compose([
         Resize((96, 128), interpolation=Image.NEAREST),
         CenterCrop((80, 112)),
@@ -96,7 +102,7 @@ def load_data():
 
     transform_lbl = Compose([
         Resize((96, 128), interpolation=Image.NEAREST),
-        CenterCrop((80, 112))
+        CenterCrop((80, 112)),
     ])
 
     dataset = NYUv2SegDataset(
@@ -110,8 +116,8 @@ def load_data():
     test_len = total_len - train_len
     train_set, test_set = random_split(dataset, [train_len, test_len])
     
-    train_loader = DataLoader(train_set, batch_size=2, shuffle=True)
-    test_loader  = DataLoader(test_set, batch_size=2, shuffle=False)
+    train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
+    test_loader  = DataLoader(test_set, batch_size=32, shuffle=False)
     
     return train_loader, test_loader
 
@@ -165,10 +171,10 @@ def test(net, testloader):
             images = images.to(DEVICE)
             labels = labels.to(DEVICE)
             outputs = net(images)
-            loss = criterion(outputs, labels)
+            loss = criterion(outputs, labels)  # Assicurati che le etichette siano [batch_size, H, W]
             total_loss += loss.item()
 
-            preds = torch.argmax(outputs, dim=1)
+            preds = torch.argmax(outputs, dim=1)  # Assicuriamoci che i valori siano tra 0 e 4
             correct_pixels += (preds == labels).sum().item()
             total_pixels += labels.numel()
 
@@ -183,12 +189,12 @@ def test(net, testloader):
 
     all_preds = torch.cat(all_preds)
     all_labels = torch.cat(all_labels)
-    f1_val = f1_score_torch(all_labels, all_preds, num_classes=40, average='macro')
+    f1_val = f1_score_torch(all_labels, all_preds, num_classes=6, average='macro')
     mae = 0.0
 
     return avg_loss, pixel_accuracy, f1_val, mae
 
-def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
+def f1_score_torch(y_true, y_pred, num_classes=6, average='macro'):  # Cambiato da 40 a 5
     confusion_matrix = torch.zeros(num_classes, num_classes, device=DEVICE)
 
     for t, p in zip(y_true, y_pred):
