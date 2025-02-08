@@ -13,33 +13,35 @@ from torchvision.transforms import Compose, ToTensor, Normalize, Resize, CenterC
 from PIL import Image
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-num_classes = 6  
+num_classes = 6
 
 class Net(nn.Module):
-    def __init__(self, num_classes=6):  
-        super(Net, self).__init__()
-        self.enc_conv1 = nn.Conv2d(3, 8, kernel_size=3, padding=1)
-        self.enc_conv2 = nn.Conv2d(8, 8, kernel_size=3, padding=1)
+    def __init__(self, in_channels=3, num_classes=6):
+        super(Net, self).__init__()   
+        self.enc1 = nn.Conv2d(in_channels, 16, kernel_size=3, padding=1)
+        self.enc2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
+        self.bottleneck = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.dec2 = nn.Conv2d(64 + 32, 32, kernel_size=3, padding=1)
+        self.dec1 = nn.Conv2d(32 + 16, 16, kernel_size=3, padding=1)       
+        self.final = nn.Conv2d(16, num_classes, kernel_size=1)
         self.pool = nn.MaxPool2d(2, 2)
-        self.bottleneck_conv1 = nn.Conv2d(8, 16, kernel_size=3, padding=1)
-        self.bottleneck_conv2 = nn.Conv2d(16, 16, kernel_size=3, padding=1)
-        self.dec_conv1 = nn.Conv2d(16 + 8, 8, kernel_size=3, padding=1)
-        self.dec_conv2 = nn.Conv2d(8, 8, kernel_size=3, padding=1)
-        self.final = nn.Conv2d(8, num_classes, kernel_size=1)
         
     def forward(self, x):
-        x1 = F.relu(self.enc_conv1(x))
-        x1 = F.relu(self.enc_conv2(x1))
-        skip = x1  
-        x2 = self.pool(x1)
-        x3 = F.relu(self.bottleneck_conv1(x2))
-        x3 = F.relu(self.bottleneck_conv2(x3))
-        x4 = F.interpolate(x3, size=skip.shape[2:], mode='nearest')
-        x_cat = torch.cat([x4, skip], dim=1)
-        x5 = F.relu(self.dec_conv1(x_cat))
-        x5 = F.relu(self.dec_conv2(x5))
-        out = self.final(x5)
-        return out
+        x1 = F.relu(self.enc1(x))
+        skip1 = x1
+        x1 = self.pool(x1)
+        x2 = F.relu(self.enc2(x1))
+        skip2 = x2
+        x2 = self.pool(x2)
+        x = F.relu(self.bottleneck(x2))
+        x = F.interpolate(x, size=skip2.shape[2:], mode='nearest')
+        x = torch.cat([x, skip2], dim=1)
+        x = F.relu(self.dec2(x))  
+        x = F.interpolate(x, size=skip1.shape[2:], mode='nearest')
+        x = torch.cat([x, skip1], dim=1)
+        x = F.relu(self.dec1(x))
+        
+        return self.final(x)
 
 class NYUv2SegDataset(Dataset):
     def __init__(self, data_dir="./data", transform_rgb=None, transform_label=None):

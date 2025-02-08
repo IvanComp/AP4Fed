@@ -16,31 +16,52 @@ DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 num_classes = 6  
 
 class Net(nn.Module):
-    def __init__(self, in_channels=3, num_classes=6):
-        super(Net, self).__init__()   
-        self.enc1 = nn.Conv2d(in_channels, 16, kernel_size=3, padding=1)
-        self.enc2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
-        self.bottleneck = nn.Conv2d(32, 64, kernel_size=3, padding=1)
-        self.dec2 = nn.Conv2d(64 + 32, 32, kernel_size=3, padding=1)
-        self.dec1 = nn.Conv2d(32 + 16, 16, kernel_size=3, padding=1)       
-        self.final = nn.Conv2d(16, num_classes, kernel_size=1)
+    def __init__(self,in_channels=3, num_classes=6):  
+        super(Net, self).__init__()
+        self.enc1_1 = nn.Conv2d(in_channels, 32, kernel_size=3, padding=1)
+        self.enc1_2 = nn.Conv2d(32, 32, kernel_size=3, padding=1)
+        self.enc2_1 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.enc2_2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)  
+        self.enc3_1 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.enc3_2 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
+        self.bottleneck1 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
+        self.bottleneck2 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
+        self.dec3_1 = nn.Conv2d(256 + 128, 128, kernel_size=3, padding=1)
+        self.dec3_2 = nn.Conv2d(128, 128, kernel_size=3, padding=1)        
+        self.dec2_1 = nn.Conv2d(128 + 64, 64, kernel_size=3, padding=1)
+        self.dec2_2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)       
+        self.dec1_1 = nn.Conv2d(64 + 32, 32, kernel_size=3, padding=1)
+        self.dec1_2 = nn.Conv2d(32, 32, kernel_size=3, padding=1)        
+        self.final = nn.Conv2d(32, num_classes, kernel_size=1)        
         self.pool = nn.MaxPool2d(2, 2)
         
     def forward(self, x):
-        x1 = F.relu(self.enc1(x))
+        x1 = F.relu(self.enc1_1(x))
+        x1 = F.relu(self.enc1_2(x1))
         skip1 = x1
         x1 = self.pool(x1)
-        x2 = F.relu(self.enc2(x1))
+        x2 = F.relu(self.enc2_1(x1))
+        x2 = F.relu(self.enc2_2(x2))
         skip2 = x2
-        x2 = self.pool(x2)
-        x = F.relu(self.bottleneck(x2))
+        x2 = self.pool(x2)  
+        x3 = F.relu(self.enc3_1(x2))
+        x3 = F.relu(self.enc3_2(x3))
+        skip3 = x3
+        x3 = self.pool(x3)
+        x = F.relu(self.bottleneck1(x3))
+        x = F.relu(self.bottleneck2(x))
+        x = F.interpolate(x, size=skip3.shape[2:], mode='nearest')
+        x = torch.cat([x, skip3], dim=1)
+        x = F.relu(self.dec3_1(x))
+        x = F.relu(self.dec3_2(x))        
         x = F.interpolate(x, size=skip2.shape[2:], mode='nearest')
         x = torch.cat([x, skip2], dim=1)
-        x = F.relu(self.dec2(x))  
+        x = F.relu(self.dec2_1(x))
+        x = F.relu(self.dec2_2(x))
         x = F.interpolate(x, size=skip1.shape[2:], mode='nearest')
         x = torch.cat([x, skip1], dim=1)
-        x = F.relu(self.dec1(x))
-        
+        x = F.relu(self.dec1_1(x))
+        x = F.relu(self.dec1_2(x))       
         return self.final(x)
 
 class NYUv2SegDataset(Dataset):

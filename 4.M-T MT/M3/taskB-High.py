@@ -59,46 +59,56 @@ class TransitionUp(nn.Module):
         return self.convt(x)
 
 class Net(nn.Module):
-    def __init__(self, in_channels=3, growth_rate=32):
+    def __init__(self, in_channels=3, growth_rate=64):
         super(Net, self).__init__()
         
         # Encoder path
-        self.dense1 = DenseBlock(in_channels, growth_rate, 1)          # out: 3 + 32 = 35
-        self.td1 = TransitionDown(35, growth_rate)                     # out: 32
+        self.dense1 = DenseBlock(in_channels, growth_rate, 2)          # out: 3 + 2*64 = 131
+        self.td1 = TransitionDown(131, growth_rate*2)                  # out: 128
         
-        self.dense2 = DenseBlock(growth_rate, growth_rate, 1)         # out: 32 + 32 = 64
-        self.td2 = TransitionDown(64, growth_rate*2)                  # out: 64
+        self.dense2 = DenseBlock(growth_rate*2, growth_rate*2, 2)      # out: 128 + 2*128 = 384
+        self.td2 = TransitionDown(384, growth_rate*4)                  # out: 256
+        
+        self.dense3 = DenseBlock(growth_rate*4, growth_rate*4, 2)      # out: 256 + 2*256 = 768
+        self.td3 = TransitionDown(768, growth_rate*8)                  # out: 512
         
         # Bottleneck
-        self.bottleneck = DenseBlock(growth_rate*2, growth_rate*2, 1) # out: 64 + 64 = 128
+        self.bottleneck = DenseBlock(growth_rate*8, growth_rate*8, 2)  # out: 512 + 2*512 = 1536
         
         # Decoder path
-        self.tu2 = TransitionUp(128, growth_rate*2)                   # out: 64
-        self.dense_u2 = DenseBlock(64 + 64, growth_rate, 1)           # out: 128 + 32 = 160
+        self.tu3 = TransitionUp(1536, growth_rate*8)                   # out: 512
+        self.dense_u3 = DenseBlock(512 + 768, growth_rate*4, 2)        # out: 1280 + 2*256 = 1792
         
-        self.tu1 = TransitionUp(160, growth_rate)                     # out: 32
-        self.dense_u1 = DenseBlock(32 + 35, growth_rate, 1)           # out: 67 + 32 = 99
+        self.tu2 = TransitionUp(1792, growth_rate*4)                   # out: 256
+        self.dense_u2 = DenseBlock(256 + 384, growth_rate*2, 2)        # out: 640 + 2*128 = 896
+        
+        self.tu1 = TransitionUp(896, growth_rate*2)                    # out: 128
+        self.dense_u1 = DenseBlock(128 + 131, growth_rate, 2)          # out: 259 + 2*64 = 387
         
         # Final convolution
-        self.final = nn.Conv2d(99, 1, kernel_size=1)
+        self.final = nn.Conv2d(387, 1, kernel_size=1)
         
     def forward(self, x):
         # Encoder
-        x1 = self.dense1(x)          # 3 -> 35
-        x2 = self.td1(x1)            # 35 -> 32
-        x2 = self.dense2(x2)         # 32 -> 64
-        x3 = self.td2(x2)            # 64 -> 64
+        x1 = self.dense1(x)          # 3 -> 131
+        x2 = self.td1(x1)            # 131 -> 128
+        x2 = self.dense2(x2)         # 128 -> 384
+        x3 = self.td2(x2)            # 384 -> 256
+        x3 = self.dense3(x3)         # 256 -> 768
+        x4 = self.td3(x3)            # 768 -> 512
         
         # Bottleneck
-        x3 = self.bottleneck(x3)     # 64 -> 128
+        x4 = self.bottleneck(x4)     # 512 -> 1536
         
         # Decoder
-        x = self.tu2(x3)             # 128 -> 64
-        x = self.dense_u2(torch.cat([x, x2], 1))  # (64 + 64) -> 160
-        x = self.tu1(x)              # 160 -> 32
-        x = self.dense_u1(torch.cat([x, x1], 1))  # (32 + 35) -> 99
+        x = self.tu3(x4)             # 1536 -> 512
+        x = self.dense_u3(torch.cat([x, x3], 1))  # (512 + 768) -> 1792
+        x = self.tu2(x)              # 1792 -> 256
+        x = self.dense_u2(torch.cat([x, x2], 1))  # (256 + 384) -> 896
+        x = self.tu1(x)              # 896 -> 128
+        x = self.dense_u1(torch.cat([x, x1], 1))  # (128 + 131) -> 387
         
-        return self.final(x)         # 99 -> 1
+        return self.final(x)         # 387 -> 1
 
 class DepthEstimationDataset(Dataset):
     def __init__(self, data_dir="./data", transform_rgb=None, transform_depth=None):

@@ -18,64 +18,87 @@ DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 torch.backends.cudnn.benchmark = True
 torch.set_num_threads(4)
 
-class SafeGroupNorm(nn.Module):
-    def __init__(self, num_groups, num_channels, eps=1e-5, affine=True):
-        super(SafeGroupNorm, self).__init__()
-        self.gn = nn.GroupNorm(num_groups, num_channels, eps=eps, affine=affine)
+class DenseLayer(nn.Module):
+    def __init__(self, in_channels, growth_rate):
+        super(DenseLayer, self).__init__()
+        self.bn = nn.BatchNorm2d(in_channels)
+        self.conv = nn.Conv2d(in_channels, growth_rate, kernel_size=3, padding=1)
+        
     def forward(self, x):
-        if x.size(2) == 1 and x.size(3) == 1:
-            return x
-        return self.gn(x)
+        out = self.conv(F.relu(self.bn(x)))
+        return torch.cat([x, out], 1)
 
-def adjust_num_groups(num_channels, desired_groups):
-    for g in range(desired_groups, 0, -1):
-        if num_channels % g == 0:
-            return g
-    return 1
+class DenseBlock(nn.Module):
+    def __init__(self, in_channels, growth_rate, num_layers):
+        super(DenseBlock, self).__init__()
+        self.layers = nn.ModuleList()
+        for i in range(num_layers):
+            self.layers.append(DenseLayer(in_channels + i*growth_rate, growth_rate))
+            
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        return x
 
-def replace_bn_with_gn(module, num_groups=32):
-    for name, child in module.named_children():
-        if isinstance(child, nn.BatchNorm2d):
-            num_channels = child.num_features
-            groups = adjust_num_groups(num_channels, min(num_groups, num_channels))
-            setattr(module, name, SafeGroupNorm(num_groups=groups, num_channels=num_channels))
-        else:
-            replace_bn_with_gn(child, num_groups)
+class TransitionDown(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(TransitionDown, self).__init__()
+        self.bn = nn.BatchNorm2d(in_channels)
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+        self.pool = nn.MaxPool2d(2)
+        
+    def forward(self, x):
+        return self.pool(self.conv(F.relu(self.bn(x))))
 
-###############################################################################
-# Modello m2: DenseNet-light senza struttura U
-###############################################################################
+class TransitionUp(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(TransitionUp, self).__init__()
+        self.convt = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=2, stride=2)
+        
+    def forward(self, x):
+        return self.convt(x)
 
 class Net(nn.Module):
-    def __init__(self, num_classes=1):
-        """
-        Questo modello utilizza un backbone DenseNet leggero senza struttura a U.
-        Parametri:
-          - growth_rate=8,
-          - block_config=(2,2,2,2),
-          - num_init_features=16.
-        Poiché il DenseNet applica transizioni con compressione (theta=0.5 di default),
-        l'output della parte features ha 32 canali.
-        Dopo l'estrazione delle feature si applica una convoluzione 1×1 per ottenere l'output,
-        che viene poi upsampled alla dimensione originale.
-        """
+    def __init__(self, in_channels=3, growth_rate=32):
         super(Net, self).__init__()
-        self.backbone = models.DenseNet(growth_rate=8,
-                                        block_config=(2,2,2,2),
-                                        num_init_features=16)
-        replace_bn_with_gn(self.backbone.features)
-        # L'output finale della DenseNet, con compressione, è di 32 canali.
-        self.final_conv = nn.Conv2d(32, num_classes, kernel_size=1)
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        features = self.backbone.features(x)
-        out = F.relu(features)
-        out = self.final_conv(out)
-        out = F.interpolate(out, size=x.shape[2:], mode='bilinear', align_corners=False)
-        return out
-
-###############################################################################
-# Dataset e Funzioni di Training/Evaluation (rimangono invariati)
-###############################################################################
+        
+        # Encoder path
+        self.dense1 = DenseBlock(in_channels, growth_rate, 1)          # out: 3 + 32 = 35
+        self.td1 = TransitionDown(35, growth_rate)                     # out: 32
+        
+        self.dense2 = DenseBlock(growth_rate, growth_rate, 1)         # out: 32 + 32 = 64
+        self.td2 = TransitionDown(64, growth_rate*2)                  # out: 64
+        
+        # Bottleneck
+        self.bottleneck = DenseBlock(growth_rate*2, growth_rate*2, 1) # out: 64 + 64 = 128
+        
+        # Decoder path
+        self.tu2 = TransitionUp(128, growth_rate*2)                   # out: 64
+        self.dense_u2 = DenseBlock(64 + 64, growth_rate, 1)           # out: 128 + 32 = 160
+        
+        self.tu1 = TransitionUp(160, growth_rate)                     # out: 32
+        self.dense_u1 = DenseBlock(32 + 35, growth_rate, 1)           # out: 67 + 32 = 99
+        
+        # Final convolution
+        self.final = nn.Conv2d(99, 1, kernel_size=1)
+        
+    def forward(self, x):
+        # Encoder
+        x1 = self.dense1(x)          # 3 -> 35
+        x2 = self.td1(x1)            # 35 -> 32
+        x2 = self.dense2(x2)         # 32 -> 64
+        x3 = self.td2(x2)            # 64 -> 64
+        
+        # Bottleneck
+        x3 = self.bottleneck(x3)     # 64 -> 128
+        
+        # Decoder
+        x = self.tu2(x3)             # 128 -> 64
+        x = self.dense_u2(torch.cat([x, x2], 1))  # (64 + 64) -> 160
+        x = self.tu1(x)              # 160 -> 32
+        x = self.dense_u1(torch.cat([x, x1], 1))  # (32 + 35) -> 99
+        
+        return self.final(x)         # 99 -> 1
 
 class DepthEstimationDataset(Dataset):
     def __init__(self, data_dir="./data", transform_rgb=None, transform_depth=None):
