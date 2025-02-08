@@ -1,211 +1,203 @@
 from collections import OrderedDict
 from logging import INFO
-import time  
+import time
 import os
-import random 
+import gc
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from flwr.common.logger import log
-from torch.utils.data import DataLoader, Subset, WeightedRandomSampler, Dataset
-from torchvision.datasets import CIFAR10
-from torchvision.transforms import Compose, Normalize, ToTensor, Resize, CenterCrop
+from torch.utils.data import Dataset, DataLoader, random_split
+from torchvision.transforms import Compose, ToTensor, Normalize, Resize, CenterCrop
 from PIL import Image
-from torchvision import models
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-class UpSample(nn.Sequential):
-    def __init__(self, skip_input, output_features):
-        super(UpSample, self).__init__()
-        self.convA = nn.Conv2d(skip_input, output_features, kernel_size=3, stride=1, padding=1)
-        self.leakyreluA = nn.LeakyReLU(0.2)
-        self.convB = nn.Conv2d(output_features, output_features, kernel_size=3, stride=1, padding=1)
-        self.leakyreluB = nn.LeakyReLU(0.2)
-
-    def forward(self, x, concat_with):
-        up_x = F.interpolate(x, size=[concat_with.size(2), concat_with.size(3)], mode='bilinear', align_corners=True)
-        x_cat = torch.cat([up_x, concat_with], dim=1)
-        x_conv = self.convA(x_cat)
-        x_act = self.leakyreluA(x_conv)
-        x_conv2 = self.convB(x_act)
-        return self.leakyreluB(x_conv2)
-
-class Decoder(nn.Module):
-    def __init__(self, num_features=1024, decoder_width=1.0):
-        super(Decoder, self).__init__()
-        features = int(num_features * decoder_width)
-        self.conv2 = nn.Conv2d(num_features, features, kernel_size=1, stride=1, padding=0)
-        self.up1 = UpSample(skip_input=features + 1024, output_features=features // 2)
-        self.up2 = UpSample(skip_input=features // 2 + 512, output_features=features // 4)
-        self.up3 = UpSample(skip_input=features // 4 + 256, output_features=features // 8)
-        self.up4 = UpSample(skip_input=features // 8 + 64, output_features=features // 16)
-        self.conv3 = nn.Conv2d(features // 16, 1, kernel_size=3, stride=1, padding=1)
-
-    def forward(self, features):
-        x_block0 = features[4]
-        x_block1 = features[5]
-        x_block2 = features[7]
-        x_block3 = features[9]
-        x_block4 = features[12]
-        x_d0 = self.conv2(F.relu(x_block4))
-        x_d1 = self.up1(x_d0, x_block3)
-        x_d2 = self.up2(x_d1, x_block2)
-        x_d3 = self.up3(x_d2, x_block1)
-        x_d4 = self.up4(x_d3, x_block0)
-        return self.conv3(x_d4)
-
-class Encoder(nn.Module):
-    def __init__(self):
-        super(Encoder, self).__init__()
-        self.original_model = models.densenet121()
-
-    def forward(self, x):
-        features = [x]
-        for k, v in self.original_model.features._modules.items():
-            features.append(v(features[-1]))
-        return features
+num_classes = 6  
 
 class Net(nn.Module):
-    def __init__(self) -> None:
+    def __init__(self, num_classes=6):  
         super(Net, self).__init__()
-        self.encoder = Encoder()
-        self.decoder = Decoder()
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        features = self.encoder(x)
-        out = self.decoder(features)
-        out = F.interpolate(out, size=x.shape[2:], mode='bilinear', align_corners=False)
+        self.enc_conv1 = nn.Conv2d(3, 8, kernel_size=3, padding=1)
+        self.enc_conv2 = nn.Conv2d(8, 8, kernel_size=3, padding=1)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.bottleneck_conv1 = nn.Conv2d(8, 16, kernel_size=3, padding=1)
+        self.bottleneck_conv2 = nn.Conv2d(16, 16, kernel_size=3, padding=1)
+        self.dec_conv1 = nn.Conv2d(16 + 8, 8, kernel_size=3, padding=1)
+        self.dec_conv2 = nn.Conv2d(8, 8, kernel_size=3, padding=1)
+        self.final = nn.Conv2d(8, num_classes, kernel_size=1)
+        
+    def forward(self, x):
+        x1 = F.relu(self.enc_conv1(x))
+        x1 = F.relu(self.enc_conv2(x1))
+        skip = x1  
+        x2 = self.pool(x1)
+        x3 = F.relu(self.bottleneck_conv1(x2))
+        x3 = F.relu(self.bottleneck_conv2(x3))
+        x4 = F.interpolate(x3, size=skip.shape[2:], mode='nearest')
+        x_cat = torch.cat([x4, skip], dim=1)
+        x5 = F.relu(self.dec_conv1(x_cat))
+        x5 = F.relu(self.dec_conv2(x5))
+        out = self.final(x5)
         return out
 
-class DepthEstimationDataset(Dataset):
-    def __init__(self, data_dir="./data", transform_rgb=None, transform_depth=None):
+class NYUv2SegDataset(Dataset):
+    def __init__(self, data_dir="./data", transform_rgb=None, transform_label=None):
         super().__init__()
-        self.rgb_dir = f"{data_dir}/rgb_images"
-        self.depth_dir = f"{data_dir}/depth_maps"
-        self.rgb_files = sorted([f for f in os.listdir(self.rgb_dir) if not f.startswith('.')])
-        self.depth_files = sorted([f for f in os.listdir(self.depth_dir) if not f.startswith('.')])
-        assert len(self.rgb_files) == len(self.depth_files), "Number of RGB and depth images must be the same"
+        self.data_dir = data_dir
+        self.rgb_dir = os.path.join(data_dir, "rgb_images")
+        self.labels_dir = os.path.join(data_dir, "labels")        
+        self.rgb_files = sorted(os.listdir(self.rgb_dir))
+        self.label_files = sorted(os.listdir(self.labels_dir))
         self.transform_rgb = transform_rgb
-        self.transform_depth = transform_depth
+        self.transform_label = transform_label
 
     def __len__(self):
         return len(self.rgb_files)
 
     def __getitem__(self, idx):
-        rgb_path = f"{self.rgb_dir}/{self.rgb_files[idx]}"
-        depth_path = f"{self.depth_dir}/{self.depth_files[idx]}"
-        rgb_img = Image.open(rgb_path).convert("RGB")
-        depth_img = Image.open(depth_path).convert("L")
+        rgb_path = os.path.join(self.rgb_dir, self.rgb_files[idx])
+        label_path = os.path.join(self.labels_dir, self.label_files[idx])
+        
+        img = Image.open(rgb_path).convert("RGB")
+        label_map = np.load(label_path)
+        label_map_pil = Image.fromarray(label_map.astype(np.uint8), mode='L')
+        
         if self.transform_rgb:
-            rgb_img = self.transform_rgb(rgb_img)
-        if self.transform_depth:
-            depth_img = self.transform_depth(depth_img)
-        return rgb_img, depth_img
+            img = self.transform_rgb(img)
+        if self.transform_label:
+            label_map_pil = self.transform_label(label_map_pil)
+        
+        label_tensor = torch.from_numpy(np.array(label_map_pil)).long()
+        return img, label_tensor
+
+# Implementazione della Dice Loss
+class DiceLoss(nn.Module):
+    def __init__(self, smooth=1e-6):
+        super(DiceLoss, self).__init__()
+        self.smooth = smooth
+
+    def forward(self, logits, targets):
+        # logits: (B, C, H, W); targets: (B, H, W)
+        num_classes = logits.size(1)
+        targets_onehot = F.one_hot(targets, num_classes).permute(0, 3, 1, 2).float()
+        probs = torch.softmax(logits, dim=1)
+        intersection = torch.sum(probs * targets_onehot, dim=(2,3))
+        union = torch.sum(probs + targets_onehot, dim=(2,3))
+        dice_score = (2. * intersection + self.smooth) / (union + self.smooth)
+        dice_loss = 1 - dice_score
+        return dice_loss.mean()
+
+# Loss combinata: CrossEntropy + Dice Loss
+class CombinedLoss(nn.Module):
+    def __init__(self, dice_weight=0.5, smooth=1e-6):
+        super(CombinedLoss, self).__init__()
+        self.cross_entropy = nn.CrossEntropyLoss()
+        self.dice_loss = DiceLoss(smooth)
+        self.dice_weight = dice_weight
+
+    def forward(self, logits, targets):
+        ce_loss = self.cross_entropy(logits, targets)
+        dice_loss = self.dice_loss(logits, targets)
+        return ce_loss + self.dice_weight * dice_loss
 
 def load_data():
-    transform_rgb = Compose([
-        Resize((240, 320), interpolation=Image.BILINEAR),  
-        CenterCrop((228, 304)),                              
+    transform_img = Compose([
         ToTensor(),
-        Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
     ])
-    transform_depth = Compose([
-        Resize((240, 320), interpolation=Image.NEAREST),
-        CenterCrop((228, 304)),
-        ToTensor()
-    ])
-    dataset = DepthEstimationDataset(data_dir="./data", transform_rgb=transform_rgb, transform_depth=transform_depth)
+
+    transform_lbl = Compose([])
+
+    dataset = NYUv2SegDataset(
+        data_dir="./data", 
+        transform_rgb=transform_img,
+        transform_label=transform_lbl
+    )
+    
     total_len = len(dataset)
     train_len = int(0.8 * total_len)
     test_len = total_len - train_len
-    indices = list(range(total_len))
-    random.shuffle(indices)
-    train_indices = indices[:train_len]
-    test_indices = indices[train_len:]
-    trainset = Subset(dataset, train_indices)
-    testset  = Subset(dataset, test_indices)
-    trainloader = DataLoader(trainset, batch_size=2, shuffle=True)
-    testloader  = DataLoader(testset, batch_size=2, shuffle=False)
-    return trainloader, testloader
-
-def mae_score_torch(y_true, y_pred):
-    return torch.mean(torch.abs(y_true - y_pred)).item()
-
-def test(net, testloader):
-    net.to(DEVICE)
-    criterion = torch.nn.MSELoss()
-    total_loss = 0.0
-    total_pixels = 0
-    correct_pixels = 0
-    all_preds_quant = []
-    all_labels_quant = []
-    all_preds_cont = []
-    all_labels_cont = []
-    threshold = 0.1
-    with torch.no_grad():
-        for images, depths in testloader:
-            images = images.to(DEVICE)
-            depths = depths.to(DEVICE)
-            outputs = net(images)
-            loss = criterion(outputs, depths)
-            total_loss += loss.item()
-            abs_diff = torch.abs(outputs - depths)
-            correct_pixels += (abs_diff < threshold).sum().item()
-            total_pixels += depths.numel()
-            all_preds_cont.append(outputs.cpu())
-            all_labels_cont.append(depths.cpu())
-            preds_class = (torch.clamp(outputs, 0, 1) * 9).long().squeeze(1)
-            depths_class = (torch.clamp(depths, 0, 1) * 9).long().squeeze(1)
-            all_preds_quant.append(preds_class.cpu())
-            all_labels_quant.append(depths_class.cpu())
-    avg_loss = total_loss / len(testloader)
-    accuracy = correct_pixels / total_pixels
-    all_preds_quant = torch.cat(all_preds_quant)
-    all_labels_quant = torch.cat(all_labels_quant)
-    f1 = f1_score_torch(all_labels_quant, all_preds_quant, num_classes=10, average='macro')
-    all_preds_cont = torch.cat(all_preds_cont).squeeze(1)
-    all_labels_cont = torch.cat(all_labels_cont).squeeze(1)
-    mae = mae_score_torch(all_labels_cont, all_preds_cont)
-    return avg_loss, accuracy, f1, mae
+    train_set, test_set = random_split(dataset, [train_len, test_len])
+    
+    train_loader = DataLoader(train_set, batch_size=2, shuffle=True)
+    test_loader  = DataLoader(test_set, batch_size=2, shuffle=False)
+    
+    return train_loader, test_loader
 
 def train(net, trainloader, valloader, epochs, device):
     log(INFO, "Starting training...")
     start_time = time.time()
     net.to(device)
-    criterion = torch.nn.MSELoss().to(device)
-    optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+    
+    # Usa la CombinedLoss invece della sola CrossEntropyLoss
+    criterion = CombinedLoss(dice_weight=0.5, smooth=1e-6).to(device)
+    optimizer = torch.optim.AdamW(net.parameters(), lr=0.001)
+
     net.train()
     for _ in range(epochs):
-        for images, depths in trainloader:
-            images, depths = images.to(device), depths.to(device)
+        for images, labels in trainloader:
+            images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
-            outputs = net(images)
-            loss = criterion(outputs, depths)
+            # Le immagini sono (B, 3, H, W) e le labels (B, H, W)
+            loss = criterion(net(images), labels)
             loss.backward()
             optimizer.step()
     training_time = time.time() - start_time
     log(INFO, f"Training completed in {training_time:.2f} seconds")
-    comm_start_time = time.time()
-    train_loss, train_acc, train_f1, train_mae = test(net, trainloader)
-    val_loss, val_acc, val_f1, val_mae = test(net, valloader)
+    start_comm_time = time.time()
+    
+    train_loss, train_acc, train_f1 = test(net, trainloader)
+    val_loss, val_acc, val_f1 = test(net, valloader)
+
     results = {
         "train_loss": train_loss,
         "train_accuracy": train_acc,
         "train_f1": train_f1,
-        "train_mae": train_mae,
+        "train_mae": 0.0,
         "val_loss": val_loss,
         "val_accuracy": val_acc,
         "val_f1": val_f1,
-        "val_mae": val_mae,
+        "val_mae": 0.0,
     }
-    return results, training_time, comm_start_time
+
+    gc.collect()
+    return results, training_time, start_comm_time
+
+def test(net, testloader):
+    net.to(DEVICE)
+    criterion = nn.CrossEntropyLoss()
+    correct = 0
+    loss = 0.0
+    all_preds = []
+    all_labels = []
+
+    with torch.no_grad():
+        for images, labels in testloader:
+            images = images.to(DEVICE)
+            labels = labels.to(DEVICE)
+            outputs = net(images)
+            loss += criterion(outputs, labels).item()
+            _, predicted = torch.max(outputs.data, 1)
+            predicted_flat = predicted.view(-1)
+            labels_flat = labels.view(-1)
+            correct += (predicted_flat == labels_flat).sum().item()
+            all_preds.append(predicted_flat)
+            all_labels.append(labels_flat)
+
+    total_pixels = sum([t.numel() for t in all_labels])
+    accuracy = correct / total_pixels
+
+    all_preds = torch.cat(all_preds)
+    all_labels = torch.cat(all_labels)
+    f1 = f1_score_torch(all_labels, all_preds, num_classes=6, average='macro')
+    return loss, accuracy, f1
 
 def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
     confusion_matrix = torch.zeros(num_classes, num_classes)
     for t, p in zip(y_true, y_pred):
         confusion_matrix[t.long(), p.long()] += 1
+
     precision = torch.zeros(num_classes)
     recall = torch.zeros(num_classes)
     f1_per_class = torch.zeros(num_classes)
@@ -216,18 +208,18 @@ def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
         precision[i] = TP / (TP + FP + 1e-8)
         recall[i] = TP / (TP + FN + 1e-8)
         f1_per_class[i] = 2 * (precision[i] * recall[i]) / (precision[i] + recall[i] + 1e-8)
+
     if average == 'macro':
-        f1 = f1_per_class.mean().item()
+        return f1_per_class.mean().item()
     elif average == 'micro':
         TP = torch.diag(confusion_matrix).sum()
         FP = confusion_matrix.sum() - torch.diag(confusion_matrix).sum()
         FN = FP
         precision_micro = TP / (TP + FP + 1e-8)
         recall_micro = TP / (TP + FN + 1e-8)
-        f1 = (2 * precision_micro * recall_micro / (precision_micro + recall_micro + 1e-8)).item()
+        return (2 * precision_micro * recall_micro / (precision_micro + recall_micro + 1e-8)).item()
     else:
         raise ValueError("Average must be 'macro' or 'micro'")
-    return f1
 
 def get_weights(net):
     return [val.cpu().numpy() for _, val in net.state_dict().items()]
@@ -235,4 +227,4 @@ def get_weights(net):
 def set_weights(net, parameters):
     params_dict = zip(net.state_dict().keys(), parameters)
     state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
-    net.load_state_dict(state_dict, strict=True)
+    net.load_state_dict(state_dict, strict=False)

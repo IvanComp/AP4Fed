@@ -7,9 +7,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./data:/app/data
       - ./performance:/app/performance
-      - .:/app
       - /var/run/docker.sock:/var/run/docker.sock 
     environment:
       DOCKER_HOST_IP: host.docker.internal
@@ -19,7 +17,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.5'   
+          cpus: '1'   
 
   client:
     build:
@@ -33,12 +31,10 @@ services:
       - flwr_network
     volumes:
       - ./data:/app/data
-      - ./performance:/app/performance
     deploy:
       resources:
         limits:
-          cpus: '4'
-          memory: '2g'
+          cpus: '1'
     command: sh -c "sleep 5 && python client.py"
 
 networks:

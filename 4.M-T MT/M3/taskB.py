@@ -1,206 +1,220 @@
 from collections import OrderedDict
-from logging import INFO
 import time
 import os
+import random
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from flwr.common.logger import log
-from torch.utils.data import Dataset, DataLoader, random_split
-from torchvision.transforms import Compose, ToTensor, Normalize, Resize
+from logging import INFO
+from torch.utils.data import DataLoader, Subset, Dataset
+from torchvision.transforms import Compose, Normalize, ToTensor
 from PIL import Image
+from torchvision import models
+import flwr as fl
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+torch.backends.cudnn.benchmark = True
+torch.set_num_threads(4)
+
+class SafeGroupNorm(nn.Module):
+    def __init__(self, num_groups, num_channels, eps=1e-5, affine=True):
+        super(SafeGroupNorm, self).__init__()
+        self.gn = nn.GroupNorm(num_groups, num_channels, eps=eps, affine=affine)
+    def forward(self, x):
+        if x.size(2) == 1 and x.size(3) == 1:
+            return x
+        return self.gn(x)
+
+def adjust_num_groups(num_channels, desired_groups):
+    for g in range(desired_groups, 0, -1):
+        if num_channels % g == 0:
+            return g
+    return 1
+
+def replace_bn_with_gn(module, num_groups=32):
+    for name, child in module.named_children():
+        if isinstance(child, nn.BatchNorm2d):
+            num_channels = child.num_features
+            groups = adjust_num_groups(num_channels, min(num_groups, num_channels))
+            setattr(module, name, SafeGroupNorm(num_groups=groups, num_channels=num_channels))
+        else:
+            replace_bn_with_gn(child, num_groups)
+
+###############################################################################
+# Modello m2: DenseNet-light senza struttura U
+###############################################################################
 
 class Net(nn.Module):
-    def __init__(self, num_classes=40):
+    def __init__(self, num_classes=1):
+        """
+        Questo modello utilizza un backbone DenseNet leggero senza struttura a U.
+        Parametri:
+          - growth_rate=8,
+          - block_config=(2,2,2,2),
+          - num_init_features=16.
+        Poiché il DenseNet applica transizioni con compressione (theta=0.5 di default),
+        l'output della parte features ha 32 canali.
+        Dopo l'estrazione delle feature si applica una convoluzione 1×1 per ottenere l'output,
+        che viene poi upsampled alla dimensione originale.
+        """
         super(Net, self).__init__()
-        
-        def conv_block(in_channels, out_channels, kernel_size=3, padding=1):
-            return nn.Sequential(
-                nn.Conv2d(in_channels, out_channels, kernel_size, padding=padding),
-                nn.BatchNorm2d(out_channels),
-                nn.ReLU(inplace=True),
-                nn.Conv2d(out_channels, out_channels, kernel_size, padding=padding),
-                nn.BatchNorm2d(out_channels),
-                nn.ReLU(inplace=True)
-            )
+        self.backbone = models.DenseNet(growth_rate=8,
+                                        block_config=(2,2,2,2),
+                                        num_init_features=16)
+        replace_bn_with_gn(self.backbone.features)
+        # L'output finale della DenseNet, con compressione, è di 32 canali.
+        self.final_conv = nn.Conv2d(32, num_classes, kernel_size=1)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        features = self.backbone.features(x)
+        out = F.relu(features)
+        out = self.final_conv(out)
+        out = F.interpolate(out, size=x.shape[2:], mode='bilinear', align_corners=False)
+        return out
 
-        self.pool = nn.MaxPool2d(2, 2)  
-        
-        self.enc1 = conv_block(3, 16)
-        self.enc2 = conv_block(16, 32)
-        self.enc3 = conv_block(32, 64)
-        self.bottleneck = conv_block(64, 128)
-        self.up3 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)
-        self.dec3 = conv_block(128, 64)
-        self.up2 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
-        self.dec2 = conv_block(64, 32)
-        self.up1 = nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2)
-        self.dec1 = conv_block(32, 16)
+###############################################################################
+# Dataset e Funzioni di Training/Evaluation (rimangono invariati)
+###############################################################################
 
-        self.final = nn.Conv2d(16, num_classes, kernel_size=1)
-
-    def forward(self, x):
-        e1 = self.enc1(x)
-        e2 = self.enc2(self.pool(e1))
-        e3 = self.enc3(self.pool(e2))   
-        b = self.bottleneck(self.pool(e3))       
-        d3 = self.dec3(torch.cat((self.up3(b), e3), dim=1))
-        d2 = self.dec2(torch.cat((self.up2(d3), e2), dim=1))
-        d1 = self.dec1(torch.cat((self.up1(d2), e1), dim=1))
-        
-        return self.final(d1)
-
-class NYUv2SegDataset(Dataset):
-    def __init__(self, data_dir="./data", transform_rgb=None, transform_label=None):
-        super().__init__()
-        self.data_dir = data_dir
+class DepthEstimationDataset(Dataset):
+    def __init__(self, data_dir="./data", transform_rgb=None, transform_depth=None):
+        super(DepthEstimationDataset, self).__init__()
         self.rgb_dir = os.path.join(data_dir, "rgb_images")
-        self.labels_dir = os.path.join(data_dir, "labels")
-        
-        self.rgb_files = sorted(os.listdir(self.rgb_dir))
-        self.label_files = sorted(os.listdir(self.labels_dir))
-        
-        #assert len(self.rgb_files) == len(self.label_files), "Mismatch tra numero di immagini RGB e file label"
-        
+        self.depth_dir = os.path.join(data_dir, "depth_maps")
+        self.rgb_files = sorted([f for f in os.listdir(self.rgb_dir) if not f.startswith('.')])
+        self.depth_files = sorted([f for f in os.listdir(self.depth_dir) if not f.startswith('.')])
         self.transform_rgb = transform_rgb
-        self.transform_label = transform_label
-
+        self.transform_depth = transform_depth
     def __len__(self):
         return len(self.rgb_files)
-
     def __getitem__(self, idx):
         rgb_path = os.path.join(self.rgb_dir, self.rgb_files[idx])
-        label_path = os.path.join(self.labels_dir, self.label_files[idx])
-        
-        img = Image.open(rgb_path).convert("RGB")
-        label_map = np.load(label_path)
-        label_map_pil = Image.fromarray(label_map.astype(np.uint8), mode='L')
-        
+        depth_path = os.path.join(self.depth_dir, self.depth_files[idx])
+        rgb_img = Image.open(rgb_path).convert("RGB")
+        depth_img = Image.open(depth_path).convert("L")
         if self.transform_rgb:
-            img = self.transform_rgb(img)
-        if self.transform_label:
-            label_map_pil = self.transform_label(label_map_pil)
-        
-        label_tensor = torch.from_numpy(np.array(label_map_pil)).long()
-        return img, label_tensor
+            rgb_img = self.transform_rgb(rgb_img)
+        if self.transform_depth:
+            depth_img = self.transform_depth(depth_img)
+        return rgb_img, depth_img
 
 def load_data():
-    transform_img = Compose([
-        Resize((240, 320), interpolation=Image.NEAREST),
-        ToTensor(),
-        Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-    ])
-    transform_lbl = Resize((240, 320), interpolation=Image.NEAREST)
-
-    dataset = NYUv2SegDataset(
-        data_dir="./data", 
-        transform_rgb=transform_img,
-        transform_label=transform_lbl
-    )
-    
+    transform_rgb = Compose([ToTensor(), Normalize((0.5,0.5,0.5), (0.5,0.5,0.5))])
+    transform_depth = Compose([ToTensor()])
+    dataset = DepthEstimationDataset(data_dir="./data", transform_rgb=transform_rgb, transform_depth=transform_depth)
     total_len = len(dataset)
     train_len = int(0.8 * total_len)
-    test_len = total_len - train_len
-    train_set, test_set = random_split(dataset, [train_len, test_len])
-    
-    train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
-    test_loader  = DataLoader(test_set, batch_size=32, shuffle=False)
-    
-    return train_loader, test_loader
+    indices = list(range(total_len))
+    random.shuffle(indices)
+    train_indices = indices[:train_len]
+    test_indices = indices[train_len:]
+    trainset = Subset(dataset, train_indices)
+    testset = Subset(dataset, test_indices)
+    trainloader = DataLoader(trainset, batch_size=2, shuffle=True, num_workers=0, pin_memory=True)
+    testloader = DataLoader(testset, batch_size=2, shuffle=False, num_workers=0, pin_memory=True)
+    return trainloader, testloader
 
-def train(net, trainloader, valloader, epochs, device):
-    log(INFO, "Starting training...")
+def mae_score_torch(y_true, y_pred):
+    return torch.mean(torch.abs(y_true - y_pred)).item()
 
-    start_time = time.time()
-    net.to(device)
-    
-    criterion = torch.nn.CrossEntropyLoss().to(device)
-    optimizer = torch.optim.Adam(net.parameters(), lr=0.001)  
-    
-    net.train()
-    for _ in range(epochs):
-        for images, labels in trainloader:
-            images, labels = images.to(device), labels.to(device)  
-            optimizer.zero_grad()
-            loss = criterion(net(images), labels.squeeze(1))
-            loss.backward()
-            optimizer.step()
-
-    training_time = time.time() - start_time
-    log(INFO, f"Training completed in {training_time:.2f} seconds")
-    comm_start_time = time.time()
-
-    train_loss, train_acc, train_f1 = test(net, trainloader)
-    val_loss, val_acc, val_f1 = test(net, valloader)
-
-    results = {
-        "train_loss": train_loss,
-        "train_accuracy": train_acc,
-        "train_f1": train_f1,
-        "val_loss": val_loss,
-        "val_accuracy": val_acc,
-        "val_f1": val_f1,
-    }
-
-    return results, training_time, comm_start_time
-
-def test(net, testloader):
-    net.to(DEVICE)
-    criterion = torch.nn.CrossEntropyLoss()
-    total_loss = 0.0
-    correct_pixels = 0
-    total_pixels = 0
-
-    all_preds = []
-    all_labels = []
-
-    with torch.no_grad():
-        for images, labels in testloader:
-            images = images.to(DEVICE)
-            labels = labels.to(DEVICE)
-            outputs = net(images)
-            loss = criterion(outputs, labels)
-            total_loss += loss.item()
-
-            preds = torch.argmax(outputs, dim=1)  
-            correct_pixels += (preds == labels).sum().item()
-            total_pixels   += labels.numel()
-
-            all_preds.append(preds.view(-1))
-            all_labels.append(labels.view(-1))
-
-    avg_loss = total_loss / len(testloader)
-    pixel_accuracy = correct_pixels / total_pixels
-
-    all_preds = torch.cat(all_preds)
-    all_labels = torch.cat(all_labels)
-    f1_val = f1_score_torch(all_labels, all_preds, num_classes=40, average='macro')
-
-    return avg_loss, pixel_accuracy, f1_val
-
-def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
-    confusion_matrix = torch.zeros(num_classes, num_classes, device=DEVICE)
-
+def f1_score_torch(y_true, y_pred, num_classes, average="macro"):
+    confusion_matrix = torch.zeros(num_classes, num_classes)
     for t, p in zip(y_true, y_pred):
         confusion_matrix[t.long(), p.long()] += 1
-
-    precision = torch.zeros(num_classes, device=DEVICE)
-    recall = torch.zeros(num_classes, device=DEVICE)
-    f1_per_class = torch.zeros(num_classes, device=DEVICE)
-
+    precision = torch.zeros(num_classes)
+    recall = torch.zeros(num_classes)
+    f1_per_class = torch.zeros(num_classes)
     for i in range(num_classes):
         TP = confusion_matrix[i, i]
         FP = confusion_matrix[:, i].sum() - TP
         FN = confusion_matrix[i, :].sum() - TP
-
         precision[i] = TP / (TP + FP + 1e-8)
         recall[i] = TP / (TP + FN + 1e-8)
         f1_per_class[i] = 2 * (precision[i] * recall[i]) / (precision[i] + recall[i] + 1e-8)
+    if average == "macro":
+        return f1_per_class.mean().item()
+    elif average == "micro":
+        TP = torch.diag(confusion_matrix).sum()
+        FP = confusion_matrix.sum() - torch.diag(confusion_matrix).sum()
+        FN = FP
+        precision_micro = TP / (TP + FP + 1e-8)
+        recall_micro = TP / (TP + FN + 1e-8)
+        return (2 * precision_micro * recall_micro / (precision_micro + recall_micro + 1e-8)).item()
+    else:
+        raise ValueError("Il parametro 'average' deve essere 'macro' o 'micro'")
 
-    return f1_per_class.mean().item()
+def test(net, testloader):
+    net.to(DEVICE)
+    criterion = nn.MSELoss()
+    total_loss = 0.0
+    total_pixels = 0
+    correct_pixels = 0
+    all_preds_quant = []
+    all_labels_quant = []
+    all_preds_cont = []
+    all_labels_cont = []
+    threshold = 0.1
+    with torch.no_grad():
+        for images, depths in testloader:
+            images = images.to(DEVICE)
+            depths = depths.to(DEVICE)
+            outputs = net(images)
+            loss = criterion(outputs, depths)
+            total_loss += loss.item()
+            abs_diff = torch.abs(outputs - depths)
+            correct_pixels += (abs_diff < threshold).sum().item()
+            total_pixels += depths.numel()
+            outputs_cpu = outputs.detach().cpu()
+            depths_cpu = depths.detach().cpu()
+            all_preds_cont.append(outputs_cpu)
+            all_labels_cont.append(depths_cpu)
+            preds_class = (torch.clamp(outputs_cpu, 0, 1) * 9).long().squeeze(1)
+            depths_class = (torch.clamp(depths_cpu, 0, 1) * 9).long().squeeze(1)
+            all_preds_quant.append(preds_class)
+            all_labels_quant.append(depths_class)
+    avg_loss = total_loss / len(testloader)
+    accuracy = correct_pixels / total_pixels
+    all_preds_quant = torch.cat(all_preds_quant)
+    all_labels_quant = torch.cat(all_labels_quant)
+    f1 = f1_score_torch(all_labels_quant, all_preds_quant, num_classes=10, average="macro")
+    all_preds_cont = torch.cat(all_preds_cont).squeeze(1)
+    all_labels_cont = torch.cat(all_labels_cont).squeeze(1)
+    mae = mae_score_torch(all_labels_cont, all_preds_cont)
+    return avg_loss, accuracy, f1, mae
+
+def train(net, trainloader, valloader, epochs, device):
+    log(INFO, "Inizio training...")
+    start_time = time.time()
+    net.to(device)
+    criterion = nn.MSELoss().to(device)
+    optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+    net.train()
+    for epoch in range(epochs):
+        for images, depths in trainloader:
+            images = images.to(device)
+            depths = depths.to(device)
+            optimizer.zero_grad()
+            outputs = net(images)
+            loss = criterion(outputs, depths)
+            loss.backward()
+            optimizer.step()
+    training_time = time.time() - start_time
+    log(INFO, f"Training completato in {training_time:.2f} secondi")
+    comm_start_time = time.time()
+    train_loss, train_acc, train_f1, train_mae = test(net, trainloader)
+    val_loss, val_acc, val_f1, val_mae = test(net, valloader)
+    results = {
+        "train_loss": train_loss,
+        "train_accuracy": train_acc,
+        "train_f1": train_f1,
+        "train_mae": train_mae,
+        "val_loss": val_loss,
+        "val_accuracy": val_acc,
+        "val_f1": val_f1,
+        "val_mae": val_mae,
+    }
+    return results, training_time, comm_start_time
 
 def get_weights(net):
     return [val.cpu().numpy() for _, val in net.state_dict().items()]
@@ -208,4 +222,23 @@ def get_weights(net):
 def set_weights(net, parameters):
     params_dict = zip(net.state_dict().keys(), parameters)
     state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
-    net.load_state_dict(state_dict, strict=False)
+    net.load_state_dict(state_dict, strict=True)
+
+class FlowerClient(fl.client.NumPyClient):
+    def __init__(self):
+        self.net = Net(decoder_width=1.0)
+        self.trainloader, self.testloader = load_data()
+
+    def get_parameters(self):
+        return get_weights(self.net)
+
+    def fit(self, parameters, config):
+        set_weights(self.net, parameters)
+        epochs = int(config.get("epochs", 1))
+        results, training_time, _ = train(self.net, self.trainloader, self.testloader, epochs, DEVICE)
+        return get_weights(self.net), results, training_time
+
+    def evaluate(self, parameters, config):
+        set_weights(self.net, parameters)
+        loss, accuracy, f1, mae = test(self.net, self.testloader)
+        return float(loss), len(self.testloader.dataset), {"accuracy": accuracy, "f1": f1, "mae": mae}

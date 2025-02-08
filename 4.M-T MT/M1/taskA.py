@@ -13,7 +13,7 @@ from torchvision.transforms import Compose, ToTensor, Normalize, Resize, CenterC
 from PIL import Image
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-num_classes = 6  # Ricorda: per NYUv2 in realtà questo valore potrebbe essere 40
+num_classes = 6  
 
 class Net(nn.Module):
     def __init__(self, num_classes=6):  
@@ -30,7 +30,7 @@ class Net(nn.Module):
     def forward(self, x):
         x1 = F.relu(self.enc_conv1(x))
         x1 = F.relu(self.enc_conv2(x1))
-        skip = x1  # Skip connection
+        skip = x1  
         x2 = self.pool(x1)
         x3 = F.relu(self.bottleneck_conv1(x2))
         x3 = F.relu(self.bottleneck_conv2(x3))
