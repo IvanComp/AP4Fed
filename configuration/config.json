@@ -1,19 +1,15 @@
 {
     "simulation_type": "Local",
-    "rounds": 2,
-    "clients": 3,
+    "rounds": 4,
+    "clients": 11,
     "patterns": {
         "client_registry": {
             "enabled": true,
             "params": {}
         },
         "client_selector": {
-            "enabled": true,
-            "params": {
-                "selection_strategy": "Resource-Based",
-                "selection_criteria": "CPU",
-                "selection_value": 2
-            }
+            "enabled": false,
+            "params": {}
         },
         "client_cluster": {
             "enabled": false,
@@ -42,14 +38,70 @@
         },
         {
             "client_id": 2,
-            "cpu": 3,
+            "cpu": 1,
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID"
         },
         {
             "client_id": 3,
-            "cpu": 3,
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "CIFAR-10",
+            "data_distribution_type": "IID"
+        },
+        {
+            "client_id": 4,
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "CIFAR-10",
+            "data_distribution_type": "IID"
+        },
+        {
+            "client_id": 5,
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "CIFAR-10",
+            "data_distribution_type": "IID"
+        },
+        {
+            "client_id": 6,
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "CIFAR-10",
+            "data_distribution_type": "IID"
+        },
+        {
+            "client_id": 7,
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "CIFAR-10",
+            "data_distribution_type": "IID"
+        },
+        {
+            "client_id": 8,
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "CIFAR-10",
+            "data_distribution_type": "IID"
+        },
+        {
+            "client_id": 9,
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "CIFAR-10",
+            "data_distribution_type": "IID"
+        },
+        {
+            "client_id": 10,
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "CIFAR-10",
+            "data_distribution_type": "IID"
+        },
+        {
+            "client_id": 11,
+            "cpu": 1,
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID"

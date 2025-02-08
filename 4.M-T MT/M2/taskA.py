@@ -181,33 +181,18 @@ def train(net, trainloader, valloader, epochs, device):
     net.train()
 
     for epoch in range(epochs):
-        print(f"Epoch {epoch + 1}/{epochs}")  # Debug epoch
-
         epoch_loss = 0.0
         batch_count = 0
 
-        for i, (images, depths) in enumerate(trainloader):
-            print(f"Batch {i + 1}/{len(trainloader)}")  # Debug batch
-            
+        for i, (images, depths) in enumerate(trainloader):           
             images, depths = images.to(device), depths.to(device)
             optimizer.zero_grad()
             outputs = net(images)
-
             loss = criterion(outputs, depths)
             loss.backward()
-
-            # Debug: Controlliamo se il gradiente è NaN
-            for name, param in net.named_parameters():
-                if param.grad is not None:
-                    if torch.isnan(param.grad).any():
-                        print(f"NaN detected in gradients of {name}")
-
             optimizer.step()
             epoch_loss += loss.item()
             batch_count += 1
-
-        avg_epoch_loss = epoch_loss / batch_count
-        print(f"Epoch {epoch + 1} finished, Loss: {avg_epoch_loss:.6f}")
 
     training_time = time.time() - start_time
     log(INFO, f"Training completed in {training_time:.2f} seconds")

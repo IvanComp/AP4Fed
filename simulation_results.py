@@ -98,30 +98,36 @@ class SimulationResults(QDialog):
         self.grid = QGridLayout()
         main_layout.addLayout(self.grid)
 
-        # --- Prima riga di grafici ---
-        # 1) Average Times per Client
-        fig1 = plt.Figure(figsize=(6, 4), facecolor="white", constrained_layout=True)
-        ax1 = fig1.add_subplot(111)
-        chart1 = SingleChartWidget(title="Average Times per Client", figure=fig1)
-        self.plot_average_times_per_client(ax1)
-        chart1.download_button.clicked.connect(lambda _, f=fig1: self.save_figure_svg(f, "average_times_per_client"))
-        self.add_chart_to_grid(chart1, 0, 0)
+        # --- Prima riga (o messaggio) ---
+        if self.data is not None and "Client ID" in self.data.columns and self.data["Client ID"].nunique() > 10:
+            warning_label = QLabel("Preview is not available for more than 10 clients. Please refer to the .csv report.")
+            warning_label.setAlignment(Qt.AlignCenter)
+            warning_label.setStyleSheet("font-size: 16px; font-weight: bold; color: black;")
+            self.grid.addWidget(warning_label, 0, 0, 1, 3)
+        else:
+            # 1) Average Times per Client
+            fig1 = plt.Figure(figsize=(6, 4), facecolor="white", constrained_layout=True)
+            ax1 = fig1.add_subplot(111)
+            chart1 = SingleChartWidget(title="Average Times per Client", figure=fig1)
+            self.plot_average_times_per_client(ax1)
+            chart1.download_button.clicked.connect(lambda _, f=fig1: self.save_figure_svg(f, "average_times_per_client"))
+            self.add_chart_to_grid(chart1, 0, 0)
 
-        # 2) Communication Time per FL Round
-        fig2 = plt.Figure(figsize=(6, 4), facecolor="white", constrained_layout=True)
-        ax2 = fig2.add_subplot(111)
-        chart2 = SingleChartWidget(title="Communication Time per Federated Learning Round", figure=fig2)
-        self.plot_communication_time_per_round(ax2)
-        chart2.download_button.clicked.connect(lambda _, f=fig2: self.save_figure_svg(f, "communication_time_per_round"))
-        self.add_chart_to_grid(chart2, 0, 1)
+            # 2) Communication Time per FL Round
+            fig2 = plt.Figure(figsize=(6, 4), facecolor="white", constrained_layout=True)
+            ax2 = fig2.add_subplot(111)
+            chart2 = SingleChartWidget(title="Communication Time per Federated Learning Round", figure=fig2)
+            self.plot_communication_time_per_round(ax2)
+            chart2.download_button.clicked.connect(lambda _, f=fig2: self.save_figure_svg(f, "communication_time_per_round"))
+            self.add_chart_to_grid(chart2, 0, 1)
 
-        # 3) Training Time per FL Round
-        fig3 = plt.Figure(figsize=(6, 4), facecolor="white", constrained_layout=True)
-        ax3 = fig3.add_subplot(111)
-        chart3 = SingleChartWidget(title="Training Time per Federated Learning Round", figure=fig3)
-        self.plot_training_time_per_round(ax3)
-        chart3.download_button.clicked.connect(lambda _, f=fig3: self.save_figure_svg(f, "training_time_per_round"))
-        self.add_chart_to_grid(chart3, 0, 2)
+            # 3) Training Time per FL Round
+            fig3 = plt.Figure(figsize=(6, 4), facecolor="white", constrained_layout=True)
+            ax3 = fig3.add_subplot(111)
+            chart3 = SingleChartWidget(title="Training Time per Federated Learning Round", figure=fig3)
+            self.plot_training_time_per_round(ax3)
+            chart3.download_button.clicked.connect(lambda _, f=fig3: self.save_figure_svg(f, "training_time_per_round"))
+            self.add_chart_to_grid(chart3, 0, 2)
 
         # --- Seconda riga di grafici (F1 Score, Val Loss, Val Accuracy) ---
         # 4) F1 Score
