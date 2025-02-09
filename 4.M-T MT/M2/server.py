@@ -56,12 +56,12 @@ csv_file = os.path.join(performance_dir, 'FLwithAP_performance_metrics.csv')
 if os.path.exists(csv_file):
     os.remove(csv_file)
 
-with open(csv_file, 'w', newline='') as file:
-    writer = csv.writer(file)
+with open(csv_file, 'w', newline='') as f:
+    writer = csv.writer(f)
     writer.writerow([
         'Client ID', 'FL Round', 'Training Time', 'Communication Time', 'Total Client Time',
-        'CPU Usage (%)', 'Task', 'Train Loss', 'Train Accuracy', 'Train F1',
-        'Val Loss', 'Val Accuracy', 'Val F1', 'Total Time of Training Round', 'Total Time of FL Round'
+        'CPU Usage (%)', 'Task', 'Train Loss', 'Train Accuracy', 'Train F1', 'Train MAE',
+        'Val Loss', 'Val Accuracy', 'Val F1', 'Val MAE', 'Total Time of Training Round', 'Total Time of FL Round'
     ])
 
 def log_round_time(client_id, fl_round, training_time, communication_time, total_time, cpu_usage,
@@ -93,9 +93,9 @@ def log_round_time(client_id, fl_round, training_time, communication_time, total
     with open(csv_file, 'a', newline='') as file:
         writer = csv.writer(file)
         writer.writerow([
-            client_id, fl_round+1, round(training_time), round(communication_time, 2), round(total_time),
-            round(cpu_usage), model_type, train_loss, train_accuracy, train_f1,
-            val_loss, val_accuracy, val_f1, srt1_rounded, srt2_rounded
+            client_id, fl_round + 1, round(training_time, 2), round(communication_time, 2), round(total_time, 2),
+            round(cpu_usage, 2), model_type, train_loss, train_accuracy, train_f1, train_mae,
+            val_loss, val_accuracy, val_f1, val_mae, srt1_rounded, srt2_rounded
         ])
     client_registry.update_client(client_id, True)
 
@@ -133,9 +133,11 @@ def weighted_average_global(metrics, task_type, srt1, srt2, time_between_rounds)
             "train_loss": float('inf'),
             "train_accuracy": 0.0,
             "train_f1": 0.0,
+            "train_mae": 0.0,
             "val_loss": float('inf'),
             "val_accuracy": 0.0,
             "val_f1": 0.0,
+            "val_mae": 0.0,
         }
 
     train_losses = [num_examples * m["train_loss"] for num_examples, m in metrics]
