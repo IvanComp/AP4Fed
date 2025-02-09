@@ -4,7 +4,7 @@
 <img src="img/readme/logo.svg" width="340px" height="210px"/>
 </p>
 
-AP4FED provides a carefully curated selection of popular and diverse datasets for federated learning research and experimentation. Each dataset has been preprocessed and organized to facilitate seamless integration with federated learning workflows.
+<tt>AP4FED<tt> provides a carefully curated selection of popular and diverse datasets for federated learning research and experimentation. Each dataset has been preprocessed and organized to facilitate seamless integration with federated learning workflows.
 
 ## Available Datasets
 
@@ -21,15 +21,6 @@ AP4FED provides a carefully curated selection of popular and diverse datasets fo
 - Ideal for simulating heterogeneous data distribution scenarios
 - Commonly used for evaluating model performance in non-IID settings
 - Supports both client-level and sample-level partitioning strategies
-
-**Data Format**:
-```python
-{
-    'data': numpy array of shape (50000, 32, 32, 3),
-    'labels': numpy array of shape (50000,),
-    'classes': ['airplane', 'automobile', ...]
-}
-```
 
 ### Fashion-MNIST (FMNIST)
 **Overview**: A modern alternative to MNIST, consisting of 70,000 grayscale images of fashion items from 10 categories.
