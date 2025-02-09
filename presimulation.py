@@ -187,13 +187,13 @@ class MultiTaskModelTrainerDialog(QDialog):
 
         self.m1_label = QLabel("Select Model M1:")
         self.m1_combo = QComboBox()
-        self.m1_combo.addItems(["CIFAR-10", "FMNIST", "IMDB", "HIGGS"])
+        self.m1_combo.addItems(["CIFAR-10", "CIFAR-100","FMNIST", "FashionMNIST", "KMNIST", "NYUv2", "iv4N"])
         layout.addWidget(self.m1_label)
         layout.addWidget(self.m1_combo)
 
         self.m2_label = QLabel("Select Model M2:")
         self.m2_combo = QComboBox()
-        self.m2_combo.addItems(["CIFAR-10", "FMNIST", "IMDB", "HIGGS"])
+        self.m2_combo.addItems(["CIFAR-10", "CIFAR-100","FMNIST", "FashionMNIST", "KMNIST", "NYUv2", "iv4N"])
         layout.addWidget(self.m2_label)
         layout.addWidget(self.m2_combo)
 
@@ -1051,7 +1051,7 @@ class ClientConfigurationPage(QWidget):
         dataset_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         dataset_label.setAlignment(Qt.AlignLeft)
         dataset_combobox = QComboBox()
-        dataset_combobox.addItems(["CIFAR-10", "FMNIST", "IMDB", "HIGGS"])
+        dataset_combobox.addItems(["CIFAR-10", "CIFAR-100","FMNIST", "FashionMNIST", "KMNIST", "NYUv2", "iv4N"])
         dataset_combobox.setFixedWidth(100)
 
         dataset_layout = QHBoxLayout()

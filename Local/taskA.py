@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from flwr.common.logger import log
 from torch.utils.data import DataLoader, Subset
-from torchvision.datasets import CIFAR10
+from torchvision.datasets import CIFAR10, CIFAR100, MNIST, FashionMNIST, KMNIST
 from torchvision.transforms import Compose, Normalize, ToTensor
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -28,12 +28,47 @@ MULTI_TASK_MODEL_TRAINER = False
 HETEROGENEOUS_DATA_HANDLER = False
 
 #CLIENT
-global DATASET_TYPE
+global DATASET_TYPE, DATASET_NAME
 DATASET_TYPE = ""
+DATASET_NAME = "CIFAR10"  # default
+
+# Dataset configurations
+AVAILABLE_DATASETS = {
+    "CIFAR10": {
+        "class": CIFAR10,
+        "normalize": ((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        "channels": 3,
+        "num_classes": 10
+    },
+    "CIFAR100": {
+        "class": CIFAR100,
+        "normalize": ((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        "channels": 3,
+        "num_classes": 100
+    },
+    "MNIST": {
+        "class": MNIST,
+        "normalize": ((0.5,), (0.5,)),
+        "channels": 1,
+        "num_classes": 10
+    },
+    "FashionMNIST": {
+        "class": FashionMNIST,
+        "normalize": ((0.5,), (0.5,)),
+        "channels": 1,
+        "num_classes": 10
+    },
+    "KMNIST": {
+        "class": KMNIST,
+        "normalize": ((0.5,), (0.5,)),
+        "channels": 1,
+        "num_classes": 10
+    }
+}
+
 current_dir = os.path.abspath(os.path.dirname(__file__))
 config_dir = os.path.join(current_dir, '..', 'configuration') 
 config_file = os.path.join(config_dir, 'config.json')
-
 
 if os.path.exists(config_file):
                 with open(config_file, 'r') as f:
@@ -71,20 +106,27 @@ class Net(nn.Module):
         return self.fc3(x)
 
 def load_data():
+    global DATASET_NAME
+    
     if HETEROGENEOUS_DATA_HANDLER:
         with open(config_file, 'r') as f:
             configJSON = json.load(f)
             DATASET_TYPE = configJSON["client_details"][0]["data_distribution_type"]
+            DATASET_NAME = configJSON.get("dataset", "CIFAR10")  # Gets dataset from config, defaults to CIFAR10
 
+    dataset_config = AVAILABLE_DATASETS.get(DATASET_NAME, AVAILABLE_DATASETS["CIFAR10"])
+    dataset_class = dataset_config["class"]
+    normalize_params = dataset_config["normalize"]
+
+    if HETEROGENEOUS_DATA_HANDLER:
         if DATASET_TYPE == "Random":
            DATASET_TYPE = random.choice(["iid", "non-iid"])
 
         if DATASET_TYPE == "IID":
-            """Load CIFAR-10 (training and test set)."""
-            trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-            trainset = CIFAR10("./data", train=True, download=True, transform=trf)
-            testset = CIFAR10("./data", train=False, download=True, transform=trf)
-            class_to_indices = {i: [] for i in range(10)}
+            trf = Compose([ToTensor(), Normalize(*normalize_params)])
+            trainset = dataset_class("./data", train=True, download=True, transform=trf)
+            testset = dataset_class("./data", train=False, download=True, transform=trf)
+            class_to_indices = {i: [] for i in range(dataset_config["num_classes"])}
             for idx, (_, label) in enumerate(trainset):
                 if len(class_to_indices[label]) < 2500:
                     class_to_indices[label].append(idx)
@@ -94,35 +136,33 @@ def load_data():
             subset_train = Subset(trainset, selected_indices)               
             subset_labels = [trainset[i][1] for i in selected_indices]
             class_counts = Counter(subset_labels)
-            class_names = trainset.classes
+            class_names = trainset.classes if hasattr(trainset, 'classes') else [str(i) for i in range(dataset_config["num_classes"])]
             distribution_str = ", ".join([f"{class_names[class_index]}: {count} samples" for class_index, count in class_counts.items()])
             print(f"IID Client - Class Distribution: {distribution_str}")
 
             return DataLoader(trainset, batch_size=32, shuffle=True), DataLoader(testset)
 
         if DATASET_TYPE == "non-IID":
-            num_non_iid_clients= sum(1 for client in configJSON["client_details"] if client["data_distribution_type"] == "non-IID")
+            num_non_iid_clients = sum(1 for client in configJSON["client_details"] if client["data_distribution_type"] == "non-IID")
             print(f"Creating {num_non_iid_clients} non-IID clients...")
-            samples_per_client=25000
-            alpha=0.5
-            target_samples_per_class=2500 
+            samples_per_client = 25000
+            alpha = 0.5
+            target_samples_per_class = 2500
 
-            trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-            trainset = CIFAR10("./data", train=True, download=True, transform=trf)
-            testset = CIFAR10("./data", train=False, download=True, transform=trf)
+            trf = Compose([ToTensor(), Normalize(*normalize_params)])
+            trainset = dataset_class("./data", train=True, download=True, transform=trf)
+            testset = dataset_class("./data", train=False, download=True, transform=trf)
 
-            class_to_indices = {i: [] for i in range(10)}
+            class_to_indices = {i: [] for i in range(dataset_config["num_classes"])}
             for idx, (_, label) in enumerate(trainset):
                 class_to_indices[label].append(idx)
             
             clients_data = []
             
-            # Creazione dei client non-IID (solo 1 client)
             for client_id in range(num_non_iid_clients):
-                proportions = np.random.dirichlet([alpha] * 10)
+                proportions = np.random.dirichlet([alpha] * dataset_config["num_classes"])
                 class_counts = (proportions * samples_per_client).astype(int)
                 
-                # Gestione della discrepanza dovuta alla conversione a int
                 discrepancy = samples_per_client - class_counts.sum()
                 if discrepancy > 0:
                     class_counts[np.argmax(proportions)] += discrepancy
@@ -144,7 +184,9 @@ def load_data():
                 class_distribution = Counter(subset_labels)
                 clients_data.append((subset_train, class_distribution))
                 
-                distribution_str = ", ".join([f"{CLASS_NAMES[cls]}: {class_distribution.get(cls, 0)} samples" for cls in range(10)])
+                # Get class names based on dataset
+                class_names = trainset.classes if hasattr(trainset, 'classes') else [str(i) for i in range(dataset_config["num_classes"])]
+                distribution_str = ", ".join([f"{class_names[cls]}: {class_distribution.get(cls, 0)} samples" for cls in range(dataset_config["num_classes"])])
                 print(f"Client non-IID-{client_id+1} Class Distribution: {distribution_str}")
                 augmented_clients = augment_with_gan(clients_data, target_samples_per_class)
                 subset_augmented, _ = augmented_clients[0]
@@ -154,41 +196,43 @@ def load_data():
 
             return trainloader, testloader
     else:
-        """Load CIFAR-10 (training and test set)."""
-        trf = Compose([ToTensor(), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-        trainset = CIFAR10("./data", train=True, download=True, transform=trf)
-        testset = CIFAR10("./data", train=False, download=True, transform=trf)
+        trf = Compose([ToTensor(), Normalize(*normalize_params)])
+        trainset = dataset_class("./data", train=True, download=True, transform=trf)
+        testset = dataset_class("./data", train=False, download=True, transform=trf)
         return DataLoader(trainset, batch_size=32, shuffle=True), DataLoader(testset)
     
 def augment_with_gan(clients_data, target_samples_per_class=2500):
     augmented_clients_data = []
     for idx, (subset, class_distribution) in enumerate(clients_data):
-        new_class_distribution = Counter(class_distribution)  # Crea una copia del Counter
+        new_class_distribution = Counter(class_distribution)
         print("\nApplying GAN Augmentation to non-IID Clients...")
         print(f"\nAugmenting non-IID Client {idx+1}:")
-        for cls in range(10):
+        for cls in range(AVAILABLE_DATASETS[DATASET_NAME]["num_classes"]):
             current_count = new_class_distribution[cls]
+            class_name = str(cls)  # Default to string representation of class number
+            if hasattr(subset.dataset, 'classes'):
+                class_name = subset.dataset.classes[cls]
+            
             if current_count < target_samples_per_class:
                 additional_samples = target_samples_per_class - current_count
                 new_class_distribution[cls] += additional_samples
-                print(f"  {CLASS_NAMES[cls]} - Adding {additional_samples} samples to reach {target_samples_per_class}")
+                print(f"  {class_name} - Adding {additional_samples} samples to reach {target_samples_per_class}")
             elif current_count > target_samples_per_class:
                 samples_to_remove = current_count - target_samples_per_class
                 new_class_distribution[cls] -= samples_to_remove
-                print(f"  {CLASS_NAMES[cls]} - Removing {samples_to_remove} samples to reach {target_samples_per_class}")
+                print(f"  {class_name} - Removing {samples_to_remove} samples to reach {target_samples_per_class}")
             else:
-                print(f"  {CLASS_NAMES[cls]} - No augmentation needed (current: {current_count})")
+                print(f"  {class_name} - No augmentation needed (current: {current_count})")
         augmented_clients_data.append((subset, new_class_distribution))
     return augmented_clients_data
     
 def train(net, trainloader, valloader, epochs, device):
-    """Train the model on the training set, measuring time."""
+    """Train the model on the training set."""
     log(INFO, "Starting training...")
 
-    # Start measuring training time
     start_time = time.time()
 
-    net.to(device)  # move model to GPU if available
+    net.to(device)
     criterion = torch.nn.CrossEntropyLoss().to(device)
     optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
     net.train()
@@ -200,7 +244,6 @@ def train(net, trainloader, valloader, epochs, device):
             loss.backward()
             optimizer.step()
 
-    # End measuring training time
     training_time = time.time() - start_time
     log(INFO, f"Training completed in {training_time:.2f} seconds")
     start_comm_time = time.time()
@@ -217,7 +260,7 @@ def train(net, trainloader, valloader, epochs, device):
         "val_f1": val_f1,
     }
 
-    return results, training_time, start_comm_time # Return the training time as well
+    return results, training_time, start_comm_time
 
 def test(net, testloader):
     net.to(DEVICE)
@@ -240,22 +283,20 @@ def test(net, testloader):
 
     accuracy = correct / len(testloader.dataset)
 
-    # Concatenare tutte le predizioni e le etichette
     all_preds = torch.cat(all_preds)
     all_labels = torch.cat(all_labels)
 
-    # Calcolo dell'F1 score
-    f1 = f1_score_torch(all_labels, all_preds, num_classes=10, average='macro')
+    f1 = f1_score_torch(all_labels, all_preds, 
+                       num_classes=AVAILABLE_DATASETS[DATASET_NAME]["num_classes"], 
+                       average='macro')
 
     return loss, accuracy, f1
 
 def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
-    # Creazione della matrice di confusione
     confusion_matrix = torch.zeros(num_classes, num_classes)
     for t, p in zip(y_true, y_pred):
         confusion_matrix[t.long(), p.long()] += 1
 
-    # Calcolo di precision e recall per ogni classe
     precision = torch.zeros(num_classes)
     recall = torch.zeros(num_classes)
     f1_per_class = torch.zeros(num_classes)
