@@ -12,6 +12,7 @@ Testing Models: [CNN, U-Net, DenseNet]
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/github/license/IvanComp/AP4FED">
   <img src="https://img.shields.io/badge/python-3.12+-yellow">
   <img src="https://img.shields.io/badge/docker-3.10+-blue">
   <img src="https://img.shields.io/badge/docker%20compose-2.29+-blue">
