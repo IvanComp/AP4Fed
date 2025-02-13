@@ -4,8 +4,6 @@ import torch
 from flwr.client import NumPyClient, start_client
 from flwr.common import parameters_to_ndarrays, ndarrays_to_parameters
 from APClient import ClientRegistry
-
-# Importa le funzioni per il taskA
 from taskA import (
     Net as NetA,
     get_weights as get_weights_A,
@@ -14,8 +12,6 @@ from taskA import (
     train as train_A,
     test as test_A
 )
-
-# Importa le funzioni per il taskB
 from taskB import (
     Net as NetB,
     get_weights as get_weights_B,
@@ -83,11 +79,11 @@ class FlowerClient(NumPyClient):
             "train_loss": results.get("train_loss", 0.0),
             "train_accuracy": results.get("train_accuracy", 0.0),
             "train_f1": results.get("train_f1", 0.0),
-            "train_mae": results.get("train_mae", 0.0),    # Se non c'è, metti 0.0 o None o 'N/A'
+            "train_mae": results.get("train_mae", 0.0),    
             "val_loss": results.get("val_loss", 0.0),
             "val_accuracy": results.get("val_accuracy", 0.0),
             "val_f1": results.get("val_f1", 0.0),
-            "val_mae": results.get("val_mae", 0.0),        # Stessa cosa per la val_mae
+            "val_mae": results.get("val_mae", 0.0),      
             "training_time": training_time,
             "cpu_usage": cpu_usage,
             "client_id": self.cid,

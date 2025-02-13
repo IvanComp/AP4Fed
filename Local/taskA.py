@@ -247,17 +247,18 @@ def train(net, trainloader, valloader, epochs, device):
     training_time = time.time() - start_time
     log(INFO, f"Training completed in {training_time:.2f} seconds")
     start_comm_time = time.time()
-
-    train_loss, train_acc, train_f1 = test(net, trainloader)
-    val_loss, val_acc, val_f1 = test(net, valloader)
+    train_loss, train_acc, train_f1, train_mae = test(net, trainloader)
+    val_loss, val_acc, val_f1, val_mae = test(net, valloader)
 
     results = {
         "train_loss": train_loss,
         "train_accuracy": train_acc,
         "train_f1": train_f1,
+        "train_mae": train_mae,
         "val_loss": val_loss,
         "val_accuracy": val_acc,
         "val_f1": val_f1,
+        "val_mae": val_mae,
     }
 
     return results, training_time, start_comm_time
@@ -269,7 +270,6 @@ def test(net, testloader):
     loss = 0.0
     all_preds = []
     all_labels = []
-
     with torch.no_grad():
         for images, labels in testloader:
             images = images.to(DEVICE)
@@ -280,17 +280,19 @@ def test(net, testloader):
             correct += (predicted == labels).sum().item()
             all_preds.append(predicted)
             all_labels.append(labels)
-
     accuracy = correct / len(testloader.dataset)
-
     all_preds = torch.cat(all_preds)
     all_labels = torch.cat(all_labels)
+    f1 = f1_score_torch(all_labels, all_preds, num_classes=AVAILABLE_DATASETS[DATASET_NAME]["num_classes"], average='macro')
+    mae_value = None
+    try:
+        mae_value = mae_score_torch(all_labels.float(), all_preds.float())
+    except:
+        mae_value = None
+    return loss, accuracy, f1, mae_value
 
-    f1 = f1_score_torch(all_labels, all_preds, 
-                       num_classes=AVAILABLE_DATASETS[DATASET_NAME]["num_classes"], 
-                       average='macro')
-
-    return loss, accuracy, f1
+def mae_score_torch(y_true, y_pred):
+    return torch.mean(torch.abs(y_true - y_pred)).item()
 
 def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
     confusion_matrix = torch.zeros(num_classes, num_classes)

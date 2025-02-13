@@ -53,8 +53,8 @@ MULTI_TASK_MODEL_TRAINER = False
 HETEROGENEOUS_DATA_HANDLER = False
 
 global_metrics = {
-    "taskA": {"train_loss": [], "train_accuracy": [], "train_f1": [], "val_loss": [], "val_accuracy": [], "val_f1": []},
-    "taskB": {"train_loss": [], "train_accuracy": [], "train_f1": [], "val_loss": [], "val_accuracy": [], "val_f1": []},
+    "taskA": {"train_loss": [], "train_accuracy": [], "train_f1": [], "train_mae": [], "val_loss": [], "val_accuracy": [], "val_f1": [], "val_mae": []},
+    "taskB": {"train_loss": [], "train_accuracy": [], "train_f1": [], "train_mae": [], "val_loss": [], "val_accuracy": [], "val_f1": [], "val_mae": []},
 }
 
 matplotlib.use('Agg')
@@ -111,26 +111,30 @@ with open(csv_file, 'w', newline='') as file:
     writer = csv.writer(file)
     writer.writerow([
         'Client ID', 'FL Round', 'Training Time', 'Communication Time', 'Total Client Time',
-        'CPU Number', 'Task', 'Train Loss', 'Train Accuracy', 'Train F1',
-        'Val Loss', 'Val Accuracy', 'Val F1', 'Total Time of Training Round', 'Total Time of FL Round'
+        'CPU Usage (%)', 'Task', 'Train Loss', 'Train Accuracy', 'Train F1', 'Train MAE',
+        'Val Loss', 'Val Accuracy', 'Val F1', 'Val MAE', 'Total Time of Training Round', 'Total Time of FL Round'
     ])
 
 def log_round_time(client_id, fl_round, training_time, communication_time, total_time, cpu_usage,
                    model_type, already_logged, srt1, srt2):
-    train_loss = round(global_metrics[model_type]["train_loss"][-1], 4) if global_metrics[model_type]["train_loss"] else 'N/A'
-    train_accuracy = round(global_metrics[model_type]["train_accuracy"][-1], 2) if global_metrics[model_type]["train_accuracy"] else 'N/A'
-    train_f1 = round(global_metrics[model_type]["train_f1"][-1], 2) if global_metrics[model_type]["train_f1"] else 'N/A'
-    val_loss = round(global_metrics[model_type]["val_loss"][-1], 4) if global_metrics[model_type]["val_loss"] else 'N/A'
-    val_accuracy = round(global_metrics[model_type]["val_accuracy"][-1], 2) if global_metrics[model_type]["val_accuracy"] else 'N/A'
-    val_f1 = round(global_metrics[model_type]["val_f1"][-1], 2) if global_metrics[model_type]["val_f1"] else 'N/A'
+    train_loss = round(global_metrics[model_type]["train_loss"][-1], 2) if global_metrics[model_type]["train_loss"] else 'N/A'
+    train_accuracy = round(global_metrics[model_type]["train_accuracy"][-1], 4) if global_metrics[model_type]["train_accuracy"] else 'N/A'
+    train_f1 = round(global_metrics[model_type]["train_f1"][-1], 4) if global_metrics[model_type]["train_f1"] else 'N/A'
+    train_mae = round(global_metrics[model_type]["train_mae"][-1], 4) if global_metrics[model_type]["train_mae"] else 'N/A'
+    val_loss = round(global_metrics[model_type]["val_loss"][-1], 2) if global_metrics[model_type]["val_loss"] else 'N/A'
+    val_accuracy = round(global_metrics[model_type]["val_accuracy"][-1], 4) if global_metrics[model_type]["val_accuracy"] else 'N/A'
+    val_f1 = round(global_metrics[model_type]["val_f1"][-1], 4) if global_metrics[model_type]["val_f1"] else 'N/A'
+    val_mae = round(global_metrics[model_type]["val_mae"][-1], 4) if global_metrics[model_type]["val_mae"] else 'N/A'
 
     if already_logged:
         train_loss = ""
         train_accuracy = ""
         train_f1 = ""
+        train_mae = ""
         val_loss = ""
         val_accuracy = ""
         val_f1 = ""
+        val_mae = ""
         srt1 = ""
         srt2 = ""
 
@@ -140,9 +144,9 @@ def log_round_time(client_id, fl_round, training_time, communication_time, total
     with open(csv_file, 'a', newline='') as file:
         writer = csv.writer(file)
         writer.writerow([
-            client_id, fl_round+1, round(training_time, 2), round(communication_time, 2), round(total_time, 2),
-            round(cpu_usage, 2), model_type, train_loss, train_accuracy, train_f1,
-            val_loss, val_accuracy, val_f1, srt1_rounded, srt2_rounded
+            client_id, fl_round + 1, round(training_time, 2), round(communication_time, 2), round(total_time, 2),
+            round(cpu_usage, 2), model_type, train_loss, train_accuracy, train_f1, train_mae,
+            val_loss, val_accuracy, val_f1, val_mae, srt1_rounded, srt2_rounded
         ])
 
 def preprocess_csv():
@@ -193,31 +197,39 @@ def weighted_average_global(metrics, task_type, srt1, srt2, time_between_rounds)
             "train_loss": float('inf'),
             "train_accuracy": 0.0,
             "train_f1": 0.0,
+            "train_mae": 0.0,
             "val_loss": float('inf'),
             "val_accuracy": 0.0,
             "val_f1": 0.0,
+            "val_mae": 0.0,
         }
 
     train_losses = [num_examples * m["train_loss"] for num_examples, m in metrics]
     train_accuracies = [num_examples * m["train_accuracy"] for num_examples, m in metrics]
-    train_f1 = [num_examples * m["train_f1"] for num_examples, m in metrics]
+    train_f1s = [num_examples * m["train_f1"] for num_examples, m in metrics]
+    train_maes = [num_examples * m["train_mae"] for num_examples, m in metrics]
     val_losses = [num_examples * m["val_loss"] for num_examples, m in metrics]
     val_accuracies = [num_examples * m["val_accuracy"] for num_examples, m in metrics]
     val_f1s = [num_examples * m["val_f1"] for num_examples, m in metrics]
+    val_maes = [num_examples * m["val_mae"] for num_examples, m in metrics]
 
     avg_train_loss = sum(train_losses) / total_examples
     avg_train_accuracy = sum(train_accuracies) / total_examples
-    avg_train_f1 = sum(train_f1) / total_examples
+    avg_train_f1 = sum(train_f1s) / total_examples
+    avg_train_mae = sum(train_maes) / total_examples
     avg_val_loss = sum(val_losses) / total_examples
     avg_val_accuracy = sum(val_accuracies) / total_examples
     avg_val_f1 = sum(val_f1s) / total_examples
+    avg_val_mae = sum(val_maes) / total_examples
 
     global_metrics[task_type]["train_loss"].append(avg_train_loss)
     global_metrics[task_type]["train_accuracy"].append(avg_train_accuracy)
     global_metrics[task_type]["train_f1"].append(avg_train_f1)
+    global_metrics[task_type]["train_mae"].append(avg_train_mae)
     global_metrics[task_type]["val_loss"].append(avg_val_loss)
     global_metrics[task_type]["val_accuracy"].append(avg_val_accuracy)
     global_metrics[task_type]["val_f1"].append(avg_val_f1)
+    global_metrics[task_type]["val_mae"].append(avg_val_mae)
 
     client_data_list = []
     for num_examples, m in metrics:
@@ -242,7 +254,16 @@ def weighted_average_global(metrics, task_type, srt1, srt2, time_between_rounds)
             already_logged = True
         log_round_time(client_id, currentRnd-1, training_time, communication_time, total_time, cpu_usage, model_type, already_logged, srt1, srt2)
 
-
+    return {
+        "train_loss": avg_train_loss,
+        "train_accuracy": avg_train_accuracy,
+        "train_f1": avg_train_f1,
+        "train_mae": avg_train_mae,
+        "val_loss": avg_val_loss,
+        "val_accuracy": avg_val_accuracy,
+        "val_f1": avg_val_f1,
+        "val_mae": avg_val_mae,
+    }
 
 parametersA = ndarrays_to_parameters(get_weights_A(NetA()))
 parametersB = ndarrays_to_parameters(get_weights_B(NetB()))
@@ -369,7 +390,6 @@ class MultiModelStrategy(Strategy):
             if model_type == "taskA":
                 results_a.append((fit_res.parameters, fit_res.num_examples, fit_res.metrics))
             elif model_type == "taskB":
-                # Gestione separata per taskB se necessaria
                 pass
             else:
                 continue

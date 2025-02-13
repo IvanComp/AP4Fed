@@ -16,7 +16,6 @@ class HomePage(QWidget):
         self.resize(800, 600)
         base_dir = os.path.dirname(__file__)
         logo_path = os.path.join(base_dir, "img/readme/logo.svg")
-
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignCenter)
         self.setLayout(layout)
