@@ -1,6 +1,6 @@
 {
     "simulation_type": "Local",
-    "rounds": 2,
+    "rounds": 1,
     "clients": 2,
     "patterns": {
         "client_registry": {
@@ -31,7 +31,7 @@
     "client_details": [
         {
             "client_id": 1,
-            "cpu": 2,
+            "cpu": 1,
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID"

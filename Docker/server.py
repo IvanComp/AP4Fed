@@ -460,27 +460,15 @@ class MultiModelStrategy(Strategy):
     ) -> Optional[Tuple[float, Dict[str, Scalar]]]:
         return None
 
-def server_fn(context: Context):
-    strategy = MultiModelStrategy(
-        initial_parameters_a=parametersA,
-        initial_parameters_b=parametersB
-    )
-    server_config = ServerConfig(num_rounds=num_rounds)
-    return ServerAppComponents(strategy=strategy, config=server_config)
-
-app = ServerApp(server_fn=server_fn)
-
 if __name__ == "__main__":
-    app.run(server_address="[::]:8080", config=ServerConfig(num_rounds=num_rounds))
+      
+    strategy = MultiModelStrategy(
+    initial_parameters_a=parametersA,
+    initial_parameters_b=parametersB
+    )
 
-# if __name__ == "__main__":
-#    start_http_server(8000)    
-#    strategy = MultiModelStrategy(
-#        initial_parameters_a=parametersA,  
-#    )
-#
-#    start_server(
-#        server_address="[::]:8080",  
-#        config=ServerConfig(num_rounds=num_rounds),  
-#        strategy=strategy, 
-#    )
+    start_server(
+        server_address="[::]:8080",  
+        config=ServerConfig(num_rounds=num_rounds),  
+        strategy=strategy, 
+    )
