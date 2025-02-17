@@ -25,8 +25,8 @@ from flwr.server.client_proxy import ClientProxy
 from flwr.common.logger import log
 from logging import INFO
 import numpy as np
-from taskA import Net as NetA, get_weights as get_weights_A
-from taskB import Net as NetB, get_weights as get_weights_B
+from taskA import Net as NetA, get_weights as get_weights_A, set_weights as set_weights_A
+from taskB import Net as NetB, get_weights as get_weights_B, set_weights as set_weights_B
 from rich.console import Console
 import time
 import csv
@@ -41,6 +41,7 @@ import zlib
 import pickle
 import docker
 from APClient import ClientRegistry
+import torch
 
 client_registry = ClientRegistry()
 
@@ -413,6 +414,16 @@ class MultiModelStrategy(Strategy):
                 key: global_metrics["taskB"][key][-1] if global_metrics["taskB"][key] else None
                 for key in global_metrics["taskB"]
             }
+
+        aggregated_model = NetA()
+        # Convertiamo i parameters in una lista di numpy array
+        aggregated_params_list = parameters_to_ndarrays(self.parameters_a)
+        set_weights_A(aggregated_model, aggregated_params_list)
+        server_folder = os.path.join("model_weights", "server")
+        os.makedirs(server_folder, exist_ok=True)
+        server_file_path = os.path.join(server_folder, f"MW_round{currentRnd}.pt")
+        torch.save(aggregated_model.state_dict(), server_file_path)
+        log(INFO, f"Aggregated model weights saved to {server_file_path}")
 
         if currentRnd == num_rounds:
             preprocess_csv()

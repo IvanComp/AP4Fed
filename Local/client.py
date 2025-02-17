@@ -95,8 +95,6 @@ def set_cpu_affinity(process_pid: int, num_cpus: int) -> bool:
                 process.nice(10)
                 return True
         elif system == "Darwin":
-            # Su macOS non è possibile impostare l'affinità in modo nativo,
-            # si effettua solo un renice come fallback (se serve).
             process.nice(10)
             return True
     except (AttributeError, psutil.Error) as e:
@@ -122,6 +120,8 @@ class FlowerClient(NumPyClient):
         self.net = NetA().to(DEVICE_A)
         self.trainloader, self.testloader = load_data_A()
         self.device = DEVICE_A
+        # Inizializzo un contatore per tenere traccia dei round
+        self.round_counter = 1
 
     def fit(self, parameters, config):
         compressed_parameters_hex = config.get("compressed_parameters_hex")
@@ -212,6 +212,17 @@ class FlowerClient(NumPyClient):
         results, training_time, start_comm_time = train_A(self.net, self.trainloader, self.testloader, epochs=1, device=self.device)
         new_parameters = get_weights_A(self.net)
         compressed_parameters_hex = None
+
+        # Utilizzo un contatore interno per tenere traccia del round
+        round_number = self.round_counter
+        self.round_counter += 1
+
+        # Convertiamo self.cid in stringa per evitare errori in os.path.join
+        client_folder = os.path.join("model_weights", str(self.cid))
+        os.makedirs(client_folder, exist_ok=True)
+        client_file_path = os.path.join(client_folder, f"MW_round{round_number}.pt")
+        torch.save(self.net.state_dict(), client_file_path)
+        log(INFO, f"Client {self.cid} model weights saved to {client_file_path}")
 
         if MESSAGE_COMPRESSOR:
             serialized_parameters = pickle.dumps(new_parameters)
