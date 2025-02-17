@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import re
+import zipfile
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton, QMessageBox
 from PyQt5.QtCore import Qt, QProcess, QTimer, QProcessEnvironment
 from PyQt5.QtGui import QMovie
@@ -18,6 +19,7 @@ class SimulationPage(QWidget):
         layout.setAlignment(Qt.AlignTop)
         self.setLayout(layout)
 
+        # Title layout con animazione e timer
         title_layout = QHBoxLayout()
         title_layout.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.title_label = QLabel("Running the Simulation...")
@@ -50,6 +52,7 @@ class SimulationPage(QWidget):
         title_layout.addWidget(self.timer_label)
         layout.addLayout(title_layout)
 
+        # Output area
         self.output_area = QPlainTextEdit()
         self.output_area.setReadOnly(True)
         self.output_area.setStyleSheet("""
@@ -62,6 +65,7 @@ class SimulationPage(QWidget):
         """)
         layout.addWidget(self.output_area)
 
+        # Bottone per terminare la simulazione
         self.stop_button = QPushButton("Stop Simulation")
         self.stop_button.setCursor(Qt.PointingHandCursor)
         self.stop_button.setStyleSheet("""
@@ -83,6 +87,9 @@ class SimulationPage(QWidget):
         self.stop_button.clicked.connect(self.stop_simulation)
         layout.addWidget(self.stop_button, alignment=Qt.AlignCenter)
 
+        # Layout orizzontale per i bottoni "View Simulation Report" e "Download Model Weights"
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
         self.view_report_button = QPushButton("📊 View Simulation Report")
         self.view_report_button.setCursor(Qt.PointingHandCursor)
         self.view_report_button.setStyleSheet("""
@@ -103,7 +110,31 @@ class SimulationPage(QWidget):
         """)
         self.view_report_button.clicked.connect(self.open_simulation_results)
         self.view_report_button.hide()
-        layout.addWidget(self.view_report_button, alignment=Qt.AlignCenter)
+        button_layout.addWidget(self.view_report_button)
+
+        self.download_weights_button = QPushButton("📑 Download Model Weights")
+        self.download_weights_button.setCursor(Qt.PointingHandCursor)
+        self.download_weights_button.setStyleSheet("""
+            QPushButton {
+                background-color: #ffc107;
+                color: black;
+                font-size: 14px;
+                padding: 8px 16px;
+                border-radius: 5px;
+                margin-top: 10px;
+            }
+            QPushButton:hover {
+                background-color: #ffca28;
+            }
+            QPushButton:pressed {
+                background-color: #ffb300;
+            }
+        """)
+        self.download_weights_button.clicked.connect(self.download_model_weights)
+        self.download_weights_button.hide()
+        button_layout.addWidget(self.download_weights_button)
+        button_layout.addStretch()
+        layout.addLayout(button_layout)
 
         self.process = QProcess(self)
         self.process.setProcessChannelMode(QProcess.MergedChannels)
@@ -116,7 +147,7 @@ class SimulationPage(QWidget):
         self.timer.timeout.connect(self.update_timer)
         self.start_timer()
 
-        # Preleva la configurazione e avvia la simulazione
+        # Avvio della simulazione
         self.start_simulation(num_supernodes)
 
     def update_loading_animation(self):
@@ -217,6 +248,7 @@ class SimulationPage(QWidget):
         self.output_area.appendPlainText("Simulation finished.")
         self.title_label.setText("Simulation Results")
         self.view_report_button.show()
+        self.download_weights_button.show()
         self.stop_button.setText("Close")
         self.stop_button.clicked.disconnect()
         self.stop_button.clicked.connect(self.close_application)
@@ -234,6 +266,7 @@ class SimulationPage(QWidget):
             self.output_area.appendPlainText("Simulation terminated by the user.")
             self.title_label.setText("Simulation Terminated")
             self.view_report_button.hide()
+            self.download_weights_button.hide()
             self.stop_button.setText("Close")
             self.stop_button.clicked.disconnect()
             self.stop_button.clicked.connect(self.close_application)
@@ -252,6 +285,36 @@ class SimulationPage(QWidget):
         )
         self.results_window = SimulationResults(csv_path)
         self.results_window.show()
+
+    def download_model_weights(self):
+        # Determino il percorso della cartella "model_weights" (presente in "Local/model_weights")
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        model_weights_dir = os.path.join(base_dir, "Local", "model_weights")
+        if not os.path.exists(model_weights_dir):
+            QMessageBox.setStyleSheet("""
+                QMessageBox {
+                    background-color: white;
+                }
+                QLabel {
+                    color: black;
+                }
+            """)
+            QMessageBox.warning(self, "Error", f"'model_weights' folder not found at {model_weights_dir}")
+            return
+
+        downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
+        zip_file_path = os.path.join(downloads_folder, "model_weights.zip")
+
+        try:
+            with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for root, dirs, files in os.walk(model_weights_dir):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        arcname = os.path.relpath(file_path, model_weights_dir)
+                        zipf.write(file_path, arcname)
+            QMessageBox.information(self, "Success", f"Model weights have been zipped and saved to:\n{zip_file_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to create zip file:\n{str(e)}")
 
     def close_application(self):
         sys.exit(0)

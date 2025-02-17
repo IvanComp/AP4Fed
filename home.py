@@ -19,7 +19,6 @@ class HomePage(QWidget):
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignCenter)
         self.setLayout(layout)
-
         layout.addStretch()
 
         logo_label = QLabel(self)

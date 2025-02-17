@@ -212,13 +212,10 @@ class FlowerClient(NumPyClient):
         results, training_time, start_comm_time = train_A(self.net, self.trainloader, self.testloader, epochs=1, device=self.device)
         new_parameters = get_weights_A(self.net)
         compressed_parameters_hex = None
-
-        # Utilizzo un contatore interno per tenere traccia del round
+        
         round_number = self.round_counter
         self.round_counter += 1
-
-        # Convertiamo self.cid in stringa per evitare errori in os.path.join
-        client_folder = os.path.join("model_weights", str(self.cid))
+        client_folder = os.path.join("model_weights", "clients", str(self.cid))
         os.makedirs(client_folder, exist_ok=True)
         client_file_path = os.path.join(client_folder, f"MW_round{round_number}.pt")
         torch.save(self.net.state_dict(), client_file_path)

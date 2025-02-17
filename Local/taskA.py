@@ -112,7 +112,7 @@ def load_data():
         with open(config_file, 'r') as f:
             configJSON = json.load(f)
             DATASET_TYPE = configJSON["client_details"][0]["data_distribution_type"]
-            DATASET_NAME = configJSON.get("dataset", "CIFAR10")  # Gets dataset from config, defaults to CIFAR10
+            DATASET_NAME = configJSON.get("dataset", "CIFAR10") 
 
     dataset_config = AVAILABLE_DATASETS.get(DATASET_NAME, AVAILABLE_DATASETS["CIFAR10"])
     dataset_class = dataset_config["class"]

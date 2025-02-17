@@ -420,8 +420,6 @@ class RecapSimulationPage(QWidget):
             msg_box.setWindowTitle("Success")
             msg_box.setText(f"Configuration saved to {config_file_path}")
             msg_box.setIcon(QMessageBox.Information)
-
-            # Stile personalizzato per il QMessageBox
             msg_box.setStyleSheet("""
                 QMessageBox {
                     background-color: white;
@@ -431,7 +429,6 @@ class RecapSimulationPage(QWidget):
                 }
             """)
 
-            # Aggiungi pulsante personalizzato
             ok_button = msg_box.addButton("OK", QMessageBox.AcceptRole)
             ok_button.setCursor(Qt.PointingHandCursor)
             ok_button.setStyleSheet("""
