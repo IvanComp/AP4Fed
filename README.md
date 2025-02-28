@@ -17,7 +17,6 @@ Testing Models: [CNN, U-Net, DenseNet]
   <img src="https://img.shields.io/badge/docker-3.10+-blue">
   <img src="https://img.shields.io/badge/docker%20compose-2.29+-blue">
   <img src="https://img.shields.io/badge/Tool%20v.-1.0-green" alt="Version">
-  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open to Colab">
 </p>
 
 
