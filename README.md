@@ -17,7 +17,6 @@ Testing Models: [CNN, U-Net, DenseNet]
   <img src="https://img.shields.io/badge/docker-3.10+-blue">
   <img src="https://img.shields.io/badge/docker%20compose-2.29+-blue">
   <img src="https://img.shields.io/badge/Tool%20v.-1.0-green" alt="Version">
-  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open to Colab">
 </p>
 
 
@@ -34,7 +33,7 @@ Testing Models: [CNN, U-Net, DenseNet]
 An initial version of <tt>AP4FED</tt> was developed and tested in the research paper "_Performance Analysis of Architectural Patterns for Federated Learning Systems_" accepted for the 22nd IEEE International Conference on Software Architecture (ICSA 2025) [1].
 
 <p align="center">
-<img src="img/readme/Poster.png" width="340px" height="210px"/>
+<img src="img/readme/Poster.png" width="440px" height="610px"/>
 </p>
 
 # Table of contents
