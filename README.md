@@ -17,6 +17,7 @@ Testing Models: [CNN, U-Net, DenseNet]
   <img src="https://img.shields.io/badge/docker-3.10+-blue">
   <img src="https://img.shields.io/badge/docker%20compose-2.29+-blue">
   <img src="https://img.shields.io/badge/Tool%20v.-1.0-green" alt="Version">
+  <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open to Colab">
 </p>
 
 
@@ -105,6 +106,24 @@ Users can choose to create a new project or load an existing JSON configuration 
 
 
 ## Load/Save a Custom Configuration
+
+<p align="center">
+<img src="img/readme/7.png" width="180px" height="280px"/>
+</p>
+
+## Model Parameters
+
+| Parameter | Model n/2 | Model n | Model n*2 |  Model ImageNet100
+| --- | --- | --- | --- | --- |
+| `Conv. 1` | 3 filters, 5x5 kernel | 6 filters, 5x5 kernel | 12 filters, 5x5 kernel | --- |
+| `Pool` | Max pooling, 2x2 kernel | Max pooling, 2x2 kernel | Max pooling, 2x2 kernel | --- |
+| `Conv. 2` | 8 filters, 5x5 kernel | 16 filters, 5x5 kernel | 32 filters, 5x5 kernel | --- |
+| `FC 1` | 60 units | 120 units | 240 units | --- |
+| `FC 2` | 42 units | 84 units | 168 units | --- |
+| `FC 3` | 10 units | 20 units | 30 units | --- |
+| `Batch Size` | 32 | 32 | 32 | --- |
+| `Learning Rate` | 0.001 | 0.001 | 0.001 | --- |
+| `Optimizer` | SGD | SGD | SGD | --- |
 
 <p align="center">
 <img src="img/readme/7.png" width="180px" height="280px"/>
