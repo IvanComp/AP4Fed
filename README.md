@@ -33,6 +33,10 @@ Testing Models: [CNN, U-Net, DenseNet]
 
 An initial version of <tt>AP4FED</tt> was developed and tested in the research paper "_Performance Analysis of Architectural Patterns for Federated Learning Systems_" accepted for the 22nd IEEE International Conference on Software Architecture (ICSA 2025) [1].
 
+<p align="center">
+<img src="img/readme/Poster.png" width="340px" height="210px"/>
+</p>
+
 # Table of contents
 <!--ts-->
    * [Prerequisites](#prerequisites)
