@@ -149,6 +149,10 @@ You can explore use cases and performance testing of architectural patterns [1] 
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14539962.svg)](https://zenodo.org/records/14539962)
 
+You can explore the performance in combining **multiple** architectural patterns using <tt>AP4FED</tt> in the following Zenodo repository: 
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14938910.svg)](https://zenodo.org/records/14938910)
+
 # References
 
 [1] Compagnucci, I., Pinciroli, R., & Trubiani, C. (2025). **Performance Analysis of Architectural Patterns for Federated Learning Systems.**
