@@ -107,13 +107,6 @@ Users can choose to create a new project or load an existing JSON configuration 
 <img src="img/readme/8.png" width="400px" height="300px"/>
 </p>
 
-
-## Load/Save a Custom Configuration
-
-<p align="center">
-<img src="img/readme/7.png" width="180px" height="280px"/>
-</p>
-
 ## Model Parameters
 
 | Parameter | Model n/2 | Model n | Model n*2 |  Model ImageNet100
@@ -127,10 +120,6 @@ Users can choose to create a new project or load an existing JSON configuration 
 | `Batch Size` | 32 | 32 | 32 | --- |
 | `Learning Rate` | 0.001 | 0.001 | 0.001 | --- |
 | `Optimizer` | SGD | SGD | SGD | --- |
-
-<p align="center">
-<img src="img/readme/7.png" width="180px" height="280px"/>
-</p>
 
 # Architectural Patterns
 
