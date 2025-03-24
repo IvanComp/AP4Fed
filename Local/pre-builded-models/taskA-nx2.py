@@ -15,7 +15,7 @@ from torchvision.datasets import CIFAR10, CIFAR100, MNIST, FashionMNIST, KMNIST
 from torchvision.transforms import Compose, Normalize, ToTensor
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+GLOBAL_ROUND_COUNTER = 1 
 CLASS_NAMES = ['airplane', 'automobile', 'bird', 'cat', 'deer',
                'dog', 'frog', 'horse', 'ship', 'truck']
 
