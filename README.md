@@ -109,17 +109,17 @@ Users can choose to create a new project or load an existing JSON configuration 
 
 ## Model Parameters
 
-| Parameter | Model n/2 | Model n | Model n*2 |  Model ImageNet100
-| --- | --- | --- | --- | --- |
-| `Conv. 1` | 3 filters, 5x5 kernel | 6 filters, 5x5 kernel | 12 filters, 5x5 kernel | --- |
-| `Pool` | Max pooling, 2x2 kernel | Max pooling, 2x2 kernel | Max pooling, 2x2 kernel | --- |
-| `Conv. 2` | 8 filters, 5x5 kernel | 16 filters, 5x5 kernel | 32 filters, 5x5 kernel | --- |
-| `FC 1` | 60 units | 120 units | 240 units | --- |
-| `FC 2` | 42 units | 84 units | 168 units | --- |
-| `FC 3` | 10 units | 20 units | 30 units | --- |
-| `Batch Size` | 32 | 32 | 32 | --- |
-| `Learning Rate` | 0.001 | 0.001 | 0.001 | --- |
-| `Optimizer` | SGD | SGD | SGD | --- |
+| Parameter       | Model n/2               | Model n                 | Model n*2                | Model ImageNet100                                                   |
+|-----------------|-------------------------|-------------------------|--------------------------|---------------------------------------------------------------------|
+| `Conv. 1`      | 3 filters, 5x5 kernel    | 6 filters, 5x5 kernel    | 12 filters, 5x5 kernel    | 64 filters, 7x7 kernel, stride 2, padding 3                           |
+| `Pool`         | Max pooling, 2x2 kernel  | Max pooling, 2x2 kernel  | Max pooling, 2x2 kernel   | Max pooling 2x2 after each conv, Adaptive avg pooling to 8x8          |
+| `Conv. 2`      | 8 filters, 5x5 kernel    | 16 filters, 5x5 kernel   | 32 filters, 5x5 kernel    | 128 filters, 5x5 kernel, padding 2                                    |
+| `FC 1`         | 60 units                | 120 units               | 240 units                | 1024 units                                                          |
+| `FC 2`         | 42 units                | 84 units                | 168 units                | 100 units (output layer)                                              |
+| `FC 3`         | 10 units                | 20 units                | 30 units                 | ---                                                                 |
+| `Batch Size`   | 32                      | 32                      | 32                       | 16 (default)                                                        |
+| `Learning Rate`| 0.001                   | 0.001                   | 0.001                    | 0.001                                                               |
+| `Optimizer`    | SGD                     | SGD                     | SGD                      | SGD (momentum=0.9, weight_decay=1e-4)                                 |
 
 # Architectural Patterns
 
