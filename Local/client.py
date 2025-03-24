@@ -13,7 +13,6 @@ from datetime import datetime
 from io import BytesIO
 from flwr.client import ClientApp, NumPyClient
 from flwr.common import Context
-from typing import Dict
 from flwr.common.logger import log
 from logging import INFO
 from APClient import ClientRegistry
@@ -74,6 +73,7 @@ def load_client_details():
 
 CLIENT_REGISTRY = ClientRegistry()
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+GLOBAL_ROUND_COUNTER = 1  # Variabile globale per tenere traccia dei round
 
 def set_cpu_affinity(process_pid: int, num_cpus: int) -> bool:
     import platform
@@ -120,8 +120,7 @@ class FlowerClient(NumPyClient):
         self.net = NetA().to(DEVICE_A)
         self.trainloader, self.testloader = load_data_A()
         self.device = DEVICE_A
-        # Inizializzo un contatore per tenere traccia dei round
-        self.round_counter = 1
+        # Il contatore locale è stato rimosso, verrà utilizzata la variabile globale GLOBAL_ROUND_COUNTER
 
     def fit(self, parameters, config):
         compressed_parameters_hex = config.get("compressed_parameters_hex")
@@ -213,8 +212,9 @@ class FlowerClient(NumPyClient):
         new_parameters = get_weights_A(self.net)
         compressed_parameters_hex = None
         
-        round_number = self.round_counter
-        self.round_counter += 1
+        global GLOBAL_ROUND_COUNTER
+        round_number = GLOBAL_ROUND_COUNTER
+        GLOBAL_ROUND_COUNTER += 1
         client_folder = os.path.join("model_weights", "clients", str(self.cid))
         os.makedirs(client_folder, exist_ok=True)
         client_file_path = os.path.join(client_folder, f"MW_round{round_number}.pt")
