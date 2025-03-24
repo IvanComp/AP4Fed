@@ -12,7 +12,7 @@ from torchvision.datasets import ImageFolder
 from tqdm import tqdm  # Importo tqdm per la barra di avanzamento
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+GLOBAL_ROUND_COUNTER = 1 
 if torch.cuda.is_available():
     print("Using CUDA")
 else:

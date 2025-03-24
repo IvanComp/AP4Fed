@@ -15,7 +15,7 @@ from torchvision.datasets import CIFAR10, CIFAR100, MNIST, FashionMNIST, KMNIST
 from torchvision.transforms import Compose, Normalize, ToTensor
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+GLOBAL_ROUND_COUNTER = 1 
 CLASS_NAMES = ['airplane', 'automobile', 'bird', 'cat', 'deer',
                'dog', 'frog', 'horse', 'ship', 'truck']
 
@@ -71,36 +71,36 @@ config_dir = os.path.join(current_dir, '..', 'configuration')
 config_file = os.path.join(config_dir, 'config.json')
 
 if os.path.exists(config_file):
-                with open(config_file, 'r') as f:
-                    configJSON = json.load(f)
+    with open(config_file, 'r') as f:
+        configJSON = json.load(f)
 
-                for pattern_name, pattern_info in configJSON["patterns"].items():
-                    if pattern_info["enabled"]:
-                        if pattern_name == "client_selector":
-                            CLIENT_SELECTOR = True
-                        elif pattern_name == "client_cluster":
-                            CLIENT_CLUSTER = True
-                        elif pattern_name == "message_compressor":
-                            MESSAGE_COMPRESSOR = True
-                        elif pattern_name == "multi-task_model_trainer":
-                            MULTI_TASK_MODEL_TRAINER = True
-                        elif pattern_name == "heterogeneous_data_handler":
-                            HETEROGENEOUS_DATA_HANDLER = True
+    for pattern_name, pattern_info in configJSON["patterns"].items():
+        if pattern_info["enabled"]:
+            if pattern_name == "client_selector":
+                CLIENT_SELECTOR = True
+            elif pattern_name == "client_cluster":
+                CLIENT_CLUSTER = True
+            elif pattern_name == "message_compressor":
+                MESSAGE_COMPRESSOR = True
+            elif pattern_name == "multi-task_model_trainer":
+                MULTI_TASK_MODEL_TRAINER = True
+            elif pattern_name == "heterogeneous_data_handler":
+                HETEROGENEOUS_DATA_HANDLER = True
 
 class Net(nn.Module):   
     def __init__(self) -> None:
         super(Net, self).__init__()
-        self.conv1 = nn.Conv2d(3, 6, 5)
+        self.conv1 = nn.Conv2d(3, 3, 5)
         self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, 5)
-        self.fc1 = nn.Linear(16 * 5 * 5, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 10)
+        self.conv2 = nn.Conv2d(3, 8, 5)
+        self.fc1 = nn.Linear(8 * 5 * 5, 60)
+        self.fc2 = nn.Linear(60, 42)
+        self.fc3 = nn.Linear(42, 10)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(-1, 16 * 5 * 5)
+        x = x.view(-1, 8 * 5 * 5)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         return self.fc3(x)
@@ -184,7 +184,6 @@ def load_data():
                 class_distribution = Counter(subset_labels)
                 clients_data.append((subset_train, class_distribution))
                 
-                # Get class names based on dataset
                 class_names = trainset.classes if hasattr(trainset, 'classes') else [str(i) for i in range(dataset_config["num_classes"])]
                 distribution_str = ", ".join([f"{class_names[cls]}: {class_distribution.get(cls, 0)} samples" for cls in range(dataset_config["num_classes"])])
                 print(f"Client non-IID-{client_id+1} Class Distribution: {distribution_str}")
@@ -209,7 +208,7 @@ def augment_with_gan(clients_data, target_samples_per_class=2500):
         print(f"\nAugmenting non-IID Client {idx+1}:")
         for cls in range(AVAILABLE_DATASETS[DATASET_NAME]["num_classes"]):
             current_count = new_class_distribution[cls]
-            class_name = str(cls)  # Default to string representation of class number
+            class_name = str(cls)
             if hasattr(subset.dataset, 'classes'):
                 class_name = subset.dataset.classes[cls]
             
@@ -227,7 +226,6 @@ def augment_with_gan(clients_data, target_samples_per_class=2500):
     return augmented_clients_data
     
 def train(net, trainloader, valloader, epochs, device):
-    """Train the model on the training set."""
     log(INFO, "Starting training...")
 
     start_time = time.time()
