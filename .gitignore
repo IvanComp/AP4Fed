@@ -1,5 +1,6 @@
 **/data
 **/Local/img
+**/Local/model_weights
 **/Docker/img
 **/__pycache__/
 .DS_Store
