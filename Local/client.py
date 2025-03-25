@@ -1,3 +1,4 @@
+import multiprocessing
 import json
 import os
 import hashlib
@@ -8,6 +9,7 @@ import numpy as np
 import psutil
 import resource
 import threading
+import platform
 import ray
 from datetime import datetime
 from io import BytesIO
@@ -17,7 +19,6 @@ from flwr.common.logger import log
 from logging import INFO
 from APClient import ClientRegistry
 from taskA import (
-    DEVICE as DEVICE_A,
     Net as NetA,
     get_weights as get_weights_A,
     load_data as load_data_A,
@@ -72,7 +73,8 @@ def load_client_details():
     return global_client_details
 
 CLIENT_REGISTRY = ClientRegistry()
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+log(INFO, f"Device Used - CLient: {DEVICE}")
 GLOBAL_ROUND_COUNTER = 1  # Variabile globale per tenere traccia dei round
 
 def set_cpu_affinity(process_pid: int, num_cpus: int) -> bool:
@@ -117,10 +119,12 @@ class FlowerClient(NumPyClient):
                 log(INFO, f"Client {self.cid}: Could not set CPU affinity")
 
         CLIENT_REGISTRY.register_client(self.cid, model_type)
-        self.net = NetA().to(DEVICE_A)
+        # Rilettura del device nel contesto del processo figlio
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        log(INFO, f"Client {self.cid} using device: {device}")
+        self.net = NetA().to(device)
         self.trainloader, self.testloader = load_data_A()
-        self.device = DEVICE_A
-        # Il contatore locale è stato rimosso, verrà utilizzata la variabile globale GLOBAL_ROUND_COUNTER
+        self.DEVICE = device
 
     def fit(self, parameters, config):
         compressed_parameters_hex = config.get("compressed_parameters_hex")
@@ -208,7 +212,7 @@ class FlowerClient(NumPyClient):
             parameters = parameters
 
         set_weights_A(self.net, parameters)
-        results, training_time, start_comm_time = train_A(self.net, self.trainloader, self.testloader, epochs=1, device=self.device)
+        results, training_time, start_comm_time = train_A(self.net, self.trainloader, self.testloader, epochs=1, DEVICE=self.DEVICE)
         new_parameters = get_weights_A(self.net)
         compressed_parameters_hex = None
         
@@ -292,3 +296,4 @@ def client_fn(context: Context):
     return FlowerClient(client_config=config, model_type=model_type).to_client()
 
 app = ClientApp(client_fn=client_fn)
+
