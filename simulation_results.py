@@ -108,9 +108,9 @@ class SimulationResults(QDialog):
             # 1) Average Times per Client
             fig1 = plt.Figure(figsize=(6, 4), facecolor="white", constrained_layout=True)
             ax1 = fig1.add_subplot(111)
-            chart1 = SingleChartWidget(title="Average Times per Client", figure=fig1)
+            chart1 = SingleChartWidget(title="Average Time per Client", figure=fig1)
             self.plot_average_times_per_client(ax1)
-            chart1.download_button.clicked.connect(lambda _, f=fig1: self.save_figure_svg(f, "average_times_per_client"))
+            chart1.download_button.clicked.connect(lambda _, f=fig1: self.save_figure_svg(f, "average_time_per_client"))
             self.add_chart_to_grid(chart1, 0, 0)
 
             # 2) Communication Time per FL Round
@@ -204,7 +204,7 @@ class SimulationResults(QDialog):
     def add_chart_to_grid(self, chart_widget, row, col):
         self.grid.addWidget(chart_widget, row, col)
 
-    # ------------------- PRIMA RIGA -------------------
+    # ------------------- First Line -------------------
     def plot_average_times_per_client(self, ax):
         if self.data is None:
             ax.set_title("No data", fontsize=10)
@@ -226,7 +226,7 @@ class SimulationResults(QDialog):
             ax.bar(ind + width, total, width, label="Total Time", color=PASTEL_COLORS[2])
             ax.set_xlabel("Client ID", fontsize=10)
             ax.set_ylabel("Time", fontsize=10)
-            ax.set_title("Average Times per Client", fontsize=10)
+            ax.set_title("Average Time per Client", fontsize=10)
             ax.set_xticks(ind)
             ax.set_xticklabels(x, fontsize=8, rotation=45)
             ax.legend(fontsize=8)
@@ -285,7 +285,7 @@ class SimulationResults(QDialog):
         else:
             ax.set_title("Missing columns (FL Round, Client ID, Training Time)", fontsize=10)
 
-    # ------------------- SECONDA RIGA -------------------
+    # ------------------- Second Line -------------------
     def plot_val_f1_per_round(self, ax):
         if self.data is None:
             ax.set_title("No data", fontsize=10)
@@ -361,7 +361,7 @@ class SimulationResults(QDialog):
         else:
             ax.set_title("Missing columns (FL Round, Client ID, Val Accuracy)", fontsize=10)
 
-    # ------------------- SALVATAGGIO E CHIUSURA -------------------
+    # ------------------- Save & Close -------------------
     def save_figure_svg(self, figure, default_name="chart"):
         options = QFileDialog.Options()
         file_name, _ = QFileDialog.getSaveFileName(

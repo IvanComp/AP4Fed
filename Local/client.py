@@ -74,7 +74,7 @@ def load_client_details():
 
 CLIENT_REGISTRY = ClientRegistry()
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-log(INFO, f"Device Used - CLient: {DEVICE}")
+#log(INFO, f"Device Used - CLient: {DEVICE}")
 GLOBAL_ROUND_COUNTER = 1  # Variabile globale per tenere traccia dei round
 
 def set_cpu_affinity(process_pid: int, num_cpus: int) -> bool:
@@ -100,7 +100,7 @@ def set_cpu_affinity(process_pid: int, num_cpus: int) -> bool:
             process.nice(10)
             return True
     except (AttributeError, psutil.Error) as e:
-        log(INFO, f"Could not set CPU affinity: {str(e)}")
+        print(f"Could not set CPU affinity: {str(e)}")
     return False
 
 class FlowerClient(NumPyClient):
@@ -114,14 +114,14 @@ class FlowerClient(NumPyClient):
         self.model_type = model_type
         if self.n_cpu:
             if set_cpu_affinity(os.getpid(), self.n_cpu):
-                log(INFO, f"Client {self.cid}: CPU affinity attempted with {self.n_cpu} cores")
+                print(f"Client {self.cid}: CPU affinity attempted with {self.n_cpu} cores")
             else:
-                log(INFO, f"Client {self.cid}: Could not set CPU affinity")
+                print(f"Client {self.cid}: Could not set CPU affinity")
 
         CLIENT_REGISTRY.register_client(self.cid, model_type)
         # Rilettura del device nel contesto del processo figlio
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        log(INFO, f"Client {self.cid} using device: {device}")
+        #log(INFO, f"Client {self.cid} using device: {device}")
         self.net = NetA().to(device)
         self.trainloader, self.testloader = load_data_A()
         self.DEVICE = device
