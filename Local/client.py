@@ -78,29 +78,27 @@ DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 GLOBAL_ROUND_COUNTER = 1  # Variabile globale per tenere traccia dei round
 
 def set_cpu_affinity(process_pid: int, num_cpus: int) -> bool:
-    import platform
+    import platform, os
     system = platform.system()
-    try:
-        process = psutil.Process(process_pid)
-        if system == "Windows":
-            total_cpus = os.cpu_count()
-            cpus_to_use = min(num_cpus, total_cpus)
-            if cpus_to_use > 0:
-                process.cpu_affinity(list(range(cpus_to_use)))
-                process.nice(psutil.IDLE_PRIORITY_CLASS)
-                return True
-        elif system == "Linux":
-            total_cpus = os.cpu_count()
-            cpus_to_use = min(num_cpus, total_cpus)
-            if cpus_to_use > 0:
-                process.cpu_affinity(list(range(cpus_to_use)))
-                process.nice(10)
-                return True
-        elif system == "Darwin":
+    process = psutil.Process(process_pid)
+    if system == "Windows":
+        total_cpus = os.cpu_count()
+        cpus_to_use = min(num_cpus, total_cpus)
+        if cpus_to_use > 0:
+            process.cpu_affinity(list(range(cpus_to_use)))
+            process.nice(psutil.IDLE_PRIORITY_CLASS)
+            return True
+    elif system == "Linux":
+        total_cpus = os.cpu_count()
+        cpus_to_use = min(num_cpus, total_cpus)
+        if cpus_to_use > 0:
+            process.cpu_affinity(list(range(cpus_to_use)))
             process.nice(10)
             return True
-    except (AttributeError, psutil.Error) as e:
-        print(f"Could not set CPU affinity: {str(e)}")
+    elif system == "Darwin":
+        if os.geteuid() == 0:
+            process.nice(10)
+        return True
     return False
 
 class FlowerClient(NumPyClient):
@@ -115,8 +113,6 @@ class FlowerClient(NumPyClient):
         if self.n_cpu:
             if set_cpu_affinity(os.getpid(), self.n_cpu):
                 print(f"Client {self.cid}: CPU affinity attempted with {self.n_cpu} cores")
-            else:
-                print(f"Client {self.cid}: Could not set CPU affinity")
 
         CLIENT_REGISTRY.register_client(self.cid, model_type)
         # Rilettura del device nel contesto del processo figlio
@@ -128,10 +124,11 @@ class FlowerClient(NumPyClient):
 
     def fit(self, parameters, config):
         compressed_parameters_hex = config.get("compressed_parameters_hex")
-        global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
+        global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MODEL_COVERSIONING, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
         CLIENT_SELECTOR = False
         CLIENT_CLUSTER = False
         MESSAGE_COMPRESSOR = False
+        MODEL_COVERSIONING = False
         MULTI_TASK_MODEL_TRAINER = False
         HETEROGENEOUS_DATA_HANDLER = False
 
@@ -151,6 +148,8 @@ class FlowerClient(NumPyClient):
                         CLIENT_CLUSTER = True
                     elif pattern_name == "message_compressor":
                         MESSAGE_COMPRESSOR = True
+                    elif pattern_name == "model_co-versioning_registry":
+                        MODEL_COVERSIONING = True
                     elif pattern_name == "multi-task_model_trainer":
                         MULTI_TASK_MODEL_TRAINER = True
                     elif pattern_name == "heterogeneous_data_handler":
@@ -219,11 +218,13 @@ class FlowerClient(NumPyClient):
         global GLOBAL_ROUND_COUNTER
         round_number = GLOBAL_ROUND_COUNTER
         GLOBAL_ROUND_COUNTER += 1
-        client_folder = os.path.join("model_weights", "clients", str(self.cid))
-        os.makedirs(client_folder, exist_ok=True)
-        client_file_path = os.path.join(client_folder, f"MW_round{round_number}.pt")
-        torch.save(self.net.state_dict(), client_file_path)
-        log(INFO, f"Client {self.cid} model weights saved to {client_file_path}")
+
+        if MODEL_COVERSIONING:
+            client_folder = os.path.join("model_weights", "clients", str(self.cid))
+            os.makedirs(client_folder, exist_ok=True)
+            client_file_path = os.path.join(client_folder, f"MW_round{round_number}.pt")
+            torch.save(self.net.state_dict(), client_file_path)
+            log(INFO, f"Client {self.cid} model weights saved to {client_file_path}")
 
         if MESSAGE_COMPRESSOR:
             serialized_parameters = pickle.dumps(new_parameters)

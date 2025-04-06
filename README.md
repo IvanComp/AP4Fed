@@ -131,6 +131,7 @@ The Architectural Patterns implemented in our framework are:
 | **Client Selector** | `Client Management` | A mechanism to dynamically select clients based on specific criteria, such as data distribution, device capabilities, or network conditions, to optimize the federated learning process. | 
 | **Client Cluster** | `Client Management` | A strategy to group clients into clusters based on shared characteristics, such as data similarity or device attributes, improving model accuracy and convergence in non-IID data scenarios. | 
 | **Message Compressor** | `Model Management` | A component designed to reduce the size of data exchanged between clients and the server by compressing messages, which lowers communication latency and bandwidth usage in federated learning environments. |
+| **Model Co-Versioning Registry** | `Model Management` | A component designed to store intermediate .pt model versions alongside global models, facilitating detailed tracking of model evolution and ensuring accountability in federated learning environments. |
 | **Multi-Task Model Trainer** | `Model Training` | Allow to train different global models simultaneously |
 | **Heterogeneous Data Handler** | `Model Training` | Enables pre-processing operations to enhance the quality of datasets for each client participating in the FL process. |
 
@@ -165,7 +166,9 @@ Check out the paper _[Performance Analysis of Architectural Patterns for Federat
   author       = {Compagnucci, Ivan and Pinciroli, Riccardo and Trubiani, Catia},
   title        = {{Performance Analysis of Architectural Patterns for Federated Learning Systems}},
   booktitle    = {International Conference on Software Architecture, {ICSA 25}},
-  pages        = {},
+  pages        = {289--300},
+  url          = {https://doi.org/10.1109/ICSA65012.2025.00036},
+  doi          = {10.1109/ICSA65012.2025.00036}
   publisher    = {{IEEE}},
   year         = {2025},
 }

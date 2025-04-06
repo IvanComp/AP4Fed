@@ -302,10 +302,10 @@ class PreSimulationPage(QWidget):
             },
             "Model co-Versioning Registry": {
                 "category": "Model Management Category",
-                "image": "",
-                "description": "This Architectural Pattern is not yet implemented",
-                "benefits": "",
-                "drawbacks": ""
+                "image": "img/patterns/modelversioningregistry.png",
+                "description": "It is designed to store both the current model version trained by each client device and the aggregated model version stored on the server in a Federated Learning process.",
+                "benefits": "Enables reproducibility and consistent version tracking.",
+                "drawbacks": "Extra storage cost is incurred to store all the local and global models."
             },
             "Model Replacement Trigger": {
                 "category": "Model Management Category",
@@ -522,6 +522,7 @@ class PreSimulationPage(QWidget):
             "Client Selector",
             "Client Cluster",
             "Message Compressor",
+            "Model co-Versioning Registry",
             "Multi-Task Model Trainer",
             "Heterogeneous Data Handler",
         ]
@@ -607,7 +608,7 @@ class PreSimulationPage(QWidget):
                     checkbox.stateChanged.connect(prevent_uncheck)
 
                 # Se i pattern non necessitano parametri, non mostriamo pulsante Configure
-                if pattern_name in ["Message Compressor", "Heterogeneous Data Handler"]:
+                if pattern_name in ["Message Compressor", "Heterogeneous Data Handler", "Model co-Versioning Registry"]:
                     configure_button = None
                 elif pattern_name in ["Client Selector", "Client Cluster", "Multi-Task Model Trainer"]:
                     configure_button = QPushButton("Configure")
@@ -874,6 +875,7 @@ class PreSimulationPage(QWidget):
             "Client Selector",
             "Client Cluster",
             "Message Compressor",
+            "Model co-Versioning Registry",
             "Multi-Task Model Trainer",
             "Heterogeneous Data Handler",
         ]

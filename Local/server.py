@@ -46,10 +46,11 @@ import torch
 client_registry = ClientRegistry()
 
 ################### GLOBAL PARAMETERS
-global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
+global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MODEL_COVERSIONING, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
 CLIENT_SELECTOR = False
 CLIENT_CLUSTER = False
 MESSAGE_COMPRESSOR = False
+MODEL_COVERSIONING = False
 MULTI_TASK_MODEL_TRAINER = False
 HETEROGENEOUS_DATA_HANDLER = False
 
@@ -79,6 +80,8 @@ if os.path.exists(config_file):
                     CLIENT_CLUSTER = True
                 elif pattern_name == "message_compressor":
                     MESSAGE_COMPRESSOR = True
+                elif pattern_name == "model_co-versioning_registry":
+                    MODEL_COVERSIONING = True
                 elif pattern_name == "multi-task_model_trainer":
                     MULTI_TASK_MODEL_TRAINER = True
                 elif pattern_name == "heterogeneous_data_handler":
@@ -419,11 +422,13 @@ class MultiModelStrategy(Strategy):
         # Convertiamo i parameters in una lista di numpy array
         aggregated_params_list = parameters_to_ndarrays(self.parameters_a)
         set_weights_A(aggregated_model, aggregated_params_list)
-        server_folder = os.path.join("model_weights", "server")
-        os.makedirs(server_folder, exist_ok=True)
-        server_file_path = os.path.join(server_folder, f"MW_round{currentRnd}.pt")
-        torch.save(aggregated_model.state_dict(), server_file_path)
-        log(INFO, f"Aggregated model weights saved to {server_file_path}")
+
+        if MODEL_COVERSIONING:
+            server_folder = os.path.join("model_weights", "server")
+            os.makedirs(server_folder, exist_ok=True)
+            server_file_path = os.path.join(server_folder, f"MW_round{currentRnd}.pt")
+            torch.save(aggregated_model.state_dict(), server_file_path)
+            log(INFO, f"Aggregated model weights saved to {server_file_path}")
 
         if currentRnd == num_rounds:
             preprocess_csv()
