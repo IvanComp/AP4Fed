@@ -961,15 +961,21 @@ class ClientConfigurationPage(QWidget):
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(5)
         self.setLayout(main_layout)
-
+        self.resize(1000, 800)
         title_label = QLabel("Configure Each Client")
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 10px;")
         main_layout.addWidget(title_label)
 
+        # Inserisco la grid in un QScrollArea per renderla scorrevole
         grid_layout = QGridLayout()
         grid_layout.setSpacing(20)
-        main_layout.addLayout(grid_layout)
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_widget = QWidget()
+        scroll_widget.setLayout(grid_layout)
+        scroll_area.setWidget(scroll_widget)
+        main_layout.addWidget(scroll_area)
 
         self.client_configs = []
         num_clients = self.user_choices[-1]["clients"]

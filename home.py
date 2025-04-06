@@ -31,7 +31,7 @@ class HomePage(QWidget):
         logo_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(logo_label)
 
-        description_label = QLabel("A Light-weight Federated Learning Engine and Benchmark")
+        description_label = QLabel("A Federated Learning Benchmarking Platform")
         description_label.setAlignment(Qt.AlignCenter)
         description_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #333;")
         layout.addWidget(description_label)

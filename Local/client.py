@@ -168,13 +168,13 @@ class FlowerClient(NumPyClient):
             if selection_strategy == "Resource-Based":
                 if selection_criteria == "CPU":
                     if n_cpu < selection_value:
-                        log(INFO, f"Client {self.cid} has insufficient CPU ({n_cpu} / {selection_value}). Will not participate.")
+                        log(INFO, f"Client {self.cid} has insufficient CPU ({n_cpu}). Will not participate.")
                         return parameters, 0, {}
                     else:
                         log(INFO, f"Client {self.cid} participates in this round. (CPU: {n_cpu})")
                 elif selection_criteria == "RAM":
                     if ram < selection_value:
-                        log(INFO, f"Client {self.cid} has insufficient RAM ({ram} / {selection_value}). Will not participate.")
+                        log(INFO, f"Client {self.cid} has insufficient RAM ({ram}). Will not participate.")
                         return parameters, 0, {}
                     else:
                         log(INFO, f"Client {self.cid} participates in this round. (RAM: {ram})")

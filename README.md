@@ -132,7 +132,7 @@ The Architectural Patterns implemented in our framework are:
 | **Client Cluster** | `Client Management` | A strategy to group clients into clusters based on shared characteristics, such as data similarity or device attributes, improving model accuracy and convergence in non-IID data scenarios. | 
 | **Message Compressor** | `Model Management` | A component designed to reduce the size of data exchanged between clients and the server by compressing messages, which lowers communication latency and bandwidth usage in federated learning environments. |
 | **Model Co-Versioning Registry** | `Model Management` | A component designed to store intermediate .pt model versions alongside global models, facilitating detailed tracking of model evolution and ensuring accountability in federated learning environments. |
-| **Multi-Task Model Trainer** | `Model Training` | Allow to train different global models simultaneously |
+| **Multi-Task Model Trainer** | `Model Training` | Allows to train different global models simultaneously |
 | **Heterogeneous Data Handler** | `Model Training` | Enables pre-processing operations to enhance the quality of datasets for each client participating in the FL process. |
 
 The **Client Registry** architectural pattern is implemented by adding the following parameters:
