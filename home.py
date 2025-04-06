@@ -1,6 +1,7 @@
 import os
 import sys
 import json  
+import shutil
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QMessageBox, QFileDialog
 from PyQt5.QtGui import QPixmap, QIcon, QDesktopServices
 from PyQt5.QtCore import Qt, QUrl, QSize

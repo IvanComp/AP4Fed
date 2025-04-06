@@ -961,15 +961,18 @@ class ClientConfigurationPage(QWidget):
         main_layout.setContentsMargins(10, 10, 10, 10)
         main_layout.setSpacing(5)
         self.setLayout(main_layout)
-        self.resize(1000, 800)
+
         title_label = QLabel("Configure Each Client")
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 10px;")
         main_layout.addWidget(title_label)
 
-        # Inserisco la grid in un QScrollArea per renderla scorrevole
+        # Creazione della griglia che conterrà le card dei client
         grid_layout = QGridLayout()
         grid_layout.setSpacing(20)
+        grid_layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+
+        # Inserisco la grid in un QScrollArea per renderla scorrevole
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_widget = QWidget()
@@ -987,24 +990,29 @@ class ClientConfigurationPage(QWidget):
             grid_layout.addWidget(card_widget, row, col)
             self.client_configs.append(config_dict)
 
+        # Calcola la larghezza fissa del widget contenuto nello scroll area
+        max_columns = min(num_clients, 3)
+        fixed_width = max_columns * 300 + (max_columns - 1) * grid_layout.spacing()
+        scroll_widget.setFixedWidth(fixed_width)
+
         confirm_button = QPushButton("Confirm and Continue")
         confirm_button.setCursor(Qt.PointingHandCursor)
         confirm_button.setStyleSheet("""
-                        QPushButton {
-                            background-color: green;
-                            color: white;
-                            font-size: 10px;
-                            padding: 8px 16px;
-                            border-radius: 5px;
-                            text-align: left;
-                        }
-                        QPushButton:hover {
-                            background-color: #e0a800;
-                        }
-                        QPushButton:pressed {
-                            background-color: #c69500;
-                        }
-                    """)
+            QPushButton {
+                background-color: green;
+                color: white;
+                font-size: 10px;
+                padding: 8px 16px;
+                border-radius: 5px;
+                text-align: left;
+            }
+            QPushButton:hover {
+                background-color: #e0a800;
+            }
+            QPushButton:pressed {
+                background-color: #c69500;
+            }
+        """)
         confirm_button.clicked.connect(self.save_client_configurations_and_continue)
         main_layout.addWidget(confirm_button, alignment=Qt.AlignCenter)
 
@@ -1015,7 +1023,11 @@ class ClientConfigurationPage(QWidget):
         card_layout.setSpacing(5)
         card.setLayout(card_layout)
 
-        card.setFixedWidth(300)
+        # Imposto dimensioni fisse: larghezza e altezza costanti per ogni card
+        fixed_width = 300
+        fixed_height = 300
+        card.setFixedWidth(fixed_width)
+        card.setFixedHeight(fixed_height)
 
         pc_icon = self.style().standardIcon(QStyle.SP_ComputerIcon)
         pc_icon_label = QLabel()
@@ -1059,7 +1071,7 @@ class ClientConfigurationPage(QWidget):
         dataset_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         dataset_label.setAlignment(Qt.AlignLeft)
         dataset_combobox = QComboBox()
-        dataset_combobox.addItems(["CIFAR-10", "CIFAR-100","FMNIST", "FashionMNIST", "KMNIST", "NYUv2", "iv4N"])
+        dataset_combobox.addItems(["CIFAR-10", "CIFAR-100", "FMNIST", "FashionMNIST", "KMNIST", "NYUv2", "iv4N"])
         dataset_combobox.setFixedWidth(100)
 
         dataset_layout = QHBoxLayout()
@@ -1101,47 +1113,8 @@ class ClientConfigurationPage(QWidget):
             client_details.append(client_info)
 
         self.user_choices[-1]["client_details"] = client_details
-        # Se Multi-Task Model Trainer è abilitato, controlliamo la regola dei 2 client per model1 e model2
-        patterns = self.user_choices[-1]["patterns"]
-        if "multi-task_model_trainer" in patterns:
-            mtt_data = patterns["multi-task_model_trainer"]
-            if mtt_data["enabled"]:
-                model1 = mtt_data["params"].get("model1", "")
-                model2 = mtt_data["params"].get("model2", "")
-                if model1 and model2:
-                    c1 = sum(1 for c in client_details if c["dataset"] == model1)
-                    c2 = sum(1 for c in client_details if c["dataset"] == model2)
-                    if c1 < 2 or c2 < 2:
-                        msg_box = QMessageBox(self)
-                        msg_box.setWindowTitle("Invalid Configuration")
-                        msg_box.setIcon(QMessageBox.Warning)
-                        msg_box.setText(f"Multi-Task Model Trainer requires at least 2 clients using '{model1}'"
-                                        f" and 2 clients using '{model2}' datasets.")
-
-                        ok_button = msg_box.addButton("OK", QMessageBox.AcceptRole)
-                        ok_button.setCursor(Qt.PointingHandCursor)
-                        ok_button.setStyleSheet("""
-                            QPushButton {
-                                background-color: green;
-                                color: white;
-                                font-size: 10px;
-                                padding: 8px 16px;
-                                border-radius: 5px;
-                                text-align: left;
-                            }
-                            QPushButton:hover {
-                                background-color: #e0a800;
-                            }
-                            QPushButton:pressed {
-                                background-color: #c69500;
-                            }
-                        """)
-
-                        msg_box.exec_()
-                        return
-
+        # (Ulteriori controlli e salvataggio della configurazione)
         self.save_configuration_to_file()
-
         self.recap_simulation_page = RecapSimulationPage(self.user_choices)
         self.recap_simulation_page.show()
         self.close()
@@ -1156,10 +1129,10 @@ class ClientConfigurationPage(QWidget):
 
             with open(config_file_path, 'w') as f:
                 json.dump(self.user_choices[-1], f, indent=4)
-
         except Exception as e:
             error_box = QMessageBox(self)
             error_box.setIcon(QMessageBox.Critical)
             error_box.setWindowTitle("Error")
             error_box.setText(f"An error occurred while saving the configuration: {e}")
             error_box.exec_()
+

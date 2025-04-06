@@ -28,6 +28,7 @@ import numpy as np
 from taskA import Net as NetA, get_weights as get_weights_A, set_weights as set_weights_A
 from taskB import Net as NetB, get_weights as get_weights_B, set_weights as set_weights_B
 from rich.console import Console
+import shutil
 import time
 import csv
 import os
@@ -43,6 +44,14 @@ import docker
 from APClient import ClientRegistry
 import torch
 
+current_dir = os.path.dirname(os.path.abspath(__file__))
+folders_to_delete = ["performance", "model_weights"]
+
+for folder in folders_to_delete:
+    folder_path = os.path.join(current_dir, folder)
+    if os.path.exists(folder_path):
+        shutil.rmtree(folder_path)
+        
 client_registry = ClientRegistry()
 
 ################### GLOBAL PARAMETERS
