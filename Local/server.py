@@ -25,7 +25,7 @@ from flwr.server.client_proxy import ClientProxy
 from flwr.common.logger import log
 from logging import INFO
 import numpy as np
-from taskA import Net as NetA, get_weights as get_weights_A, set_weights as set_weights_A
+from taskA import Net as NetA, get_weights as get_weights_A, set_weights as set_weights_A, load_data as load_data_A
 from taskB import Net as NetB, get_weights as get_weights_B, set_weights as set_weights_B
 from rich.console import Console
 import shutil
@@ -217,20 +217,20 @@ def weighted_average_global(metrics, task_type, srt1, srt2, time_between_rounds)
 
     train_losses = [num_examples * m["train_loss"] for num_examples, m in metrics]
     train_accuracies = [num_examples * m["train_accuracy"] for num_examples, m in metrics]
-    train_f1s = [num_examples * m["train_f1"] for num_examples, m in metrics]
+    train_f1 = [num_examples * m["train_f1"] for num_examples, m in metrics]
     train_maes = [num_examples * m["train_mae"] for num_examples, m in metrics]
     val_losses = [num_examples * m["val_loss"] for num_examples, m in metrics]
     val_accuracies = [num_examples * m["val_accuracy"] for num_examples, m in metrics]
-    val_f1s = [num_examples * m["val_f1"] for num_examples, m in metrics]
+    val_f1 = [num_examples * m["val_f1"] for num_examples, m in metrics]
     val_maes = [num_examples * m["val_mae"] for num_examples, m in metrics]
 
     avg_train_loss = sum(train_losses) / total_examples
     avg_train_accuracy = sum(train_accuracies) / total_examples
-    avg_train_f1 = sum(train_f1s) / total_examples
+    avg_train_f1 = sum(train_f1) / total_examples
     avg_train_mae = sum(train_maes) / total_examples
     avg_val_loss = sum(val_losses) / total_examples
     avg_val_accuracy = sum(val_accuracies) / total_examples
-    avg_val_f1 = sum(val_f1s) / total_examples
+    avg_val_f1 = sum(val_f1) / total_examples
     avg_val_mae = sum(val_maes) / total_examples
 
     global_metrics[task_type]["train_loss"].append(avg_train_loss)

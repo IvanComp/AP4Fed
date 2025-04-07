@@ -1106,7 +1106,7 @@ class ClientConfigurationPage(QWidget):
             selected_dataset = dataset_combobox.currentText()
             if selected_dataset.lower() in ["cifar-10", "cifar-100"]:
                 models_list = [
-                    "alexnet", "convnext_tiny", "densenet121", "densenet161", "densenet169", "densenet201",
+                    "CNN","alexnet", "convnext_tiny", "densenet121", "densenet161", "densenet169", "densenet201",
                     "efficientnet_b0", "efficientnet_b1", "efficientnet_b2", "efficientnet_b3", "efficientnet_b4",
                     "googlenet", "inception_v3", "mnasnet0_5", "mnasnet0_75", "mnasnet1_0", "mnasnet1_3",
                     "mobilenet_v2", "mobilenet_v3_large", "mobilenet_v3_small",
@@ -1118,7 +1118,7 @@ class ClientConfigurationPage(QWidget):
                 ]
             elif selected_dataset.lower() == "imagenet100":
                 models_list = [
-                    "resnet18", "resnet34", "resnet50", "resnet101", "resnet152", "densenet121", "densenet161",
+                    "CNN","resnet18", "resnet34", "resnet50", "resnet101", "resnet152", "densenet121", "densenet161",
                     "densenet169", "densenet201", "efficientnet_b0", "efficientnet_b1", "efficientnet_b2",
                     "efficientnet_b3", "efficientnet_b4", "efficientnet_b5", "efficientnet_b6", "efficientnet_b7",
                     "efficientnet_v2_s", "efficientnet_v2_m", "efficientnet_v2_l", "inception_v3", "mobilenet_v2",
@@ -1129,7 +1129,7 @@ class ClientConfigurationPage(QWidget):
                     "convnext_tiny", "convnext_small", "convnext_base", "convnext_large", "swin_t", "swin_s", "swin_b"
                 ]
             else:
-                models_list = ["resnet18", "mobilenet_v2"]  # default fallback per gli altri dataset
+                models_list = ["CNN", "resnet18", "mobilenet_v2"]  # default fallback per gli altri dataset
             model_combobox.clear()
             model_combobox.addItems(models_list)
 

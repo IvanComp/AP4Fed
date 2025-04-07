@@ -1,4 +1,4 @@
-import multiprocessing
+from multiprocessing import Process
 import json
 import os
 import hashlib
@@ -75,7 +75,6 @@ def load_client_details():
 
 CLIENT_REGISTRY = ClientRegistry()
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-#log(INFO, f"Device Used - CLient: {DEVICE}")
 GLOBAL_ROUND_COUNTER = 1  # Variabile globale per tenere traccia dei round
 
 def set_cpu_affinity(process_pid: int, num_cpus: int) -> bool:
@@ -119,9 +118,9 @@ class FlowerClient(NumPyClient):
         CLIENT_REGISTRY.register_client(self.cid, model_type)
         # Rilettura del device nel contesto del processo figlio
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        #log(INFO, f"Client {self.cid} using device: {device}")
         self.net = NetA().to(device)
-        self.trainloader, self.testloader = load_data_A()
+        # Passiamo il dataset specificato nel client_config a load_data_A
+        self.trainloader, self.testloader = load_data_A(self.dataset)
         self.DEVICE = device
 
     def fit(self, parameters, config):
@@ -299,4 +298,3 @@ def client_fn(context: Context):
     return FlowerClient(client_config=config, model_type=model_type).to_client()
 
 app = ClientApp(client_fn=client_fn)
-

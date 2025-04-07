@@ -19,6 +19,27 @@ class SimulationPage(QWidget):
         layout.setAlignment(Qt.AlignTop)
         self.setLayout(layout)
 
+        self.LLM_button = QPushButton("🤖 LLM Agent")
+        self.LLM_button.setCursor(Qt.PointingHandCursor)
+        self.LLM_button.setStyleSheet("""
+            QPushButton {
+                background-color: #1a69c9;
+                color: white;
+                font-size: 14px;
+                padding: 8px 16px;
+                border-radius: 5px;
+                margin-top: 10px;
+            }
+            QPushButton:hover {
+                background-color: #0066cc;
+            }
+            QPushButton:pressed {
+                background-color: #004d99;
+            }
+        """)
+        self.LLM_button.clicked.connect(self.LLM_Agent)
+        layout.addWidget(self.LLM_button, alignment=Qt.AlignLeft | Qt.AlignVCenter)
+
         # Title layout con animazione e timer
         title_layout = QHBoxLayout()
         title_layout.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
@@ -275,6 +296,9 @@ class SimulationPage(QWidget):
                 self.loading_timer.stop()
             elif hasattr(self, 'loading_movie'):
                 self.loading_movie.stop()
+
+    def LLM_Agent(self):
+        QMessageBox.information(self, "LLM Agent", "LLM Agent is not implemented yet.")
 
     def open_simulation_results(self):
         csv_path = os.path.join(
