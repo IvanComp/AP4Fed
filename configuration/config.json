@@ -1,6 +1,6 @@
 {
     "simulation_type": "Local",
-    "rounds": 3,
+    "rounds": 2,
     "clients": 2,
     "patterns": {
         "client_registry": {
@@ -20,7 +20,7 @@
             "params": {}
         },
         "model_co-versioning_registry": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         },
         "multi-task_model_trainer": {
@@ -38,14 +38,16 @@
             "cpu": 1,
             "ram": 2,
             "dataset": "CIFAR-10",
-            "data_distribution_type": "IID"
+            "data_distribution_type": "IID",
+            "model": "Model A"
         },
         {
             "client_id": 2,
             "cpu": 1,
             "ram": 2,
             "dataset": "CIFAR-10",
-            "data_distribution_type": "IID"
+            "data_distribution_type": "IID",
+            "model": "Model A"
         }
     ]
 }

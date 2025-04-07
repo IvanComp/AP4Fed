@@ -1,8 +1,8 @@
 ---
 Version: [Alpha-1.0.0]
 Main Libraries: [Flower, PyTorch, PyTorchGAN, Torchvision]
-Testing Datasets: [CIFAR-10, FMNIST, NYUv2, iv4N]
-Testing Models: [CNN, U-Net, DenseNet]
+Testing Datasets: [CIFAR-10, CIFAR-100, FMNIST, KMNIST, FashionMNIST]
+Testing Models: [torchvision.models]
 ---
 
 # AP4FED
@@ -15,8 +15,6 @@ Testing Models: [CNN, U-Net, DenseNet]
   <img src="https://img.shields.io/github/license/IvanComp/AP4FED">
   <img src="https://img.shields.io/badge/python-3.12+-yellow">
   <img src="https://img.shields.io/badge/docker-3.10+-blue">
-  <img src="https://img.shields.io/badge/docker%20compose-2.29+-blue">
-  <img src="https://img.shields.io/badge/Tool%20v.-1.0-green" alt="Version">
 </p>
 
 
@@ -107,7 +105,7 @@ Users can choose to create a new project or load an existing JSON configuration 
 <img src="img/readme/8.png" width="400px" height="300px"/>
 </p>
 
-## Model Parameters
+## Testing Models
 
 | Parameter       | Model n/2               | Model n                 | Model n*2                | Model ImageNet100                                                   |
 |-----------------|-------------------------|-------------------------|--------------------------|---------------------------------------------------------------------|

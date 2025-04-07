@@ -1023,7 +1023,6 @@ class ClientConfigurationPage(QWidget):
         card_layout.setSpacing(5)
         card.setLayout(card_layout)
 
-        # Imposto dimensioni fisse: larghezza e altezza costanti per ogni card
         fixed_width = 300
         fixed_height = 300
         card.setFixedWidth(fixed_width)
@@ -1039,6 +1038,7 @@ class ClientConfigurationPage(QWidget):
         client_title.setAlignment(Qt.AlignCenter)
         card_layout.addWidget(client_title)
 
+        # CPU Allocation
         cpu_label = QLabel("CPU Allocation:")
         cpu_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         cpu_label.setAlignment(Qt.AlignLeft)
@@ -1046,13 +1046,13 @@ class ClientConfigurationPage(QWidget):
         cpu_input.setRange(1, 16)
         cpu_input.setValue(1)
         cpu_input.setSuffix(" CPUs")
-        cpu_input.setFixedWidth(100)
-
+        cpu_input.setFixedWidth(130)
         cpu_layout = QHBoxLayout()
         cpu_layout.addWidget(cpu_label)
         cpu_layout.addWidget(cpu_input)
         card_layout.addLayout(cpu_layout)
 
+        # RAM Allocation
         ram_label = QLabel("RAM Allocation:")
         ram_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         ram_label.setAlignment(Qt.AlignLeft)
@@ -1060,45 +1060,77 @@ class ClientConfigurationPage(QWidget):
         ram_input.setRange(1, 128)
         ram_input.setValue(2)
         ram_input.setSuffix(" GB")
-        ram_input.setFixedWidth(100)
-
+        ram_input.setFixedWidth(130)
         ram_layout = QHBoxLayout()
         ram_layout.addWidget(ram_label)
         ram_layout.addWidget(ram_input)
         card_layout.addLayout(ram_layout)
 
+        # Dataset Selection
         dataset_label = QLabel("Testing Dataset:")
         dataset_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         dataset_label.setAlignment(Qt.AlignLeft)
         dataset_combobox = QComboBox()
-        dataset_combobox.addItems(["CIFAR-10", "CIFAR-100", "FMNIST", "FashionMNIST", "KMNIST", "NYUv2", "iv4N"])
-        dataset_combobox.setFixedWidth(100)
-
+        dataset_combobox.addItems(["CIFAR-10", "CIFAR-100", "FMNIST", "KMNIST", "FashionMNIST"])
+        dataset_combobox.setFixedWidth(130)
         dataset_layout = QHBoxLayout()
         dataset_layout.addWidget(dataset_label)
         dataset_layout.addWidget(dataset_combobox)
         card_layout.addLayout(dataset_layout)
 
+        # Dataset Partition
         partition_label = QLabel("Dataset Partition:")
         partition_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         partition_label.setAlignment(Qt.AlignLeft)
         partition_combobox = QComboBox()
         partition_combobox.addItems(["IID", "non-IID", "Random"])
-        partition_combobox.setFixedWidth(100)
-
+        partition_combobox.setFixedWidth(130)
         partition_layout = QHBoxLayout()
         partition_layout.addWidget(partition_label)
         partition_layout.addWidget(partition_combobox)
         card_layout.addLayout(partition_layout)
 
+        # Training Model – il contenuto verrà aggiornato in base al dataset scelto
+        model_label = QLabel("Training Model:")
+        model_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
+        model_label.setAlignment(Qt.AlignLeft)
+        model_combobox = QComboBox()
+        model_combobox.setFixedWidth(130)
+        model_layout = QHBoxLayout()
+        model_layout.addWidget(model_label)
+        model_layout.addWidget(model_combobox)
+        card_layout.addLayout(model_layout)
+
+        # Dizionario che mappa ciascun dataset a una lista di modelli compatibili derivabili da torchvision.models
+        compatible_models = {
+            "CIFAR-10": ["resnet18", "resnet34", "vgg16", "mobilenet_v2", "densenet121"],
+            "CIFAR-100": ["resnet18", "resnet34", "vgg16", "mobilenet_v2", "densenet121"],
+            "FMNIST": ["resnet18", "mobilenet_v2"],
+            "KMNIST": ["resnet18", "mobilenet_v2"],
+            "FashionMNIST": ["resnet18", "mobilenet_v2"]
+        }
+
+        # Funzione per aggiornare il contenuto del combobox del modello in base al dataset selezionato
+        def update_model_options():
+            selected_dataset = dataset_combobox.currentText()
+            models_list = compatible_models.get(selected_dataset, ["resnet18", "mobilenet_v2"])
+            model_combobox.clear()
+            model_combobox.addItems(models_list)
+
+        # Connessione: quando il dataset cambia, aggiorno i modelli compatibili
+        dataset_combobox.currentIndexChanged.connect(update_model_options)
+        update_model_options()  # Inizializza il combobox con i modelli per il dataset predefinito
+
         config_dict = {
             "cpu_input": cpu_input,
             "ram_input": ram_input,
             "dataset_combobox": dataset_combobox,
-            "partition_combobox": partition_combobox
+            "partition_combobox": partition_combobox,
+            "model_combobox": model_combobox
         }
 
         return card, config_dict
+
 
     def save_client_configurations_and_continue(self):
         client_details = []
@@ -1108,7 +1140,8 @@ class ClientConfigurationPage(QWidget):
                 "cpu": cfg["cpu_input"].value(),
                 "ram": cfg["ram_input"].value(),
                 "dataset": cfg["dataset_combobox"].currentText(),
-                "data_distribution_type": cfg["partition_combobox"].currentText()
+                "data_distribution_type": cfg["partition_combobox"].currentText(),
+                "model": cfg["model_combobox"].currentText()
             }
             client_details.append(client_info)
 

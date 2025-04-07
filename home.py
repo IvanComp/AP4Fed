@@ -105,7 +105,7 @@ class HomePage(QWidget):
         layout.addStretch()
         footer_layout = QHBoxLayout()
         footer_layout.setAlignment(Qt.AlignCenter)
-        version_label = QLabel("1.0.0 version")
+        version_label = QLabel("1.5.0 version")
         version_label.setStyleSheet("font-size: 12px; color: black; margin: 5px;")
         footer_layout.addWidget(version_label)
 
@@ -307,8 +307,6 @@ class SecondScreen(QWidget):
         docker_button.setCursor(Qt.PointingHandCursor)
         docker_button.clicked.connect(self.select_docker) 
         button_layout.addWidget(docker_button)
-
-        
 
         main_layout.addLayout(button_layout)
         self.setStyleSheet("background-color: white;")
