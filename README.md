@@ -1,7 +1,7 @@
 ---
-Version: [Alpha-1.0.0]
+Version: [1.5.0]
 Main Libraries: [Flower, PyTorch, PyTorchGAN, Torchvision]
-Testing Datasets: [CIFAR-10, CIFAR-100, FMNIST, KMNIST, FashionMNIST]
+Testing Datasets: [CIFAR-10, CIFAR-100, FMNIST, KMNIST, FashionMNIST, ImageNet100]
 Testing Models: [torchvision.models]
 ---
 

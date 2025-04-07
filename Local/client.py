@@ -110,6 +110,7 @@ class FlowerClient(NumPyClient):
         self.ram = client_config.get("ram")
         self.dataset = client_config.get("dataset")
         self.data_distribution_type = client_config.get("data_distribution_type")
+        self.model = client_config.get("model")
         self.model_type = model_type
         if self.n_cpu:
             if set_cpu_affinity(os.getpid(), self.n_cpu):

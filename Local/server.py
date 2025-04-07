@@ -97,7 +97,6 @@ if os.path.exists(config_file):
                     HETEROGENEOUS_DATA_HANDLER = True
 
         CLIENT_DETAILS = config.get("client_details", [])
-        # Per maggiore comodità, puoi trasformarlo in una lista di dizionari strutturati
         client_details_structure = []
         for client in CLIENT_DETAILS:
             client_details_structure.append({
@@ -105,9 +104,9 @@ if os.path.exists(config_file):
                 "cpu": client.get("cpu"),
                 "ram": client.get("ram"),
                 "dataset": client.get("dataset"),
-                "data_distribution_type": client.get("data_distribution_type")
+                "data_distribution_type": client.get("data_distribution_type"),
+                "model": client.get("model")
             })
-        # Puoi memorizzare questa struttura in una variabile globale, se necessario:
         GLOBAL_CLIENT_DETAILS = client_details_structure
 
 currentRnd = 0
@@ -128,8 +127,7 @@ with open(csv_file, 'w', newline='') as file:
         'Val Loss', 'Val Accuracy', 'Val F1', 'Val MAE', 'Total Time of Training Round', 'Total Time of FL Round'
     ])
 
-def log_round_time(client_id, fl_round, training_time, communication_time, total_time, cpu_usage,
-                   model_type, already_logged, srt1, srt2):
+def log_round_time(client_id, fl_round, training_time, communication_time, total_time, cpu_usage, model_type, already_logged, srt1, srt2):
     train_loss = round(global_metrics[model_type]["train_loss"][-1], 2) if global_metrics[model_type]["train_loss"] else 'N/A'
     train_accuracy = round(global_metrics[model_type]["train_accuracy"][-1], 4) if global_metrics[model_type]["train_accuracy"] else 'N/A'
     train_f1 = round(global_metrics[model_type]["train_f1"][-1], 4) if global_metrics[model_type]["train_f1"] else 'N/A'
@@ -196,7 +194,7 @@ def preprocess_csv():
         last_client_index = group.index[-1]
         for col in columns_to_move:
             df.loc[last_client_index, col] = group[col].max()
-            df.loc[group.index[:-1], col] = None  # Opzionale: svuota i valori negli altri client
+            df.loc[group.index[:-1], col] = None 
 
     df.to_csv(csv_file, index=False)
     sns.set_theme(style="ticks")
