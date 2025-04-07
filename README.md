@@ -105,7 +105,7 @@ Users can choose to create a new project or load an existing JSON configuration 
 <img src="img/readme/8.png" width="400px" height="300px"/>
 </p>
 
-## Testing Models
+## Testing Models and Dataset
 
 | Parameter       | Model n/2               | Model n                 | Model n*2                | Model ImageNet100                                                   |
 |-----------------|-------------------------|-------------------------|--------------------------|---------------------------------------------------------------------|

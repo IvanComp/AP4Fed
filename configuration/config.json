@@ -39,7 +39,7 @@
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
-            "model": "Model A"
+            "model": "alexnet"
         },
         {
             "client_id": 2,
@@ -47,7 +47,7 @@
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
-            "model": "Model A"
+            "model": "resnext50_32x4d"
         }
     ]
 }
