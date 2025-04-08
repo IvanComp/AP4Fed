@@ -241,10 +241,14 @@ class SimulationResults(QDialog):
             return
         required_columns = ["FL Round", "Client ID", "Communication Time"]
         if all(col in self.data.columns for col in required_columns):
-            pivot = self.data.pivot_table(index="FL Round", columns="Client ID", values="Communication Time", aggfunc='mean')
+            pivot = self.data.pivot_table(index="FL Round", columns="Client ID", 
+                                        values="Communication Time", aggfunc='mean')
+            pivot.sort_index(inplace=True)
+            # Riempi i NaN in modo da avere linee continue. Puoi usare 'ffill', o anche 'interpolate' se preferisci.
+            pivot = pivot.fillna(method='ffill')
             for i, column in enumerate(pivot.columns):
                 ax.plot(pivot.index, pivot[column], marker='o', linewidth=1,
-                        label=f"{column}",
+                        label=str(column),
                         color=PASTEL_COLORS[i % len(PASTEL_COLORS)])
             ax.set_xlabel("Federated Learning Round", fontsize=10)
             ax.set_ylabel("Communication Time", fontsize=10)

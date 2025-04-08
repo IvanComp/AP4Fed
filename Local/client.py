@@ -107,10 +107,8 @@ class FlowerClient(NumPyClient):
                 print(f"Client {self.cid}: CPU affinity attempted with {self.n_cpu} cores")
 
         CLIENT_REGISTRY.register_client(self.cid, model_type)
-        # Rilettura del device nel contesto del processo figlio
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.net = NetA().to(device)
-        # Passiamo il dataset specificato nel client_config a load_data_A
         self.trainloader, self.testloader = load_data_A(self.dataset)
         self.DEVICE = device
 
@@ -241,6 +239,8 @@ class FlowerClient(NumPyClient):
                 "ram": ram,
                 "client_id": self.cid,
                 "model_type": self.model_type,
+                "data_distribution_type": data_distribution_type,
+                "dataset": dataset,
                 "start_comm_time": start_comm_time,
                 "compressed_parameters_hex": compressed_parameters_hex,
             }
@@ -260,6 +260,8 @@ class FlowerClient(NumPyClient):
                 "ram": ram,
                 "client_id": self.cid,
                 "model_type": self.model_type,
+                "data_distribution_type": data_distribution_type,
+                "dataset": dataset,
                 "start_comm_time": start_comm_time,
             }
             return new_parameters, len(self.trainloader.dataset), metrics
@@ -285,7 +287,8 @@ def client_fn(context: Context):
         except Exception:
             config_server = ray.get_actor("config_server")
     config = ray.get(config_server.get_config_for.remote(client_identifier))
-    model_type = "taskA"
+    # Impostazione del model type in base al campo "model" della configurazione anziché un valore fisso
+    model_type = config.get("model")
     return FlowerClient(client_config=config, model_type=model_type).to_client()
 
 app = ClientApp(client_fn=client_fn)
