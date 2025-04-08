@@ -27,15 +27,6 @@ from taskA import (
     train as train_A,
     test as test_A
 )
-from taskB import (
-    DEVICE as DEVICE_B,
-    Net as NetB,
-    get_weights as get_weights_B,
-    load_data as load_data_B,
-    set_weights as set_weights_B,
-    train as train_B,
-    test as test_B
-)
 
 @ray.remote
 class ConfigServer:

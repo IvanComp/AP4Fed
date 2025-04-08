@@ -26,7 +26,6 @@ from flwr.common.logger import log
 from logging import INFO
 import numpy as np
 from taskA import Net as NetA, get_weights as get_weights_A, set_weights as set_weights_A, load_data as load_data_A
-from taskB import Net as NetB, get_weights as get_weights_B, set_weights as set_weights_B
 from rich.console import Console
 import shutil
 import time
@@ -65,7 +64,6 @@ HETEROGENEOUS_DATA_HANDLER = False
 
 global_metrics = {
     "taskA": {"train_loss": [], "train_accuracy": [], "train_f1": [], "train_mae": [], "val_loss": [], "val_accuracy": [], "val_f1": [], "val_mae": []},
-    "taskB": {"train_loss": [], "train_accuracy": [], "train_f1": [], "train_mae": [], "val_loss": [], "val_accuracy": [], "val_f1": [], "val_mae": []},
 }
 
 matplotlib.use('Agg')
@@ -180,11 +178,11 @@ def preprocess_csv():
 
     df['Client ID'] = df['Client ID'].map(client_mappings)
     df['Client Number'] = df['Client ID'].str.extract(r'Client (\d+)').astype(int)
-    task_order = ['taskA', 'taskB']
+    task_order = ['taskA']
     df['Task'] = pd.Categorical(df['Task'], categories=task_order, ordered=True)
     df.sort_values(by=['FL Round', 'Task', 'Client Number'], inplace=True)
     df.drop(columns=['Client Number'], inplace=True)
-    df['Task'] = df['Task'].cat.rename_categories({'taskA': 'CIFAR-10', 'taskB': 'FMNIST'})
+    df['Task'] = df['Task'].cat.rename_categories({'taskA': 'CIFAR-10'})
     df['Client ID'] = df['Client ID'].str.replace(r' - TASK[A|B]', '', regex=True)
     columns_to_move = [
     "Train Loss", "Train Accuracy", "Train F1",
@@ -277,15 +275,12 @@ def weighted_average_global(metrics, task_type, srt1, srt2, time_between_rounds)
     }
 
 parametersA = ndarrays_to_parameters(get_weights_A(NetA()))
-parametersB = ndarrays_to_parameters(get_weights_B(NetB()))
-
 client_model_mapping = {}
 previous_round_end_time = time.time() 
 
 class MultiModelStrategy(Strategy):
-    def __init__(self, initial_parameters_a: Parameters, initial_parameters_b: Parameters):
+    def __init__(self, initial_parameters_a: Parameters):
         self.parameters_a = initial_parameters_a
-        self.parameters_b = initial_parameters_b
     
     log(INFO, "==========================================")
     log(INFO, "Simulation Started!")
@@ -398,18 +393,11 @@ class MultiModelStrategy(Strategy):
             if training_time is not None:
                 training_times.append(training_time)              
 
-            if model_type == "taskA":
-                results_a.append((fit_res.parameters, fit_res.num_examples, fit_res.metrics))
-            elif model_type == "taskB":
-                pass
-            else:
-                continue
+            results_a.append((fit_res.parameters, fit_res.num_examples, fit_res.metrics))
 
         previous_round_end_time = time.time()
-
-        if results_a:
-            srt1 = max(training_times)
-            self.parameters_a = self.aggregate_parameters(results_a, "taskA", srt1, srt2, time_between_rounds)
+        srt1 = max(training_times)
+        self.parameters_a = self.aggregate_parameters(results_a, "taskA", srt1, srt2, time_between_rounds)
 
         metrics_aggregated = {}
 
@@ -419,14 +407,7 @@ class MultiModelStrategy(Strategy):
                 for key in global_metrics["taskA"]
             }
 
-        if any(global_metrics["taskB"].values()): 
-            metrics_aggregated["FMNIST"] = {
-                key: global_metrics["taskB"][key][-1] if global_metrics["taskB"][key] else None
-                for key in global_metrics["taskB"]
-            }
-
         aggregated_model = NetA()
-        # Convertiamo i parameters in una lista di numpy array
         aggregated_params_list = parameters_to_ndarrays(self.parameters_a)
         set_weights_A(aggregated_model, aggregated_params_list)
 
@@ -440,7 +421,7 @@ class MultiModelStrategy(Strategy):
         if currentRnd == num_rounds:
             preprocess_csv()
 
-        return (self.parameters_a, self.parameters_b), metrics_aggregated
+        return (self.parameters_a), metrics_aggregated
 
     def aggregate_parameters(self, results, task_type, srt1, srt2, time_between_rounds):
         total_examples = sum([num_examples for _, num_examples, _ in results])
@@ -486,7 +467,6 @@ class MultiModelStrategy(Strategy):
 def server_fn(context: Context):
     strategy = MultiModelStrategy(
         initial_parameters_a=parametersA,
-        initial_parameters_b=parametersB
     )
     server_config = ServerConfig(num_rounds=num_rounds)
     return ServerAppComponents(strategy=strategy, config=server_config)

@@ -1,10 +1,10 @@
+import os
+import json
+import time
+import random
+import numpy as np
 from collections import OrderedDict, Counter
 from logging import INFO
-import time
-import os
-import numpy as np
-import json
-import random
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -20,7 +20,7 @@ GLOBAL_ROUND_COUNTER = 1
 CLASS_NAMES = ['airplane', 'automobile', 'bird', 'cat', 'deer',
                'dog', 'frog', 'horse', 'ship', 'truck']
 
-# Flag per pattern architetturali (letti dal config)
+# Flag per pattern architetturali (letti dal file di configurazione)
 global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
 CLIENT_SELECTOR = False
 CLIENT_CLUSTER = False
@@ -28,10 +28,10 @@ MESSAGE_COMPRESSOR = False
 MULTI_TASK_MODEL_TRAINER = False
 HETEROGENEOUS_DATA_HANDLER = False
 
-# Variabili per il dataset
+# Variabili per il dataset (inizializzate come stringhe vuote: verranno aggiornate dinamicamente dalla configurazione)
 global DATASET_TYPE, DATASET_NAME
 DATASET_TYPE = ""
-DATASET_NAME = "CIFAR10"  # default
+DATASET_NAME = ""
 
 # Configurazioni dei dataset
 AVAILABLE_DATASETS = {
@@ -65,9 +65,8 @@ AVAILABLE_DATASETS = {
         "channels": 1,
         "num_classes": 10
     },
-    # Supponiamo che ImageNet100 sia un sottoinsieme di ImageNet con 100 classi
     "ImageNet100": {
-        "class": None,  # Da gestire separatamente se non esiste una classe già pronta
+        "class": None,  # Placeholder, da sostituire con la classe effettiva se necessario
         "normalize": ((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
         "channels": 3,
         "num_classes": 100
@@ -79,10 +78,31 @@ current_dir = os.path.abspath(os.path.dirname(__file__))
 config_dir = os.path.join(current_dir, '..', 'configuration')
 config_file = os.path.join(config_dir, 'config.json')
 
-# Lettura iniziale del file di configurazione
+# Funzione per normalizzare il nome del dataset
+def normalize_dataset_name(name: str) -> str:
+    # Rimuovo eventuali trattini e confronto in uppercase
+    name_clean = name.replace("-", "").upper()
+    if name_clean == "CIFAR10":
+        return "CIFAR10"
+    elif name_clean == "CIFAR100":
+        return "CIFAR100"
+    elif name_clean == "IMAGENET100":
+        return "ImageNet100"
+    elif name_clean in ["MNIST"]:
+        return "MNIST"
+    elif name_clean in ["FASHIONMNIST", "FMNIST"]:
+        return "FashionMNIST"
+    elif name_clean == "KMNIST":
+        return "KMNIST"
+    else:
+        # Se non è uno dei casi noti, restituisco il nome originario (o potresti sollevare un'eccezione)
+        return name
+
+# Lettura iniziale del file di configurazione e aggiornamento delle variabili globali in modo dinamico
 if os.path.exists(config_file):
     with open(config_file, 'r') as f:
         configJSON = json.load(f)
+    # Aggiorno i flag per i pattern
     for pattern_name, pattern_info in configJSON["patterns"].items():
         if pattern_info["enabled"]:
             if pattern_name == "client_selector":
@@ -95,45 +115,88 @@ if os.path.exists(config_file):
                 MULTI_TASK_MODEL_TRAINER = True
             elif pattern_name == "heterogeneous_data_handler":
                 HETEROGENEOUS_DATA_HANDLER = True
+    # Leggo il dataset dalla chiave "dataset" oppure dal primo elemento di "client_details"
+    ds = configJSON.get("dataset")
+    if not ds:
+        ds = configJSON["client_details"][0].get("dataset", None)
+    if ds is None:
+        raise ValueError("Il file di configurazione non specifica il dataset né tramite la chiave 'dataset' né in 'client_details'.")
+    DATASET_NAME = normalize_dataset_name(ds)
+    DATASET_TYPE = configJSON["client_details"][0].get("data_distribution_type", "")
 
-# Nuova classe CNN che riproduce la struttura originale della Net iniziale
-class CNN(nn.Module):
-    def __init__(self, num_classes: int) -> None:
-        super(CNN, self).__init__()
-        self.conv1 = nn.Conv2d(3, 3, 5)
+# Definizione della CNN per immagini a colori (3 canali)
+class CNN_CIFAR(nn.Module):
+    def __init__(self, num_classes: int, input_size: int) -> None:
+        super(CNN_CIFAR, self).__init__()
+        self.conv1 = nn.Conv2d(3, 3, kernel_size=5)
         self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(3, 8, 5)
-        # Supponiamo che l'output della seconda convoluzione abbia dimensioni 8x5x5;
-        # in un contesto reale questo dipende dalla dimensione dell'input e dal padding.
-        self.fc1 = nn.Linear(8 * 5 * 5, 60)
+        self.conv2 = nn.Conv2d(3, 8, kernel_size=5)
+        dummy = torch.zeros(1, 3, input_size, input_size)
+        dummy = self.pool(F.relu(self.conv1(dummy)))
+        dummy = self.pool(F.relu(self.conv2(dummy)))
+        flattened_size = dummy.view(1, -1).size(1)
+        self.fc1 = nn.Linear(flattened_size, 60)
         self.fc2 = nn.Linear(60, 42)
         self.fc3 = nn.Linear(42, num_classes)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(-1, 8 * 5 * 5)
+        x = x.view(x.size(0), -1)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         return self.fc3(x)
 
-# Funzione per caricare dinamicamente un modello in base al nome specificato nel config.
+# Definizione della CNN per immagini in scala di grigi (1 canale)
+class CNN_MONO(nn.Module):
+    def __init__(self, num_classes: int, input_size: int) -> None:
+        super(CNN_MONO, self).__init__()
+        self.conv1 = nn.Conv2d(1, 3, kernel_size=5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(3, 8, kernel_size=5)
+        dummy = torch.zeros(1, 1, input_size, input_size)
+        dummy = self.pool(F.relu(self.conv1(dummy)))
+        dummy = self.pool(F.relu(self.conv2(dummy)))
+        flattened_size = dummy.view(1, -1).size(1)
+        self.fc1 = nn.Linear(flattened_size, 60)
+        self.fc2 = nn.Linear(60, 42)
+        self.fc3 = nn.Linear(42, num_classes)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = x.view(x.size(0), -1)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        return self.fc3(x)
+
+# Funzione per ottenere il modello dinamico
 def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool = False) -> nn.Module:
     if model_name is None:
-        if os.path.exists(config_file):
-            with open(config_file, 'r') as f:
-                configJSON = json.load(f)
-            model_name = configJSON["client_details"][0].get("model", "resnet18")
-        else:
-            model_name = "resnet18"
+        with open(config_file, 'r') as f:
+            configJSON = json.load(f)
+        model_name = configJSON["client_details"][0].get("model", "resnet18")
     model_name = model_name.lower()
-    # Se è richiesto il modello "cnn", usa la struttura originale
     if model_name == "cnn":
-        return CNN(num_classes)
+        default_sizes = {
+            "CIFAR10": 32,
+            "CIFAR100": 32,
+            "FashionMNIST": 28,
+            "KMNIST": 28,
+            "FMNIST": 28,
+            "ImageNet100": 224
+        }
+        input_size = default_sizes.get(DATASET_NAME, 32)
+        in_channels = AVAILABLE_DATASETS[DATASET_NAME]["channels"]
+        if in_channels == 3:
+            return CNN_CIFAR(num_classes, input_size)
+        elif in_channels == 1:
+            return CNN_MONO(num_classes, input_size)
+        else:
+            raise ValueError(f"Numero di canali non supportato: {in_channels}")
     if not hasattr(models, model_name):
         raise ValueError(f"Il modello {model_name} non è disponibile in torchvision.models")
     model_constructor = getattr(models, model_name)
-    # Gestione del pretrained tramite il parametro weights (se pretrained==True)
     if pretrained:
         try:
             weight_enum = getattr(models, f"{model_name.upper()}_Weights")
@@ -158,13 +221,14 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
         raise NotImplementedError(f"Adattamento dinamico non implementato per il modello {model_name}")
     return model
 
-# Ora la funzione "Net" viene definita in modo dinamico: 
-Net = lambda: get_dynamic_model(AVAILABLE_DATASETS[DATASET_NAME]["num_classes"])
+# Funzione Net() usata per creare il modello
+def Net():
+    num_classes = AVAILABLE_DATASETS[DATASET_NAME]["num_classes"]
+    return get_dynamic_model(num_classes, "cnn")
 
 # Funzione load_data aggiornata: include il resize se il modello richiede dimensioni maggiori
 def load_data(dataset_name=None):
     global DATASET_NAME, DATASET_TYPE
-
     with open(config_file, 'r') as f:
         configJSON = json.load(f)
         DATASET_TYPE = configJSON["client_details"][0]["data_distribution_type"]
@@ -172,20 +236,12 @@ def load_data(dataset_name=None):
             dataset_name = configJSON.get("dataset", None)
             if dataset_name is None:
                 dataset_name = configJSON["client_details"][0].get("dataset", "CIFAR10")
-        if dataset_name.upper() in ["FMNIST"]:
-            dataset_name = "FashionMNIST"
-        elif dataset_name.upper() in ["CIFAR-10", "CIFAR10"]:
-            dataset_name = "CIFAR10"
-        elif dataset_name.upper() in ["CIFAR-100", "CIFAR100"]:
-            dataset_name = "CIFAR100"
-        elif dataset_name.upper() in ["IMAGENET100"]:
-            dataset_name = "ImageNet100"
+        # Normalizzo il nome del dataset per la lookup nel dizionario
+        dataset_name = normalize_dataset_name(dataset_name)
         DATASET_NAME = dataset_name
-
     dataset_config = AVAILABLE_DATASETS.get(DATASET_NAME, AVAILABLE_DATASETS["CIFAR10"])
     dataset_class = dataset_config["class"]
     normalize_params = dataset_config["normalize"]
-
     default_sizes = {
         "CIFAR10": 32,
         "CIFAR100": 32,
@@ -195,26 +251,23 @@ def load_data(dataset_name=None):
         "ImageNet100": 224
     }
     base_size = default_sizes.get(DATASET_NAME, 32)
-
     model_name = configJSON["client_details"][0].get("model", "resnet18").lower()
     if model_name in ["alexnet", "vgg11", "vgg13", "vgg16", "vgg19"]:
         target_size = 224
     else:
         target_size = base_size
-
     transform_list = []
     if target_size != base_size:
         transform_list.append(Resize((target_size, target_size)))
     transform_list += [ToTensor(), Normalize(*normalize_params)]
     trf = Compose(transform_list)
-
     if HETEROGENEOUS_DATA_HANDLER:
         # Gestione dei casi non-IID (non implementata qui per brevità)
         pass
     else:
         trainset = dataset_class("./data", train=True, download=True, transform=trf)
         testset = dataset_class("./data", train=False, download=True, transform=trf)
-        return DataLoader(trainset, batch_size=32, shuffle=True), DataLoader(testset)
+        return DataLoader(trainset, batch_size=32, shuffle=True), DataLoader(testset, batch_size=32)
 
 def augment_with_gan(clients_data, target_samples_per_class=2500):
     augmented_clients_data = []
