@@ -1,7 +1,6 @@
 import sys
 import os
 import pandas as pd
-
 import matplotlib
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
@@ -244,14 +243,13 @@ class SimulationResults(QDialog):
             pivot = self.data.pivot_table(index="FL Round", columns="Client ID", 
                                         values="Communication Time", aggfunc='mean')
             pivot.sort_index(inplace=True)
-            # Riempi i NaN in modo da avere linee continue. Puoi usare 'ffill', o anche 'interpolate' se preferisci.
             pivot = pivot.fillna(method='ffill')
             for i, column in enumerate(pivot.columns):
                 ax.plot(pivot.index, pivot[column], marker='o', linewidth=1,
                         label=str(column),
                         color=PASTEL_COLORS[i % len(PASTEL_COLORS)])
             ax.set_xlabel("Federated Learning Round", fontsize=10)
-            ax.set_ylabel("Communication Time", fontsize=10)
+            ax.set_ylabel("Communication Time (s)", fontsize=10)
             ax.set_title("Communication Time per Federated Learning Round", fontsize=10)
             ax.legend(fontsize=8, title_fontsize=8)
             ax.grid(False)
@@ -261,6 +259,9 @@ class SimulationResults(QDialog):
             else:
                 ax.set_xticks(pivot.index)
             ax.set_xticklabels(pivot.index.astype(int), fontsize=8)
+            # Imposta i tick dell'asse y come valori interi
+            from matplotlib.ticker import MaxNLocator
+            ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         else:
             ax.set_title("Missing columns (FL Round, Client ID, Communication Time)", fontsize=10)
 
@@ -276,7 +277,7 @@ class SimulationResults(QDialog):
                         label=f"{column}",
                         color=PASTEL_COLORS[i % len(PASTEL_COLORS)])
             ax.set_xlabel("Federated Learning Round", fontsize=10)
-            ax.set_ylabel("Training Time", fontsize=10)
+            ax.set_ylabel("Training Time (s)", fontsize=10)
             ax.set_title("Training Time per Federated Learning Round", fontsize=10)
             ax.legend(fontsize=8, title_fontsize=8)
             ax.grid(False)
@@ -286,8 +287,12 @@ class SimulationResults(QDialog):
             else:
                 ax.set_xticks(pivot.index)
             ax.set_xticklabels(pivot.index.astype(int), fontsize=8)
+            # Imposta i tick dell'asse y come valori interi
+            from matplotlib.ticker import MaxNLocator
+            ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         else:
             ax.set_title("Missing columns (FL Round, Client ID, Training Time)", fontsize=10)
+
 
     # ------------------- Second Line -------------------
     def plot_val_f1_per_round(self, ax):

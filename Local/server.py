@@ -176,26 +176,50 @@ def log_round_time(client_id, fl_round, training_time, communication_time, total
 
 def preprocess_csv():
     import pandas as pd
+    import seaborn as sns
+
+    # Legge il CSV
     df = pd.read_csv(csv_file)
+    
+    # Converte in numerico le colonne richieste
     df['Training Time'] = pd.to_numeric(df['Training Time'], errors='coerce')
     df['Total Time of FL Round'] = pd.to_numeric(df['Total Time of FL Round'], errors='coerce')
+    
+    # Trasforma la colonna "Total Time of FL Round" per ogni round:
+    # viene mantenuto il valore solo nell'ultima riga (come già facevi)
     df['Total Time of FL Round'] = df.groupby('FL Round')['Total Time of FL Round'].transform(
-        lambda x: [None] * (len(x) - 1) + [x.iloc[-1]]
+        lambda x: [None]*(len(x) - 1) + [x.iloc[-1]]
     )
+    
+    # Calcola il tempo totale per client
     df['Total Client Time'] = df['Training Time'] + df['Communication Time']
     
+    # Mappa i Client ID in ordine crescente; creiamo una colonna ausiliaria per l’ordinamento
     unique_clients = sorted(df['Client ID'].unique())
-    client_mappings = {}
-    for i, old_id in enumerate(unique_clients):
-        client_number = i + 1
-        client_mappings[old_id] = f'Client {client_number}'
-    df['Client ID'] = df['Client ID'].map(client_mappings)
+    # Mappa il client originario nel suo ordine numerico (1, 2, …)
+    client_mappings = {old_id: i + 1 for i, old_id in enumerate(unique_clients)}
+    df['Client Number'] = df['Client ID'].map(client_mappings)
+    df['Client ID'] = df['Client ID'].map(lambda x: f"Client {client_mappings[x]}")
+    df.sort_values(by=['FL Round', 'Client Number'], inplace=True)
+
+    if 'Train Loss' in df.columns and 'FL Round' in df.columns:
+        cols_round = df.columns[df.columns.get_loc('Train Loss'):]
+        def fix_round_values(subdf):
+            max_client = subdf['Client Number'].max()
+            for col in cols_round:
+                non_null = subdf[col].dropna()
+                value = non_null.iloc[-1] if not non_null.empty else None
+                subdf.loc[subdf['Client Number'] == max_client, col] = value
+                subdf.loc[subdf['Client Number'] != max_client, col] = None
+            return subdf
+        
+        df = df.groupby('FL Round', group_keys=False).apply(fix_round_values)
     
-    df.sort_values(by=['FL Round', 'Client ID'], inplace=True)
-    
+    df.drop(columns=['Client Number'], inplace=True)
     df.to_csv(csv_file, index=False)
     sns.set_theme(style="ticks")
     df = pd.read_csv(csv_file)
+
 
 def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_rounds):
     # Se non esiste ancora la chiave per il modello, la inizializzo

@@ -447,7 +447,7 @@ class RecapSimulationPage(QWidget):
                 }
             """)
 
-            msg_box.exec_()
+            #msg_box.exec_()
         except Exception as e:
             return 
 
