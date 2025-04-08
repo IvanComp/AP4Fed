@@ -915,7 +915,7 @@ class ClientConfigurationPage(QWidget):
     def __init__(self, user_choices, home_page_callback):
         super().__init__()
         self.setWindowTitle("Client Configuration")
-        self.resize(800, 600)
+        self.resize(1000, 800)
         self.user_choices = user_choices
         self.home_page_callback = home_page_callback
 

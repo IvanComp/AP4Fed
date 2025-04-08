@@ -336,7 +336,7 @@ class SimulationPage(QWidget):
                         file_path = os.path.join(root, file)
                         arcname = os.path.relpath(file_path, model_weights_dir)
                         zipf.write(file_path, arcname)
-            QMessageBox.information(self, "Success", f"Model weights have been zipped and saved to:\n{zip_file_path}")
+            #QMessageBox.information(self, "Success", f"Model weights have been zipped and saved to:\n{zip_file_path}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to create zip file:\n{str(e)}")
 
