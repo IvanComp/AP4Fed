@@ -1,5 +1,5 @@
 Client ID,FL Round,Training Time,Communication Time,Total Client Time,# of CPU,Model Type,Data Distr. Type,Dataset,Train Loss,Train Accuracy,Train F1,Train MAE,Val Loss,Val Accuracy,Val F1,Val MAE,Total Time of Training Round,Total Time of FL Round
-Client 1,1,7.14,4.52,11.66,1,CNN,IID,CIFAR-10,,,,,,,,,,
-Client 2,1,7.18,5.43,12.61,1,CNN,IID,CIFAR-10,3431.02,0.1802,0.1207,3.4052,686.01,0.1812,0.1197,3.3917,7.18,20.24
-Client 1,2,7.33,4.46,11.79,1,CNN,IID,CIFAR-10,,,,,,,,,,
-Client 2,2,7.33,4.46,11.79,1,CNN,IID,CIFAR-10,2935.78,0.3229,0.3043,2.4388,584.69,0.3297,0.3094,2.3856,7.33,13.15
+Client 1,1,34.15,27.09,61.239999999999995,1,densenet201,IID,OXFORDIIITPET,,,,,,,,,,
+Client 2,1,34.19,26.21,60.4,1,densenet201,IID,OXFORDIIITPET,413.17,0.0469,0.0128,10.5336,414.17,0.0448,0.0116,10.69,34.19,66.13
+Client 1,2,34.28,26.91,61.19,1,densenet201,IID,OXFORDIIITPET,,,,,,,,,,
+Client 2,2,34.08,27.15,61.23,1,densenet201,IID,OXFORDIIITPET,406.79,0.0615,0.0234,11.1284,410.48,0.0495,0.017,11.1022,34.28,61.31

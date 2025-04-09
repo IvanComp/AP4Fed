@@ -10,17 +10,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Subset
 from flwr.common.logger import log
-from torchvision.datasets import CIFAR10, CIFAR100, MNIST, FashionMNIST, KMNIST
+from torchvision.datasets import CIFAR10, CIFAR100, MNIST, FashionMNIST, KMNIST, OxfordIIITPet
 from torchvision.transforms import Compose, Normalize, ToTensor, Resize
 import torchvision.models as models
 
-# Impostazioni globali
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 GLOBAL_ROUND_COUNTER = 1
-CLASS_NAMES = ['airplane', 'automobile', 'bird', 'cat', 'deer',
-               'dog', 'frog', 'horse', 'ship', 'truck']
 
-# Flag per pattern architetturali (letti dal file di configurazione)
 global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
 CLIENT_SELECTOR = False
 CLIENT_CLUSTER = False
@@ -66,10 +62,16 @@ AVAILABLE_DATASETS = {
         "num_classes": 10
     },
     "ImageNet100": {
-        "class": None,  # Placeholder, da sostituire con la classe effettiva se necessario
+        "class": None, 
         "normalize": ((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
         "channels": 3,
         "num_classes": 100
+    },
+    "OXFORDIIITPET": {
+        "class": OxfordIIITPet,
+        "normalize": ((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        "channels": 3,
+        "num_classes": 37
     }
 }
 
@@ -94,6 +96,8 @@ def normalize_dataset_name(name: str) -> str:
         return "FashionMNIST"
     elif name_clean == "KMNIST":
         return "KMNIST"
+    elif name_clean == "OXFORDIIITPET":
+        return "OXFORDIIITPET"
     else:
         # Se non è uno dei casi noti, restituisco il nome originario (o potresti sollevare un'eccezione)
         return name
@@ -184,7 +188,8 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
             "FashionMNIST": 28,
             "KMNIST": 28,
             "FMNIST": 28,
-            "ImageNet100": 224
+            "ImageNet100": 256,
+            "OXFORDIIITPET": 256
         }
         input_size = default_sizes.get(DATASET_NAME, 32)
         in_channels = AVAILABLE_DATASETS[DATASET_NAME]["channels"]
@@ -236,16 +241,19 @@ def load_data(dataset_name=None):
                 dataset_name = configJSON["client_details"][0].get("dataset", "CIFAR10")
         dataset_name = normalize_dataset_name(dataset_name)
         DATASET_NAME = dataset_name
+
     dataset_config = AVAILABLE_DATASETS.get(DATASET_NAME, AVAILABLE_DATASETS["CIFAR10"])
     dataset_class = dataset_config["class"]
     normalize_params = dataset_config["normalize"]
+
     default_sizes = {
         "CIFAR10": 32,
         "CIFAR100": 32,
         "FashionMNIST": 28,
         "KMNIST": 28,
         "FMNIST": 28,
-        "ImageNet100": 224
+        "ImageNet100": 256,
+        "OXFORDIIITPET": 256
     }
     base_size = default_sizes.get(DATASET_NAME, 32)
     model_name = configJSON["client_details"][0].get("model", "resnet18").lower()
@@ -253,24 +261,41 @@ def load_data(dataset_name=None):
         target_size = 224
     else:
         target_size = base_size
-    transform_list = []
-    if target_size != base_size:
-        transform_list.append(Resize((target_size, target_size)))
-    transform_list += [ToTensor(), Normalize(*normalize_params)]
+
+    # Creiamo la lista delle trasformazioni in base al dataset; per OxfordIIITPET forziamo il ridimensionamento
+    if DATASET_NAME == "OXFORDIIITPET":
+        transform_list = [Resize((base_size, base_size)), ToTensor(), Normalize(*normalize_params)]
+    else:
+        transform_list = []
+        if target_size != base_size:
+            transform_list.append(Resize((target_size, target_size)))
+        transform_list += [ToTensor(), Normalize(*normalize_params)]
     trf = Compose(transform_list)
-    if DATASET_NAME in ["ImageNet100", "CIFAR100"]:
+
+    if DATASET_NAME == "ImageNet100":
         batch_size = 16
     else:
         batch_size = 32
+
+    # Funzione interna per creare i dataset in base al tipo
+    def get_datasets(transform):
+        if DATASET_NAME == "OXFORDIIITPET":
+            # Per OxfordIIITPET utilizziamo il parametro "split" con valori appropriati
+            trainset = dataset_class("./data", split="trainval", download=True, transform=transform)
+            testset = dataset_class("./data", split="test", download=True, transform=transform)
+        else:
+            trainset = dataset_class("./data", train=True, download=True, transform=transform)
+            testset = dataset_class("./data", train=False, download=True, transform=transform)
+        return trainset, testset
 
     if HETEROGENEOUS_DATA_HANDLER:
         if DATASET_TYPE == "Random":
             DATASET_TYPE = random.choice(["iid", "non-iid"])
 
-        if DATASET_TYPE == "IID":
-            trf = Compose([ToTensor(), Normalize(*normalize_params)])
-            trainset = dataset_class("./data", train=True, download=True, transform=trf)
-            testset = dataset_class("./data", train=False, download=True, transform=trf)
+        if DATASET_TYPE.upper() == "IID":
+            # Usando una trasformazione semplice per gestione IID
+            trf_iid = Compose([ToTensor(), Normalize(*normalize_params)])
+            trainset, testset = get_datasets(trf_iid)
             class_to_indices = {i: [] for i in range(dataset_config["num_classes"])}
             for idx, (_, label) in enumerate(trainset):
                 if len(class_to_indices[label]) < 2500:
@@ -278,7 +303,7 @@ def load_data(dataset_name=None):
             selected_indices = []
             for indices in class_to_indices.values():
                 selected_indices.extend(indices)
-            subset_train = Subset(trainset, selected_indices)               
+            subset_train = Subset(trainset, selected_indices)
             subset_labels = [trainset[i][1] for i in selected_indices]
             class_counts = Counter(subset_labels)
             class_names = trainset.classes if hasattr(trainset, 'classes') else [str(i) for i in range(dataset_config["num_classes"])]
@@ -287,36 +312,34 @@ def load_data(dataset_name=None):
 
             return DataLoader(trainset, batch_size=batch_size, shuffle=True), DataLoader(testset)
 
-        if DATASET_TYPE == "non-IID":
+        if DATASET_TYPE.lower() == "non-iid":
             num_non_iid_clients = sum(1 for client in configJSON["client_details"] if client["data_distribution_type"] == "non-IID")
             print(f"Creating {num_non_iid_clients} non-IID clients...")
             samples_per_client = 25000
             alpha = 0.5
             target_samples_per_class = 2500
 
-            trf = Compose([ToTensor(), Normalize(*normalize_params)])
-            trainset = dataset_class("./data", train=True, download=True, transform=trf)
-            testset = dataset_class("./data", train=False, download=True, transform=trf)
+            trf_non_iid = Compose([ToTensor(), Normalize(*normalize_params)])
+            trainset, testset = get_datasets(trf_non_iid)
 
             class_to_indices = {i: [] for i in range(dataset_config["num_classes"])}
             for idx, (_, label) in enumerate(trainset):
                 class_to_indices[label].append(idx)
             
             clients_data = []
-            
             for client_id in range(num_non_iid_clients):
                 proportions = np.random.dirichlet([alpha] * dataset_config["num_classes"])
-                class_counts = (proportions * samples_per_client).astype(int)
+                class_counts_arr = (proportions * samples_per_client).astype(int)
                 
-                discrepancy = samples_per_client - class_counts.sum()
+                discrepancy = samples_per_client - class_counts_arr.sum()
                 if discrepancy > 0:
-                    class_counts[np.argmax(proportions)] += discrepancy
+                    class_counts_arr[np.argmax(proportions)] += discrepancy
                 elif discrepancy < 0:
                     discrepancy = abs(discrepancy)
-                    class_counts[np.argmax(proportions)] -= min(discrepancy, class_counts[np.argmax(proportions)])
+                    class_counts_arr[np.argmax(proportions)] -= min(discrepancy, class_counts_arr[np.argmax(proportions)])
                 
                 selected_indices = []
-                for cls, count in enumerate(class_counts):
+                for cls, count in enumerate(class_counts_arr):
                     available_indices = class_to_indices[cls]
                     if count > len(available_indices):
                         selected = available_indices.copy()
@@ -339,9 +362,9 @@ def load_data(dataset_name=None):
             testloader = DataLoader(testset, batch_size=batch_size, shuffle=False)
 
             return trainloader, testloader
+
     else:
-        trainset = dataset_class("./data", train=True, download=True, transform=trf)
-        testset = dataset_class("./data", train=False, download=True, transform=trf)
+        trainset, testset = get_datasets(trf)
         return DataLoader(trainset, batch_size=batch_size, shuffle=True), DataLoader(testset, batch_size=batch_size)
 
 def augment_with_gan(clients_data, target_samples_per_class=2500):

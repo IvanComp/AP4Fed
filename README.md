@@ -1,8 +1,8 @@
 ---
 Version: [1.5.0]
-Main Libraries: [Flower, PyTorch, PyTorchGAN, Torchvision]
-Testing Datasets: [CIFAR-10, CIFAR-100, FMNIST, KMNIST, FashionMNIST, ImageNet100]
-Testing Models: [torchvision.models]
+Main Libraries: [Flower, PyTorch, Torchvision]
+Testing Datasets: [torchvision.datasets (+38)]
+Testing Models: [torchvision.models (+120)]
 ---
 
 # AP4FED

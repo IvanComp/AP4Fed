@@ -187,13 +187,13 @@ class MultiTaskModelTrainerDialog(QDialog):
 
         self.m1_label = QLabel("Select Model M1:")
         self.m1_combo = QComboBox()
-        self.m1_combo.addItems(["CIFAR-10", "CIFAR-100","FMNIST", "FashionMNIST", "KMNIST", "NYUv2", "iv4N"])
+        self.m1_combo.addItems(["CIFAR-10", "CIFAR-100", "FMNIST", "FashionMNIST", "KMNIST", "NYUv2", "iv4N"])
         layout.addWidget(self.m1_label)
         layout.addWidget(self.m1_combo)
 
         self.m2_label = QLabel("Select Model M2:")
         self.m2_combo = QComboBox()
-        self.m2_combo.addItems(["CIFAR-10", "CIFAR-100","FMNIST", "FashionMNIST", "KMNIST", "NYUv2", "iv4N"])
+        self.m2_combo.addItems(["CIFAR-10", "CIFAR-100", "FMNIST", "FashionMNIST", "KMNIST", "NYUv2", "iv4N"])
         layout.addWidget(self.m2_label)
         layout.addWidget(self.m2_combo)
 
@@ -289,7 +289,7 @@ class PreSimulationPage(QWidget):
             "Client Cluster": {
                 "category": "Client Management Category",
                 "image": "img/patterns/clientcluster.png",
-                "description": "Groups client devices based on their similarity (e.g., resources, data distribution) to improve model performance and training efficiency.",
+                "description": "Groups client devices based on their similarity in certain characteristics (e.g., resources, data distribution) to improve model performance and training efficiency.",
                 "benefits": "Allows specialized training; can handle different groups more effectively.",
                 "drawbacks": "Additional overhead to manage cluster membership."
             },
@@ -331,7 +331,7 @@ class PreSimulationPage(QWidget):
             "Heterogeneous Data Handler": {
                 "category": "Model Training Category",
                 "image": "img/patterns/heterogeneousdatahandler.png",
-                "description": "Addresses issues with non-IID and skewed data while preserving data privacy.",
+                "description": "Addresses issues with non-IID and skewed data while maintaining data privacy.",
                 "benefits": "Better management of varied data distributions.",
                 "drawbacks": "Requires more sophisticated data partitioning and handling logic."
             },
@@ -1071,7 +1071,7 @@ class ClientConfigurationPage(QWidget):
         dataset_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         dataset_label.setAlignment(Qt.AlignLeft)
         dataset_combobox = QComboBox()
-        dataset_combobox.addItems(["CIFAR-10", "CIFAR-100", "FMNIST", "KMNIST", "FashionMNIST", "ImageNet100"])
+        dataset_combobox.addItems(["CIFAR-10", "CIFAR-100", "FMNIST", "KMNIST", "FashionMNIST", "OXFORDIIITPET", "ImageNet100"])
         dataset_combobox.setFixedWidth(130)
         dataset_layout = QHBoxLayout()
         dataset_layout.addWidget(dataset_label)
@@ -1090,7 +1090,7 @@ class ClientConfigurationPage(QWidget):
         partition_layout.addWidget(partition_combobox)
         card_layout.addLayout(partition_layout)
 
-        # Training Model – il contenuto verrà aggiornato in base al dataset scelto
+        # Training Model – mostra tutti i modelli per ogni dataset
         model_label = QLabel("Training Model:")
         model_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         model_label.setAlignment(Qt.AlignLeft)
@@ -1101,35 +1101,27 @@ class ClientConfigurationPage(QWidget):
         model_layout.addWidget(model_combobox)
         card_layout.addLayout(model_layout)
 
-        # Funzione per aggiornare il contenuto del combobox del modello in base al dataset selezionato
+        # Funzione per aggiornare il contenuto del combobox del modello mostrando sempre lo stesso elenco completo
         def update_model_options():
-            selected_dataset = dataset_combobox.currentText()
-            if selected_dataset.lower() in ["cifar-10", "cifar-100"]:
-                models_list = [
-                    "CNN","alexnet", "convnext_tiny", "densenet121", "densenet161", "densenet169", "densenet201",
-                    "efficientnet_b0", "efficientnet_b1", "efficientnet_b2", "efficientnet_b3", "efficientnet_b4",
-                    "googlenet", "inception_v3", "mnasnet0_5", "mnasnet0_75", "mnasnet1_0", "mnasnet1_3",
-                    "mobilenet_v2", "mobilenet_v3_large", "mobilenet_v3_small",
-                    "regnet_x_400mf", "regnet_x_800mf", "regnet_x_1_6gf", "regnet_y_400mf",
-                    "regnet_y_800mf", "resnet18", "resnet34", "resnet50", "resnet101", "resnet152",
-                    "resnext50_32x4d", "shufflenet_v2_x0_5", "shufflenet_v2_x1_0", "squeezenet1_0", "squeezenet1_1",
-                    "vgg11", "vgg11_bn", "vgg13", "vgg13_bn", "vgg16", "vgg16_bn", "vgg19", "vgg19_bn",
-                    "wide_resnet50_2", "wide_resnet101_2", "swin_t", "swin_s", "swin_b"
-                ]
-            elif selected_dataset.lower() == "imagenet100":
-                models_list = [
-                    "CNN","resnet18", "resnet34", "resnet50", "resnet101", "resnet152", "densenet121", "densenet161",
-                    "densenet169", "densenet201", "efficientnet_b0", "efficientnet_b1", "efficientnet_b2",
-                    "efficientnet_b3", "efficientnet_b4", "efficientnet_b5", "efficientnet_b6", "efficientnet_b7",
-                    "efficientnet_v2_s", "efficientnet_v2_m", "efficientnet_v2_l", "inception_v3", "mobilenet_v2",
-                    "mobilenet_v3_large", "mobilenet_v3_small", "regnet_x_16gf", "regnet_x_1_6gf", "regnet_x_32gf",
-                    "regnet_x_3_2gf", "regnet_x_400mf", "regnet_x_800mf", "regnet_x_8gf", "regnet_y_128gf",
-                    "regnet_y_16gf", "regnet_y_1_6gf", "regnet_y_32gf", "regnet_y_3_2gf", "regnet_y_400mf",
-                    "regnet_y_800mf", "regnet_y_8gf", "vit_b_16", "vit_b_32", "vit_l_16", "vit_l_32",
-                    "convnext_tiny", "convnext_small", "convnext_base", "convnext_large", "swin_t", "swin_s", "swin_b"
-                ]
-            else:
-                models_list = ["CNN", "resnet18", "mobilenet_v2"]  # default fallback per gli altri dataset
+            models_list = [
+                "CNN", "alexnet", "convnext_tiny", "convnext_small", "convnext_base", "convnext_large",
+                "densenet121", "densenet161", "densenet169", "densenet201",
+                "efficientnet_b0", "efficientnet_b1", "efficientnet_b2", "efficientnet_b3", "efficientnet_b4",
+                "efficientnet_b5", "efficientnet_b6", "efficientnet_b7",
+                "efficientnet_v2_s", "efficientnet_v2_m", "efficientnet_v2_l",
+                "googlenet", "inception_v3",
+                "mnasnet0_5", "mnasnet0_75", "mnasnet1_0", "mnasnet1_3",
+                "mobilenet_v2", "mobilenet_v3_large", "mobilenet_v3_small",
+                "regnet_x_400mf", "regnet_x_800mf", "regnet_x_1_6gf", "regnet_x_16gf", "regnet_x_32gf", "regnet_x_3_2gf", "regnet_x_8gf",
+                "regnet_y_400mf", "regnet_y_800mf", "regnet_y_128gf", "regnet_y_16gf", "regnet_y_1_6gf", "regnet_y_32gf", "regnet_y_3_2gf", "regnet_y_8gf",
+                "resnet18", "resnet34", "resnet50", "resnet101", "resnet152",
+                "resnext50_32x4d", "shufflenet_v2_x0_5", "shufflenet_v2_x1_0",
+                "squeezenet1_0", "squeezenet1_1",
+                "vgg11", "vgg11_bn", "vgg13", "vgg13_bn", "vgg16", "vgg16_bn", "vgg19", "vgg19_bn",
+                "wide_resnet50_2", "wide_resnet101_2",
+                "swin_t", "swin_s", "swin_b",
+                "vit_b_16", "vit_b_32", "vit_l_16", "vit_l_32"
+            ]
             model_combobox.clear()
             model_combobox.addItems(models_list)
 
@@ -1182,4 +1174,3 @@ class ClientConfigurationPage(QWidget):
             error_box.setWindowTitle("Error")
             error_box.setText(f"An error occurred while saving the configuration: {e}")
             error_box.exec_()
-
