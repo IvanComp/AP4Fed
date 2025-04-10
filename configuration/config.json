@@ -39,7 +39,7 @@
             "ram": 2,
             "dataset": "OXFORDIIITPET",
             "data_distribution_type": "IID",
-            "model": "densenet201"
+            "model": "efficientnet_b7"
         },
         {
             "client_id": 2,
@@ -47,7 +47,7 @@
             "ram": 2,
             "dataset": "OXFORDIIITPET",
             "data_distribution_type": "IID",
-            "model": "densenet201"
+            "model": "efficientnet_b7"
         }
     ]
 }

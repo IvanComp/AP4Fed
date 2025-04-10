@@ -1,5 +1,5 @@
 Client ID,FL Round,Training Time,Communication Time,Total Client Time,# of CPU,Model Type,Data Distr. Type,Dataset,Train Loss,Train Accuracy,Train F1,Train MAE,Val Loss,Val Accuracy,Val F1,Val MAE,Total Time of Training Round,Total Time of FL Round
-Client 1,1,34.15,27.09,61.239999999999995,1,densenet201,IID,OXFORDIIITPET,,,,,,,,,,
-Client 2,1,34.19,26.21,60.4,1,densenet201,IID,OXFORDIIITPET,413.17,0.0469,0.0128,10.5336,414.17,0.0448,0.0116,10.69,34.19,66.13
-Client 1,2,34.28,26.91,61.19,1,densenet201,IID,OXFORDIIITPET,,,,,,,,,,
-Client 2,2,34.08,27.15,61.23,1,densenet201,IID,OXFORDIIITPET,406.79,0.0615,0.0234,11.1284,410.48,0.0495,0.017,11.1022,34.28,61.31
+Client 1,1,34.25,26.57,60.82,1,efficientnet_b7,IID,OXFORDIIITPET,,,,,,,,,,
+Client 2,1,34.44,25.56,60.0,1,efficientnet_b7,IID,OXFORDIIITPET,414.31,0.0285,0.0047,10.4666,414.97,0.0271,0.0033,10.5091,34.44,65.64
+Client 1,2,34.56,26.73,61.290000000000006,1,efficientnet_b7,IID,OXFORDIIITPET,,,,,,,,,,
+Client 2,2,34.29,26.96,61.25,1,efficientnet_b7,IID,OXFORDIIITPET,411.19,0.0399,0.0127,9.5253,413.97,0.0365,0.0085,9.6008,34.56,61.38
