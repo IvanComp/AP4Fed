@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 import pandas as pd
 import matplotlib
 matplotlib.use("Qt5Agg")
@@ -64,16 +65,71 @@ class SimulationResults(QDialog):
         self.setStyleSheet("background-color: white;")
         self.resize(1600, 1000)
 
+        # Carica i dati CSV se fornito
         self.data = None
         if data_file and os.path.exists(data_file):
             self.data = pd.read_csv(data_file)
-
+        
+        # Determina il percorso corrente.
+        try:
+            current_dir = os.path.abspath(os.path.dirname(__file__))
+        except NameError:
+            current_dir = os.getcwd()
+        
+        config = {}
+        config_paths = [
+            os.path.join(current_dir, 'configuration', 'config.json'),
+            os.path.join(current_dir, 'config.json')
+        ]
+        for path in config_paths:
+            if os.path.exists(path):
+                with open(path, 'r') as f:
+                    config = json.load(f)
+                break
+        if not config:
+            print("DEBUG: config.json non trovato nei percorsi:", config_paths)
+        
+        # Ottieni il numero di client:
+        clients = config.get("clients", None)
+        if clients is None and "client_details" in config:
+            clients = len(config["client_details"])
+        if clients is None:
+            clients = "N/A"
+        
+        # Ottieni il dataset: se non presente, prendi dal primo client
+        dataset = config.get("dataset", None)
+        if dataset is None and "client_details" in config and len(config["client_details"]) > 0:
+            dataset = config["client_details"][0].get("dataset", "N/A")
+        if dataset is None:
+            dataset = "N/A"
+        
+        # Ottieni il modello dal primo client in "client_details"
+        model = None
+        if "client_details" in config and len(config["client_details"]) > 0:
+            model = config["client_details"][0].get("model", None)
+        if model is None:
+            model = "N/A"
+        
+        print(f"DEBUG: clients = {clients}, dataset = {dataset}, model = {model}")
+        
+        # Layout principale
         main_layout = QVBoxLayout()
         self.setLayout(main_layout)
+        
+        # Titolo principale
         title_label = QLabel("Simulation Report")
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("color: black; font-size: 24px; font-weight: bold;")
         main_layout.addWidget(title_label)
+        
+        # Informazioni della simulazione (numero client, dataset, modello)
+        info_text = f"Clients: {clients} | Dataset: {dataset} | Model: {model}"
+        info_label = QLabel(info_text)
+        info_label.setAlignment(Qt.AlignCenter)
+        info_label.setStyleSheet("color: black; font-size: 18px; font-weight: bold;")
+        main_layout.addWidget(info_label)
+        
+        # Stato della simulazione ed il timer
         simulation_layout = QHBoxLayout()
         main_layout.addLayout(simulation_layout)
         self.simulation_label = QLabel("Simulation Running...")
@@ -92,71 +148,71 @@ class SimulationResults(QDialog):
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_timer)
         self.timer.start(1000)
-
-        # --- Griglia 2x3 per i 6 grafici ---
+        
+        # Griglia per i grafici (2 righe x 3 colonne)
         self.grid = QGridLayout()
         main_layout.addLayout(self.grid)
-
-        # --- Prima riga (o messaggio) ---
+        
+        # Se il numero di client è maggiore di 10, mostra un messaggio di avviso
         if self.data is not None and "Client ID" in self.data.columns and self.data["Client ID"].nunique() > 10:
             warning_label = QLabel("Preview is not available for more than 10 clients. Please refer to the .csv report.")
             warning_label.setAlignment(Qt.AlignCenter)
             warning_label.setStyleSheet("font-size: 16px; font-weight: bold; color: black;")
             self.grid.addWidget(warning_label, 0, 0, 1, 3)
         else:
-            # 1) Average Times per Client
+            # Grafico 1: Average Times per Client
             fig1 = plt.Figure(figsize=(6, 4), facecolor="white", constrained_layout=True)
             ax1 = fig1.add_subplot(111)
             chart1 = SingleChartWidget(title="Average Time per Client", figure=fig1)
             self.plot_average_times_per_client(ax1)
             chart1.download_button.clicked.connect(lambda _, f=fig1: self.save_figure_svg(f, "average_time_per_client"))
             self.add_chart_to_grid(chart1, 0, 0)
-
-            # 2) Communication Time per FL Round
+            
+            # Grafico 2: Communication Time per FL Round
             fig2 = plt.Figure(figsize=(6, 4), facecolor="white", constrained_layout=True)
             ax2 = fig2.add_subplot(111)
             chart2 = SingleChartWidget(title="Communication Time per Federated Learning Round", figure=fig2)
             self.plot_communication_time_per_round(ax2)
             chart2.download_button.clicked.connect(lambda _, f=fig2: self.save_figure_svg(f, "communication_time_per_round"))
             self.add_chart_to_grid(chart2, 0, 1)
-
-            # 3) Training Time per FL Round
+            
+            # Grafico 3: Training Time per FL Round
             fig3 = plt.Figure(figsize=(6, 4), facecolor="white", constrained_layout=True)
             ax3 = fig3.add_subplot(111)
             chart3 = SingleChartWidget(title="Training Time per Federated Learning Round", figure=fig3)
             self.plot_training_time_per_round(ax3)
             chart3.download_button.clicked.connect(lambda _, f=fig3: self.save_figure_svg(f, "training_time_per_round"))
             self.add_chart_to_grid(chart3, 0, 2)
-
-        # --- Seconda riga di grafici (F1 Score, Val Loss, Val Accuracy) ---
-        # 4) F1 Score
+        
+        # Seconda riga di grafici
+        # Grafico 4: F1 Score per FL Round
         fig4 = plt.Figure(figsize=(6, 4), facecolor="white", constrained_layout=True)
         ax4 = fig4.add_subplot(111)
         chart4 = SingleChartWidget(title="F1 Score per Federated Learning Round", figure=fig4)
         self.plot_val_f1_per_round(ax4)
         chart4.download_button.clicked.connect(lambda _, f=fig4: self.save_figure_svg(f, "val_f1_per_round"))
         self.add_chart_to_grid(chart4, 1, 0)
-
-        # 5) Val Loss
+        
+        # Grafico 5: Validation Loss per FL Round
         fig5 = plt.Figure(figsize=(6, 4), facecolor="white", constrained_layout=True)
         ax5 = fig5.add_subplot(111)
         chart5 = SingleChartWidget(title="Validation Loss per Federated Learning Round", figure=fig5)
         self.plot_val_loss_per_round(ax5)
         chart5.download_button.clicked.connect(lambda _, f=fig5: self.save_figure_svg(f, "val_loss_per_round"))
         self.add_chart_to_grid(chart5, 1, 1)
-
-        # 6) Val Accuracy
+        
+        # Grafico 6: Validation Accuracy per FL Round
         fig6 = plt.Figure(figsize=(6, 4), facecolor="white", constrained_layout=True)
         ax6 = fig6.add_subplot(111)
         chart6 = SingleChartWidget(title="Validation Accuracy per Federated Learning Round", figure=fig6)
         self.plot_val_accuracy_per_round(ax6)
         chart6.download_button.clicked.connect(lambda _, f=fig6: self.save_figure_svg(f, "val_accuracy_per_round"))
         self.add_chart_to_grid(chart6, 1, 2)
-
-        # --- Pulsanti in basso ---
+        
+        # Pulsanti in basso
         button_layout = QHBoxLayout()
         main_layout.addLayout(button_layout)
-
+        
         self.close_button = QPushButton("Close")
         self.close_button.setCursor(Qt.PointingHandCursor)
         self.close_button.setStyleSheet("""
@@ -176,7 +232,7 @@ class SimulationResults(QDialog):
         """)
         self.close_button.clicked.connect(self.close_project)
         button_layout.addWidget(self.close_button)
-
+        
         self.download_button = QPushButton("Download .csv Report")
         self.download_button.setCursor(Qt.PointingHandCursor)
         self.download_button.setStyleSheet("""
@@ -199,11 +255,11 @@ class SimulationResults(QDialog):
         self.download_button.setIconSize(QSize(24, 24))
         self.download_button.clicked.connect(self.download_report)
         button_layout.addWidget(self.download_button)
-
+    
     def add_chart_to_grid(self, chart_widget, row, col):
         self.grid.addWidget(chart_widget, row, col)
-
-    # ------------------- First Line -------------------
+    
+    # Funzioni dei grafici della prima riga
     def plot_average_times_per_client(self, ax):
         if self.data is None:
             ax.set_title("No data", fontsize=10)
@@ -233,7 +289,7 @@ class SimulationResults(QDialog):
             ax.tick_params(axis='both', which='major', labelsize=8)
         else:
             ax.set_title("Missing columns (Client ID, Training Time, etc.)", fontsize=10)
-
+    
     def plot_communication_time_per_round(self, ax):
         if self.data is None:
             ax.set_title("No data", fontsize=10)
@@ -259,12 +315,11 @@ class SimulationResults(QDialog):
             else:
                 ax.set_xticks(pivot.index)
             ax.set_xticklabels(pivot.index.astype(int), fontsize=8)
-            # Imposta i tick dell'asse y come valori interi
             from matplotlib.ticker import MaxNLocator
             ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         else:
             ax.set_title("Missing columns (FL Round, Client ID, Communication Time)", fontsize=10)
-
+    
     def plot_training_time_per_round(self, ax):
         if self.data is None:
             ax.set_title("No data", fontsize=10)
@@ -287,14 +342,12 @@ class SimulationResults(QDialog):
             else:
                 ax.set_xticks(pivot.index)
             ax.set_xticklabels(pivot.index.astype(int), fontsize=8)
-            # Imposta i tick dell'asse y come valori interi
             from matplotlib.ticker import MaxNLocator
             ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         else:
             ax.set_title("Missing columns (FL Round, Client ID, Training Time)", fontsize=10)
-
-
-    # ------------------- Second Line -------------------
+    
+    # Funzioni dei grafici della seconda riga
     def plot_val_f1_per_round(self, ax):
         if self.data is None:
             ax.set_title("No data", fontsize=10)
@@ -304,7 +357,7 @@ class SimulationResults(QDialog):
             pivot = self.data.pivot_table(index="FL Round", columns="Client ID", values="Val F1", aggfunc='mean')
             for i, column in enumerate(pivot.columns):
                 ax.plot(pivot.index, pivot[column], marker='o', linewidth=1,
-                        label=f"F1 Score",
+                        label="F1 Score",
                         color="#84A59E")
             ax.set_xlabel("Federated Learning Round", fontsize=10)
             ax.set_ylabel("F1 Score", fontsize=10)
@@ -319,7 +372,7 @@ class SimulationResults(QDialog):
             ax.set_xticklabels(pivot.index.astype(int), fontsize=8)
         else:
             ax.set_title("Missing columns (FL Round, Client ID, Val F1)", fontsize=10)
-
+    
     def plot_val_loss_per_round(self, ax):
         if self.data is None:
             ax.set_title("No data", fontsize=10)
@@ -329,7 +382,7 @@ class SimulationResults(QDialog):
             pivot = self.data.pivot_table(index="FL Round", columns="Client ID", values="Val Loss", aggfunc='mean')
             for i, column in enumerate(pivot.columns):
                 ax.plot(pivot.index, pivot[column], marker='o', linewidth=1,
-                        label=f"Val. Loss",
+                        label="Val. Loss",
                         color="#F28582")
             ax.set_xlabel("Federated Learning Round", fontsize=10)
             ax.set_ylabel("Val. Loss", fontsize=10)
@@ -344,7 +397,7 @@ class SimulationResults(QDialog):
             ax.set_xticklabels(pivot.index.astype(int), fontsize=8)
         else:
             ax.set_title("Missing columns (FL Round, Client ID, Val Loss)", fontsize=10)
-
+    
     def plot_val_accuracy_per_round(self, ax):
         if self.data is None:
             ax.set_title("No data", fontsize=10)
@@ -354,7 +407,7 @@ class SimulationResults(QDialog):
             pivot = self.data.pivot_table(index="FL Round", columns="Client ID", values="Val Accuracy", aggfunc='mean')
             for i, column in enumerate(pivot.columns):
                 ax.plot(pivot.index, pivot[column], marker='o', linewidth=1,
-                        label=f"Val. Accuracy",
+                        label="Val. Accuracy",
                         color="#84A59E")
             ax.set_xlabel("Federated Learning Round", fontsize=10)
             ax.set_ylabel("Val. Accuracy", fontsize=10)
@@ -369,8 +422,8 @@ class SimulationResults(QDialog):
             ax.set_xticklabels(pivot.index.astype(int), fontsize=8)
         else:
             ax.set_title("Missing columns (FL Round, Client ID, Val Accuracy)", fontsize=10)
-
-    # ------------------- Save & Close -------------------
+    
+    # Funzioni per salvare e chiudere
     def save_figure_svg(self, figure, default_name="chart"):
         options = QFileDialog.Options()
         file_name, _ = QFileDialog.getSaveFileName(
@@ -382,10 +435,10 @@ class SimulationResults(QDialog):
         )
         if file_name:
             figure.savefig(file_name, format='svg')
-
+    
     def close_project(self):
         sys.exit(0)
-
+    
     def download_report(self):
         if self.data is not None:
             options = QFileDialog.Options()
@@ -398,13 +451,13 @@ class SimulationResults(QDialog):
             )
             if file_name:
                 self.data.to_csv(file_name, index=False)
-
+    
     def update_timer(self):
         self.elapsed_time += 1
         minutes = self.elapsed_time // 60
         seconds = self.elapsed_time % 60
         self.timer_label.setText(f"{minutes} min : {seconds} s")
-
+    
     def finish_simulation(self):
         self.timer.stop()
         self.movie.stop()

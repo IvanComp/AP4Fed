@@ -62,7 +62,7 @@ AVAILABLE_DATASETS = {
         "num_classes": 10
     },
     "ImageNet100": {
-        "class": None, 
+        "class": None,
         "normalize": ((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
         "channels": 3,
         "num_classes": 100
@@ -82,7 +82,6 @@ config_file = os.path.join(config_dir, 'config.json')
 
 # Funzione per normalizzare il nome del dataset
 def normalize_dataset_name(name: str) -> str:
-    # Rimuovo eventuali trattini e confronto in uppercase
     name_clean = name.replace("-", "").upper()
     if name_clean == "CIFAR10":
         return "CIFAR10"
@@ -99,10 +98,9 @@ def normalize_dataset_name(name: str) -> str:
     elif name_clean == "OXFORDIIITPET":
         return "OXFORDIIITPET"
     else:
-        # Se non è uno dei casi noti, restituisco il nome originario (o potresti sollevare un'eccezione)
         return name
 
-# Lettura iniziale del file di configurazione e aggiornamento delle variabili globali in modo dinamico
+# Lettura iniziale del file di configurazione e aggiornamento delle variabili globali
 if os.path.exists(config_file):
     with open(config_file, 'r') as f:
         configJSON = json.load(f)
@@ -119,7 +117,6 @@ if os.path.exists(config_file):
                 MULTI_TASK_MODEL_TRAINER = True
             elif pattern_name == "heterogeneous_data_handler":
                 HETEROGENEOUS_DATA_HANDLER = True
-    # Leggo il dataset dalla chiave "dataset" oppure dal primo elemento di "client_details"
     ds = configJSON.get("dataset")
     if not ds:
         ds = configJSON["client_details"][0].get("dataset", None)
@@ -174,12 +171,12 @@ class CNN_MONO(nn.Module):
         x = F.relu(self.fc2(x))
         return self.fc3(x)
 
-# Funzione per ottenere il modello dinamico
+# Funzione per ottenere il modello dinamico in base al modello indicato in config
 def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool = False) -> nn.Module:
     if model_name is None:
         with open(config_file, 'r') as f:
             configJSON = json.load(f)
-        model_name = configJSON["client_details"][0].get("model", "resnet18")
+        model_name = configJSON["client_details"][0].get("model")
     model_name = model_name.lower()
     if model_name == "cnn":
         default_sizes = {
@@ -226,15 +223,27 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
         raise NotImplementedError(f"Adattamento dinamico non implementato per il modello {model_name}")
     return model
 
+# Funzione Net: legge dataset e modello dal file di configurazione
 def Net():
-    num_classes = AVAILABLE_DATASETS[DATASET_NAME]["num_classes"]
-    return get_dynamic_model(num_classes, "cnn")
+    with open(config_file, 'r') as f:
+        configJSON = json.load(f)
+    ds = configJSON.get("dataset", None)
+    if ds is None:
+        ds = configJSON["client_details"][0].get("dataset", None)
+    if ds is None:
+        raise ValueError("Manca 'dataset' nel config.")
+    dataset_name = normalize_dataset_name(ds)
+    model_name = configJSON["client_details"][0].get("model", None)
+    if model_name is None:
+        raise ValueError("Manca 'model' nel config.")
+    num_classes = AVAILABLE_DATASETS[dataset_name]["num_classes"]
+    return get_dynamic_model(num_classes, model_name)
 
 def load_data(dataset_name=None):
     global DATASET_NAME, DATASET_TYPE
     with open(config_file, 'r') as f:
         configJSON = json.load(f)
-        DATASET_TYPE = configJSON["client_details"][0]["data_distribution_type"]
+        DATASET_TYPE = configJSON["client_details"][0].get("data_distribution_type", "")
         if dataset_name is None:
             dataset_name = configJSON.get("dataset", None)
             if dataset_name is None:
@@ -258,11 +267,10 @@ def load_data(dataset_name=None):
     base_size = default_sizes.get(DATASET_NAME, 32)
     model_name = configJSON["client_details"][0].get("model", "resnet18").lower()
     if model_name in ["alexnet", "vgg11", "vgg13", "vgg16", "vgg19"]:
-        target_size = 224
+        target_size = 256
     else:
         target_size = base_size
 
-    # Creiamo la lista delle trasformazioni in base al dataset; per OxfordIIITPET forziamo il ridimensionamento
     if DATASET_NAME == "OXFORDIIITPET":
         transform_list = [Resize((base_size, base_size)), ToTensor(), Normalize(*normalize_params)]
     else:
@@ -277,10 +285,8 @@ def load_data(dataset_name=None):
     else:
         batch_size = 32
 
-    # Funzione interna per creare i dataset in base al tipo
     def get_datasets(transform):
         if DATASET_NAME == "OXFORDIIITPET":
-            # Per OxfordIIITPET utilizziamo il parametro "split" con valori appropriati
             trainset = dataset_class("./data", split="trainval", download=True, transform=transform)
             testset = dataset_class("./data", split="test", download=True, transform=transform)
         else:
@@ -293,7 +299,6 @@ def load_data(dataset_name=None):
             DATASET_TYPE = random.choice(["iid", "non-iid"])
 
         if DATASET_TYPE.upper() == "IID":
-            # Usando una trasformazione semplice per gestione IID
             trf_iid = Compose([ToTensor(), Normalize(*normalize_params)])
             trainset, testset = get_datasets(trf_iid)
             class_to_indices = {i: [] for i in range(dataset_config["num_classes"])}
@@ -309,35 +314,28 @@ def load_data(dataset_name=None):
             class_names = trainset.classes if hasattr(trainset, 'classes') else [str(i) for i in range(dataset_config["num_classes"])]
             distribution_str = ", ".join([f"{class_names[class_index]}: {count} samples" for class_index, count in class_counts.items()])
             print(f"IID Client - Class Distribution: {distribution_str}")
-
             return DataLoader(trainset, batch_size=batch_size, shuffle=True), DataLoader(testset)
-
         if DATASET_TYPE.lower() == "non-iid":
             num_non_iid_clients = sum(1 for client in configJSON["client_details"] if client["data_distribution_type"] == "non-IID")
             print(f"Creating {num_non_iid_clients} non-IID clients...")
             samples_per_client = 25000
             alpha = 0.5
             target_samples_per_class = 2500
-
             trf_non_iid = Compose([ToTensor(), Normalize(*normalize_params)])
             trainset, testset = get_datasets(trf_non_iid)
-
             class_to_indices = {i: [] for i in range(dataset_config["num_classes"])}
             for idx, (_, label) in enumerate(trainset):
                 class_to_indices[label].append(idx)
-            
             clients_data = []
             for client_id in range(num_non_iid_clients):
                 proportions = np.random.dirichlet([alpha] * dataset_config["num_classes"])
                 class_counts_arr = (proportions * samples_per_client).astype(int)
-                
                 discrepancy = samples_per_client - class_counts_arr.sum()
                 if discrepancy > 0:
                     class_counts_arr[np.argmax(proportions)] += discrepancy
                 elif discrepancy < 0:
                     discrepancy = abs(discrepancy)
                     class_counts_arr[np.argmax(proportions)] -= min(discrepancy, class_counts_arr[np.argmax(proportions)])
-                
                 selected_indices = []
                 for cls, count in enumerate(class_counts_arr):
                     available_indices = class_to_indices[cls]
@@ -346,23 +344,18 @@ def load_data(dataset_name=None):
                     else:
                         selected = random.sample(available_indices, min(count, len(available_indices)))
                     selected_indices.extend(selected)
-                
                 subset_train = Subset(trainset, selected_indices)
                 subset_labels = [trainset[i][1] for i in selected_indices]
                 class_distribution = Counter(subset_labels)
                 clients_data.append((subset_train, class_distribution))
-                
                 class_names = trainset.classes if hasattr(trainset, 'classes') else [str(i) for i in range(dataset_config["num_classes"])]
                 distribution_str = ", ".join([f"{class_names[cls]}: {class_distribution.get(cls, 0)} samples" for cls in range(dataset_config["num_classes"])])
                 print(f"Client non-IID-{client_id+1} Class Distribution: {distribution_str}")
                 augmented_clients = augment_with_gan(clients_data, target_samples_per_class)
                 subset_augmented, _ = augmented_clients[0]
-
             trainloader = DataLoader(subset_augmented, batch_size=batch_size, shuffle=True)
             testloader = DataLoader(testset, batch_size=batch_size, shuffle=False)
-
             return trainloader, testloader
-
     else:
         trainset, testset = get_datasets(trf)
         return DataLoader(trainset, batch_size=batch_size, shuffle=True), DataLoader(testset, batch_size=batch_size)
