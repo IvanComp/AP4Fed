@@ -24,7 +24,7 @@ MESSAGE_COMPRESSOR = False
 MULTI_TASK_MODEL_TRAINER = False
 HETEROGENEOUS_DATA_HANDLER = False
 
-# Variabili per il dataset (inizializzate come stringhe vuote: verranno aggiornate dinamicamente dalla configurazione)
+# Variabili per il dataset (inizializzate come stringhe vuote, verranno aggiornate dalla configurazione)
 global DATASET_TYPE, DATASET_NAME
 DATASET_TYPE = ""
 DATASET_NAME = ""
@@ -62,10 +62,11 @@ AVAILABLE_DATASETS = {
         "num_classes": 10
     },
     "ImageNet100": {
+        # Usato ImageFolder per caricare il dataset pre-processato
         "class": None,
         "normalize": ((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
         "channels": 3,
-        "num_classes": 100
+        "num_classes": 10  # 10 classi selezionate
     },
     "OXFORDIIITPET": {
         "class": OxfordIIITPet,
@@ -252,7 +253,6 @@ def load_data(dataset_name=None):
         DATASET_NAME = dataset_name
 
     dataset_config = AVAILABLE_DATASETS.get(DATASET_NAME, AVAILABLE_DATASETS["CIFAR10"])
-    dataset_class = dataset_config["class"]
     normalize_params = dataset_config["normalize"]
 
     default_sizes = {
@@ -271,8 +271,11 @@ def load_data(dataset_name=None):
     else:
         target_size = base_size
 
+    # Se il dataset è OxfordIIITPet o ImageNet100, forzo il resize per ottenere immagini di dimensione fissa
     if DATASET_NAME == "OXFORDIIITPET":
         transform_list = [Resize((base_size, base_size)), ToTensor(), Normalize(*normalize_params)]
+    elif DATASET_NAME == "ImageNet100":
+        transform_list = [Resize((target_size, target_size)), ToTensor(), Normalize(*normalize_params)]
     else:
         transform_list = []
         if target_size != base_size:
@@ -281,84 +284,91 @@ def load_data(dataset_name=None):
     trf = Compose(transform_list)
 
     if DATASET_NAME == "ImageNet100":
-        batch_size = 16
+        batch_size = 32
+        from torchvision.datasets import ImageFolder
+        train_path = os.path.join("./data", "imagenet100-preprocessed", "train")
+        test_path = os.path.join("./data", "imagenet100-preprocessed", "test")
+        trainset = ImageFolder(train_path, transform=trf)
+        testset = ImageFolder(test_path, transform=trf)
+        return DataLoader(trainset, batch_size=batch_size, shuffle=True), DataLoader(testset, batch_size=batch_size)
     else:
         batch_size = 32
+        dataset_class = dataset_config["class"]
 
-    def get_datasets(transform):
-        if DATASET_NAME == "OXFORDIIITPET":
-            trainset = dataset_class("./data", split="trainval", download=True, transform=transform)
-            testset = dataset_class("./data", split="test", download=True, transform=transform)
-        else:
-            trainset = dataset_class("./data", train=True, download=True, transform=transform)
-            testset = dataset_class("./data", train=False, download=True, transform=transform)
-        return trainset, testset
+        def get_datasets(transform):
+            if DATASET_NAME == "OXFORDIIITPET":
+                trainset = dataset_class("./data", split="trainval", download=True, transform=transform)
+                testset = dataset_class("./data", split="test", download=True, transform=transform)
+            else:
+                trainset = dataset_class("./data", train=True, download=True, transform=transform)
+                testset = dataset_class("./data", train=False, download=True, transform=transform)
+            return trainset, testset
 
-    if HETEROGENEOUS_DATA_HANDLER:
-        if DATASET_TYPE == "Random":
-            DATASET_TYPE = random.choice(["iid", "non-iid"])
+        if HETEROGENEOUS_DATA_HANDLER:
+            if DATASET_TYPE == "Random":
+                DATASET_TYPE = random.choice(["iid", "non-iid"])
 
-        if DATASET_TYPE.upper() == "IID":
-            trf_iid = Compose([ToTensor(), Normalize(*normalize_params)])
-            trainset, testset = get_datasets(trf_iid)
-            class_to_indices = {i: [] for i in range(dataset_config["num_classes"])}
-            for idx, (_, label) in enumerate(trainset):
-                if len(class_to_indices[label]) < 2500:
-                    class_to_indices[label].append(idx)
-            selected_indices = []
-            for indices in class_to_indices.values():
-                selected_indices.extend(indices)
-            subset_train = Subset(trainset, selected_indices)
-            subset_labels = [trainset[i][1] for i in selected_indices]
-            class_counts = Counter(subset_labels)
-            class_names = trainset.classes if hasattr(trainset, 'classes') else [str(i) for i in range(dataset_config["num_classes"])]
-            distribution_str = ", ".join([f"{class_names[class_index]}: {count} samples" for class_index, count in class_counts.items()])
-            print(f"IID Client - Class Distribution: {distribution_str}")
-            return DataLoader(trainset, batch_size=batch_size, shuffle=True), DataLoader(testset)
-        if DATASET_TYPE.lower() == "non-iid":
-            num_non_iid_clients = sum(1 for client in configJSON["client_details"] if client["data_distribution_type"] == "non-IID")
-            print(f"Creating {num_non_iid_clients} non-IID clients...")
-            samples_per_client = 25000
-            alpha = 0.5
-            target_samples_per_class = 2500
-            trf_non_iid = Compose([ToTensor(), Normalize(*normalize_params)])
-            trainset, testset = get_datasets(trf_non_iid)
-            class_to_indices = {i: [] for i in range(dataset_config["num_classes"])}
-            for idx, (_, label) in enumerate(trainset):
-                class_to_indices[label].append(idx)
-            clients_data = []
-            for client_id in range(num_non_iid_clients):
-                proportions = np.random.dirichlet([alpha] * dataset_config["num_classes"])
-                class_counts_arr = (proportions * samples_per_client).astype(int)
-                discrepancy = samples_per_client - class_counts_arr.sum()
-                if discrepancy > 0:
-                    class_counts_arr[np.argmax(proportions)] += discrepancy
-                elif discrepancy < 0:
-                    discrepancy = abs(discrepancy)
-                    class_counts_arr[np.argmax(proportions)] -= min(discrepancy, class_counts_arr[np.argmax(proportions)])
+            if DATASET_TYPE.upper() == "IID":
+                trf_iid = Compose([ToTensor(), Normalize(*normalize_params)])
+                trainset, testset = get_datasets(trf_iid)
+                class_to_indices = {i: [] for i in range(dataset_config["num_classes"])}
+                for idx, (_, label) in enumerate(trainset):
+                    if len(class_to_indices[label]) < 2500:
+                        class_to_indices[label].append(idx)
                 selected_indices = []
-                for cls, count in enumerate(class_counts_arr):
-                    available_indices = class_to_indices[cls]
-                    if count > len(available_indices):
-                        selected = available_indices.copy()
-                    else:
-                        selected = random.sample(available_indices, min(count, len(available_indices)))
-                    selected_indices.extend(selected)
+                for indices in class_to_indices.values():
+                    selected_indices.extend(indices)
                 subset_train = Subset(trainset, selected_indices)
                 subset_labels = [trainset[i][1] for i in selected_indices]
-                class_distribution = Counter(subset_labels)
-                clients_data.append((subset_train, class_distribution))
+                class_counts = Counter(subset_labels)
                 class_names = trainset.classes if hasattr(trainset, 'classes') else [str(i) for i in range(dataset_config["num_classes"])]
-                distribution_str = ", ".join([f"{class_names[cls]}: {class_distribution.get(cls, 0)} samples" for cls in range(dataset_config["num_classes"])])
-                print(f"Client non-IID-{client_id+1} Class Distribution: {distribution_str}")
-                augmented_clients = augment_with_gan(clients_data, target_samples_per_class)
-                subset_augmented, _ = augmented_clients[0]
-            trainloader = DataLoader(subset_augmented, batch_size=batch_size, shuffle=True)
-            testloader = DataLoader(testset, batch_size=batch_size, shuffle=False)
-            return trainloader, testloader
-    else:
-        trainset, testset = get_datasets(trf)
-        return DataLoader(trainset, batch_size=batch_size, shuffle=True), DataLoader(testset, batch_size=batch_size)
+                distribution_str = ", ".join([f"{class_names[class_index]}: {count} samples" for class_index, count in class_counts.items()])
+                print(f"IID Client - Class Distribution: {distribution_str}")
+                return DataLoader(trainset, batch_size=batch_size, shuffle=True), DataLoader(testset)
+            if DATASET_TYPE.lower() == "non-iid":
+                num_non_iid_clients = sum(1 for client in configJSON["client_details"] if client["data_distribution_type"] == "non-IID")
+                print(f"Creating {num_non_iid_clients} non-IID clients...")
+                samples_per_client = 25000
+                alpha = 0.5
+                target_samples_per_class = 2500
+                trf_non_iid = Compose([ToTensor(), Normalize(*normalize_params)])
+                trainset, testset = get_datasets(trf_non_iid)
+                class_to_indices = {i: [] for i in range(dataset_config["num_classes"])}
+                for idx, (_, label) in enumerate(trainset):
+                    class_to_indices[label].append(idx)
+                clients_data = []
+                for client_id in range(num_non_iid_clients):
+                    proportions = np.random.dirichlet([alpha] * dataset_config["num_classes"])
+                    class_counts_arr = (proportions * samples_per_client).astype(int)
+                    discrepancy = samples_per_client - class_counts_arr.sum()
+                    if discrepancy > 0:
+                        class_counts_arr[np.argmax(proportions)] += discrepancy
+                    elif discrepancy < 0:
+                        discrepancy = abs(discrepancy)
+                        class_counts_arr[np.argmax(proportions)] -= min(discrepancy, class_counts_arr[np.argmax(proportions)])
+                    selected_indices = []
+                    for cls, count in enumerate(class_counts_arr):
+                        available_indices = class_to_indices[cls]
+                        if count > len(available_indices):
+                            selected = available_indices.copy()
+                        else:
+                            selected = random.sample(available_indices, min(count, len(available_indices)))
+                        selected_indices.extend(selected)
+                    subset_train = Subset(trainset, selected_indices)
+                    subset_labels = [trainset[i][1] for i in selected_indices]
+                    class_distribution = Counter(subset_labels)
+                    clients_data.append((subset_train, class_distribution))
+                    class_names = trainset.classes if hasattr(trainset, 'classes') else [str(i) for i in range(dataset_config["num_classes"])]
+                    distribution_str = ", ".join([f"{class_names[cls]}: {class_distribution.get(cls, 0)} samples" for cls in range(dataset_config["num_classes"])])
+                    print(f"Client non-IID-{client_id+1} Class Distribution: {distribution_str}")
+                    augmented_clients = augment_with_gan(clients_data, target_samples_per_class)
+                    subset_augmented, _ = augmented_clients[0]
+                trainloader = DataLoader(subset_augmented, batch_size=batch_size, shuffle=True)
+                testloader = DataLoader(testset, batch_size=batch_size, shuffle=False)
+                return trainloader, testloader
+        else:
+            trainset, testset = get_datasets(trf)
+            return DataLoader(trainset, batch_size=batch_size, shuffle=True), DataLoader(testset, batch_size=batch_size)
 
 def augment_with_gan(clients_data, target_samples_per_class=2500):
     augmented_clients_data = []

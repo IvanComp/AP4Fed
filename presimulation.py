@@ -187,13 +187,13 @@ class MultiTaskModelTrainerDialog(QDialog):
 
         self.m1_label = QLabel("Select Model M1:")
         self.m1_combo = QComboBox()
-        self.m1_combo.addItems(["CIFAR-10", "CIFAR-100", "FMNIST", "FashionMNIST", "KMNIST", "NYUv2", "iv4N"])
+        self.m1_combo.addItems(["CIFAR-10", "CIFAR-100", "FMNIST", "FashionMNIST", "KMNIST"])
         layout.addWidget(self.m1_label)
         layout.addWidget(self.m1_combo)
 
         self.m2_label = QLabel("Select Model M2:")
         self.m2_combo = QComboBox()
-        self.m2_combo.addItems(["CIFAR-10", "CIFAR-100", "FMNIST", "FashionMNIST", "KMNIST", "NYUv2", "iv4N"])
+        self.m2_combo.addItems(["CIFAR-10", "CIFAR-100", "FMNIST", "FashionMNIST", "KMNIST"])
         layout.addWidget(self.m2_label)
         layout.addWidget(self.m2_combo)
 
