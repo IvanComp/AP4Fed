@@ -2,6 +2,7 @@ import os
 import json
 import time
 import random
+import re
 import numpy as np
 from collections import OrderedDict, Counter
 from logging import INFO
@@ -17,6 +18,7 @@ import torchvision.models as models
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 GLOBAL_ROUND_COUNTER = 1
 
+# Flag per i pattern
 global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
 CLIENT_SELECTOR = False
 CLIENT_CLUSTER = False
@@ -24,7 +26,7 @@ MESSAGE_COMPRESSOR = False
 MULTI_TASK_MODEL_TRAINER = False
 HETEROGENEOUS_DATA_HANDLER = False
 
-# Variabili per il dataset (inizializzate come stringhe vuote, verranno aggiornate dalla configurazione)
+# Variabili per il dataset
 global DATASET_TYPE, DATASET_NAME
 DATASET_TYPE = ""
 DATASET_NAME = ""
@@ -101,11 +103,10 @@ def normalize_dataset_name(name: str) -> str:
     else:
         return name
 
-# Lettura iniziale del file di configurazione e aggiornamento delle variabili globali
+# Lettura iniziale del file di configurazione e aggiornamento dei flag
 if os.path.exists(config_file):
     with open(config_file, 'r') as f:
         configJSON = json.load(f)
-    # Aggiorno i flag per i pattern
     for pattern_name, pattern_info in configJSON["patterns"].items():
         if pattern_info["enabled"]:
             if pattern_name == "client_selector":
@@ -172,8 +173,90 @@ class CNN_MONO(nn.Module):
         x = F.relu(self.fc2(x))
         return self.fc3(x)
 
-# Funzione per ottenere il modello dinamico in base al modello indicato in config
-def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool = False) -> nn.Module:
+# Funzione per ottenere dinamicamente la classe dei pesi in base al modello
+def get_weight_class_dynamic(model_name: str):
+    weight_mapping = {
+        "cnn": None,  # architettura custom, non usa pesi pretrained
+        "alexnet": "AlexNet_Weights",
+        "convnext_tiny": "ConvNeXt_Tiny_Weights",
+        "convnext_small": "ConvNeXt_Small_Weights",
+        "convnext_base": "ConvNeXt_Base_Weights",
+        "convnext_large": "ConvNeXt_Large_Weights",
+        "densenet121": "DenseNet121_Weights",
+        "densenet161": "DenseNet161_Weights",
+        "densenet169": "DenseNet169_Weights",
+        "densenet201": "DenseNet201_Weights",
+        "efficientnet_b0": "EfficientNet_B0_Weights",
+        "efficientnet_b1": "EfficientNet_B1_Weights",
+        "efficientnet_b2": "EfficientNet_B2_Weights",
+        "efficientnet_b3": "EfficientNet_B3_Weights",
+        "efficientnet_b4": "EfficientNet_B4_Weights",
+        "efficientnet_b5": "EfficientNet_B5_Weights",
+        "efficientnet_b6": "EfficientNet_B6_Weights",
+        "efficientnet_b7": "EfficientNet_B7_Weights",
+        "efficientnet_v2_s": "EfficientNet_V2_S_Weights",
+        "efficientnet_v2_m": "EfficientNet_V2_M_Weights",
+        "efficientnet_v2_l": "EfficientNet_V2_L_Weights",
+        "googlenet": "GoogLeNet_Weights",
+        "inception_v3": "Inception_V3_Weights",
+        "mnasnet0_5": "MnasNet0_5_Weights",
+        "mnasnet0_75": "MnasNet0_75_Weights",
+        "mnasnet1_0": "MnasNet1_0_Weights",
+        "mnasnet1_3": "MnasNet1_3_Weights",
+        "mobilenet_v2": "MobileNet_V2_Weights",
+        "mobilenet_v3_large": "MobileNet_V3_Large_Weights",
+        "mobilenet_v3_small": "MobileNet_V3_Small_Weights",
+        "regnet_x_400mf": "RegNet_X_400MF_Weights",
+        "regnet_x_800mf": "RegNet_X_800MF_Weights",
+        "regnet_x_1_6gf": "RegNet_X_1_6GF_Weights",
+        "regnet_x_16gf": "RegNet_X_16GF_Weights",
+        "regnet_x_32gf": "RegNet_X_32GF_Weights",
+        "regnet_x_3_2gf": "RegNet_X_3_2GF_Weights",
+        "regnet_x_8gf": "RegNet_X_8GF_Weights",
+        "regnet_y_400mf": "RegNet_Y_400MF_Weights",
+        "regnet_y_800mf": "RegNet_Y_800MF_Weights",
+        "regnet_y_128gf": "RegNet_Y_128GF_Weights",
+        "regnet_y_16gf": "RegNet_Y_16GF_Weights",
+        "regnet_y_1_6gf": "RegNet_Y_1_6GF_Weights",
+        "regnet_y_32gf": "RegNet_Y_32GF_Weights",
+        "regnet_y_3_2gf": "RegNet_Y_3_2GF_Weights",
+        "regnet_y_8gf": "RegNet_Y_8GF_Weights",
+        "resnet18": "ResNet18_Weights",
+        "resnet34": "ResNet34_Weights",
+        "resnet50": "ResNet50_Weights",
+        "resnet101": "ResNet101_Weights",
+        "resnet152": "ResNet152_Weights",
+        "resnext50_32x4d": "ResNeXt50_32X4D_Weights",
+        "shufflenet_v2_x0_5": "ShuffleNet_V2_x0_5_Weights",
+        "shufflenet_v2_x1_0": "ShuffleNet_V2_x1_0_Weights",
+        "squeezenet1_0": "SqueezeNet1_0_Weights",
+        "squeezenet1_1": "SqueezeNet1_1_Weights",
+        "vgg11": "VGG11_Weights",
+        "vgg11_bn": "VGG11_BN_Weights",
+        "vgg13": "VGG13_Weights",
+        "vgg13_bn": "VGG13_BN_Weights",
+        "vgg16": "VGG16_Weights",
+        "vgg16_bn": "VGG16_BN_Weights",
+        "vgg19": "VGG19_Weights",
+        "vgg19_bn": "VGG19_BN_Weights",
+        "wide_resnet50_2": "Wide_ResNet50_2_Weights",
+        "wide_resnet101_2": "Wide_ResNet101_2_Weights",
+        "swin_t": "Swin_T_Weights",
+        "swin_s": "Swin_S_Weights",
+        "swin_b": "Swin_B_Weights",
+        "vit_b_16": "ViT_B_16_Weights",
+        "vit_b_32": "ViT_B_32_Weights",
+        "vit_l_16": "ViT_L_16_Weights",
+        "vit_l_32": "ViT_L_32_Weights"
+    }
+    model_name = model_name.lower()
+    weight_class_name = weight_mapping.get(model_name, None)
+    if weight_class_name is not None:
+        return getattr(models, weight_class_name, None)
+    return None
+
+# Funzione per ottenere il modello dinamico in base al config
+def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool = True) -> nn.Module:
     if model_name is None:
         with open(config_file, 'r') as f:
             configJSON = json.load(f)
@@ -186,8 +269,8 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
             "FashionMNIST": 28,
             "KMNIST": 28,
             "FMNIST": 28,
-            "ImageNet100": 256,
-            "OXFORDIIITPET": 256
+            "ImageNet100": 224,
+            "OXFORDIIITPET": 224
         }
         input_size = default_sizes.get(DATASET_NAME, 32)
         in_channels = AVAILABLE_DATASETS[DATASET_NAME]["channels"]
@@ -200,14 +283,20 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
     if not hasattr(models, model_name):
         raise ValueError(f"Il modello {model_name} non è disponibile in torchvision.models")
     model_constructor = getattr(models, model_name)
+
     if pretrained:
-        try:
-            weight_enum = getattr(models, f"{model_name.upper()}_Weights")
-            model = model_constructor(weights=weight_enum.DEFAULT)
-        except AttributeError:
-            model = model_constructor(weights=None)
+        weight_class = get_weight_class_dynamic(model_name)
+        log(INFO, f"DEBUG: weight_class per '{model_name}' = {weight_class}")
+        if weight_class is not None and hasattr(weight_class, "DEFAULT"):
+            log(INFO, f"DEBUG: Usando i pesi pretrained per il modello '{model_name}'")
+            model = model_constructor(weights=weight_class.DEFAULT, progress=False)
+        else:
+            log(INFO, f"DEBUG: Pesi pretrained non trovati per '{model_name}'. Carico senza pesi.")
+            model = model_constructor(weights=None, progress=False)
     else:
-        model = model_constructor(weights=None)
+        log(INFO, "DEBUG: Flag pretrained falso, carico modello senza pesi pretrained.")
+        model = model_constructor(weights=None, progress=False)
+
     if model_name.startswith("resnet"):
         in_features = model.fc.in_features
         model.fc = nn.Linear(in_features, num_classes)
@@ -221,10 +310,9 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
         in_features = model.classifier[6].in_features
         model.classifier[6] = nn.Linear(in_features, num_classes)
     else:
-        raise NotImplementedError(f"Adattamento dinamico non implementato per il modello {model_name}")
+        raise NotImplementedError(f"{model_name} non è ancora implementato!")
     return model
 
-# Funzione Net: legge dataset e modello dal file di configurazione
 def Net():
     with open(config_file, 'r') as f:
         configJSON = json.load(f)
@@ -252,7 +340,9 @@ def load_data(dataset_name=None):
         dataset_name = normalize_dataset_name(dataset_name)
         DATASET_NAME = dataset_name
 
-    dataset_config = AVAILABLE_DATASETS.get(DATASET_NAME, AVAILABLE_DATASETS["CIFAR10"])
+    if DATASET_NAME not in AVAILABLE_DATASETS:
+        raise ValueError(f"[ERROR] Dataset '{DATASET_NAME}' non trovato in AVAILABLE_DATASETS.")
+    dataset_config = AVAILABLE_DATASETS[DATASET_NAME]
     normalize_params = dataset_config["normalize"]
 
     default_sizes = {
@@ -261,17 +351,16 @@ def load_data(dataset_name=None):
         "FashionMNIST": 28,
         "KMNIST": 28,
         "FMNIST": 28,
-        "ImageNet100": 256,
-        "OXFORDIIITPET": 256
+        "ImageNet100": 224,
+        "OXFORDIIITPET": 224
     }
     base_size = default_sizes.get(DATASET_NAME, 32)
     model_name = configJSON["client_details"][0].get("model", "resnet18").lower()
     if model_name in ["alexnet", "vgg11", "vgg13", "vgg16", "vgg19"]:
-        target_size = 256
+        target_size = 224
     else:
         target_size = base_size
 
-    # Se il dataset è OxfordIIITPet o ImageNet100, forzo il resize per ottenere immagini di dimensione fissa
     if DATASET_NAME == "OXFORDIIITPET":
         transform_list = [Resize((base_size, base_size)), ToTensor(), Normalize(*normalize_params)]
     elif DATASET_NAME == "ImageNet100":
