@@ -2,6 +2,7 @@ from multiprocessing import Process
 import json
 import os
 import torch
+import time
 import zlib
 import pickle
 import numpy as np
@@ -108,6 +109,9 @@ class FlowerClient(NumPyClient):
         self.DEVICE = device
 
     def fit(self, parameters, config):
+        proc = psutil.Process(os.getpid())
+        cpu_start = proc.cpu_times().user + proc.cpu_times().system
+        wall_start = time.time()
         compressed_parameters_hex = config.get("compressed_parameters_hex")
         global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MODEL_COVERSIONING, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
         CLIENT_SELECTOR = False
@@ -204,6 +208,11 @@ class FlowerClient(NumPyClient):
         round_number = GLOBAL_ROUND_COUNTER
         GLOBAL_ROUND_COUNTER += 1
 
+        wall_end = time.time()
+        cpu_end = proc.cpu_times().user + proc.cpu_times().system
+        cpu_percent = (cpu_end - cpu_start) / (wall_end - wall_start) * 100
+        ram_percent = proc.memory_percent()
+
         if MODEL_COVERSIONING:
             client_folder = os.path.join("model_weights", "clients", str(self.cid))
             os.makedirs(client_folder, exist_ok=True)
@@ -232,6 +241,8 @@ class FlowerClient(NumPyClient):
                 "training_time": training_time,
                 "cpu_usage": n_cpu,
                 "ram": ram,
+                "cpu_percent": cpu_percent,
+                "ram_percent": ram_percent,
                 "client_id": self.cid,
                 "model_type": self.model_type,
                 "data_distribution_type": data_distribution_type,
@@ -253,6 +264,8 @@ class FlowerClient(NumPyClient):
                 "training_time": training_time,
                 "cpu_usage": n_cpu,
                 "ram": ram,
+                "cpu_percent": cpu_percent,
+                "ram_percent": ram_percent,
                 "client_id": self.cid,
                 "model_type": self.model_type,
                 "data_distribution_type": data_distribution_type,

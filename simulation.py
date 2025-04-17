@@ -4,7 +4,7 @@ import json
 import re
 import zipfile
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton, QMessageBox
-from PyQt5.QtCore import Qt, QProcess, QTimer, QProcessEnvironment
+from PyQt5.QtCore import Qt, QProcess, QProcessEnvironment
 from PyQt5.QtGui import QMovie
 from simulation_results import SimulationResults
 
@@ -62,16 +62,8 @@ class SimulationPage(QWidget):
             self.current_emoji_index = 0
             self.loading_label.setText(self.loading_emojis[self.current_emoji_index])
             title_layout.addWidget(self.loading_label)
-            self.loading_timer = QTimer(self)
-            self.loading_timer.timeout.connect(self.update_loading_animation)
-            self.loading_timer.start(500)
 
         title_layout.addStretch()
-        self.timer_label = QLabel("0 h: 0 m: 0 s")
-        self.timer_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        self.timer_label.setStyleSheet("color: black; font-size: 16px;")
-        title_layout.addWidget(self.timer_label)
-        layout.addLayout(title_layout)
 
         # Output area
         self.output_area = QPlainTextEdit()
@@ -162,29 +154,11 @@ class SimulationPage(QWidget):
         self.process.readyReadStandardOutput.connect(self.handle_stdout)
         self.process.readyReadStandardError.connect(self.handle_stdout)
         self.process.finished.connect(self.process_finished)
-
-        self.elapsed_seconds = 0
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_timer)
-        self.start_timer()
-
-        # Avvio della simulazione
         self.start_simulation(num_supernodes)
 
     def update_loading_animation(self):
         self.current_emoji_index = (self.current_emoji_index + 1) % len(self.loading_emojis)
         self.loading_label.setText(self.loading_emojis[self.current_emoji_index])
-
-    def start_timer(self):
-        self.elapsed_seconds = 0
-        self.timer.start(1000)
-
-    def update_timer(self):
-        self.elapsed_seconds += 1
-        hours = self.elapsed_seconds // 3600
-        minutes = (self.elapsed_seconds % 3600) // 60
-        seconds = self.elapsed_seconds % 60
-        self.timer_label.setText(f"{hours} h: {minutes} m: {seconds} s")
 
     def start_simulation(self, num_supernodes):
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -274,10 +248,7 @@ class SimulationPage(QWidget):
         self.stop_button.clicked.disconnect()
         self.stop_button.clicked.connect(self.close_application)
         self.process = None
-        self.timer.stop()
-        if self.animated_loading:
-            self.loading_timer.stop()
-        elif hasattr(self, 'loading_movie'):
+        if hasattr(self, 'loading_movie'):
             self.loading_movie.stop()
 
     def stop_simulation(self):
@@ -291,10 +262,7 @@ class SimulationPage(QWidget):
             self.stop_button.setText("Close")
             self.stop_button.clicked.disconnect()
             self.stop_button.clicked.connect(self.close_application)
-            self.timer.stop()
-            if self.animated_loading:
-                self.loading_timer.stop()
-            elif hasattr(self, 'loading_movie'):
+            if hasattr(self, 'loading_movie'):
                 self.loading_movie.stop()
 
     #def LLM_Agent(self):

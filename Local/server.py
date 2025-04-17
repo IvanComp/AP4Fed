@@ -101,6 +101,8 @@ if os.path.exists(config_file):
             "client_id": client.get("client_id"),
             "cpu": client.get("cpu"),
             "ram": client.get("ram"),
+            "cpu_percent": client.get("cpu_percent"),
+            "ram_percent": client.get("ram_percent"),
             "dataset": client.get("dataset"),
             "data_distribution_type": client.get("data_distribution_type"),
             "model": client.get("model")
@@ -120,58 +122,66 @@ if os.path.exists(csv_file):
 with open(csv_file, 'w', newline='') as file:
     writer = csv.writer(file)
     writer.writerow([
-        'Client ID', 'FL Round', 'Training Time', 'Communication Time','Total Time of FL Round',
-        '# of CPU', 'Model Type', 'Data Distr. Type', 'Dataset', 'Train Loss', 'Train Accuracy',
-        'Train F1', 'Train MAE', 'Val Loss', 'Val Accuracy', 'Val F1', 'Val MAE'
+        'Client ID', 'FL Round', 'Training Time', 'Communication Time', 'Total Time of FL Round',
+        '# of CPU', 'CPU Usage (%)', 'RAM Usage (%)',
+        'Model Type', 'Data Distr. Type', 'Dataset',
+        'Train Loss', 'Train Accuracy', 'Train F1', 'Train MAE',
+        'Val Loss', 'Val Accuracy', 'Val F1', 'Val MAE'
     ])
 
-# La funzione log_round_time ora riceve anche il parametro agg_key per accedere a global_metrics
-def log_round_time(client_id, fl_round, training_time, communication_time, total_time,
-                   cpu_usage, client_model_type, data_distr, dataset_value,
-                   already_logged, srt1, srt2, agg_key):
-    # Assicuriamoci che i valori esistano
-    if agg_key not in global_metrics:
-        global_metrics[agg_key] = {
-            "train_loss": [], "train_accuracy": [], "train_f1": [], "train_mae": [],
-            "val_loss": [], "val_accuracy": [], "val_f1": [], "val_mae": []
-        }
-    # Prendo l'ultimo valore
-    tm = global_metrics[agg_key]
-    train_loss     = tm["train_loss"][-1]     if tm["train_loss"]     else None
-    train_accuracy = tm["train_accuracy"][-1] if tm["train_accuracy"] else None
-    train_f1       = tm["train_f1"][-1]       if tm["train_f1"]       else None
-    train_mae      = tm["train_mae"][-1]      if tm["train_mae"]      else None
-    val_loss       = tm["val_loss"][-1]       if tm["val_loss"]       else None
-    val_accuracy   = tm["val_accuracy"][-1]   if tm["val_accuracy"]   else None
-    val_f1         = tm["val_f1"][-1]         if tm["val_f1"]         else None
-    val_mae        = tm["val_mae"][-1]        if tm["val_mae"]        else None
+# La funzione log_round_time ora riceve anche cpu_percent e ram_percent
+def log_round_time(
+     client_id, fl_round,
+     training_time, communication_time, total_time,
+     n_cpu, cpu_percent, ram_percent,
+     client_model_type, data_distr, dataset_value,
+     already_logged, srt1, srt2, agg_key
+):
+     # Assicuriamoci che i valori esistano
+     if agg_key not in global_metrics:
+         global_metrics[agg_key] = {
+             "train_loss": [], "train_accuracy": [], "train_f1": [], "train_mae": [],
+             "val_loss": [], "val_accuracy": [], "val_f1": [], "val_mae": []
+         }
+     # Prendo l'ultimo valore
+     tm = global_metrics[agg_key]
+     train_loss     = tm["train_loss"][-1]     if tm["train_loss"]     else None
+     train_accuracy = tm["train_accuracy"][-1] if tm["train_accuracy"] else None
+     train_f1       = tm["train_f1"][-1]       if tm["train_f1"]       else None
+     train_mae      = tm["train_mae"][-1]      if tm["train_mae"]      else None
+     val_loss       = tm["val_loss"][-1]       if tm["val_loss"]       else None
+     val_accuracy   = tm["val_accuracy"][-1]   if tm["val_accuracy"]   else None
+     val_f1         = tm["val_f1"][-1]         if tm["val_f1"]         else None
+     val_mae        = tm["val_mae"][-1]        if tm["val_mae"]        else None
 
-    # Per le righe non-last, vuoto i metrici e srt2
-    if already_logged:
-        srt2 = None
+     # Per le righe non-last, vuoto i metrici e srt2
+     if already_logged:
+         srt2 = None
 
-    # Formattazione con f‑string, garantisce sempre lo zero iniziale
-    with open(csv_file, 'a', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow([
-            client_id,
-            fl_round + 1,
-            f"{training_time:.2f}",
-            f"{communication_time:.2f}",
-            f"{srt2:.2f}" if srt2 is not None else "",
-            cpu_usage,
-            client_model_type,
-            data_distr,
-            dataset_value,
-            f"{train_loss:.2f}"     if train_loss    is not None else "",
-            f"{train_accuracy:.4f}" if train_accuracy is not None else "",
-            f"{train_f1:.4f}"       if train_f1       is not None else "",
-            f"{train_mae:.4f}"      if train_mae      is not None else "",
-            f"{val_loss:.2f}"       if val_loss       is not None else "",
-            f"{val_accuracy:.4f}"   if val_accuracy   is not None else "",
-            f"{val_f1:.4f}"         if val_f1         is not None else "",
-            f"{val_mae:.4f}"        if val_mae        is not None else "",
-        ])
+     # Formattazione con f‑string, garantisce sempre lo zero iniziale
+     with open(csv_file, 'a', newline='') as file:
+         writer = csv.writer(file)
+         writer.writerow([
+             client_id,
+             fl_round + 1,
+             f"{training_time:.2f}",
+             f"{communication_time:.2f}",
+             f"{srt2:.2f}" if srt2 is not None else "",
+             n_cpu,
+             cpu_percent,
+             f"{ram_percent:.2f}",
+             client_model_type,
+             data_distr,
+             dataset_value,
+             f"{train_loss:.2f}"     if train_loss    is not None else "",
+             f"{train_accuracy:.4f}" if train_accuracy is not None else "",
+             f"{train_f1:.4f}"       if train_f1       is not None else "",
+             f"{train_mae:.4f}"      if train_mae      is not None else "",
+             f"{val_loss:.2f}"       if val_loss       is not None else "",
+             f"{val_accuracy:.4f}"   if val_accuracy   is not None else "",
+             f"{val_f1:.4f}"         if val_f1         is not None else "",
+             f"{val_mae:.4f}"        if val_mae        is not None else "",
+         ])
 
 def preprocess_csv():
     import pandas as pd
@@ -272,21 +282,34 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
         dataset_value = m.get("dataset", "N/A")
         training_time = m.get("training_time")
         cpu_usage = m.get("cpu_usage")
+        cpu_percent = m.get("cpu_percent")
+        ram_percent = m.get("ram_percent")
         start_comm_time = m.get("start_comm_time")
         communication_time = time.time() - start_comm_time        
         if client_id:
             srt2 = time_between_rounds           
             total_time = training_time + communication_time
-            client_data_list.append((client_id, training_time, communication_time, total_time,
-                                     cpu_usage, model_type, data_distr, dataset_value, srt1, srt2))
+            client_data_list.append((
+                client_id, training_time, communication_time, total_time,
+                cpu_usage, cpu_percent, ram_percent,
+                model_type, data_distr, dataset_value, srt1, srt2
+            ))
 
     num_clients = len(client_data_list)
     for idx, client_data in enumerate(client_data_list):
-        client_id, training_time, communication_time, total_time, cpu_usage, model_type, data_distr, dataset_value, srt1, srt2 = client_data
+        (
+            client_id, training_time, communication_time, total_time,
+            n_cpu, cpu_percent, ram_percent,
+            model_type, data_distr, dataset_value, srt1, srt2
+        ) = client_data
         already_logged = (idx != num_clients - 1)
-        log_round_time(client_id, currentRnd-1, training_time, communication_time, total_time,
-                       cpu_usage, model_type, data_distr, dataset_value,
-                       already_logged, srt1, srt2, agg_model_type)
+        log_round_time(
+            client_id, currentRnd-1,
+            training_time, communication_time, total_time,
+            n_cpu, cpu_percent, ram_percent,
+            model_type, data_distr, dataset_value,
+            already_logged, srt1, srt2, agg_model_type
+        )
 
     return {
         "train_loss": avg_train_loss,
@@ -307,27 +330,27 @@ class MultiModelStrategy(Strategy):
     def __init__(self, initial_parameters_a: Parameters):
         self.parameters_a = initial_parameters_a
     
-    log(INFO, "==========================================")
-    log(INFO, "Simulation Started!")
-    log(INFO, "==========================================")
-    time.sleep(1)
-    log(INFO, "List of Architectural Patterns Implemented: ")
+        log(INFO, "==========================================")
+        log(INFO, "Simulation Started!")
+        log(INFO, "==========================================")
+        time.sleep(1)
+        log(INFO, "List of Architectural Patterns Implemented: ")
 
-    enabled_patterns = []
-    for pattern_name, pattern_info in config["patterns"].items():
-        if pattern_info["enabled"]:
-            enabled_patterns.append((pattern_name, pattern_info))
+        enabled_patterns = []
+        for pattern_name, pattern_info in config["patterns"].items():
+            if pattern_info["enabled"]:
+                enabled_patterns.append((pattern_name, pattern_info))
 
-    if not enabled_patterns:
-        log(INFO, "No patterns are enabled.")
-    else:
-        for pattern_name, pattern_info in enabled_patterns:
-            pattern_str = pattern_name.replace('_', ' ').title()
-            log(INFO, f"{pattern_str} ✅")
-            if pattern_info["params"]:
-                log(INFO, f"    Params: {pattern_info['params']}")
-            time.sleep(1)
-    log(INFO, "==========================================")
+        if not enabled_patterns:
+            log(INFO, "No patterns are enabled.")
+        else:
+            for pattern_name, pattern_info in enabled_patterns:
+                pattern_str = pattern_name.replace('_', ' ').title()
+                log(INFO, f"{pattern_str} ✅")
+                if pattern_info["params"]:
+                    log(INFO, f"    Params: {pattern_info['params']}")
+                time.sleep(1)
+        log(INFO, "==========================================")
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
         return None
@@ -369,7 +392,6 @@ class MultiModelStrategy(Strategy):
                 fit_ins = FitIns(fake_parameters, {"compressed_parameters_hex": compressed_parameters_hex})
             else:
                 fit_ins = FitIns(self.parameters_a, {})
-            # Non si imposta più un valore fisso, il model type verrà gestito dal client
             fit_configurations.append((client, fit_ins))
         return fit_configurations
 
@@ -410,7 +432,6 @@ class MultiModelStrategy(Strategy):
 
         previous_round_end_time = time.time()
         srt1 = max(training_times)
-        # Determiniamo dinamicamente il model type da usare per l'aggregazione
         agg_model_type = results_a[0][2].get("model_type", "Unknown")
         self.parameters_a = self.aggregate_parameters(results_a, agg_model_type, srt1, srt2, time_between_rounds)
 
