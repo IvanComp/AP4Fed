@@ -120,106 +120,95 @@ if os.path.exists(csv_file):
 with open(csv_file, 'w', newline='') as file:
     writer = csv.writer(file)
     writer.writerow([
-        'Client ID', 'FL Round', 'Training Time', 'Communication Time', 'Total Client Time',
+        'Client ID', 'FL Round', 'Training Time', 'Communication Time','Total Time of FL Round',
         '# of CPU', 'Model Type', 'Data Distr. Type', 'Dataset', 'Train Loss', 'Train Accuracy',
-        'Train F1', 'Train MAE', 'Val Loss', 'Val Accuracy', 'Val F1', 'Val MAE',
-        'Total Time of Training Round', 'Total Time of FL Round'
+        'Train F1', 'Train MAE', 'Val Loss', 'Val Accuracy', 'Val F1', 'Val MAE'
     ])
 
 # La funzione log_round_time ora riceve anche il parametro agg_key per accedere a global_metrics
-def log_round_time(client_id, fl_round, training_time, communication_time, total_time, cpu_usage,
-                   client_model_type, data_distr, dataset_value, already_logged, srt1, srt2, agg_key):
-    # Se non esiste ancora una entry per agg_key, la inizializziamo
+def log_round_time(client_id, fl_round, training_time, communication_time, total_time,
+                   cpu_usage, client_model_type, data_distr, dataset_value,
+                   already_logged, srt1, srt2, agg_key):
+    # Assicuriamoci che i valori esistano
     if agg_key not in global_metrics:
         global_metrics[agg_key] = {
-            "train_loss": [],
-            "train_accuracy": [],
-            "train_f1": [],
-            "train_mae": [],
-            "val_loss": [],
-            "val_accuracy": [],
-            "val_f1": [],
-            "val_mae": []
+            "train_loss": [], "train_accuracy": [], "train_f1": [], "train_mae": [],
+            "val_loss": [], "val_accuracy": [], "val_f1": [], "val_mae": []
         }
-    train_loss = round(global_metrics[agg_key]["train_loss"][-1], 2) if global_metrics[agg_key]["train_loss"] else 'N/A'
-    train_accuracy = round(global_metrics[agg_key]["train_accuracy"][-1], 4) if global_metrics[agg_key]["train_accuracy"] else 'N/A'
-    train_f1 = round(global_metrics[agg_key]["train_f1"][-1], 4) if global_metrics[agg_key]["train_f1"] else 'N/A'
-    train_mae = round(global_metrics[agg_key]["train_mae"][-1], 4) if global_metrics[agg_key]["train_mae"] else 'N/A'
-    val_loss = round(global_metrics[agg_key]["val_loss"][-1], 2) if global_metrics[agg_key]["val_loss"] else 'N/A'
-    val_accuracy = round(global_metrics[agg_key]["val_accuracy"][-1], 4) if global_metrics[agg_key]["val_accuracy"] else 'N/A'
-    val_f1 = round(global_metrics[agg_key]["val_f1"][-1], 4) if global_metrics[agg_key]["val_f1"] else 'N/A'
-    val_mae = round(global_metrics[agg_key]["val_mae"][-1], 4) if global_metrics[agg_key]["val_mae"] else 'N/A'
+    # Prendo l'ultimo valore
+    tm = global_metrics[agg_key]
+    train_loss     = tm["train_loss"][-1]     if tm["train_loss"]     else None
+    train_accuracy = tm["train_accuracy"][-1] if tm["train_accuracy"] else None
+    train_f1       = tm["train_f1"][-1]       if tm["train_f1"]       else None
+    train_mae      = tm["train_mae"][-1]      if tm["train_mae"]      else None
+    val_loss       = tm["val_loss"][-1]       if tm["val_loss"]       else None
+    val_accuracy   = tm["val_accuracy"][-1]   if tm["val_accuracy"]   else None
+    val_f1         = tm["val_f1"][-1]         if tm["val_f1"]         else None
+    val_mae        = tm["val_mae"][-1]        if tm["val_mae"]        else None
 
+    # Per le righe non-last, vuoto i metrici e srt2
     if already_logged:
-        train_loss = ""
-        train_accuracy = ""
-        train_f1 = ""
-        train_mae = ""
-        val_loss = ""
-        val_accuracy = ""
-        val_f1 = ""
-        val_mae = ""
-        srt1 = ""
-        srt2 = ""
+        srt2 = None
 
-    srt1_rounded = round(srt1, 2) if isinstance(srt1, (int, float)) else srt1
-    srt2_rounded = round(srt2, 2) if isinstance(srt2, (int, float)) else srt2
-
+    # Formattazione con f‑string, garantisce sempre lo zero iniziale
     with open(csv_file, 'a', newline='') as file:
         writer = csv.writer(file)
         writer.writerow([
-            client_id, fl_round + 1, round(training_time, 2), round(communication_time, 2),
-            round(total_time, 2), round(cpu_usage, 2), client_model_type, data_distr, dataset_value,
-            train_loss, train_accuracy, train_f1, train_mae, val_loss, val_accuracy, val_f1, val_mae,
-            srt1_rounded, srt2_rounded
+            client_id,
+            fl_round + 1,
+            f"{training_time:.2f}",
+            f"{communication_time:.2f}",
+            f"{srt2:.2f}" if srt2 is not None else "",
+            cpu_usage,
+            client_model_type,
+            data_distr,
+            dataset_value,
+            f"{train_loss:.2f}"     if train_loss    is not None else "",
+            f"{train_accuracy:.4f}" if train_accuracy is not None else "",
+            f"{train_f1:.4f}"       if train_f1       is not None else "",
+            f"{train_mae:.4f}"      if train_mae      is not None else "",
+            f"{val_loss:.2f}"       if val_loss       is not None else "",
+            f"{val_accuracy:.4f}"   if val_accuracy   is not None else "",
+            f"{val_f1:.4f}"         if val_f1         is not None else "",
+            f"{val_mae:.4f}"        if val_mae        is not None else "",
         ])
 
 def preprocess_csv():
     import pandas as pd
     import seaborn as sns
 
-    # Legge il CSV
     df = pd.read_csv(csv_file)
-    
-    # Converte in numerico le colonne richieste
+    # Assicuro formato numerico
     df['Training Time'] = pd.to_numeric(df['Training Time'], errors='coerce')
     df['Total Time of FL Round'] = pd.to_numeric(df['Total Time of FL Round'], errors='coerce')
-    
-    # Trasforma la colonna "Total Time of FL Round" per ogni round:
-    # viene mantenuto il valore solo nell'ultima riga (come già facevi)
-    df['Total Time of FL Round'] = df.groupby('FL Round')['Total Time of FL Round'].transform(
-        lambda x: [None]*(len(x) - 1) + [x.iloc[-1]]
-    )
-    
-    # Calcola il tempo totale per client
-    df['Total Client Time'] = df['Training Time'] + df['Communication Time']
-    
-    # Mappa i Client ID in ordine crescente; creiamo una colonna ausiliaria per l’ordinamento
-    unique_clients = sorted(df['Client ID'].unique())
-    # Mappa il client originario nel suo ordine numerico (1, 2, …)
-    client_mappings = {old_id: i + 1 for i, old_id in enumerate(unique_clients)}
-    df['Client Number'] = df['Client ID'].map(client_mappings)
-    df['Client ID'] = df['Client ID'].map(lambda x: f"Client {client_mappings[x]}")
-    df.sort_values(by=['FL Round', 'Client Number'], inplace=True)
 
-    if 'Train Loss' in df.columns and 'FL Round' in df.columns:
-        cols_round = df.columns[df.columns.get_loc('Train Loss'):]
-        def fix_round_values(subdf):
-            max_client = subdf['Client Number'].max()
-            for col in cols_round:
-                non_null = subdf[col].dropna()
-                value = non_null.iloc[-1] if not non_null.empty else None
-                subdf.loc[subdf['Client Number'] == max_client, col] = value
-                subdf.loc[subdf['Client Number'] != max_client, col] = None
-            return subdf
-        
-        df = df.groupby('FL Round', group_keys=False).apply(fix_round_values)
-    
+    # Mantengo Total Time solo per l'ultimo client
+    df['Total Time of FL Round'] = df.groupby('FL Round')['Total Time of FL Round'] \
+        .transform(lambda x: [None]*(len(x)-1) + [x.iloc[-1]])
+
+    # Creo Client Number per ordinare
+    unique_clients = sorted(df['Client ID'].unique())
+    mapping = {cid:i+1 for i,cid in enumerate(unique_clients)}
+    df['Client Number'] = df['Client ID'].map(mapping)
+    df['Client ID'] = df['Client ID'].map(lambda x: f"Client {mapping[x]}")
+    df.sort_values(['FL Round','Client Number'], inplace=True)
+
+    # Seleziono colonne da mantenere solo per l'ultimo client
+    cols_round = ['Total Time of FL Round'] + list(df.columns[df.columns.get_loc('Train Loss'):])
+    def fix_round_values(subdf):
+        last = subdf['Client Number'].max()
+        for col in cols_round:
+            vals = subdf[col].dropna()
+            v = vals.iloc[-1] if not vals.empty else None
+            subdf.loc[subdf['Client Number']==last, col] = v
+            subdf.loc[subdf['Client Number']!=last, col] = None
+        return subdf
+
+    df = df.groupby('FL Round', group_keys=False).apply(fix_round_values)
+
     df.drop(columns=['Client Number'], inplace=True)
     df.to_csv(csv_file, index=False)
     sns.set_theme(style="ticks")
-    df = pd.read_csv(csv_file)
-
 
 def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_rounds):
     # Se non esiste ancora la chiave per il modello, la inizializzo
