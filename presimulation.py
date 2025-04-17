@@ -4,12 +4,12 @@ import subprocess
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QFrame, QVBoxLayout, QLabel, QPushButton, QSpinBox,
     QCheckBox, QGroupBox, QFormLayout, QHBoxLayout, QGridLayout,
-    QComboBox, QScrollArea, QSizePolicy, QStyle, QMessageBox,
+    QComboBox, QScrollArea, QStyle, QMessageBox,
     QDialog, QDialogButtonBox
 )
-from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtCore import Qt
 from recap_simulation import RecapSimulationPage
-from PyQt5.QtGui import QPixmap, QIcon
+from PyQt5.QtGui import QPixmap
 
 # ------------------------------------------------------------------------------------------
 # Dialog specializzato per configurare i parametri di "Client Selector"

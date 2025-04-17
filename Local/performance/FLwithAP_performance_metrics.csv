@@ -1,1 +1,5 @@
 Client ID,FL Round,Training Time,Communication Time,Total Client Time,# of CPU,Model Type,Data Distr. Type,Dataset,Train Loss,Train Accuracy,Train F1,Train MAE,Val Loss,Val Accuracy,Val F1,Val MAE,Total Time of Training Round,Total Time of FL Round
+Client 1,1,101.49,49.41,150.89999999999998,1,CNN,IID,ImageNet100,,,,,,,,,,
+Client 2,1,101.33,50.55,151.88,1,CNN,IID,ImageNet100,420.48,0.256,0.1684,2.9362,16.64,0.24,0.1673,3.029,101.49,155.5
+Client 1,2,101.2,49.11,150.31,1,CNN,IID,ImageNet100,,,,,,,,,,
+Client 2,2,101.26,49.05,150.31,1,CNN,IID,ImageNet100,368.95,0.3678,0.3478,2.4943,14.9,0.348,0.3283,2.53,101.26,150.44

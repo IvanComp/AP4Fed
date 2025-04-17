@@ -2,7 +2,6 @@ import os
 import json
 import time
 import random
-import re
 import numpy as np
 from collections import OrderedDict, Counter
 from logging import INFO
@@ -12,7 +11,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, Subset
 from flwr.common.logger import log
 from torchvision.datasets import CIFAR10, CIFAR100, MNIST, FashionMNIST, KMNIST, OxfordIIITPet
-from torchvision.transforms import Compose, Normalize, ToTensor, Resize
+from torchvision.transforms import Resize, CenterCrop, ToTensor, Normalize, Compose
 import torchvision.models as models
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -64,7 +63,6 @@ AVAILABLE_DATASETS = {
         "num_classes": 10
     },
     "ImageNet100": {
-        # Usato ImageFolder per caricare il dataset pre-processato
         "class": None,
         "normalize": ((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
         "channels": 3,
@@ -257,60 +255,77 @@ def get_weight_class_dynamic(model_name: str):
 
 # Funzione per ottenere il modello dinamico in base al config
 def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool = True) -> nn.Module:
+    # prendo il nome dal config se manca
     if model_name is None:
         with open(config_file, 'r') as f:
             configJSON = json.load(f)
         model_name = configJSON["client_details"][0].get("model")
     model_name = model_name.lower()
+
+    log(INFO, f"DEBUG: Model selezionato = '{model_name}', pretrained flag = {pretrained}")
+
+    # modello custom
     if model_name == "cnn":
-        default_sizes = {
-            "CIFAR10": 32,
-            "CIFAR100": 32,
-            "FashionMNIST": 28,
-            "KMNIST": 28,
-            "FMNIST": 28,
-            "ImageNet100": 224,
-            "OXFORDIIITPET": 224
-        }
-        input_size = default_sizes.get(DATASET_NAME, 32)
-        in_channels = AVAILABLE_DATASETS[DATASET_NAME]["channels"]
-        if in_channels == 3:
-            return CNN_CIFAR(num_classes, input_size)
-        elif in_channels == 1:
-            return CNN_MONO(num_classes, input_size)
-        else:
-            raise ValueError(f"Numero di canali non supportato: {in_channels}")
+        input_size = {
+            "CIFAR10": 32, "CIFAR100": 32,
+            "FashionMNIST": 28, "KMNIST": 28,
+            "ImageNet100": 224, "OXFORDIIITPET": 224
+        }[DATASET_NAME]
+        in_ch = AVAILABLE_DATASETS[DATASET_NAME]["channels"]
+        log(INFO, f"DEBUG: Uso CNN custom con input size {input_size} e canali {in_ch}")
+        return CNN_CIFAR(num_classes, input_size) if in_ch == 3 else CNN_MONO(num_classes, input_size)
+
+    # controllo availability in torchvision
     if not hasattr(models, model_name):
-        raise ValueError(f"Il modello {model_name} non è disponibile in torchvision.models")
-    model_constructor = getattr(models, model_name)
+        raise ValueError(f"Modello '{model_name}' non in torchvision.models")
+    constructor = getattr(models, model_name)
 
-    if pretrained:
-        weight_class = get_weight_class_dynamic(model_name)
-        log(INFO, f"DEBUG: weight_class per '{model_name}' = {weight_class}")
-        if weight_class is not None and hasattr(weight_class, "DEFAULT"):
-            log(INFO, f"DEBUG: Usando i pesi pretrained per il modello '{model_name}'")
-            model = model_constructor(weights=weight_class.DEFAULT, progress=False)
+    # carico i pesi
+    weight_cls = get_weight_class_dynamic(model_name)
+    if pretrained and weight_cls and hasattr(weight_cls, "DEFAULT"):
+        log(INFO, f"DEBUG: Usando pesi pretrained per '{model_name}'")
+        model = constructor(weights=weight_cls.DEFAULT, progress=False)
+    else:
+        log(INFO, f"DEBUG: Carico '{model_name}' senza pesi pretrained")
+        model = constructor(weights=None, progress=False)
+
+    if hasattr(model, "fc"):
+        in_f = model.fc.in_features
+        model.fc = nn.Linear(in_f, num_classes)
+        log(INFO, f"DEBUG: Adattata fc di '{model_name}' ({in_f}→{num_classes})")
+
+    elif hasattr(model, "head"):
+        in_f = model.head.in_features
+        model.head = nn.Linear(in_f, num_classes)
+        log(INFO, f"DEBUG: Adattata head di '{model_name}' ({in_f}→{num_classes})")
+
+    elif hasattr(model, "classifier"):
+        cls = model.classifier
+        if isinstance(cls, nn.Sequential):
+            for i in reversed(range(len(cls))):
+                m = cls[i]
+                if isinstance(m, nn.Linear):
+                    in_f = m.in_features
+                    cls[i] = nn.Linear(in_f, num_classes)
+                    log(INFO, f"DEBUG: Adattato classifier[{i}] di '{model_name}' ({in_f}→{num_classes})")
+                    break
+                if isinstance(m, nn.Conv2d):
+                    out_ch = m.out_channels
+                    cls[i] = nn.Conv2d(m.in_channels, num_classes,
+                                       kernel_size=m.kernel_size,
+                                       stride=m.stride,
+                                       padding=m.padding)
+                    log(INFO, f"DEBUG: Adattato Conv2d classifier[{i}] di '{model_name}' ({out_ch}→{num_classes})")
+                    break
+            model.classifier = cls
         else:
-            log(INFO, f"DEBUG: Pesi pretrained non trovati per '{model_name}'. Carico senza pesi.")
-            model = model_constructor(weights=None, progress=False)
-    else:
-        log(INFO, "DEBUG: Flag pretrained falso, carico modello senza pesi pretrained.")
-        model = model_constructor(weights=None, progress=False)
+            in_f = cls.in_features
+            model.classifier = nn.Linear(in_f, num_classes)
+            log(INFO, f"DEBUG: Adattato classifier di '{model_name}' ({in_f}→{num_classes})")
 
-    if model_name.startswith("resnet"):
-        in_features = model.fc.in_features
-        model.fc = nn.Linear(in_features, num_classes)
-    elif model_name.startswith("vgg"):
-        in_features = model.classifier[-1].in_features
-        model.classifier[-1] = nn.Linear(in_features, num_classes)
-    elif model_name.startswith("densenet"):
-        in_features = model.classifier.in_features
-        model.classifier = nn.Linear(in_features, num_classes)
-    elif model_name.startswith("alexnet"):
-        in_features = model.classifier[6].in_features
-        model.classifier[6] = nn.Linear(in_features, num_classes)
     else:
-        raise NotImplementedError(f"{model_name} non è ancora implementato!")
+        raise NotImplementedError(f"{model_name} non supportato")
+
     return model
 
 def Net():
@@ -362,9 +377,9 @@ def load_data(dataset_name=None):
         target_size = base_size
 
     if DATASET_NAME == "OXFORDIIITPET":
-        transform_list = [Resize((base_size, base_size)), ToTensor(), Normalize(*normalize_params)]
+        transform_list = [Resize((base_size, base_size)), CenterCrop(224), ToTensor(), Normalize(*normalize_params)]
     elif DATASET_NAME == "ImageNet100":
-        transform_list = [Resize((target_size, target_size)), ToTensor(), Normalize(*normalize_params)]
+        transform_list = [Resize((target_size, target_size)), CenterCrop(224), ToTensor(), Normalize(*normalize_params)]
     else:
         transform_list = []
         if target_size != base_size:
@@ -373,7 +388,7 @@ def load_data(dataset_name=None):
     trf = Compose(transform_list)
 
     if DATASET_NAME == "ImageNet100":
-        batch_size = 32
+        batch_size = 64
         from torchvision.datasets import ImageFolder
         train_path = os.path.join("./data", "imagenet100-preprocessed", "train")
         test_path = os.path.join("./data", "imagenet100-preprocessed", "test")

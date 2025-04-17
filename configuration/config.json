@@ -39,7 +39,7 @@
             "ram": 2,
             "dataset": "ImageNet100",
             "data_distribution_type": "IID",
-            "model": "densenet121"
+            "model": "CNN"
         },
         {
             "client_id": 2,
@@ -47,7 +47,7 @@
             "ram": 2,
             "dataset": "ImageNet100",
             "data_distribution_type": "IID",
-            "model": "densenet121"
+            "model": "CNN"
         }
     ]
 }
