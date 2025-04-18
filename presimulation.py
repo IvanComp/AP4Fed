@@ -962,7 +962,7 @@ class ClientConfigurationPage(QWidget):
         main_layout.setSpacing(5)
         self.setLayout(main_layout)
 
-        title_label = QLabel("Configure Each Client")
+        title_label = QLabel("Clients Configuration")
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 10px;")
         main_layout.addWidget(title_label)
@@ -1001,10 +1001,9 @@ class ClientConfigurationPage(QWidget):
             QPushButton {
                 background-color: green;
                 color: white;
-                font-size: 10px;
+                font-size: 14px;
                 padding: 8px 16px;
                 border-radius: 5px;
-                text-align: left;
             }
             QPushButton:hover {
                 background-color: #e0a800;
@@ -1014,7 +1013,52 @@ class ClientConfigurationPage(QWidget):
             }
         """)
         confirm_button.clicked.connect(self.save_client_configurations_and_continue)
-        main_layout.addWidget(confirm_button, alignment=Qt.AlignCenter)
+        main_layout.addWidget(confirm_button)
+
+        copy_button = QPushButton("Copy Client 1 to each Client")
+        copy_button.setCursor(Qt.PointingHandCursor)
+        copy_button.setStyleSheet("""
+            QPushButton {
+                background-color: #007ACC;
+                color: white;
+                height: 30px;
+                font-size: 14px;
+                padding: 6px 12px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #005F9E;
+            }
+            QPushButton:pressed {
+                background-color: #004970;
+            }
+        """)
+        copy_button.clicked.connect(self.copy_to_each_client)
+        main_layout.addWidget(copy_button)
+
+    def copy_to_each_client(self):
+        first = self.client_configs[0]
+        cpu    = first["cpu_input"].value()
+        ram    = first["ram_input"].value()
+        ds     = first["dataset_combobox"].currentText()
+        part   = first["partition_combobox"].currentText()
+        model  = first["model_combobox"].currentText()
+
+        for cfg in self.client_configs:
+            cfg["cpu_input"].setValue(cpu)
+            cfg["ram_input"].setValue(ram)
+
+            idx = cfg["dataset_combobox"].findText(ds)
+            if idx >= 0:
+                cfg["dataset_combobox"].setCurrentIndex(idx)
+
+            idx = cfg["partition_combobox"].findText(part)
+            if idx >= 0:
+                cfg["partition_combobox"].setCurrentIndex(idx)
+
+            idx = cfg["model_combobox"].findText(model)
+            if idx >= 0:
+                cfg["model_combobox"].setCurrentIndex(idx)
 
     def create_client_card(self, client_id):
         card = QFrame(objectName="ClientCard")
@@ -1023,19 +1067,20 @@ class ClientConfigurationPage(QWidget):
         card_layout.setSpacing(5)
         card.setLayout(card_layout)
 
-        fixed_width = 300
+        fixed_width = 305
         fixed_height = 300
         card.setFixedWidth(fixed_width)
         card.setFixedHeight(fixed_height)
 
         pc_icon = self.style().standardIcon(QStyle.SP_ComputerIcon)
         pc_icon_label = QLabel()
-        pc_icon_label.setPixmap(pc_icon.pixmap(48, 48))
+        pc_icon_label.setPixmap(pc_icon.pixmap(80, 80))
         card_layout.addWidget(pc_icon_label, alignment=Qt.AlignCenter)
 
         client_title = QLabel(f"Client {client_id}")
-        client_title.setStyleSheet("font-size: 12px; font-weight: bold;")
+        client_title.setStyleSheet("font-size: 16px; font-weight: bold;")
         client_title.setAlignment(Qt.AlignCenter)
+        client_title.setContentsMargins(0, 0, 0, 10)
         card_layout.addWidget(client_title)
 
         # CPU Allocation
@@ -1046,8 +1091,9 @@ class ClientConfigurationPage(QWidget):
         cpu_input.setRange(1, 16)
         cpu_input.setValue(1)
         cpu_input.setSuffix(" CPUs")
-        cpu_input.setFixedWidth(130)
+        cpu_input.setFixedWidth(160)
         cpu_layout = QHBoxLayout()
+        cpu_layout.setSpacing(16) 
         cpu_layout.addWidget(cpu_label)
         cpu_layout.addWidget(cpu_input)
         card_layout.addLayout(cpu_layout)
@@ -1060,8 +1106,9 @@ class ClientConfigurationPage(QWidget):
         ram_input.setRange(1, 128)
         ram_input.setValue(2)
         ram_input.setSuffix(" GB")
-        ram_input.setFixedWidth(130)
+        ram_input.setFixedWidth(160)
         ram_layout = QHBoxLayout()
+        ram_layout.setSpacing(14)
         ram_layout.addWidget(ram_label)
         ram_layout.addWidget(ram_input)
         card_layout.addLayout(ram_layout)
@@ -1072,19 +1119,20 @@ class ClientConfigurationPage(QWidget):
         dataset_label.setAlignment(Qt.AlignLeft)
         dataset_combobox = QComboBox()
         dataset_combobox.addItems(["CIFAR-10", "CIFAR-100", "FMNIST", "KMNIST", "FashionMNIST", "OXFORDIIITPET", "ImageNet100"])
-        dataset_combobox.setFixedWidth(130)
+        dataset_combobox.setFixedWidth(160)
         dataset_layout = QHBoxLayout()
+        dataset_layout.setSpacing(12)
         dataset_layout.addWidget(dataset_label)
         dataset_layout.addWidget(dataset_combobox)
         card_layout.addLayout(dataset_layout)
 
         # Dataset Partition
-        partition_label = QLabel("Dataset Partition:")
+        partition_label = QLabel("Data Distribution:")
         partition_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         partition_label.setAlignment(Qt.AlignLeft)
         partition_combobox = QComboBox()
         partition_combobox.addItems(["IID", "non-IID", "Random"])
-        partition_combobox.setFixedWidth(130)
+        partition_combobox.setFixedWidth(160)
         partition_layout = QHBoxLayout()
         partition_layout.addWidget(partition_label)
         partition_layout.addWidget(partition_combobox)
@@ -1095,8 +1143,9 @@ class ClientConfigurationPage(QWidget):
         model_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         model_label.setAlignment(Qt.AlignLeft)
         model_combobox = QComboBox()
-        model_combobox.setFixedWidth(130)
+        model_combobox.setFixedWidth(160)
         model_layout = QHBoxLayout()
+        model_layout.setSpacing(17)
         model_layout.addWidget(model_label)
         model_layout.addWidget(model_combobox)
         card_layout.addLayout(model_layout)
