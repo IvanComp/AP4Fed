@@ -9,24 +9,48 @@ from PyQt5.QtCore import Qt, QSize, QTimer
 from PyQt5.QtGui import QPixmap, QIcon
 
 class RecapSimulationPage(QWidget):
-    def __init__(self, user_choices):
+    def __init__(self, user_choices, home_page_callback):
         super().__init__()
         self.user_choices = user_choices
+        self.home_page_callback = home_page_callback
 
-        self.setWindowTitle("List of Input Parameters for the Simulation")
+        self.setWindowTitle("AP4Fed")
         self.resize(1000, 800)
         # Remove global style that might interfere with QMessageBox
         self.setStyleSheet("background-color: white;")
+        back_btn = QPushButton()
+        back_btn.setIcon(self.style().standardIcon(QStyle.SP_ArrowBack))
+        back_btn.setCursor(Qt.PointingHandCursor)
+        back_btn.setIconSize(QSize(24, 24))
+        back_btn.setFixedSize(36, 36)
+        back_btn.setCursor(Qt.PointingHandCursor)
+        back_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #e0e0e0;
+                border-radius: 18px;
+            }
+        """)
+        back_btn.clicked.connect(self.on_back)
 
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignTop)
         self.setLayout(layout)
 
-        # Title
+        # header con back‑button e titolo sulla stessa riga
         title_label = QLabel("List of Input Parameters for the Simulation")
-        title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("color: black; font-size: 24px; font-weight: bold;")
-        layout.addWidget(title_label)
+        title_label.setAlignment(Qt.AlignCenter)
+
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 10)
+        header_layout.addWidget(back_btn, alignment=Qt.AlignLeft)
+        header_layout.addWidget(title_label, stretch=1)
+
+        layout.insertLayout(0, header_layout)
 
         # Scrollable area to display configuration details
         scroll_area = QScrollArea()
@@ -121,6 +145,10 @@ class RecapSimulationPage(QWidget):
 
         layout.addLayout(buttons_layout)
 
+    def on_back(self):
+        self.close()
+        self.home_page_callback()
+
     def display_general_parameters(self, layout):
         """
         Displays general parameters.
@@ -133,6 +161,7 @@ class RecapSimulationPage(QWidget):
 
         # General Parameters Section
         general_label = QLabel("General Parameters")
+        general_label.setAlignment(Qt.AlignLeft)
         general_label.setStyleSheet("color: black; font-size: 20px; font-weight: bold; margin-top: 10px;")
         layout.addWidget(general_label)
 
@@ -321,6 +350,10 @@ class RecapSimulationPage(QWidget):
             if col >= 2:
                 col = 0
                 row += 1
+
+    def on_back(self):
+        self.close()
+        self.home_page_callback()
 
     def add_configuration_items(self, config, layout, indent=0):
         """

@@ -4,6 +4,7 @@ import json
 import shutil
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QMessageBox, QFileDialog
 from PyQt5.QtGui import QPixmap, QIcon, QDesktopServices
+from PyQt5.QtWidgets import QStyle
 from PyQt5.QtCore import Qt, QUrl, QSize
 from presimulation import PreSimulationPage 
 from recap_simulation import RecapSimulationPage  
@@ -137,7 +138,7 @@ class HomePage(QWidget):
         self.setStyleSheet("background-color: white;")
 
     def start_new_project(self):
-        self.second_screen = SecondScreen()
+        self.second_screen = SecondScreen(home_page_callback=self.show)
         self.second_screen.show()
         self.close()
 
@@ -162,7 +163,7 @@ class HomePage(QWidget):
                     global user_choices
                     user_choices = [loaded_config]
 
-                    self.recap_simulation_page = RecapSimulationPage(user_choices)
+                    self.recap_simulation_page = RecapSimulationPage(user_choices, home_page_callback=self.show)
                     self.recap_simulation_page.show()
 
                     self.close()
@@ -231,15 +232,36 @@ class HomePage(QWidget):
 
 
 class SecondScreen(QWidget):
-    def __init__(self):
+    def __init__(self, home_page_callback):
         super().__init__()
-        self.setWindowTitle("AP4FED - New Project")
+        self.home_page_callback = home_page_callback
+        self.setWindowTitle("AP4Fed")
         self.resize(800, 600)
+
+
+        back_btn = QPushButton()
+        back_btn.setIcon(self.style().standardIcon(QStyle.SP_ArrowBack))
+        back_btn.setIconSize(QSize(24, 24))
+        back_btn.setFixedSize(36, 36)
+        back_btn.setCursor(Qt.PointingHandCursor)
+        back_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #e0e0e0;
+                border-radius: 18px;
+            }
+        """)
+        back_btn.setCursor(Qt.PointingHandCursor)
+        back_btn.clicked.connect(self.on_back)
 
         base_dir = os.path.dirname(__file__)
         docker_path = os.path.join(base_dir, "img/docker.png")
         local_path = os.path.join(base_dir, "img/local.png")
         main_layout = QVBoxLayout()
+        main_layout.insertWidget(0, back_btn, alignment=Qt.AlignLeft)
         main_layout.setAlignment(Qt.AlignCenter)
         main_layout.setContentsMargins(20, 20, 20, 20)
         self.setLayout(main_layout)
@@ -307,21 +329,31 @@ class SecondScreen(QWidget):
         docker_button.setCursor(Qt.PointingHandCursor)
         docker_button.clicked.connect(self.select_docker) 
         button_layout.addWidget(docker_button)
-
         main_layout.addLayout(button_layout)
         self.setStyleSheet("background-color: white;")
+
+    def on_back(self):
+        self.close()                 
+        self.home_page_callback() 
+
+    def open_pre_simulation(self):
+        # creo e mostro la schermata di pre‑simulazione
+        self.pre_sim = PreSimulationPage(user_choices, home_page_callback=self.show)
+        self.pre_sim.show()
+        # nascondo questa finestra
+        self.hide()
 
     def select_docker(self):
         global user_choices
         user_choices.append({"simulation_type": "Docker"})
         self.open_presimulation_page()
-        self.close()
+        self.hide()
 
     def select_local(self):
         global user_choices
         user_choices.append({"simulation_type": "Local"})
         self.open_presimulation_page()
-        self.close()
+        self.hide()
 
     def open_presimulation_page(self):
         self.presimulation_page = PreSimulationPage(user_choices, self.show_home_page)

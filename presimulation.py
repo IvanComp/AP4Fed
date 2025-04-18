@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
     QComboBox, QScrollArea, QStyle, QMessageBox,
     QDialog, QDialogButtonBox
 )
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QSize
 from recap_simulation import RecapSimulationPage
 from PyQt5.QtGui import QPixmap
 
@@ -17,7 +17,7 @@ from PyQt5.QtGui import QPixmap
 class ClientSelectorDialog(QDialog):
     def __init__(self, existing_params=None):
         super().__init__()
-        self.setWindowTitle("Configure Client Selector")
+        self.setWindowTitle("AP4Fed")
         self.resize(400, 300)  # Modificato per aggiungere spazio al layout
 
         self.existing_params = existing_params or {}
@@ -84,6 +84,10 @@ class ClientSelectorDialog(QDialog):
             self.criteria_combo.addItems(["IID", "non-IID"])
         elif strategy == "Performance-based":
             self.criteria_combo.addItems(["Accuracy", "Latency"])
+
+    def on_back(self):
+        self.close()
+        self.home_page_callback()
 
     def get_params(self):
         return {
@@ -271,6 +275,24 @@ class PreSimulationPage(QWidget):
     def __init__(self, user_choices, home_page_callback):
         super().__init__()
 
+        back_btn = QPushButton()
+        back_btn.setIcon(self.style().standardIcon(QStyle.SP_ArrowBack))
+        back_btn.setCursor(Qt.PointingHandCursor)
+        back_btn.setIconSize(QSize(24, 24))
+        back_btn.setFixedSize(36, 36)
+        back_btn.setCursor(Qt.PointingHandCursor)
+        back_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #e0e0e0;
+                border-radius: 18px;
+            }
+        """)
+        back_btn.clicked.connect(self.on_back)
+
         self.pattern_data = {
             "Client Registry": {
                 "category": "Client Management Category",
@@ -379,7 +401,7 @@ class PreSimulationPage(QWidget):
         # Dizionario per memorizzare i parametri dei pattern
         self.temp_pattern_config = {}
 
-        self.setWindowTitle("Pre-Simulation Configuration")
+        self.setWindowTitle("AP4Fed")
         self.resize(800, 600)
 
         self.setStyleSheet("""
@@ -409,9 +431,15 @@ class PreSimulationPage(QWidget):
         self.setLayout(main_layout)
 
         choice_label = QLabel(f"Type of Simulation: {self.user_choices[-1]['simulation_type']}")
+        choice_label.setStyleSheet("color: black; font-size: 24px; font-weight: bold;")
         choice_label.setAlignment(Qt.AlignCenter)
-        choice_label.setStyleSheet("font-size: 16px; color: #333;")
-        main_layout.addWidget(choice_label)
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 10)
+        header_layout.addWidget(back_btn, alignment=Qt.AlignLeft)
+        header_layout.addWidget(choice_label, stretch=1)
+
+        # inserisce l’header in cima
+        main_layout.insertLayout(0, header_layout)
 
         general_settings_group = QGroupBox("General Settings")
         general_settings_group.setStyleSheet("""
@@ -769,6 +797,10 @@ class PreSimulationPage(QWidget):
     def update_docker_status(self):
         self.check_docker_status()
 
+    def on_back(self):
+        self.close()
+        self.home_page_callback()
+
     def show_pattern_info(self, pattern_name, pattern_category, image_path, description, benefits, drawbacks):
         dialog = QDialog(self)
         dialog.setWindowTitle(f"{pattern_name} - {pattern_category}")
@@ -903,8 +935,7 @@ class PreSimulationPage(QWidget):
         }
 
         self.user_choices.append(simulation_config)
-
-        self.client_config_page = ClientConfigurationPage(self.user_choices, self.home_page_callback)
+        self.client_config_page = ClientConfigurationPage(self.user_choices, home_page_callback=self.show)
         self.client_config_page.show()
         self.close()
 
@@ -914,7 +945,7 @@ class PreSimulationPage(QWidget):
 class ClientConfigurationPage(QWidget):
     def __init__(self, user_choices, home_page_callback):
         super().__init__()
-        self.setWindowTitle("Client Configuration")
+        self.setWindowTitle("AP4Fed")
         self.resize(1000, 800)
         self.user_choices = user_choices
         self.home_page_callback = home_page_callback
@@ -962,12 +993,31 @@ class ClientConfigurationPage(QWidget):
         main_layout.setSpacing(5)
         self.setLayout(main_layout)
 
-        title_label = QLabel("Clients Configuration")
-        title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 10px;")
-        main_layout.addWidget(title_label)
+        back_btn = QPushButton()
+        back_btn.setIcon(self.style().standardIcon(QStyle.SP_ArrowBack))
+        back_btn.setIconSize(QSize(24, 24))
+        back_btn.setFixedSize(36, 36)
+        back_btn.setCursor(Qt.PointingHandCursor)
+        back_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #e0e0e0;
+                border-radius: 18px;
+            }
+        """)
+        back_btn.clicked.connect(self.on_back)
 
-        # Creazione della griglia che conterrà le card dei client
+        title_label = QLabel("Clients Configuration")
+        title_label.setStyleSheet("color: black; font-size: 24px; font-weight: bold;")
+        title_label.setAlignment(Qt.AlignCenter)
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 10)
+        header_layout.addWidget(back_btn, alignment=Qt.AlignLeft)
+        header_layout.addWidget(title_label, stretch=1)
+        main_layout.insertLayout(0, header_layout)
         grid_layout = QGridLayout()
         grid_layout.setSpacing(20)
         grid_layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
@@ -1035,6 +1085,10 @@ class ClientConfigurationPage(QWidget):
         """)
         copy_button.clicked.connect(self.copy_to_each_client)
         main_layout.addWidget(copy_button)
+
+    def on_back(self):
+        self.close()
+        self.home_page_callback()
 
     def copy_to_each_client(self):
         first = self.client_configs[0]
@@ -1203,7 +1257,7 @@ class ClientConfigurationPage(QWidget):
         self.user_choices[-1]["client_details"] = client_details
         # (Ulteriori controlli e salvataggio della configurazione)
         self.save_configuration_to_file()
-        self.recap_simulation_page = RecapSimulationPage(self.user_choices)
+        self.recap_simulation_page = RecapSimulationPage(self.user_choices, home_page_callback=self.show)
         self.recap_simulation_page.show()
         self.close()
 
