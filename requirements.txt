@@ -10,4 +10,4 @@ torchvision==0.21.0
 psutil==6.1.0
 docker==7.1.0
 ray==2.36.0
-resources
+pyfiglet

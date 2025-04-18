@@ -24,6 +24,7 @@ from flwr.server.strategy import Strategy
 from flwr.server.client_manager import ClientManager
 from flwr.server.client_proxy import ClientProxy
 from flwr.common.logger import log
+from pyfiglet import Figlet
 from logging import INFO
 import numpy as np
 from taskA import Net as NetA, get_weights as get_weights_A, set_weights as set_weights_A, load_data as load_data_A
@@ -329,11 +330,15 @@ previous_round_end_time = time.time()
 class MultiModelStrategy(Strategy):
     def __init__(self, initial_parameters_a: Parameters):
         self.parameters_a = initial_parameters_a
-    
+
+        f = Figlet(font="italic")
+        banner_lines = f.renderText("Moo").splitlines()
+
         log(INFO, "==========================================")
-        log(INFO, "Simulation Started!")
+        for line in banner_lines:
+            log(INFO, line)
+        log(INFO, "Simulation Started! v. 1.5.0")
         log(INFO, "==========================================")
-        time.sleep(1)
         log(INFO, "List of Architectural Patterns Implemented: ")
 
         enabled_patterns = []
@@ -348,7 +353,7 @@ class MultiModelStrategy(Strategy):
                 pattern_str = pattern_name.replace('_', ' ').title()
                 log(INFO, f"{pattern_str} ✅")
                 if pattern_info["params"]:
-                    log(INFO, f"    Params: {pattern_info['params']}")
+                    log(INFO, f" AP Parameters: {pattern_info['params']}")
                 time.sleep(1)
         log(INFO, "==========================================")
 

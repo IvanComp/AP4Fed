@@ -1104,7 +1104,7 @@ class ClientConfigurationPage(QWidget):
         # Funzione per aggiornare il contenuto del combobox del modello mostrando sempre lo stesso elenco completo
         def update_model_options():
             models_list = [
-                "CNN", "alexnet", "convnext_tiny", "convnext_small", "convnext_base", "convnext_large",
+                "CNN 16k", "CNN 64k","CNN 256k","alexnet", "convnext_tiny", "convnext_small", "convnext_base", "convnext_large",
                 "densenet121", "densenet161", "densenet169", "densenet201",
                 "efficientnet_b0", "efficientnet_b1", "efficientnet_b2", "efficientnet_b3", "efficientnet_b4",
                 "efficientnet_b5", "efficientnet_b6", "efficientnet_b7",

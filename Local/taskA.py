@@ -262,17 +262,17 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
         model_name = configJSON["client_details"][0].get("model")
     model_name = model_name.lower()
 
-    log(INFO, f"DEBUG: Model selezionato = '{model_name}', pretrained flag = {pretrained}")
+    #log(INFO, f"DEBUG: Model selezionato = '{model_name}', pretrained flag = {pretrained}")
 
     # modello custom
     if model_name == "cnn":
         input_size = {
             "CIFAR10": 32, "CIFAR100": 32,
             "FashionMNIST": 28, "KMNIST": 28,
-            "ImageNet100": 224, "OXFORDIIITPET": 224
+            "ImageNet100": 256, "OXFORDIIITPET": 256
         }[DATASET_NAME]
         in_ch = AVAILABLE_DATASETS[DATASET_NAME]["channels"]
-        log(INFO, f"DEBUG: Uso CNN custom con input size {input_size} e canali {in_ch}")
+        print(INFO, f"Custom CNN with {input_size} and channels: {in_ch}")
         return CNN_CIFAR(num_classes, input_size) if in_ch == 3 else CNN_MONO(num_classes, input_size)
 
     # controllo availability in torchvision
@@ -283,21 +283,21 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
     # carico i pesi
     weight_cls = get_weight_class_dynamic(model_name)
     if pretrained and weight_cls and hasattr(weight_cls, "DEFAULT"):
-        log(INFO, f"DEBUG: Usando pesi pretrained per '{model_name}'")
+        print(INFO, f"DEBUG: Usando pesi pretrained per '{model_name}'")
         model = constructor(weights=weight_cls.DEFAULT, progress=False)
     else:
-        log(INFO, f"DEBUG: Carico '{model_name}' senza pesi pretrained")
+        print(INFO, f"DEBUG: Carico '{model_name}' senza pesi pretrained")
         model = constructor(weights=None, progress=False)
 
     if hasattr(model, "fc"):
         in_f = model.fc.in_features
         model.fc = nn.Linear(in_f, num_classes)
-        log(INFO, f"DEBUG: Adattata fc di '{model_name}' ({in_f}→{num_classes})")
+        print(INFO, f"Adaptation of '{model_name}' ({in_f}→{num_classes})")
 
     elif hasattr(model, "head"):
         in_f = model.head.in_features
         model.head = nn.Linear(in_f, num_classes)
-        log(INFO, f"DEBUG: Adattata head di '{model_name}' ({in_f}→{num_classes})")
+        print(INFO, f"Adaptation (Head) of '{model_name}' ({in_f}→{num_classes})")
 
     elif hasattr(model, "classifier"):
         cls = model.classifier
@@ -307,7 +307,7 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
                 if isinstance(m, nn.Linear):
                     in_f = m.in_features
                     cls[i] = nn.Linear(in_f, num_classes)
-                    log(INFO, f"DEBUG: Adattato classifier[{i}] di '{model_name}' ({in_f}→{num_classes})")
+                    print(INFO, f"DEBUG: Adapted the classifier[{i}] of '{model_name}' ({in_f}→{num_classes})")
                     break
                 if isinstance(m, nn.Conv2d):
                     out_ch = m.out_channels
@@ -315,16 +315,16 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
                                        kernel_size=m.kernel_size,
                                        stride=m.stride,
                                        padding=m.padding)
-                    log(INFO, f"DEBUG: Adattato Conv2d classifier[{i}] di '{model_name}' ({out_ch}→{num_classes})")
+                    print(INFO, f"Adaptation (Conv2) of [{i}] of '{model_name}' ({out_ch}→{num_classes})")
                     break
             model.classifier = cls
         else:
             in_f = cls.in_features
             model.classifier = nn.Linear(in_f, num_classes)
-            log(INFO, f"DEBUG: Adattato classifier di '{model_name}' ({in_f}→{num_classes})")
+            print(INFO, f"DEBUG: Adapted classifier of '{model_name}' ({in_f}→{num_classes})")
 
     else:
-        raise NotImplementedError(f"{model_name} non supportato")
+        raise NotImplementedError(f"{model_name} not Supported!")
 
     return model
 
@@ -334,12 +334,8 @@ def Net():
     ds = configJSON.get("dataset", None)
     if ds is None:
         ds = configJSON["client_details"][0].get("dataset", None)
-    if ds is None:
-        raise ValueError("Manca 'dataset' nel config.")
     dataset_name = normalize_dataset_name(ds)
     model_name = configJSON["client_details"][0].get("model", None)
-    if model_name is None:
-        raise ValueError("Manca 'model' nel config.")
     num_classes = AVAILABLE_DATASETS[dataset_name]["num_classes"]
     return get_dynamic_model(num_classes, model_name)
 
@@ -356,7 +352,7 @@ def load_data(dataset_name=None):
         DATASET_NAME = dataset_name
 
     if DATASET_NAME not in AVAILABLE_DATASETS:
-        raise ValueError(f"[ERROR] Dataset '{DATASET_NAME}' non trovato in AVAILABLE_DATASETS.")
+        raise ValueError(f"[ERROR] Dataset '{DATASET_NAME}' Not Found in AVAILABLE_DATASETS.")
     dataset_config = AVAILABLE_DATASETS[DATASET_NAME]
     normalize_params = dataset_config["normalize"]
 
@@ -366,13 +362,13 @@ def load_data(dataset_name=None):
         "FashionMNIST": 28,
         "KMNIST": 28,
         "FMNIST": 28,
-        "ImageNet100": 224,
-        "OXFORDIIITPET": 224
+        "ImageNet100": 256,
+        "OXFORDIIITPET": 256
     }
     base_size = default_sizes.get(DATASET_NAME, 32)
     model_name = configJSON["client_details"][0].get("model", "resnet18").lower()
     if model_name in ["alexnet", "vgg11", "vgg13", "vgg16", "vgg19"]:
-        target_size = 224
+        target_size = 256
     else:
         target_size = base_size
 

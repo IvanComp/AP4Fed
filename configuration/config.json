@@ -39,7 +39,7 @@
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
-            "model": "CNN"
+            "model": "CNN 16k"
         },
         {
             "client_id": 2,
@@ -47,7 +47,7 @@
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
-            "model": "CNN"
+            "model": "CNN 16k"
         }
     ]
 }
