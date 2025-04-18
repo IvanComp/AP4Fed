@@ -171,80 +171,39 @@ class CNN_MONO(nn.Module):
         x = F.relu(self.fc2(x))
         return self.fc3(x)
 
+# Classe dinamica per CNN custom con parametri variabili
+class CNN_Dynamic(nn.Module):
+    def __init__(
+        self, num_classes: int, input_size: int, in_ch: int,
+        conv1_out: int, conv2_out: int, fc1_out: int, fc2_out: int
+    ) -> None:
+        super(CNN_Dynamic, self).__init__()
+        self.conv1 = nn.Conv2d(in_ch, conv1_out, kernel_size=5)
+        self.conv2 = nn.Conv2d(conv1_out, conv2_out, kernel_size=5)
+        self.pool = nn.MaxPool2d(2, 2)
+        dummy = torch.zeros(1, in_ch, input_size, input_size)
+        dummy = self.pool(F.relu(self.conv1(dummy)))
+        dummy = self.pool(F.relu(self.conv2(dummy)))
+        flat_size = dummy.view(1, -1).size(1)
+        self.fc1 = nn.Linear(flat_size, fc1_out)
+        self.fc2 = nn.Linear(fc1_out, fc2_out)
+        self.fc3 = nn.Linear(fc2_out, num_classes)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = x.view(x.size(0), -1)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        return self.fc3(x)
+
 # Funzione per ottenere dinamicamente la classe dei pesi in base al modello
 def get_weight_class_dynamic(model_name: str):
     weight_mapping = {
         "cnn": None,  # architettura custom, non usa pesi pretrained
         "alexnet": "AlexNet_Weights",
         "convnext_tiny": "ConvNeXt_Tiny_Weights",
-        "convnext_small": "ConvNeXt_Small_Weights",
-        "convnext_base": "ConvNeXt_Base_Weights",
-        "convnext_large": "ConvNeXt_Large_Weights",
-        "densenet121": "DenseNet121_Weights",
-        "densenet161": "DenseNet161_Weights",
-        "densenet169": "DenseNet169_Weights",
-        "densenet201": "DenseNet201_Weights",
-        "efficientnet_b0": "EfficientNet_B0_Weights",
-        "efficientnet_b1": "EfficientNet_B1_Weights",
-        "efficientnet_b2": "EfficientNet_B2_Weights",
-        "efficientnet_b3": "EfficientNet_B3_Weights",
-        "efficientnet_b4": "EfficientNet_B4_Weights",
-        "efficientnet_b5": "EfficientNet_B5_Weights",
-        "efficientnet_b6": "EfficientNet_B6_Weights",
-        "efficientnet_b7": "EfficientNet_B7_Weights",
-        "efficientnet_v2_s": "EfficientNet_V2_S_Weights",
-        "efficientnet_v2_m": "EfficientNet_V2_M_Weights",
-        "efficientnet_v2_l": "EfficientNet_V2_L_Weights",
-        "googlenet": "GoogLeNet_Weights",
-        "inception_v3": "Inception_V3_Weights",
-        "mnasnet0_5": "MnasNet0_5_Weights",
-        "mnasnet0_75": "MnasNet0_75_Weights",
-        "mnasnet1_0": "MnasNet1_0_Weights",
-        "mnasnet1_3": "MnasNet1_3_Weights",
-        "mobilenet_v2": "MobileNet_V2_Weights",
-        "mobilenet_v3_large": "MobileNet_V3_Large_Weights",
-        "mobilenet_v3_small": "MobileNet_V3_Small_Weights",
-        "regnet_x_400mf": "RegNet_X_400MF_Weights",
-        "regnet_x_800mf": "RegNet_X_800MF_Weights",
-        "regnet_x_1_6gf": "RegNet_X_1_6GF_Weights",
-        "regnet_x_16gf": "RegNet_X_16GF_Weights",
-        "regnet_x_32gf": "RegNet_X_32GF_Weights",
-        "regnet_x_3_2gf": "RegNet_X_3_2GF_Weights",
-        "regnet_x_8gf": "RegNet_X_8GF_Weights",
-        "regnet_y_400mf": "RegNet_Y_400MF_Weights",
-        "regnet_y_800mf": "RegNet_Y_800MF_Weights",
-        "regnet_y_128gf": "RegNet_Y_128GF_Weights",
-        "regnet_y_16gf": "RegNet_Y_16GF_Weights",
-        "regnet_y_1_6gf": "RegNet_Y_1_6GF_Weights",
-        "regnet_y_32gf": "RegNet_Y_32GF_Weights",
-        "regnet_y_3_2gf": "RegNet_Y_3_2GF_Weights",
-        "regnet_y_8gf": "RegNet_Y_8GF_Weights",
-        "resnet18": "ResNet18_Weights",
-        "resnet34": "ResNet34_Weights",
-        "resnet50": "ResNet50_Weights",
-        "resnet101": "ResNet101_Weights",
-        "resnet152": "ResNet152_Weights",
-        "resnext50_32x4d": "ResNeXt50_32X4D_Weights",
-        "shufflenet_v2_x0_5": "ShuffleNet_V2_x0_5_Weights",
-        "shufflenet_v2_x1_0": "ShuffleNet_V2_x1_0_Weights",
-        "squeezenet1_0": "SqueezeNet1_0_Weights",
-        "squeezenet1_1": "SqueezeNet1_1_Weights",
-        "vgg11": "VGG11_Weights",
-        "vgg11_bn": "VGG11_BN_Weights",
-        "vgg13": "VGG13_Weights",
-        "vgg13_bn": "VGG13_BN_Weights",
-        "vgg16": "VGG16_Weights",
-        "vgg16_bn": "VGG16_BN_Weights",
-        "vgg19": "VGG19_Weights",
-        "vgg19_bn": "VGG19_BN_Weights",
-        "wide_resnet50_2": "Wide_ResNet50_2_Weights",
-        "wide_resnet101_2": "Wide_ResNet101_2_Weights",
-        "swin_t": "Swin_T_Weights",
-        "swin_s": "Swin_S_Weights",
-        "swin_b": "Swin_B_Weights",
-        "vit_b_16": "ViT_B_16_Weights",
-        "vit_b_32": "ViT_B_32_Weights",
-        "vit_l_16": "ViT_L_16_Weights",
+        # ... altri modelli ...
         "vit_l_32": "ViT_L_32_Weights"
     }
     model_name = model_name.lower()
@@ -255,17 +214,14 @@ def get_weight_class_dynamic(model_name: str):
 
 # Funzione per ottenere il modello dinamico in base al config
 def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool = True) -> nn.Module:
-    # prendo il nome dal config se manca
     if model_name is None:
         with open(config_file, 'r') as f:
             configJSON = json.load(f)
         model_name = configJSON["client_details"][0].get("model")
-    model_name = model_name.lower()
+    name = model_name.strip().lower().replace("-", "_").replace(" ", "_")
 
-    #log(INFO, f"DEBUG: Model selezionato = '{model_name}', pretrained flag = {pretrained}")
-
-    # modello custom
-    if model_name == "cnn":
+    # modelli custom: cnn base
+    if name == "cnn":
         input_size = {
             "CIFAR10": 32, "CIFAR100": 32,
             "FashionMNIST": 28, "KMNIST": 28,
@@ -274,31 +230,70 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
         in_ch = AVAILABLE_DATASETS[DATASET_NAME]["channels"]
         print(INFO, f"Custom CNN with {input_size} and channels: {in_ch}")
         return CNN_CIFAR(num_classes, input_size) if in_ch == 3 else CNN_MONO(num_classes, input_size)
+    # cnn 16k
+    if name in ("cnn_16k", "cnn16k"):
+        input_size = {
+            "CIFAR10": 32, "CIFAR100": 32,
+            "FashionMNIST": 28, "KMNIST": 28,
+            "ImageNet100": 256, "OXFORDIIITPET": 256
+        }[DATASET_NAME]
+        in_ch = AVAILABLE_DATASETS[DATASET_NAME]["channels"]
+        print(INFO, f"Custom CNN 16k with {input_size} and channels: {in_ch}")
+        return CNN_Dynamic(
+            num_classes, input_size, in_ch,
+            conv1_out=3, conv2_out=8,
+            fc1_out=60, fc2_out=42
+        )
+    # cnn 64k
+    if name in ("cnn_64k", "cnn64k"):
+        input_size = {
+            "CIFAR10": 32, "CIFAR100": 32,
+            "FashionMNIST": 28, "KMNIST": 28,
+            "ImageNet100": 256, "OXFORDIIITPET": 256
+        }[DATASET_NAME]
+        in_ch = AVAILABLE_DATASETS[DATASET_NAME]["channels"]
+        print(INFO, f"Custom CNN 64k with {input_size} and channels: {in_ch}")
+        return CNN_Dynamic(
+            num_classes, input_size, in_ch,
+            conv1_out=6, conv2_out=16,
+            fc1_out=120, fc2_out=84
+        )
+    # cnn 256k
+    if name in ("cnn_256k", "cnn256k"):
+        input_size = {
+            "CIFAR10": 32, "CIFAR100": 32,
+            "FashionMNIST": 28, "KMNIST": 28,
+            "ImageNet100": 256, "OXFORDIIITPET": 256
+        }[DATASET_NAME]
+        in_ch = AVAILABLE_DATASETS[DATASET_NAME]["channels"]
+        print(INFO, f"Custom CNN 256k with {input_size} and channels: {in_ch}")
+        return CNN_Dynamic(
+            num_classes, input_size, in_ch,
+            conv1_out=12, conv2_out=32,
+            fc1_out=240, fc2_out=168
+        )
 
-    # controllo availability in torchvision
-    if not hasattr(models, model_name):
+    # modelli torchvision
+    if not hasattr(models, name):
         raise ValueError(f"Modello '{model_name}' non in torchvision.models")
-    constructor = getattr(models, model_name)
+    constructor = getattr(models, name)
 
-    # carico i pesi
-    weight_cls = get_weight_class_dynamic(model_name)
+    weight_cls = get_weight_class_dynamic(name)
     if pretrained and weight_cls and hasattr(weight_cls, "DEFAULT"):
-        print(INFO, f"DEBUG: Usando pesi pretrained per '{model_name}'")
+        print(INFO, f"DEBUG: Usando pesi pretrained per '{name}'")
         model = constructor(weights=weight_cls.DEFAULT, progress=False)
     else:
-        print(INFO, f"DEBUG: Carico '{model_name}' senza pesi pretrained")
+        print(INFO, f"DEBUG: Carico '{name}' senza pesi pretrained")
         model = constructor(weights=None, progress=False)
 
     if hasattr(model, "fc"):
         in_f = model.fc.in_features
         model.fc = nn.Linear(in_f, num_classes)
-        print(INFO, f"Adaptation of '{model_name}' ({in_f}→{num_classes})")
-
+        print(INFO, f"Adaptation of '{name}' ({in_f}→{num_classes})")
     elif hasattr(model, "head"):
         in_f = model.head.in_features
         model.head = nn.Linear(in_f, num_classes)
-        print(INFO, f"Adaptation (Head) of '{model_name}' ({in_f}→{num_classes})")
-
+        print(INFO, f"Adaptation (Head) of '{name}' ({in_f}→{num_classes})")
     elif hasattr(model, "classifier"):
         cls = model.classifier
         if isinstance(cls, nn.Sequential):
@@ -307,7 +302,7 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
                 if isinstance(m, nn.Linear):
                     in_f = m.in_features
                     cls[i] = nn.Linear(in_f, num_classes)
-                    print(INFO, f"DEBUG: Adapted the classifier[{i}] of '{model_name}' ({in_f}→{num_classes})")
+                    print(INFO, f"DEBUG: Adapted the classifier[{i}] of '{name}' ({in_f}→{num_classes})")
                     break
                 if isinstance(m, nn.Conv2d):
                     out_ch = m.out_channels
@@ -315,19 +310,19 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
                                        kernel_size=m.kernel_size,
                                        stride=m.stride,
                                        padding=m.padding)
-                    print(INFO, f"Adaptation (Conv2) of [{i}] of '{model_name}' ({out_ch}→{num_classes})")
+                    print(INFO, f"Adaptation (Conv2) of [{i}] of '{name}' ({out_ch}→{num_classes})")
                     break
             model.classifier = cls
         else:
             in_f = cls.in_features
             model.classifier = nn.Linear(in_f, num_classes)
-            print(INFO, f"DEBUG: Adapted classifier of '{model_name}' ({in_f}→{num_classes})")
-
+            print(INFO, f"DEBUG: Adapted classifier of '{name}' ({in_f}→{num_classes})")
     else:
-        raise NotImplementedError(f"{model_name} not Supported!")
+        raise NotImplementedError(f"{name} not Supported!")
 
     return model
 
+# Funzione Net() di utilità
 def Net():
     with open(config_file, 'r') as f:
         configJSON = json.load(f)
@@ -339,6 +334,7 @@ def Net():
     num_classes = AVAILABLE_DATASETS[dataset_name]["num_classes"]
     return get_dynamic_model(num_classes, model_name)
 
+# Funzione per caricare i dati
 def load_data(dataset_name=None):
     global DATASET_NAME, DATASET_TYPE
     with open(config_file, 'r') as f:
@@ -461,8 +457,8 @@ def load_data(dataset_name=None):
                     class_names = trainset.classes if hasattr(trainset, 'classes') else [str(i) for i in range(dataset_config["num_classes"])]
                     distribution_str = ", ".join([f"{class_names[cls]}: {class_distribution.get(cls, 0)} samples" for cls in range(dataset_config["num_classes"])])
                     print(f"Client non-IID-{client_id+1} Class Distribution: {distribution_str}")
-                    augmented_clients = augment_with_gan(clients_data, target_samples_per_class)
-                    subset_augmented, _ = augmented_clients[0]
+                augmented_clients = augment_with_gan(clients_data, target_samples_per_class)
+                subset_augmented, _ = augmented_clients[0]
                 trainloader = DataLoader(subset_augmented, batch_size=batch_size, shuffle=True)
                 testloader = DataLoader(testset, batch_size=batch_size, shuffle=False)
                 return trainloader, testloader
@@ -470,6 +466,7 @@ def load_data(dataset_name=None):
             trainset, testset = get_datasets(trf)
             return DataLoader(trainset, batch_size=batch_size, shuffle=True), DataLoader(testset, batch_size=batch_size)
 
+# Funzione per augmentazione con GAN
 def augment_with_gan(clients_data, target_samples_per_class=2500):
     augmented_clients_data = []
     for idx, (subset, class_distribution) in enumerate(clients_data):
@@ -494,6 +491,7 @@ def augment_with_gan(clients_data, target_samples_per_class=2500):
         augmented_clients_data.append((subset, new_class_distribution))
     return augmented_clients_data
 
+# Funzione di training
 def train(net, trainloader, valloader, epochs, DEVICE):
     log(INFO, "Starting training...")
     start_time = time.time()
@@ -525,6 +523,7 @@ def train(net, trainloader, valloader, epochs, DEVICE):
     }
     return results, training_time, start_comm_time
 
+# Funzione di test
 def test(net, testloader):
     net.to(DEVICE)
     criterion = torch.nn.CrossEntropyLoss()
@@ -552,6 +551,7 @@ def test(net, testloader):
         mae_value = None
     return loss, accuracy, f1, mae_value
 
+# Calcolo F1
 def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
     confusion_matrix = torch.zeros(num_classes, num_classes)
     for t, p in zip(y_true, y_pred):
@@ -578,6 +578,7 @@ def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
     else:
         raise ValueError("Average must be 'macro' or 'micro'")
 
+# Funzioni per pesi
 def get_weights(net):
     return [val.cpu().numpy() for _, val in net.state_dict().items()]
 

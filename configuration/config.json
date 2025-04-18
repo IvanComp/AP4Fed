@@ -1,6 +1,6 @@
 {
     "simulation_type": "Local",
-    "rounds": 2,
+    "rounds": 1,
     "clients": 2,
     "patterns": {
         "client_registry": {
@@ -39,7 +39,7 @@
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
-            "model": "CNN 16k"
+            "model": "squeezenet1_1"
         },
         {
             "client_id": 2,
@@ -47,7 +47,7 @@
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
-            "model": "CNN 16k"
+            "model": "squeezenet1_1"
         }
     ]
 }
