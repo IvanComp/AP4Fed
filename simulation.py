@@ -124,28 +124,6 @@ class SimulationPage(QWidget):
         self.view_report_button.clicked.connect(self.open_simulation_results)
         self.view_report_button.hide()
         button_layout.addWidget(self.view_report_button)
-
-        self.download_weights_button = QPushButton("📑 Download Model Weights")
-        self.download_weights_button.setCursor(Qt.PointingHandCursor)
-        self.download_weights_button.setStyleSheet("""
-            QPushButton {
-                background-color: #ffc107;
-                color: black;
-                font-size: 14px;
-                padding: 8px 16px;
-                border-radius: 5px;
-                margin-top: 10px;
-            }
-            QPushButton:hover {
-                background-color: #ffca28;
-            }
-            QPushButton:pressed {
-                background-color: #ffb300;
-            }
-        """)
-        self.download_weights_button.clicked.connect(self.download_model_weights)
-        self.download_weights_button.hide()
-        button_layout.addWidget(self.download_weights_button)
         button_layout.addStretch()
         layout.addLayout(button_layout)
 
@@ -277,8 +255,6 @@ class SimulationPage(QWidget):
         )
         self.results_window = SimulationResults(csv_path)
         self.results_window.show()
-
-    def download_model_weights(self):
         # Determino il percorso della cartella "model_weights" (presente in "Local/model_weights")
         base_dir = os.path.dirname(os.path.abspath(__file__))
         model_weights_dir = os.path.join(base_dir, "Local", "model_weights")

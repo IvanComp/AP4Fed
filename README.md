@@ -107,6 +107,110 @@ Users can choose to create a new project or load an existing JSON configuration 
 
 ## Testing Models and Dataset
 
+# Dataset
+
+<tt>AP4FED</tt> supports the following dataset from the torchvision.dataset library: 
+
+- "CIFAR-10"
+- "CIFAR-100"
+- "FMNIST"
+- "FashionMNIST"
+- "KMNIST"
+- "MNIST"
+
+# Models
+
+<tt>AP4FED</tt> supports the following models the torchvision.models library:
+
+- **AlexNet**
+  - alexnet
+- **ConvNeXt**
+  - convnext_tiny
+  - convnext_small
+  - convnext_base
+  - convnext_large
+- **DenseNet**
+  - densenet121
+  - densenet161
+  - densenet169
+  - densenet201
+- **EfficientNet**
+  - efficientnet_b0
+  - efficientnet_b1
+  - efficientnet_b2
+  - efficientnet_b3
+  - efficientnet_b4
+  - efficientnet_b5
+  - efficientnet_b6
+  - efficientnet_b7
+- **EfficientNet V2**
+  - efficientnet_v2_s
+  - efficientnet_v2_m
+  - efficientnet_v2_l
+- **GoogLeNet / Inception**
+  - googlenet
+  - inception_v3
+- **MnasNet**
+  - mnasnet0_5
+  - mnasnet0_75
+  - mnasnet1_0
+  - mnasnet1_3
+- **MobileNet**
+  - mobilenet_v2
+  - mobilenet_v3_large
+  - mobilenet_v3_small
+- **RegNet X**
+  - regnet_x_400mf
+  - regnet_x_800mf
+  - regnet_x_1_6gf
+  - regnet_x_3_2gf
+  - regnet_x_8gf
+  - regnet_x_16gf
+  - regnet_x_32gf
+- **RegNet Y**
+  - regnet_y_400mf
+  - regnet_y_800mf
+  - regnet_y_1_6gf
+  - regnet_y_3_2gf
+  - regnet_y_8gf
+  - regnet_y_16gf
+  - regnet_y_32gf
+- **ResNet**
+  - resnet18
+  - resnet34
+  - resnet50
+  - resnet101
+  - resnet152
+- **ResNeXt**
+  - resnext50_32x4d
+- **ShuffleNet**
+  - shufflenet_v2_x0_5
+  - shufflenet_v2_x1_0
+- **SqueezeNet**
+  - squeezenet1_0
+  - squeezenet1_1
+- **VGG**
+  - vgg11
+  - vgg11_bn
+  - vgg13
+  - vgg13_bn
+  - vgg16
+  - vgg16_bn
+  - vgg19
+  - vgg19_bn
+- **Wide ResNet**
+  - wide_resnet50_2
+  - wide_resnet101_2
+- **Swin Transformer**
+  - swin_t
+  - swin_s
+  - swin_b
+- **Vision Transformer (ViT)**
+  - vit_b_16
+  - vit_b_32
+  - vit_l_16
+  - vit_l_32
+
 | Parameter       | Model CNN 16k               | Model CNN 64k                 | Model CNN 256k                
 |-----------------|-------------------------|-------------------------|--------------------------|
 | `Conv. 1`      | 3 filters, 5x5 kernel    | 6 filters, 5x5 kernel    | 12 filters, 5x5 kernel    | 
@@ -118,6 +222,8 @@ Users can choose to create a new project or load an existing JSON configuration 
 | `Batch Size`   | 32                      | 32                      | 32                       | 
 | `Learning Rate`| 0.001                   | 0.001                   | 0.001                    | 
 | `Optimizer`    | SGD                     | SGD                     | SGD                      | 
+
+
 # Architectural Patterns
 
 The Architectural Patterns implemented in our framework are:

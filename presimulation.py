@@ -191,13 +191,13 @@ class MultiTaskModelTrainerDialog(QDialog):
 
         self.m1_label = QLabel("Select Model M1:")
         self.m1_combo = QComboBox()
-        self.m1_combo.addItems(["CIFAR-10", "CIFAR-100", "FMNIST", "FashionMNIST", "KMNIST"])
+        self.m1_combo.addItems(["CIFAR-10", "CIFAR-100", "FMNIST", "FashionMNIST", "KMNIST", "MNIST"])
         layout.addWidget(self.m1_label)
         layout.addWidget(self.m1_combo)
 
         self.m2_label = QLabel("Select Model M2:")
         self.m2_combo = QComboBox()
-        self.m2_combo.addItems(["CIFAR-10", "CIFAR-100", "FMNIST", "FashionMNIST", "KMNIST"])
+        self.m2_combo.addItems(["CIFAR-10", "CIFAR-100", "FMNIST", "FashionMNIST", "KMNIST", "MNIST"])
         layout.addWidget(self.m2_label)
         layout.addWidget(self.m2_combo)
 
@@ -430,7 +430,7 @@ class PreSimulationPage(QWidget):
         main_layout.setAlignment(Qt.AlignTop)
         self.setLayout(main_layout)
 
-        choice_label = QLabel(f"Type of Simulation: {self.user_choices[-1]['simulation_type']}")
+        choice_label = QLabel(f"Input Parameters Setup")
         choice_label.setStyleSheet("color: black; font-size: 24px; font-weight: bold;")
         choice_label.setAlignment(Qt.AlignCenter)
         header_layout = QHBoxLayout()
@@ -459,15 +459,21 @@ class PreSimulationPage(QWidget):
             }
         """)
         g_layout = QFormLayout()
+        g_layout.setLabelAlignment(Qt.AlignLeft)
+        label_sim = QLabel("Type of Simulation:")
 
+        sim_value = QLabel()
+        sim_value.setTextFormat(Qt.RichText)
+        sim_value.setText(f"<b>{self.user_choices[-1]['simulation_type']}</b>")
+        g_layout.addRow(label_sim, sim_value)
         self.rounds_input = QSpinBox()
         self.rounds_input.setRange(1, 100)
-        self.rounds_input.setValue(2)
+        self.rounds_input.setValue(10)
         g_layout.addRow("Number of Rounds:", self.rounds_input)
 
         self.clients_input = QSpinBox()
         self.clients_input.setRange(1, 128)
-        self.clients_input.setValue(2)
+        self.clients_input.setValue(4)
         g_layout.addRow("Number of Clients:", self.clients_input)
 
         if self.user_choices[-1]["simulation_type"] == "Docker":
@@ -616,6 +622,8 @@ class PreSimulationPage(QWidget):
                 info_button.clicked.connect(info_clicked)
 
                 checkbox = QCheckBox(pattern_name)
+                if pattern_name == "Model co-Versioning Registry":
+                    checkbox.setChecked(True)
                 checkbox.setToolTip(pattern_desc)
                 checkbox.setStyleSheet("QCheckBox { color: black; font-size: 12px; }")
 
