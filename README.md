@@ -109,7 +109,7 @@ Users can choose to create a new project or load an existing JSON configuration 
 
 # Dataset
 
-<tt>AP4FED</tt> supports the following dataset from the torchvision.dataset library: 
+<tt>AP4FED</tt> supports the following dataset from the <tt>torchvision.dataset</tt> library: 
 
 - "CIFAR-10"
 - "CIFAR-100"
@@ -120,7 +120,7 @@ Users can choose to create a new project or load an existing JSON configuration 
 
 # Models
 
-<tt>AP4FED</tt> supports the following models the torchvision.models library:
+<tt>AP4FED</tt> supports the following models the <tt>torchvision.models</tt> library:
 
 - **AlexNet**
   - alexnet
@@ -210,6 +210,8 @@ Users can choose to create a new project or load an existing JSON configuration 
   - vit_b_32
   - vit_l_16
   - vit_l_32
+
+In addition, for testing purposes, 3 Simple Convolutional Neural Networks with the following characteristics were implemented:
 
 | Parameter       | Model CNN 16k               | Model CNN 64k                 | Model CNN 256k                
 |-----------------|-------------------------|-------------------------|--------------------------|

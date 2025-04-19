@@ -47,22 +47,6 @@ class SimulationPage(QWidget):
         self.title_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.title_label.setStyleSheet("color: black; font-size: 24px; font-weight: bold;")
         title_layout.addWidget(self.title_label)
-
-        self.loading_label = QLabel()
-        loading_gif_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "loading.gif")
-        if os.path.exists(loading_gif_path):
-            self.loading_movie = QMovie(loading_gif_path)
-            self.loading_label.setMovie(self.loading_movie)
-            self.loading_movie.start()
-            title_layout.addWidget(self.loading_label)
-            self.animated_loading = False
-        else:
-            self.animated_loading = True
-            self.loading_emojis = ['🔄', '↻', '↺', '🔃']
-            self.current_emoji_index = 0
-            self.loading_label.setText(self.loading_emojis[self.current_emoji_index])
-            title_layout.addWidget(self.loading_label)
-
         title_layout.addStretch()
 
         # Output area
@@ -221,7 +205,6 @@ class SimulationPage(QWidget):
         self.output_area.appendPlainText("Simulation finished.")
         self.title_label.setText("Simulation Results")
         self.view_report_button.show()
-        self.download_weights_button.show()
         self.stop_button.setText("Close")
         self.stop_button.clicked.disconnect()
         self.stop_button.clicked.connect(self.close_application)
@@ -236,7 +219,6 @@ class SimulationPage(QWidget):
             self.output_area.appendPlainText("Simulation terminated by the user.")
             self.title_label.setText("Simulation Terminated")
             self.view_report_button.hide()
-            self.download_weights_button.hide()
             self.stop_button.setText("Close")
             self.stop_button.clicked.disconnect()
             self.stop_button.clicked.connect(self.close_application)
@@ -255,34 +237,6 @@ class SimulationPage(QWidget):
         )
         self.results_window = SimulationResults(csv_path)
         self.results_window.show()
-        # Determino il percorso della cartella "model_weights" (presente in "Local/model_weights")
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        model_weights_dir = os.path.join(base_dir, "Local", "model_weights")
-        if not os.path.exists(model_weights_dir):
-            QMessageBox.setStyleSheet("""
-                QMessageBox {
-                    background-color: white;
-                }
-                QLabel {
-                    color: black;
-                }
-            """)
-            QMessageBox.warning(self, "Error", f"'model_weights' folder not found at {model_weights_dir}")
-            return
-
-        downloads_folder = os.path.join(os.path.expanduser("~"), "Downloads")
-        zip_file_path = os.path.join(downloads_folder, "model_weights.zip")
-
-        try:
-            with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for root, dirs, files in os.walk(model_weights_dir):
-                    for file in files:
-                        file_path = os.path.join(root, file)
-                        arcname = os.path.relpath(file_path, model_weights_dir)
-                        zipf.write(file_path, arcname)
-            #QMessageBox.information(self, "Success", f"Model weights have been zipped and saved to:\n{zip_file_path}")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to create zip file:\n{str(e)}")
 
     def close_application(self):
         sys.exit(0)
