@@ -105,13 +105,14 @@ class FlowerClient(NumPyClient):
         CLIENT_REGISTRY.register_client(self.cid, model_type)
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.net = NetA().to(device)
-        self.trainloader, self.testloader = load_data_A(self.dataset)
+        self.trainloader, self.testloader = load_data_A(self.client_config)
         self.DEVICE = device
 
     def fit(self, parameters, config):
         proc = psutil.Process(os.getpid())
         cpu_start = proc.cpu_times().user + proc.cpu_times().system
         wall_start = time.time()
+
         compressed_parameters_hex = config.get("compressed_parameters_hex")
         global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MODEL_COVERSIONING, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
         CLIENT_SELECTOR = False
@@ -155,18 +156,13 @@ class FlowerClient(NumPyClient):
             selection_criteria = selector_params.get("selection_criteria", "")
             selection_value = selector_params.get("selection_value", "")
             if selection_strategy == "Resource-Based":
-                if selection_criteria == "CPU":
-                    if n_cpu < selection_value:
-                        log(INFO, f"Client {self.cid} has insufficient CPU ({n_cpu}). Will not participate.")
-                        return parameters, 0, {}
-                    else:
-                        log(INFO, f"Client {self.cid} participates in this round. (CPU: {n_cpu})")
-                elif selection_criteria == "RAM":
-                    if ram < selection_value:
-                        log(INFO, f"Client {self.cid} has insufficient RAM ({ram}). Will not participate.")
-                        return parameters, 0, {}
-                    else:
-                        log(INFO, f"Client {self.cid} participates in this round. (RAM: {ram})")
+                if selection_criteria == "CPU" and n_cpu < selection_value:
+                    log(INFO, f"Client {self.cid} has insufficient CPU ({n_cpu}). Will not participate.")
+                    return parameters, 0, {}
+                if selection_criteria == "RAM" and ram < selection_value:
+                    log(INFO, f"Client {self.cid} has insufficient RAM ({ram}). Will not participate.")
+                    return parameters, 0, {}
+            log(INFO, f"Client {self.cid} participates in this round. (CPU: {n_cpu}, RAM: {ram})")
 
         if CLIENT_CLUSTER:
             selector_params = configJSON["patterns"]["client_cluster"]["params"]
@@ -175,19 +171,14 @@ class FlowerClient(NumPyClient):
             selection_value = selector_params.get("selection_value", "")
             if clustering_strategy == "Resource-Based":
                 if clustering_criteria == "CPU":
-                    if n_cpu < selection_value:
-                        log(INFO, f"Client {self.cid} assigned to Cluster A {self.model_type}")
-                    else:
-                        log(INFO, f"Client {self.cid} assigned to Cluster B {self.model_type}")
-                elif clustering_criteria == "RAM":
-                    if ram < selection_value:
-                        log(INFO, f"Client {self.cid} assigned to Cluster A {self.model_type}")
-                    else:
-                        log(INFO, f"Client {self.cid} assigned to Cluster B {self.model_type}")
+                    grp = "A" if n_cpu < selection_value else "B"
+                else:
+                    grp = "A" if ram < selection_value else "B"
+                log(INFO, f"Client {self.cid} assigned to Cluster {grp} {self.model_type}")
             elif clustering_strategy == "Data-Based":
                 if clustering_criteria == "IID":
                     log(INFO, f"Client {self.cid} assigned to IID Cluster {self.model_type}")
-                elif clustering_criteria == "non-IID":
+                else:
                     log(INFO, f"Client {self.cid} assigned to non-IID Cluster {self.model_type}")
 
         if MESSAGE_COMPRESSOR:
@@ -196,14 +187,17 @@ class FlowerClient(NumPyClient):
             numpy_arrays = [np.load(BytesIO(tensor)) for tensor in decompressed_parameters.tensors]
             numpy_arrays = [arr.astype(np.float32) for arr in numpy_arrays]
             parameters = numpy_arrays
-        else:
-            parameters = parameters
 
         set_weights_A(self.net, parameters)
-        results, training_time, start_comm_time = train_A(self.net, self.trainloader, self.testloader, epochs=1, DEVICE=self.DEVICE)
+        results, training_time = train_A(
+            self.net, self.trainloader, self.testloader,
+            epochs=1, DEVICE=self.DEVICE
+        )
+        communication_time = time.time()
+
         new_parameters = get_weights_A(self.net)
         compressed_parameters_hex = None
-        
+
         global GLOBAL_ROUND_COUNTER
         round_number = GLOBAL_ROUND_COUNTER
         GLOBAL_ROUND_COUNTER += 1
@@ -233,21 +227,21 @@ class FlowerClient(NumPyClient):
                 "train_loss": results["train_loss"],
                 "train_accuracy": results["train_accuracy"],
                 "train_f1": results["train_f1"],
-                "train_mae": results.get("train_mae", 0.0),    
+                "train_mae": results.get("train_mae", 0.0),
                 "val_loss": results["val_loss"],
                 "val_accuracy": results["val_accuracy"],
                 "val_f1": results["val_f1"],
-                "val_mae": results.get("val_mae", 0.0), 
+                "val_mae": results.get("val_mae", 0.0),
                 "training_time": training_time,
-                "cpu_usage": n_cpu,
+                "n_cpu": n_cpu,
                 "ram": ram,
                 "cpu_percent": cpu_percent,
                 "ram_percent": ram_percent,
+                "communication_time": communication_time,
                 "client_id": self.cid,
                 "model_type": self.model_type,
                 "data_distribution_type": data_distribution_type,
                 "dataset": dataset,
-                "start_comm_time": start_comm_time,
                 "compressed_parameters_hex": compressed_parameters_hex,
             }
             return [], len(self.trainloader.dataset), metrics
@@ -256,21 +250,21 @@ class FlowerClient(NumPyClient):
                 "train_loss": results["train_loss"],
                 "train_accuracy": results["train_accuracy"],
                 "train_f1": results["train_f1"],
-                "train_mae": results.get("train_mae", 0.0),    
+                "train_mae": results.get("train_mae", 0.0),
                 "val_loss": results["val_loss"],
                 "val_accuracy": results["val_accuracy"],
                 "val_f1": results["val_f1"],
-                "val_mae": results.get("val_mae", 0.0), 
+                "val_mae": results.get("val_mae", 0.0),
                 "training_time": training_time,
-                "cpu_usage": n_cpu,
+                "n_cpu": n_cpu,
                 "ram": ram,
                 "cpu_percent": cpu_percent,
                 "ram_percent": ram_percent,
+                "communication_time": communication_time,
                 "client_id": self.cid,
                 "model_type": self.model_type,
                 "data_distribution_type": data_distribution_type,
                 "dataset": dataset,
-                "start_comm_time": start_comm_time,
             }
             return new_parameters, len(self.trainloader.dataset), metrics
 

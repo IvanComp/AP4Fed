@@ -159,18 +159,18 @@ def log_round_time(
      if already_logged:
          srt2 = None
 
-     # Formattazione con f‑string, garantisce sempre lo zero iniziale
+     # Scrivo i valori nella CSV nell’ordine giusto
      with open(csv_file, 'a', newline='') as file:
          writer = csv.writer(file)
          writer.writerow([
              client_id,
              fl_round + 1,
-             f"{training_time:.2f}",
-             f"{communication_time:.2f}",
-             f"{srt2:.2f}" if srt2 is not None else "",
-             n_cpu,
-             cpu_percent,
-             f"{ram_percent:.2f}",
+             f"{training_time:.2f}",        
+             f"{communication_time:.2f}",   
+             f"{total_time:.2f}",           
+             n_cpu,   
+             f"{cpu_percent:.0f}",                      
+             f"{ram_percent:.0f}",    
              client_model_type,
              data_distr,
              dataset_value,
@@ -285,8 +285,7 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
         cpu_usage = m.get("cpu_usage")
         cpu_percent = m.get("cpu_percent")
         ram_percent = m.get("ram_percent")
-        start_comm_time = m.get("start_comm_time")
-        communication_time = time.time() - start_comm_time        
+        communication_time = m.get("communication_time")      
         if client_id:
             srt2 = time_between_rounds           
             total_time = training_time + communication_time
@@ -371,7 +370,7 @@ class MultiModelStrategy(Strategy):
         parameters: Parameters,
         client_manager: ClientManager,
     ) -> List[Tuple[ClientProxy, FitIns]]:
-        
+        t0 = time.time()
         client_manager.wait_for(client_count) 
         clients = client_manager.sample(num_clients=client_count)
         fit_configurations = []
@@ -428,6 +427,11 @@ class MultiModelStrategy(Strategy):
             client_id = fit_res.metrics.get("client_id")
             model_type = fit_res.metrics.get("model_type")
             training_time = fit_res.metrics.get("training_time")
+            communication_time_client = fit_res.metrics.get("communication_time")
+            recv_time = time.time()
+            communication_time = recv_time - communication_time_client
+            fit_res.metrics["communication_time"] = communication_time
+            
             compressed_parameters_hex = fit_res.metrics.get("compressed_parameters_hex")
             client_model_mapping[client_id] = model_type
 
@@ -491,6 +495,7 @@ class MultiModelStrategy(Strategy):
         parameters: Parameters,
         client_manager: ClientManager,
     ) -> List[Tuple[ClientProxy, EvaluateIns]]:
+        #log(INFO, f"Evaluating Performance Metrics...")
         return []
 
     def aggregate_evaluate(
@@ -506,6 +511,16 @@ class MultiModelStrategy(Strategy):
         server_round: int,
         parameters: Parameters,
     ) -> Optional[Tuple[float, Dict[str, Scalar]]]:
+    
+        if server_round == 0:
+            return None
+        
+        #log(INFO, f"[ROUND {server_round}] Evaluating Performance Metrics...")
+
+        # ADAPTATION CODE
+
+        #log(INFO, f"[ROUND {server_round+1}] Adapting new settings...")
+
         return None
 
 def server_fn(context: Context):
