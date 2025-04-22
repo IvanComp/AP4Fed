@@ -50,20 +50,20 @@ class HomePage(QWidget):
         button_layout.setAlignment(Qt.AlignCenter)
         button_start = QPushButton("Start a new project")
         button_start.setStyleSheet("""
-            QPushButton {
-                background-color: #70C284; 
-                color: white; 
-                font-size: 14px; 
+        QPushButton {
+                background-color: green;
+                color: white;
+                font-size: 14px;
                 padding: 10px;
                 border-radius: 5px;
-                width: 200px;  /* Larghezza metà di Close */
+                width: 200px;
             }
             QPushButton:hover {
                 background-color: #00b300;
             }
             QPushButton:pressed {
                 background-color: #008000;
-            }
+            }       
         """)
         button_start.setCursor(Qt.PointingHandCursor)
         button_start.clicked.connect(self.start_new_project)
@@ -72,18 +72,18 @@ class HomePage(QWidget):
         button_load = QPushButton("Load a .json Configuration")
         button_load.setStyleSheet("""
             QPushButton {
-                background-color: #5c9bee; 
+                background-color: #007ACC; 
                 color: white; 
                 font-size: 14px; 
                 padding: 10px;
                 border-radius: 5px;
-                width: 200px;  /* Larghezza metà di Close */
+                width: 200px;  
             }
             QPushButton:hover {
-                background-color: #0066cc;
+                background-color: #005F9E;
             }
             QPushButton:pressed {
-                background-color: #004d99;
+                background-color: #004970;
             }
         """)
         button_load.setCursor(Qt.PointingHandCursor)
@@ -99,7 +99,7 @@ class HomePage(QWidget):
                 font-size: 14px; 
                 padding: 10px;
                 border-radius: 5px;
-                width: 430px;  /* Larghezza del pulsante Close */
+                width: 435px;  
             }
             QPushButton:hover {
                 background-color: #ff6666;
@@ -305,7 +305,7 @@ class SecondScreen(QWidget):
             local_icon = QIcon(local_pixmap)
             local_button.setIcon(local_icon)
             local_button.setIconSize(QSize(50, 50))
-        local_button.setText("Create project Locally")
+        local_button.setText("Create a Local Project")
         local_button.setCursor(Qt.PointingHandCursor)
         local_button.clicked.connect(self.select_local)
         button_layout.addWidget(local_button)
@@ -333,7 +333,7 @@ class SecondScreen(QWidget):
             docker_icon = QIcon(docker_path)
             docker_button.setIcon(docker_icon)
             docker_button.setIconSize(QSize(50, 50))
-        docker_button.setText("Create project with Docker")
+        docker_button.setText("Create a Docker Project")
         docker_button.setCursor(Qt.PointingHandCursor)
         docker_button.clicked.connect(self.select_docker) 
         button_layout.addWidget(docker_button)

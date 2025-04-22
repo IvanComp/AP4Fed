@@ -1061,10 +1061,10 @@ class ClientConfigurationPage(QWidget):
                 color: white;
                 font-size: 14px;
                 padding: 8px 16px;
-                border-radius: 5px;
+                border-radius: 4px;
             }
             QPushButton:hover {
-                background-color: #e0a800;
+                background-color: #00b300;
             }
             QPushButton:pressed {
                 background-color: #c69500;

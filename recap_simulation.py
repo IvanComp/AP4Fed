@@ -3,7 +3,7 @@ import json
 import random
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QPushButton, QScrollArea, QFrame,
-    QFileDialog, QMessageBox, QHBoxLayout, QStyle, QGridLayout
+    QFileDialog, QMessageBox, QHBoxLayout, QStyle, QGridLayout, QSizePolicy
 )
 from PyQt5.QtCore import Qt, QSize, QTimer
 from PyQt5.QtGui import QPixmap, QIcon
@@ -68,28 +68,26 @@ class RecapSimulationPage(QWidget):
         layout.addWidget(scroll_area)
 
         # Button layout
-        buttons_layout = QHBoxLayout()
+        buttons_layout = QVBoxLayout()
         buttons_layout.setAlignment(Qt.AlignCenter)
-        buttons_layout.setSpacing(20)
-
-        # "Run Simulation" Button
+        buttons_layout.setSpacing(5)
         run_button = QPushButton("Run Simulation")
+        run_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         run_button.clicked.connect(self.run_simulation)
         run_button.setCursor(Qt.PointingHandCursor)
         run_button.setStyleSheet("""
             QPushButton {
-                background-color: #70C284; 
+                background-color: green; 
                 color: white; 
-                font-size: 14px; 
+                font-size: 14px;
                 padding: 10px;
-                border-radius: 5px;
-                width: 200px;
+                border-radius: 4px;
             }
             QPushButton:hover {
                 background-color: #00b300;
             }
             QPushButton:pressed {
-                background-color: #008000;
+                background-color: #c69500;
             }
         """)
         buttons_layout.addWidget(run_button)
@@ -100,49 +98,21 @@ class RecapSimulationPage(QWidget):
         download_button.setCursor(Qt.PointingHandCursor)
         download_button.setStyleSheet("""
             QPushButton {
-                background-color: #ffc107;
+                background-color: #007ACC;
                 color: white;
                 font-size: 14px;
-                padding: 8px 16px;
-                border-radius: 5px;
-                text-align: left;
+                padding: 10px;
+                border-radius: 4px;
             }
             QPushButton:hover {
-                background-color: #e0a800;
+                background-color: #005F9E;
             }
             QPushButton:pressed {
-                background-color: #c69500;
+                background-color: #004970;
             }
         """)
-
-        # Add standard PyQt5 icon
-        json_icon = self.style().standardIcon(QStyle.SP_DialogSaveButton)
-        download_button.setIcon(json_icon)
-        download_button.setIconSize(QSize(24, 24))
 
         buttons_layout.addWidget(download_button)
-
-        # "Close" Button
-        close_button = QPushButton("Close")
-        close_button.clicked.connect(self.close)
-        close_button.setCursor(Qt.PointingHandCursor)
-        close_button.setStyleSheet("""
-            QPushButton {
-                background-color: #ee534f;
-                color: white;
-                font-size: 14px;
-                padding: 8px 16px;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #ff6666;
-            }
-            QPushButton:pressed {
-                background-color: #cc0000;
-            }
-        """)
-        buttons_layout.addWidget(close_button)
-
         layout.addLayout(buttons_layout)
 
     def on_back(self):
