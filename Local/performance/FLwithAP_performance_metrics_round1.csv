@@ -1,0 +1,5 @@
+Client ID,FL Round,Training Time,Communication Time,Total Time of FL Round,# of CPU,CPU Usage (%),RAM Usage (%),Model Type,Data Distr. Type,Dataset,Train Loss,Train Accuracy,Train F1,Train MAE,Val Loss,Val Accuracy,Val F1,Val MAE
+Client 1,1,10.19,0.19,,,195,4,CNN 16k,IID,CIFAR-10,,,,,,,,
+Client 2,1,9.7,1.58,,,196,4,CNN 16k,IID,CIFAR-10,,,,,,,,
+Client 3,1,10.2,0.25,,,195,4,CNN 16k,IID,CIFAR-10,,,,,,,,
+Client 4,1,10.25,0.08,10.37,,195,4,CNN 16k,IID,CIFAR-10,3467.81,0.1707,0.1067,3.4005,694.91,0.17,0.1063,3.4107

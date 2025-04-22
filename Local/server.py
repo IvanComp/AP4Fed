@@ -170,7 +170,7 @@ def log_round_time(
              f"{total_time:.2f}",           
              n_cpu,   
              f"{cpu_percent:.0f}",                      
-             f"{ram_percent:.0f}",    
+             f"{ram_percent:.0f}"  ,    
              client_model_type,
              data_distr,
              dataset_value,
@@ -329,20 +329,21 @@ previous_round_end_time = time.time()
 class MultiModelStrategy(Strategy):
     def __init__(self, initial_parameters_a: Parameters):
         self.parameters_a = initial_parameters_a
-        
-        banner = textwrap.dedent(r"""
+        banner = r"""
   ___  ______  ___ ______       _ 
  / _ \ | ___ \/   ||  ___|     | |
 / /_\ \| |_/ / /| || |_ ___  __| |
 |  _  ||  __/ /_| ||  _/ _ \/ _` |
 | | | || |  \___  || ||  __/ (_| |
-\_| |_/\_|      |_/\_| \___|\__,_|
-        """)
+\_| |_/\_|      |_/\_| \___|\__,_| v.1.5.0
 
+"""
         log(INFO, "==========================================")
-        log(INFO, banner)
-        log(INFO, "Simulation Started! v. 1.5.0")
+        for raw in banner.splitlines()[1:]:         
+            line = raw.replace(" ", "\u00A0")        
+            log(INFO, line)
         log(INFO, "==========================================")
+        log(INFO, "Simulation Started!")
         log(INFO, "List of the Architectural Patterns enabled:")
 
         enabled_patterns = []
@@ -466,9 +467,15 @@ class MultiModelStrategy(Strategy):
             server_file_path = os.path.join(server_folder, f"MW_round{currentRnd}.pt")
             torch.save(aggregated_model.state_dict(), server_file_path)
             log(INFO, f"Aggregated model weights saved to {server_file_path}")
+        
+        preprocess_csv()
 
-        if currentRnd == num_rounds:
-            preprocess_csv()
+        # crea una copia con il numero del round
+        round_csv = os.path.join(
+            performance_dir,
+            f"FLwithAP_performance_metrics_round{currentRnd}.csv"
+        )
+        shutil.copy(csv_file, round_csv)
 
         return (self.parameters_a), metrics_aggregated
 

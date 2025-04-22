@@ -340,7 +340,6 @@ def unbalance_dataset_percent(
     remove_pct_range: tuple = (0.5, 1.0),
     add_pct_range: tuple = (0.5, 1.0)
 ):
-    log(INFO, f"[DEBUG] unbalance_dataset_percent: remove_frac={remove_class_frac}, add_frac={add_class_frac}")
     class_to_idxs = {}
     for idx, (_, label) in enumerate(trainset):
         class_to_idxs.setdefault(label, []).append(idx)
@@ -351,8 +350,6 @@ def unbalance_dataset_percent(
     n_add    = max(1, int(add_class_frac * n))
     remove_cls = random.sample(classes, n_remove)
     add_cls    = random.sample([c for c in classes if c not in remove_cls], n_add)
-    log(INFO, f"[DEBUG] Classi da rimuovere: {remove_cls}")
-    log(INFO, f"[DEBUG] Classi da duplicare: {add_cls}")
 
     new_idxs = []
     for c in classes:
@@ -585,4 +582,5 @@ def get_weights(net):
 def set_weights(net, parameters):
     params_dict = zip(net.state_dict().keys(), parameters)
     state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
+    state_dict._metadata = {"": {"version": 2}} 
     net.load_state_dict(state_dict, strict=True)

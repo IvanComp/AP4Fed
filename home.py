@@ -9,6 +9,14 @@ from PyQt5.QtCore import Qt, QUrl, QSize
 from presimulation import PreSimulationPage 
 from recap_simulation import RecapSimulationPage  
 
+# --- Clean up old performance and model_weights folders in Local ---
+base_dir = os.path.abspath(os.path.dirname(__file__))
+local_dir = os.path.join(base_dir, 'Local')
+for folder in ['performance', 'model_weights']:
+    folder_path = os.path.join(local_dir, folder)
+    if os.path.exists(folder_path):
+        shutil.rmtree(folder_path)
+
 user_choices = []
 
 class HomePage(QWidget):
