@@ -459,13 +459,34 @@ class PreSimulationPage(QWidget):
             }
         """)
         g_layout = QFormLayout()
-        g_layout.setLabelAlignment(Qt.AlignLeft)
-        label_sim = QLabel("Type of Simulation:")
+        self.sim_type_combo = QComboBox()
+        self.sim_type_combo.addItems(["Local", "Docker"])
+        g_layout.addRow(QLabel("Type of Simulation:"), self.sim_type_combo)
 
-        sim_value = QLabel()
-        sim_value.setTextFormat(Qt.RichText)
-        sim_value.setText(f"<b>{self.user_choices[-1]['simulation_type']}</b>")
-        g_layout.addRow(label_sim, sim_value)
+        # Docker status (inizialmente nascosto)
+        docker_status_label = QLabel("Docker Status:")
+        self.docker_status_label = QLabel()
+        update_btn = QPushButton()
+        update_btn.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
+        update_btn.setCursor(Qt.PointingHandCursor)
+        update_btn.clicked.connect(self.check_docker_status)
+        for w in (docker_status_label, self.docker_status_label, update_btn):
+            w.setVisible(False)
+        row = QHBoxLayout()
+        row.addWidget(docker_status_label)
+        row.addWidget(self.docker_status_label)
+        row.addWidget(update_btn)
+        row.addStretch()
+        g_layout.addRow(row)
+
+        def on_type_changed(text):
+            show = (text == "Docker")
+            for w in (docker_status_label, self.docker_status_label, update_btn):
+                w.setVisible(show)
+            if show:
+                self.check_docker_status()
+        self.sim_type_combo.currentTextChanged.connect(on_type_changed)
+
         self.rounds_input = QSpinBox()
         self.rounds_input.setRange(1, 100)
         self.rounds_input.setValue(10)
@@ -475,43 +496,6 @@ class PreSimulationPage(QWidget):
         self.clients_input.setRange(1, 128)
         self.clients_input.setValue(4)
         g_layout.addRow("Number of Clients:", self.clients_input)
-
-        if self.user_choices[-1]["simulation_type"] == "Docker":
-            docker_status_layout = QHBoxLayout()
-            docker_status_layout.setAlignment(Qt.AlignLeft)
-
-            docker_status_label1 = QLabel("Docker Status:")
-            docker_status_label1.setStyleSheet("font-size: 12px;")
-            docker_status_label1.setAlignment(Qt.AlignLeft)
-
-            self.docker_status_label = QLabel()
-            self.docker_status_label.setStyleSheet("font-size: 12px;")
-            self.docker_status_label.setAlignment(Qt.AlignLeft)
-
-            update_button = QPushButton()
-            update_button.setCursor(Qt.PointingHandCursor)
-            update_button.setToolTip("Update Status")
-            update_icon = self.style().standardIcon(QStyle.SP_BrowserReload)
-            update_button.setIcon(update_icon)
-            update_button.setStyleSheet("""
-                QPushButton {
-                    background-color: transparent;
-                    border: none;
-                }
-                QPushButton:hover {
-                    background-color: #e0e0e0;
-                }
-            """)
-            update_button.clicked.connect(self.update_docker_status)
-
-            docker_status_layout.addWidget(docker_status_label1)
-            docker_status_layout.addWidget(self.docker_status_label)
-            docker_status_layout.addWidget(update_button)
-            docker_status_layout.addStretch()
-            g_layout.addRow(docker_status_layout)
-
-            self.check_docker_status()
-
         general_settings_group.setLayout(g_layout)
         main_layout.addWidget(general_settings_group)
 
@@ -935,7 +919,7 @@ class PreSimulationPage(QWidget):
                 }
 
         simulation_config = {
-            "simulation_type": self.user_choices[-1]["simulation_type"],
+            "simulation_type": self.sim_type_combo.currentText(),
             "rounds": self.rounds_input.value(),
             "clients": self.clients_input.value(),
             "patterns": patterns_data,

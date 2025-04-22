@@ -28,6 +28,18 @@ class DashboardWindow(QWidget):
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignTop)
 
+        cfg_path = os.path.join(os.path.dirname(__file__), 'configuration', 'config.json')
+        model_name = ""
+        dataset_name = ""
+
+        with open(cfg_path, 'r') as cf:
+            cfg = json.load(cf)
+            if cfg.get("client_details"):
+                first = cfg["client_details"][0]
+                model_name = first.get("model")
+                dataset_name = first.get("dataset")
+
+
         # Persistent pastel colors
         self.color_f1 = random_pastel()
         self.color_tot = random_pastel()
@@ -35,7 +47,7 @@ class DashboardWindow(QWidget):
         self.clients = []
 
         # Model section
-        lbl_mod = QLabel("Model")
+        lbl_mod = QLabel(f"Model ({model_name})")
         lbl_mod.setStyleSheet("font-weight: bold; font-size: 16px; color: black;")
         layout.addWidget(lbl_mod)
         self.model_area = QPlainTextEdit()
@@ -56,7 +68,7 @@ class DashboardWindow(QWidget):
         layout.addLayout(h_model)
 
         # Clients section
-        lbl_cli = QLabel("Clients")
+        lbl_cli = QLabel(f"Clients ({dataset_name})")
         lbl_cli.setStyleSheet("font-weight: bold; font-size: 16px; color: black;")
         layout.addWidget(lbl_cli)
         self.client_area = QPlainTextEdit()

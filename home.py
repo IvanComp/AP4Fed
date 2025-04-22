@@ -72,7 +72,7 @@ class HomePage(QWidget):
         button_load = QPushButton("Load a .json Configuration")
         button_load.setStyleSheet("""
             QPushButton {
-                background-color: #007ACC; 
+                background-color: #005F9E; 
                 color: white; 
                 font-size: 14px; 
                 padding: 10px;
@@ -80,7 +80,7 @@ class HomePage(QWidget):
                 width: 200px;  
             }
             QPushButton:hover {
-                background-color: #005F9E;
+                background-color: #007ACC;
             }
             QPushButton:pressed {
                 background-color: #004970;
@@ -146,8 +146,10 @@ class HomePage(QWidget):
         self.setStyleSheet("background-color: white;")
 
     def start_new_project(self):
-        self.second_screen = SecondScreen(home_page_callback=self.show)
-        self.second_screen.show()
+        global user_choices
+        user_choices = []
+        self.presimulation = PreSimulationPage(user_choices, home_page_callback=self.show)
+        self.presimulation.show()
         self.close()
 
     def load_configuration(self):
@@ -237,139 +239,6 @@ class HomePage(QWidget):
 
     def open_github_link(self):
         QDesktopServices.openUrl(QUrl("https://github.com/IvanComp/AP4Fed"))
-
-
-class SecondScreen(QWidget):
-    def __init__(self, home_page_callback):
-        super().__init__()
-        self.home_page_callback = home_page_callback
-        self.setWindowTitle("AP4Fed")
-        self.resize(800, 600)
-
-
-        back_btn = QPushButton()
-        back_btn.setIcon(self.style().standardIcon(QStyle.SP_ArrowBack))
-        back_btn.setIconSize(QSize(24, 24))
-        back_btn.setFixedSize(36, 36)
-        back_btn.setCursor(Qt.PointingHandCursor)
-        back_btn.setStyleSheet("""
-            QPushButton {
-                background-color: transparent;
-                border: none;
-            }
-            QPushButton:hover {
-                background-color: #e0e0e0;
-                border-radius: 18px;
-            }
-        """)
-        back_btn.setCursor(Qt.PointingHandCursor)
-        back_btn.clicked.connect(self.on_back)
-
-        base_dir = os.path.dirname(__file__)
-        docker_path = os.path.join(base_dir, "img/docker.png")
-        local_path = os.path.join(base_dir, "img/local.png")
-        main_layout = QVBoxLayout()
-        main_layout.insertWidget(0, back_btn, alignment=Qt.AlignLeft)
-        main_layout.setAlignment(Qt.AlignCenter)
-        main_layout.setContentsMargins(20, 20, 20, 20)
-        self.setLayout(main_layout)
-        button_layout = QHBoxLayout()
-        button_layout.setSpacing(20)
-
-        local_button = QPushButton()
-        local_button.setStyleSheet("""
-            QPushButton {
-                background-color: white;
-                color: black;
-                font-size: 14px; 
-                padding: 10px;
-                border: 2px solid black;
-                border-radius: 10px;
-                width: 250px;
-                height: 150px;
-                text-align: center;
-            }
-            QPushButton::icon {
-                subcontrol-origin: padding;
-                subcontrol-position: top center; /* Posiziona l'icona sopra */
-            }
-            QPushButton:hover {
-                background-color: #f0f0f0;
-            }
-            QPushButton:pressed {
-                background-color: #d0d0d0;
-            }
-        """)
-        if os.path.exists(local_path):
-            local_pixmap = QPixmap(local_path).scaled(50, 50, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            local_icon = QIcon(local_pixmap)
-            local_button.setIcon(local_icon)
-            local_button.setIconSize(QSize(50, 50))
-        local_button.setText("Create a Local Project")
-        local_button.setCursor(Qt.PointingHandCursor)
-        local_button.clicked.connect(self.select_local)
-        button_layout.addWidget(local_button)
-
-        docker_button = QPushButton()
-        docker_button.setStyleSheet("""
-            QPushButton {
-                background-color: white;
-                color: black;
-                font-size: 14px; 
-                padding: 10px;
-                border: 2px solid black;
-                border-radius: 10px;
-                width: 250px;
-                height: 150px;
-            }
-            QPushButton:hover {
-                background-color: #f0f0f0;
-            }
-            QPushButton:pressed {
-                background-color: #d0d0d0;
-            }
-        """)
-        if os.path.exists(docker_path):
-            docker_icon = QIcon(docker_path)
-            docker_button.setIcon(docker_icon)
-            docker_button.setIconSize(QSize(50, 50))
-        docker_button.setText("Create a Docker Project")
-        docker_button.setCursor(Qt.PointingHandCursor)
-        docker_button.clicked.connect(self.select_docker) 
-        button_layout.addWidget(docker_button)
-        main_layout.addLayout(button_layout)
-        self.setStyleSheet("background-color: white;")
-
-    def on_back(self):
-        self.close()                 
-        self.home_page_callback() 
-
-    def open_pre_simulation(self):
-        # creo e mostro la schermata di pre‑simulazione
-        self.pre_sim = PreSimulationPage(user_choices, home_page_callback=self.show)
-        self.pre_sim.show()
-        # nascondo questa finestra
-        self.hide()
-
-    def select_docker(self):
-        global user_choices
-        user_choices.append({"simulation_type": "Docker"})
-        self.open_presimulation_page()
-        self.hide()
-
-    def select_local(self):
-        global user_choices
-        user_choices.append({"simulation_type": "Local"})
-        self.open_presimulation_page()
-        self.hide()
-
-    def open_presimulation_page(self):
-        self.presimulation_page = PreSimulationPage(user_choices, self.show_home_page)
-        self.presimulation_page.show()
-
-    def show_home_page(self):
-        self.hide()  
-        self.show()  
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
