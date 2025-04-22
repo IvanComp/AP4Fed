@@ -1,9 +1,5 @@
 Client ID,FL Round,Training Time,Communication Time,Total Time of FL Round,# of CPU,CPU Usage (%),RAM Usage (%),Model Type,Data Distr. Type,Dataset,Train Loss,Train Accuracy,Train F1,Train MAE,Val Loss,Val Accuracy,Val F1,Val MAE
-Client 5,1,9.66,1.55,,,197,4,CNN 16k,IID,CIFAR-10,,,,,,,,
-Client 6,1,10.16,0.19,,,195,4,CNN 16k,IID,CIFAR-10,,,,,,,,
-Client 7,1,10.13,0.2,,,195,4,CNN 16k,IID,CIFAR-10,,,,,,,,
-Client 8,1,10.2,0.11,11.22,,195,4,CNN 16k,IID,CIFAR-10,3580.46,0.1212,0.063,2.9136,716.93,0.1178,0.0591,2.923
-Client 1,2,10.7,0.04,,,192,4,CNN 16k,IID,CIFAR-10,,,,,,,,
-Client 2,2,10.68,0.08,,,192,4,CNN 16k,IID,CIFAR-10,,,,,,,,
-Client 3,2,10.68,0.11,,,192,4,CNN 16k,IID,CIFAR-10,,,,,,,,
-Client 4,2,10.66,0.13,10.78,,192,4,CNN 16k,IID,CIFAR-10,3138.21,0.2874,0.259,2.6969,627.32,0.2944,0.2659,2.6527
+Client 3,1,7.18,0.1,,,206,4,CNN 16k,IID,CIFAR-10,,,,,,,,
+Client 4,1,7.11,1.06,8.16,,206,4,CNN 16k,IID,CIFAR-10,3594.07,0.1406,0.0657,3.6195,719.8,0.1393,0.0639,3.6292
+Client 1,2,7.14,0.1,,,206,4,CNN 16k,IID,CIFAR-10,,,,,,,,
+Client 2,2,7.14,0.08,7.22,,206,4,CNN 16k,IID,CIFAR-10,3165.16,0.265,0.2305,2.8613,633.08,0.2719,0.2375,2.8266

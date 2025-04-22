@@ -10,6 +10,7 @@ from PyQt5.QtCore import Qt, QProcess, QProcessEnvironment, QTimer
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton, QMessageBox
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 
 def random_pastel():
     return (
@@ -102,23 +103,25 @@ class DashboardWindow(QWidget):
             rounds.append(rnd)
             f1s.append(last['Val F1'])
             totals.append(last['Total Time of FL Round'])
-            text_model += f"Round {rnd}: F1={last['Val F1']:.4f}, Time={last['Total Time of FL Round']:.2f}s\n"
+            text_model += f"Round {rnd}: F1={last['Val F1']:.2f}, Total Round Time={last['Total Time of FL Round']:.0f}s\n"
         self.model_area.setPlainText(text_model)
 
         # plot F1
         self.ax_f1.clear()
         sns.lineplot(x=rounds, y=f1s, marker='o', ax=self.ax_f1, color=self.color_f1)
-        self.ax_f1.set_title('Validation F1', fontweight='bold')
-        self.ax_f1.set_xlabel('Round')
-        self.ax_f1.set_ylabel('F1')
+        self.ax_f1.xaxis.set_major_locator(MaxNLocator(integer=True))
+        self.ax_f1.set_title('F1 Score over Federated Learning Round', fontweight='bold')
+        self.ax_f1.set_xlabel('Federated Learning Round')
+        self.ax_f1.set_ylabel('F1 Score')
         self.canvas_f1.draw()
 
         # plot Total Time
         self.ax_tot.clear()
         sns.lineplot(x=rounds, y=totals, marker='o', ax=self.ax_tot, color=self.color_tot)
-        self.ax_tot.set_title('Total Round Time', fontweight='bold')
-        self.ax_tot.set_xlabel('Round')
-        self.ax_tot.set_ylabel('Seconds')
+        self.ax_tot.xaxis.set_major_locator(MaxNLocator(integer=True))
+        self.ax_tot.set_title('Total Round Time over Federated Learning Round', fontweight='bold')
+        self.ax_tot.set_xlabel('Federated Learning Round')
+        self.ax_tot.set_ylabel('Total Round Time (sec)')
         self.canvas_tot.draw()
 
         # clients text
@@ -126,7 +129,7 @@ class DashboardWindow(QWidget):
         text_cli = ''
         for cid in self.clients:
             row = df_last[df_last['Client ID']==cid].iloc[0]
-            text_cli += f"{cid}: Train={row['Training Time']:.2f}s, Comm={row['Communication Time']:.2f}s\n"
+            text_cli += f"{cid}: Training Time={row['Training Time']:.2f}s, Communication Time={row['Communication Time']:.2f}s\n"
         self.client_area.setPlainText(text_cli)
 
         # plot clients trends
@@ -145,6 +148,8 @@ class DashboardWindow(QWidget):
             col = self.client_colors[cid]
             sns.lineplot(x=rds, y=tv, marker='o', ax=self.ax_train, label=cid, color=col)
             sns.lineplot(x=rds, y=cv, marker='o', ax=self.ax_comm, label=cid, color=col)
+            self.ax_train.xaxis.set_major_locator(MaxNLocator(integer=True))
+            self.ax_comm.xaxis.set_major_locator(MaxNLocator(integer=True))
         for ax,title in [(self.ax_train,'Training Time'),(self.ax_comm,'Communication Time')]:
             ax.set_title(title, fontweight='bold')
             ax.set_xlabel('Round')
