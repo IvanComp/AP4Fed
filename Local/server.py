@@ -282,7 +282,7 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
         data_distr = m.get("data_distribution_type", "N/A")
         dataset_value = m.get("dataset", "N/A")
         training_time = m.get("training_time")
-        cpu_usage = m.get("cpu_usage")
+        n_cpu = m.get("n_cpu")
         cpu_percent = m.get("cpu_percent")
         ram_percent = m.get("ram_percent")
         communication_time = m.get("communication_time")      
@@ -291,7 +291,7 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
             total_time = training_time + communication_time
             client_data_list.append((
                 client_id, training_time, communication_time, total_time,
-                cpu_usage, cpu_percent, ram_percent,
+                n_cpu, cpu_percent, ram_percent,
                 model_type, data_distr, dataset_value, srt1, srt2
             ))
 
