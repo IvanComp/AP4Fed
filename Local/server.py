@@ -297,7 +297,7 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
             srt2 = time_between_rounds           
             total_time = training_time + communication_time
             client_data_list.append((
-                client_id, training_time, communication_time, total_time,
+                client_id, training_time, communication_time, time_between_rounds,
                 n_cpu, cpu_percent, ram_percent,
                 model_type, data_distr, dataset_value, srt1, srt2
             ))
@@ -305,14 +305,14 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
     num_clients = len(client_data_list)
     for idx, client_data in enumerate(client_data_list):
         (
-            client_id, training_time, communication_time, total_time,
+            client_id, training_time, communication_time, time_between_rounds,
             n_cpu, cpu_percent, ram_percent,
             model_type, data_distr, dataset_value, srt1, srt2
         ) = client_data
         already_logged = (idx != num_clients - 1)
         log_round_time(
             client_id, currentRnd-1,
-            training_time, communication_time, total_time,
+            training_time, communication_time, time_between_rounds,
             n_cpu, cpu_percent, ram_percent,
             model_type, data_distr, dataset_value,
             already_logged, srt1, srt2, agg_model_type
