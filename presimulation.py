@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QSize
 from recap_simulation import RecapSimulationPage
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QPixmap, QFont
 
 # ------------------------------------------------------------------------------------------
 # Dialog specializzato per configurare i parametri di "Client Selector"
@@ -442,6 +442,9 @@ class PreSimulationPage(QWidget):
         main_layout.insertLayout(0, header_layout)
 
         general_settings_group = QGroupBox("General Settings")
+        general_settings_group.setStyleSheet(
+            "QGroupBox::title { font-weight: bold; }"
+        )
         general_settings_group.setStyleSheet("""
             QGroupBox {
                 background-color: white;
@@ -459,17 +462,48 @@ class PreSimulationPage(QWidget):
             }
         """)
         g_layout = QFormLayout()
+        bold_font = QFont()
+        bold_font.setBold(True)
+
+        # Number of Rounds
+        rounds_label = QLabel("Number of Rounds:")
+        rounds_label.setFont(bold_font)
+        self.rounds_input = QSpinBox()
+        self.rounds_input.setRange(1, 100)
+        self.rounds_input.setValue(10)
+        g_layout.addRow(rounds_label, self.rounds_input)
+
+        # Number of Clients
+        clients_label = QLabel("Number of Clients:")
+        clients_label.setFont(bold_font)
+        self.clients_input = QSpinBox()
+        self.clients_input.setRange(1, 128)
+        self.clients_input.setValue(4)
+        g_layout.addRow(clients_label, self.clients_input)
+
+        label = QLabel("Type of Simulation:")
+        font = label.font()
+        font.setBold(True)
+        label.setFont(font)
         self.sim_type_combo = QComboBox()
         self.sim_type_combo.addItems(["Local", "Docker"])
-        g_layout.addRow(QLabel("Type of Simulation:"), self.sim_type_combo)
+        self.sim_type_combo.setFixedWidth(90)
+        g_layout.addRow(label, self.sim_type_combo)
 
-        # Docker status (inizialmente nascosto)
         docker_status_label = QLabel("Docker Status:")
+        font = docker_status_label.font()
+        font.setBold(True)
+        docker_status_label.setFont(font)
         self.docker_status_label = QLabel()
         update_btn = QPushButton()
         update_btn.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
         update_btn.setCursor(Qt.PointingHandCursor)
         update_btn.clicked.connect(self.check_docker_status)
+        update_btn.setStyleSheet("""
+        QPushButton {
+                background-color: white;
+            }
+        """)
         for w in (docker_status_label, self.docker_status_label, update_btn):
             w.setVisible(False)
         row = QHBoxLayout()
@@ -487,19 +521,10 @@ class PreSimulationPage(QWidget):
                 self.check_docker_status()
         self.sim_type_combo.currentTextChanged.connect(on_type_changed)
 
-        self.rounds_input = QSpinBox()
-        self.rounds_input.setRange(1, 100)
-        self.rounds_input.setValue(10)
-        g_layout.addRow("Number of Rounds:", self.rounds_input)
-
-        self.clients_input = QSpinBox()
-        self.clients_input.setRange(1, 128)
-        self.clients_input.setValue(4)
-        g_layout.addRow("Number of Clients:", self.clients_input)
         general_settings_group.setLayout(g_layout)
         main_layout.addWidget(general_settings_group)
 
-        patterns_label = QLabel("Select Architectural Patterns to Implement in the Simulation:")
+        patterns_label = QLabel("Select Architectural Patterns to be applied:")
         patterns_label.setAlignment(Qt.AlignLeft)
         patterns_label.setStyleSheet("font-size: 14px; color: #333; margin-top: 10px;")
         main_layout.addWidget(patterns_label)

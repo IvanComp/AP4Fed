@@ -133,7 +133,7 @@ with open(csv_file, 'w', newline='') as file:
 # La funzione log_round_time ora riceve anche cpu_percent e ram_percent
 def log_round_time(
      client_id, fl_round,
-     training_time, communication_time, total_time,
+     training_time, communication_time, time_between_rounds,
      n_cpu, cpu_percent, ram_percent,
      client_model_type, data_distr, dataset_value,
      already_logged, srt1, srt2, agg_key
@@ -167,7 +167,7 @@ def log_round_time(
              fl_round + 1,
              f"{training_time:.2f}",        
              f"{communication_time:.2f}",   
-             f"{total_time:.2f}",           
+             f"{time_between_rounds:.2f}",           
              n_cpu,   
              f"{cpu_percent:.0f}",                      
              f"{ram_percent:.0f}"  ,    
@@ -189,40 +189,47 @@ def preprocess_csv():
     import seaborn as sns
 
     df = pd.read_csv(csv_file)
-    # Assicuro formato numerico
-    df['Training Time'] = pd.to_numeric(df['Training Time'], errors='coerce')
-    df['Total Time of FL Round'] = pd.to_numeric(df['Total Time of FL Round'], errors='coerce')
 
-    # Mantengo Total Time solo per l'ultimo client
-    df['Total Time of FL Round'] = df.groupby('FL Round')['Total Time of FL Round'] \
-        .transform(lambda x: [None]*(len(x)-1) + [x.iloc[-1]])
+    df["Client ID"] = (
+        df["Client ID"]
+        .astype(str)                 
+        .str.extract(r"(\d+)")[0]    
+        .astype(int)
+    )
 
-    # Creo Client Number per ordinare
-    unique_clients = sorted(df['Client ID'].unique())
-    mapping = {cid:i+1 for i,cid in enumerate(unique_clients)}
-    df['Client Number'] = df['Client ID'].map(mapping)
-    df['Client ID'] = df['Client ID'].map(lambda x: f"Client {mapping[x]}")
-    df.sort_values(['FL Round','Client Number'], inplace=True)
+    df["Training Time"] = pd.to_numeric(df["Training Time"], errors="coerce")
+    df["Total Time of FL Round"] = pd.to_numeric(
+        df["Total Time of FL Round"], errors="coerce"
+    )
 
-    # Seleziono colonne da mantenere solo per l'ultimo client
-    cols_round = ['Total Time of FL Round'] + list(df.columns[df.columns.get_loc('Train Loss'):])
+    df["Total Time of FL Round"] = (
+        df.groupby("FL Round")["Total Time of FL Round"]
+        .transform(lambda x: [None] * (len(x) - 1) + [x.iloc[-1]])
+    )
+    mapping = {cid: cid for cid in sorted(df["Client ID"].unique())}
+    df["Client Number"] = df["Client ID"].map(mapping)
+    df["Client ID"] = df["Client ID"].map(lambda x: f"Client {x}")
+    df.sort_values(["FL Round", "Client Number"], inplace=True)
+    cols_round = ["Total Time of FL Round"] + list(
+        df.columns[df.columns.get_loc("Train Loss") :]
+    )
+
     def fix_round_values(subdf):
-        last = subdf['Client Number'].max()
+        subdf = subdf.copy()
+        last = subdf["Client Number"].max()
         for col in cols_round:
             vals = subdf[col].dropna()
-            v = vals.iloc[-1] if not vals.empty else None
-            subdf.loc[subdf['Client Number']==last, col] = v
-            subdf.loc[subdf['Client Number']!=last, col] = None
+            v = vals.iloc[-1] if not vals.empty else pd.NA
+            subdf.loc[subdf["Client Number"] == last, col] = v
+            subdf.loc[subdf["Client Number"] != last, col] = pd.NA
         return subdf
 
-    df = df.groupby('FL Round', group_keys=False).apply(fix_round_values)
-
-    df.drop(columns=['Client Number'], inplace=True)
+    df = df.groupby("FL Round", group_keys=False).apply(fix_round_values)
+    df.drop(columns=["Client Number"], inplace=True)
     df.to_csv(csv_file, index=False)
     sns.set_theme(style="ticks")
 
 def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_rounds):
-    # Se non esiste ancora la chiave per il modello, la inizializzo
     if agg_model_type not in global_metrics:
         global_metrics[agg_model_type] = {
             "train_loss": [],

@@ -456,8 +456,6 @@ def load_data(client_config, dataset_name_override=None):
             remove_pct_range=(0.5, 1.0),
             add_pct_range=(0.5, 1.0),
         )
-    else:
-        final_train = trainset
 
     trainloader = DataLoader(final_train, batch_size=batch_size, shuffle=True)
     testloader  = DataLoader(testset,    batch_size=batch_size, shuffle=False)

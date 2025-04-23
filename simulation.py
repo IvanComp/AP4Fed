@@ -24,7 +24,7 @@ class DashboardWindow(QWidget):
         super().__init__()
         self.setWindowTitle("Live Dashboard")
         self.setStyleSheet("background-color: white;")
-        self.resize(1000, 800)
+        self.resize(1200, 800)
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignTop)
 
@@ -151,12 +151,13 @@ class DashboardWindow(QWidget):
             rds, tv, cv = [], [], []
             for f in files:
                 df = pd.read_csv(f)
-                sel = df[df['Client ID']==cid]
-                if not sel.empty:
-                    r = int(re.search(r'round(\d+)', f).group(1))
-                    rds.append(r)
-                    tv.append(sel['Training Time'].values[0])
-                    cv.append(sel['Communication Time'].values[0])
+                r = int(re.search(r'round(\d+)', f).group(1))
+                row = df[(df['Client ID'] == cid) & (df['FL Round'] == r)]
+                if row.empty:
+                    continue
+                rds.append(r)
+                tv.append(row['Training Time'].values[0])
+                cv.append(row['Communication Time'].values[0])
             col = self.client_colors[cid]
             sns.lineplot(x=rds, y=tv, marker='o', ax=self.ax_train, label=cid, color=col)
             sns.lineplot(x=rds, y=cv, marker='o', ax=self.ax_comm, label=cid, color=col)
@@ -341,8 +342,6 @@ class SimulationPage(QWidget):
             self.stop_button.setText("Close")
             self.stop_button.clicked.disconnect()
             self.stop_button.clicked.connect(self.close_application)
-            if hasattr(self, 'loading_movie'):
-                self.loading_movie.stop()
 
     def close_application(self):
         sys.exit(0)
