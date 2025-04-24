@@ -51,7 +51,16 @@ folders_to_delete = ["performance", "model_weights"]
 for folder in folders_to_delete:
     folder_path = os.path.join(current_dir, folder)
     if os.path.exists(folder_path):
-        shutil.rmtree(folder_path)
+        # svuota la cartella senza toccare il mount point
+        for nome in os.listdir(folder_path):
+            percorso = os.path.join(folder_path, nome)
+            if os.path.isdir(percorso):
+                shutil.rmtree(percorso, ignore_errors=True)
+            else:
+                try:
+                    os.remove(percorso)
+                except OSError:
+                    pass
         
 client_registry = ClientRegistry()
 
@@ -71,7 +80,7 @@ matplotlib.use('Agg')
 current_dir = os.path.abspath(os.path.dirname(__file__))
 
 # Path to the 'configuration' directory
-config_dir = os.path.join(current_dir, '..', 'configuration') 
+config_dir = os.path.join(current_dir, 'configuration') 
 config_file = os.path.join(config_dir, 'config.json')
 
 # Lettura dei parametri dal file di configurazione

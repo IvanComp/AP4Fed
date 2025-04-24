@@ -1,5 +1,5 @@
 {
-    "simulation_type": "Docker",
+    "simulation_type": "Local",
     "rounds": 10,
     "clients": 4,
     "patterns": {

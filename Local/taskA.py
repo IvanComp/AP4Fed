@@ -78,7 +78,7 @@ AVAILABLE_DATASETS = {
 
 # Percorso del file di configurazione
 current_dir = os.path.abspath(os.path.dirname(__file__))
-config_dir = os.path.join(current_dir, '..', 'configuration')
+config_dir = os.path.join(current_dir, 'configuration')
 config_file = os.path.join(config_dir, 'config.json')
 
 # Funzione per normalizzare il nome del dataset

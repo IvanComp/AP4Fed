@@ -222,10 +222,9 @@ class RecapSimulationPage(QWidget):
         Visualizza i pattern raggruppati in 4 categorie.
         Se un pattern è True mostra una spunta verde, se False mostra una X rossa.
         """
-        # Carichiamo i dati dal file config.json
         try:
             base_dir = os.path.dirname(os.path.abspath(__file__))
-            config_path = os.path.join(base_dir, 'configuration', 'config.json')
+            config_path = os.path.join(base_dir, 'Local', 'configuration', 'config.json')
             with open(config_path, 'r') as f:
                 merged_config = json.load(f)
         except Exception as e:
@@ -397,71 +396,17 @@ class RecapSimulationPage(QWidget):
                 msg_box.exec_()
     
     def run_simulation(self):
-        merged_config = {}
-        for choice in self.user_choices:
-            if isinstance(choice, dict):
-                merged_config.update(choice)
-
-        for c in merged_config.get("client_details", []):
-            if c.get("data_distribution_type") == "Random":
-                c["data_distribution_type"] = "IID" if random.random() < 0.5 else "non-IID"
-
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        config_dir = os.path.join(base_dir, 'configuration')
-
-        if not os.path.exists(config_dir):
-            os.makedirs(config_dir)
-
-        config_file_name = 'config.json'
-        config_file_path = os.path.join(config_dir, config_file_name)
-
-        try:
-            with open(config_file_path, 'w') as f:
-                json.dump(merged_config, f, indent=4)
-
-            msg_box = QMessageBox(self)
-            msg_box.setWindowTitle("Success")
-            msg_box.setText(f"Configuration saved to {config_file_path}")
-            msg_box.setIcon(QMessageBox.Information)
-            msg_box.setStyleSheet("""
-                QMessageBox {
-                    background-color: white;
-                }
-                QLabel {
-                    color: black;
-                }
-            """)
-
-            ok_button = msg_box.addButton("OK", QMessageBox.AcceptRole)
-            ok_button.setCursor(Qt.PointingHandCursor)
-            ok_button.setStyleSheet("""
-                QPushButton {
-                    background-color: green;
-                    color: white;
-                    font-size: 12px;
-                    padding: 8px 16px;
-                    border-radius: 5px;
-                }
-                QPushButton:hover {
-                    background-color: #00b300;
-                }
-                QPushButton:pressed {
-                    background-color: #008000;
-                }
-            """)
-
-            #msg_box.exec_()
-        except Exception as e:
-            return 
-
-        client_details = merged_config.get('client_details', [])
-        num_supernodes = len(client_details)
-
-        if num_supernodes == 0:
-            QMessageBox.warning(self, "Warning", "No clients defined in the configuration. Using default num_supernodes=2.")
-            num_supernodes = 2
-
         from simulation import SimulationPage
-        self.simulation_page = SimulationPage(num_supernodes)
+        merged={}
+        for c in self.user_choices: merged.update(c if isinstance(c,dict) else {})
+        for cli in merged.get('client_details',[]):
+            if cli.get('data_distribution_type')=='Random':
+                cli['data_distribution_type'] = 'IID' if random.random()<0.5 else 'non-IID'
+        base=os.path.dirname(os.path.abspath(__file__))
+        st=merged.get('simulation_type','local').lower()
+        cfg_folder = os.path.join(base, 'Local' if st=='local' else 'Docker', 'configuration')
+        os.makedirs(cfg_folder, exist_ok=True)
+        n=len(merged.get('client_details',[])) or 2
+        self.simulation_page = SimulationPage(n)
         self.simulation_page.show()
         self.close()

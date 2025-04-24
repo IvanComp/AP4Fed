@@ -9,7 +9,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./performance:/app/performance
-      - ../configuration:/app/performance
+      - ./configuration:/app/configuration
       - ./model_weights:/app/model_weights
       - .:/app
       - /var/run/docker.sock:/var/run/docker.sock 
@@ -36,13 +36,13 @@ services:
     volumes:
       - ./data:/app/data
       - ./performance:/app/performance
+      - ./configuration:/app/configuration
       - ./model_weights:/app/model_weights
-      - ../configuration:/app/performance
     deploy:
       resources:
         limits:
-          cpus: '1'
-          memory: '2g'
+          cpus: '4'
+          memory: '4g'
     command: sh -c "sleep 2 && python client.py"
 
 networks:

@@ -47,7 +47,7 @@ def load_client_details():
     global global_client_details
     if global_client_details is None:
         current_dir = os.path.abspath(os.path.dirname(__file__))
-        config_dir = os.path.join(current_dir, '..', 'configuration')
+        config_dir = os.path.join(current_dir, 'configuration')
         config_file = os.path.join(config_dir, 'config.json')
         with open(config_file, 'r') as f:
             configJSON = json.load(f)

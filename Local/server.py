@@ -71,7 +71,7 @@ matplotlib.use('Agg')
 current_dir = os.path.abspath(os.path.dirname(__file__))
 
 # Path to the 'configuration' directory
-config_dir = os.path.join(current_dir, '..', 'configuration') 
+config_dir = os.path.join(current_dir, 'configuration') 
 config_file = os.path.join(config_dir, 'config.json')
 
 # Lettura dei parametri dal file di configurazione

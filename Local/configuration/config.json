@@ -1,6 +1,6 @@
 {
-    "simulation_type": "Docker",
-    "rounds": 10,
+    "simulation_type": "Local",
+    "rounds": 4,
     "clients": 4,
     "patterns": {
         "client_registry": {

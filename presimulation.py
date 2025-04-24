@@ -1281,9 +1281,12 @@ class ClientConfigurationPage(QWidget):
     def save_configuration_to_file(self):
         try:
             base_dir = os.path.dirname(os.path.abspath(__file__))
-            config_dir = os.path.join(base_dir, 'configuration')
-            if not os.path.exists(config_dir):
-                os.makedirs(config_dir)
+            sim_type = self.user_choices[-1].get("simulation_type")
+            if sim_type.lower() == "docker":
+                config_dir = os.path.join(base_dir, 'Docker', 'configuration')
+            else:
+                config_dir = os.path.join(base_dir, 'Local', 'configuration')
+            os.makedirs(config_dir, exist_ok=True)
             config_file_path = os.path.join(config_dir, 'config.json')
 
             with open(config_file_path, 'w') as f:
