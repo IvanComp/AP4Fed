@@ -4,6 +4,7 @@ import json
 import re
 import glob
 import random
+import locale
 import pandas as pd
 import seaborn as sns
 from PyQt5.QtCore import Qt, QProcess, QProcessEnvironment, QTimer
@@ -122,7 +123,7 @@ class DashboardWindow(QWidget):
         self.ax_f1.clear()
         sns.lineplot(x=rounds, y=f1s, marker='o', ax=self.ax_f1, color=self.color_f1)
         self.ax_f1.xaxis.set_major_locator(MaxNLocator(integer=True))
-        self.ax_f1.set_title('F1 Score over Federated Learning Round', fontweight='bold')
+        self.ax_f1.set_title('Accuracy over Federated Learning Round', fontweight='bold')
         self.ax_f1.set_xlabel('Federated Learning Round')
         self.ax_f1.set_ylabel('F1 Score')
         self.canvas_f1.draw()
@@ -144,7 +145,6 @@ class DashboardWindow(QWidget):
             text_cli += f"{cid}: Training Time={row['Training Time']:.2f}s, Communication Time={row['Communication Time']:.2f}s\n"
         self.client_area.setPlainText(text_cli)
 
-        # plot clients trends
         self.ax_train.clear()
         self.ax_comm.clear()
         for cid in self.clients:
@@ -166,7 +166,7 @@ class DashboardWindow(QWidget):
         for ax,title in [(self.ax_train,'Training Time'),(self.ax_comm,'Communication Time')]:
             ax.set_title(title, fontweight='bold')
             ax.set_xlabel('Round')
-            ax.set_ylabel('Seconds')
+            ax.set_ylabel('Training Time (sec)')
             ax.legend()
         self.canvas_train.draw()
         self.canvas_comm.draw()
@@ -304,7 +304,11 @@ class SimulationPage(QWidget):
 
     def handle_stdout(self):
         data = self.process.readAllStandardOutput()
-        stdout = bytes(data).decode('utf-8')
+        try:
+            encoding = locale.getpreferredencoding(False)
+            stdout = bytes(data).decode(encoding)
+        except UnicodeDecodeError:
+            stdout = bytes(data).decode('utf-8', errors='replace')  # fallback
         lines = stdout.splitlines()
         for line in lines:
             cleaned_line = self.remove_ansi_sequences(line)

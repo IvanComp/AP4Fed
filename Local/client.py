@@ -63,55 +63,54 @@ def load_client_details():
 
 CLIENT_REGISTRY = ClientRegistry()
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-GLOBAL_ROUND_COUNTER = 1  # Variabile globale per tenere traccia dei round
+GLOBAL_ROUND_COUNTER = 1 
 
 def set_cpu_affinity(process_pid: int, num_cpus: int) -> bool:
     import platform, os
-    import psutil # Assicurati che psutil sia importato qui o globalmente
+    import psutil
+
+    def safe_log(message):
+        # log(INFO, message)  
+        pass
+
     system = platform.system()
-    try: # Aggiunto blocco try-except per robustezza
+    try:
         process = psutil.Process(process_pid)
         total_cpus = os.cpu_count()
         cpus_to_use = min(num_cpus, total_cpus)
 
         if cpus_to_use <= 0:
-            log(INFO, f"Client (PID {process_pid}): Numero di CPU specificato ({num_cpus}) non valido o 0, non imposto affinità.")
+            safe_log(f"Client (PID {process_pid}): Invalid or zero CPU count ({num_cpus}), skipping affinity.")
             return False
 
-        target_cpus = list(range(cpus_to_use)) # Usa i primi N core
+        target_cpus = list(range(cpus_to_use)) 
 
         if system == "Windows":
             process.cpu_affinity(target_cpus)
-            # Opzionale: Imposta priorità più bassa
-            # process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS) # o IDLE_PRIORITY_CLASS
-            log(INFO, f"Client (PID {process_pid}): Affinità CPU impostata per core {target_cpus} su Windows.")
+            safe_log(f"Client (PID {process_pid}): CPU affinity set to cores {target_cpus} on Windows.")
             return True
         elif system == "Linux":
             process.cpu_affinity(target_cpus)
-            # Opzionale: Imposta priorità più bassa (nice > 0 è priorità più bassa)
-            # process.nice(10)
-            log(INFO, f"Client (PID {process_pid}): Affinità CPU impostata per core {target_cpus} su Linux.")
+            safe_log(f"Client (PID {process_pid}): CPU affinity set to cores {target_cpus} on Linux.")
             return True
         elif system == "Darwin":
-            # macOS non supporta l'impostazione dell'affinità tramite psutil in modo semplice/diretto
-            # Si può tentare di impostare la priorità se si hanno i permessi
             try:
-                process.nice(10) # Priorità più bassa
-                log(INFO, f"Client (PID {process_pid}): Tentativo di impostare priorità nice=10 su macOS (Affinità non supportata direttamente).")
+                process.nice(10)  
+                safe_log(f"Client (PID {process_pid}): Set nice=10 on macOS (CPU affinity not directly supported).")
             except psutil.AccessDenied:
-                 log(INFO, f"Client (PID {process_pid}): Permessi insufficienti per impostare priorità nice su macOS.")
-            return True # Ritorna True anche se imposta solo nice
+                safe_log(f"Client (PID {process_pid}): Insufficient permissions to set nice value on macOS.")
+            return True
         else:
-            log(INFO, f"Client (PID {process_pid}): Sistema operativo '{system}' non supportato per l'affinità CPU.")
+            safe_log(f"Client (PID {process_pid}): OS '{system}' not supported for CPU affinity.")
             return False
     except psutil.NoSuchProcess:
-        log(INFO, f"Errore: Processo {process_pid} non trovato.")
+        safe_log(f"Error: Process {process_pid} not found.")
         return False
     except psutil.AccessDenied:
-         log(INFO, f"Errore: Permessi insufficienti per impostare l'affinità CPU per il processo {process_pid}.")
-         return False
+        safe_log(f"Error: Permission denied when setting CPU affinity for process {process_pid}.")
+        return False
     except Exception as e:
-        log(INFO, f"Errore imprevisto durante l'impostazione dell'affinità CPU per {process_pid}: {e}")
+        safe_log(f"Unexpected error while setting CPU affinity for {process_pid}: {e}")
         return False
 
 class FlowerClient(NumPyClient):
@@ -127,25 +126,29 @@ class FlowerClient(NumPyClient):
 
         current_os = platform.system()
 
+        def safe_log(message):
+            #log(INFO, message)
+            pass
+
         if self.n_cpu is not None:
             try:
                 num_cpus_int = int(self.n_cpu)
                 if num_cpus_int > 0:
-                     set_cpu_affinity(os.getpid(), num_cpus_int)
-                     if current_os == "Linux" or current_os == "Windows":
-                         try:
-                             current_affinity = psutil.Process(os.getpid()).cpu_affinity()
-                             log(INFO, f"Client {self.cid}: Affinità CPU attuale: {current_affinity}")
-                         except Exception as e:
-                             log(INFO, f"Client {self.cid}: Impossibile ottenere affinità CPU attuale su {current_os}: {e}")
-                     elif current_os == "Darwin":
-                         log(INFO, f"Client {self.cid}: Lettura affinità CPU non supportata su macOS.")
+                    set_cpu_affinity(os.getpid(), num_cpus_int)
+                    if current_os == "Linux" or current_os == "Windows":
+                        try:
+                            current_affinity = psutil.Process(os.getpid()).cpu_affinity()
+                            safe_log(f"Client {self.cid}: Affinità CPU attuale: {current_affinity}")
+                        except Exception as e:
+                            safe_log(f"Client {self.cid}: Impossibile ottenere affinità CPU attuale su {current_os}: {e}")
+                    elif current_os == "Darwin":
+                        safe_log(f"Client {self.cid}: Lettura affinità CPU non supportata su macOS.")
                 else:
-                     log(INFO, f"Client {self.cid}: Valore CPU non positivo ({self.n_cpu}), non imposto affinità.")
+                    safe_log(f"Client {self.cid}: Valore CPU non positivo ({self.n_cpu}), non imposto affinità.")
             except (ValueError, TypeError):
-                 log(INFO, f"Client {self.cid}: Valore CPU non valido ({self.n_cpu}), non imposto affinità.")
+                safe_log(f"Client {self.cid}: Valore CPU non valido ({self.n_cpu}), non imposto affinità.")
         else:
-             log(INFO, f"Client {self.cid}: Parametro 'cpu' non specificato nella configurazione, non imposto affinità.")
+            safe_log(f"Client {self.cid}: Parametro 'cpu' non specificato nella configurazione, non imposto affinità.")
 
         CLIENT_REGISTRY.register_client(self.cid, model_type)
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
