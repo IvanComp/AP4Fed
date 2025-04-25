@@ -470,7 +470,7 @@ class PreSimulationPage(QWidget):
         rounds_label.setFont(bold_font)
         self.rounds_input = QSpinBox()
         self.rounds_input.setRange(1, 100)
-        self.rounds_input.setValue(10)
+        self.rounds_input.setValue(2)
         g_layout.addRow(rounds_label, self.rounds_input)
 
         # Number of Clients
@@ -478,7 +478,7 @@ class PreSimulationPage(QWidget):
         clients_label.setFont(bold_font)
         self.clients_input = QSpinBox()
         self.clients_input.setRange(1, 128)
-        self.clients_input.setValue(4)
+        self.clients_input.setValue(2)
         g_layout.addRow(clients_label, self.clients_input)
 
         label = QLabel("Type of Simulation:")

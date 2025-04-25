@@ -218,17 +218,20 @@ class RecapSimulationPage(QWidget):
         return card
 
     def display_patterns(self, layout):
-        """
-        Visualizza i pattern raggruppati in 4 categorie.
-        Se un pattern è True mostra una spunta verde, se False mostra una X rossa.
-        """
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        merged = {}
+        for choice in self.user_choices:
+            if isinstance(choice, dict):
+                merged.update(choice)
+        st = merged.get('simulation_type')
+        subdir = 'Docker' if st == 'Docker' else 'Local'
+        config_path = os.path.join(base_dir, subdir, 'configuration', 'config.json')
+
         try:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            config_path = os.path.join(base_dir, 'Local', 'configuration', 'config.json')
             with open(config_path, 'r') as f:
                 merged_config = json.load(f)
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to load config.json: {e}")
+            QMessageBox.critical(self, "Error", f"Failed to load config.json from {subdir}: {e}")
             return
 
         # Sezione Patterns
@@ -407,6 +410,6 @@ class RecapSimulationPage(QWidget):
         cfg_folder = os.path.join(base, 'Local' if st=='local' else 'Docker', 'configuration')
         os.makedirs(cfg_folder, exist_ok=True)
         n=len(merged.get('client_details',[])) or 2
-        self.simulation_page = SimulationPage(n)
+        self.simulation_page = SimulationPage(merged, n)
         self.simulation_page.show()
         self.close()

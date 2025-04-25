@@ -7,7 +7,7 @@ from PyQt5.QtGui import QPixmap, QIcon, QDesktopServices
 from PyQt5.QtWidgets import QStyle
 from PyQt5.QtCore import Qt, QUrl, QSize
 from presimulation import PreSimulationPage 
-from recap_simulation import RecapSimulationPage  
+from recap_simulation import RecapSimulationPage 
 
 # --- Clean up old performance and model_weights folders in Local ---
 base_dir = os.path.abspath(os.path.dirname(__file__))

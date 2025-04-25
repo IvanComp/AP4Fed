@@ -1,7 +1,7 @@
 {
     "simulation_type": "Local",
-    "rounds": 4,
-    "clients": 4,
+    "rounds": 2,
+    "clients": 2,
     "patterns": {
         "client_registry": {
             "enabled": true,
@@ -43,22 +43,6 @@
         },
         {
             "client_id": 2,
-            "cpu": 1,
-            "ram": 2,
-            "dataset": "CIFAR-10",
-            "data_distribution_type": "IID",
-            "model": "CNN 16k"
-        },
-        {
-            "client_id": 3,
-            "cpu": 1,
-            "ram": 2,
-            "dataset": "CIFAR-10",
-            "data_distribution_type": "IID",
-            "model": "CNN 16k"
-        },
-        {
-            "client_id": 4,
             "cpu": 1,
             "ram": 2,
             "dataset": "CIFAR-10",

@@ -21,15 +21,19 @@ def random_pastel():
     )
 
 class DashboardWindow(QWidget):
-    def __init__(self):
+    def __init__(self, simulation_type):
         super().__init__()
+        self.simulation_type = simulation_type
         self.setWindowTitle("Live Dashboard")
         self.setStyleSheet("background-color: white;")
         self.resize(1200, 800)
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignTop)
 
-        cfg_path = os.path.join(os.path.dirname(__file__), 'configuration', 'config.json')
+        base_dir = os.path.dirname(__file__)
+        subdir   = 'Docker' if simulation_type == 'Docker' else 'Local'
+        cfg_path = os.path.join(base_dir, subdir, 'configuration', 'config.json')
+
         model_name = ""
         dataset_name = ""
 
@@ -39,7 +43,6 @@ class DashboardWindow(QWidget):
                 first = cfg["client_details"][0]
                 model_name = first.get("model")
                 dataset_name = first.get("dataset")
-
 
         # Persistent pastel colors
         self.color_f1 = random_pastel()
@@ -95,7 +98,9 @@ class DashboardWindow(QWidget):
         self.timer.start(1000)
 
     def update_data(self):
-        perf_dir = os.path.join(os.path.dirname(__file__), 'Local', 'performance')
+        base_dir = os.path.dirname(__file__)
+        subdir  = 'Docker' if self.simulation_type == 'Docker' else 'Local'
+        perf_dir = os.path.join(base_dir, subdir, 'performance')
         files = sorted(glob.glob(os.path.join(perf_dir, 'FLwithAP_performance_metrics_round*.csv')))
         if not files:
             return
@@ -163,17 +168,18 @@ class DashboardWindow(QWidget):
             sns.lineplot(x=rds, y=cv, marker='o', ax=self.ax_comm, label=cid, color=col)
             self.ax_train.xaxis.set_major_locator(MaxNLocator(integer=True))
             self.ax_comm.xaxis.set_major_locator(MaxNLocator(integer=True))
-        for ax,title in [(self.ax_train,'Training Time'),(self.ax_comm,'Communication Time')]:
+        for ax, title in [(self.ax_train, 'Training Time'), (self.ax_comm, 'Communication Time')]:
             ax.set_title(title, fontweight='bold')
             ax.set_xlabel('Round')
-            ax.set_ylabel('Training Time (sec)')
+            ax.set_ylabel('Training Time (sec)' if title=='Training Time' else 'Communication Time (sec)')
             ax.legend()
         self.canvas_train.draw()
         self.canvas_comm.draw()
 
 class SimulationPage(QWidget):
-    def __init__(self, num_supernodes=None):
+    def __init__(self, config, num_supernodes=None):
         super().__init__()
+        self.config = config
         self.setWindowTitle("Simulation Output")
         self.resize(800, 600)
         self.setStyleSheet("background-color: white;")
@@ -243,64 +249,39 @@ class SimulationPage(QWidget):
         self.start_simulation(num_supernodes)
 
     def open_dashboard(self):
-        self.db = DashboardWindow()
+        self.db = DashboardWindow(self.config['simulation_type'])
         self.db.show()
 
     def start_simulation(self, num_supernodes):
+        simulation_type = self.config['simulation_type']
+        num_rounds      = self.config['rounds']
+        if num_supernodes is None:
+            num_supernodes = self.config['clients']
+        print(f"DEBUG simulation_type={simulation_type}, num_rounds={num_rounds}, num_supernodes={num_supernodes}")
+
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        local_dir = os.path.join(base_dir, 'Local')
-        docker_dir = os.path.join(base_dir, 'Docker')
-        config_path = os.path.join(base_dir, 'configuration', 'config.json')
-
-        simulation_type = "Local"
-        num_rounds = 2
-
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, 'r') as f:
-                    config = json.load(f)
-                    simulation_type = config.get("simulation_type", "Local")
-                    num_rounds = config.get("rounds", 2)
-                    if num_supernodes is None:
-                        num_supernodes = config.get('clients', 2)
-            except Exception as e:
-                QMessageBox.warning(self, "Error", f"Failed to read configuration file:\n{e}")
-                if num_supernodes is None:
-                    num_supernodes = 2
+        if simulation_type == 'Docker':
+            print("DEBUG: entro nel branch Docker")
+            work_dir = os.path.join(base_dir, 'Docker')
+            command = 'bash'
+            args = ['-c', f'NUM_ROUNDS={num_rounds} docker-compose up --scale client={num_supernodes}']
         else:
-            QMessageBox.warning(self, "Warning", f"Configuration file not found at {config_path}. Using defaults.")
-            if num_supernodes is None:
-                num_supernodes = 2
+            print("DEBUG: entro nel branch Local")
+            work_dir = os.path.join(base_dir, 'Local')
+            command = 'flower-simulation'
+            args = ['--server-app', 'server:app', '--client-app', 'client:app', '--num-supernodes', str(num_supernodes)]
 
-        if simulation_type.lower() == "docker":
-            if not os.path.exists(docker_dir):
-                self.output_area.appendPlainText(f"The 'Docker' directory does not exist: {docker_dir}")
-                return
-            self.process.setWorkingDirectory(docker_dir)
-            env = QProcessEnvironment.systemEnvironment()
-            env.insert("NUM_ROUNDS", str(num_rounds))
-            self.process.setProcessEnvironment(env)
-            command = "docker-compose"
-            args = ["up", "--scale", f"client={num_supernodes}"]
-        else:
-            if not os.path.exists(local_dir):
-                self.output_area.appendPlainText(f"The 'Local' directory does not exist: {local_dir}")
-                return
-            self.process.setWorkingDirectory(local_dir)
-            command = "flower-simulation"
-            args = [
-                "--server-app", "server:app",
-                "--client-app", "client:app",
-                "--num-supernodes", str(num_supernodes)
-            ]
-
-        if not self.is_command_available(command):
-            self.output_area.appendPlainText(f"Command '{command}' not found. Ensure it is installed and in the system PATH.")
+        if not os.path.exists(work_dir):
+            self.output_area.appendPlainText(f"Directory mancante: {work_dir}")
             return
-
+        self.process.setWorkingDirectory(work_dir)
+        if not self.is_command_available(command.split()[0]):
+            self.output_area.appendPlainText(f"Comando '{command}' non trovato.")
+            return
         self.process.start(command, args)
         if not self.process.waitForStarted():
-            self.output_area.appendPlainText("Failed to start the simulation process.")
+            self.output_area.appendPlainText("Impossibile avviare la simulazione.")
+
 
     def handle_stdout(self):
         data = self.process.readAllStandardOutput()
