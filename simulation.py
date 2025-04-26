@@ -10,7 +10,7 @@ from logging import INFO
 import pandas as pd
 import seaborn as sns
 from PyQt5.QtCore import Qt, QProcess, QProcessEnvironment, QTimer
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton, QMessageBox
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton, QSizePolicy
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
@@ -213,24 +213,36 @@ class SimulationPage(QWidget):
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
         self.dashboard_button = QPushButton("📈 Real-Time Performance Analysis")
+        self.dashboard_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.dashboard_button.setCursor(Qt.PointingHandCursor)
-        self.dashboard_button.setStyleSheet("background-color:#2196f3;color:white;padding:8px 16px;border-radius:5px;font-size:14px;")
+        self.dashboard_button.setStyleSheet("""
+            QPushButton {
+                background-color: #007ACC; 
+                color: white; 
+                font-size: 14px; 
+                padding: 10px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #005F9E;
+            }
+            QPushButton:pressed {
+                background-color: #004970;
+            }
+        """)
         self.dashboard_button.clicked.connect(self.open_dashboard)
-        btn_layout.addWidget(self.dashboard_button)
-        btn_layout.addStretch()
-        layout.addLayout(btn_layout)
+        layout.addWidget(self.dashboard_button)
 
-        # Bottone per terminare la simulazione
         self.stop_button = QPushButton("Stop Simulation")
+        self.stop_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.stop_button.setCursor(Qt.PointingHandCursor)
         self.stop_button.setStyleSheet("""
             QPushButton {
                 background-color: #ee534f;
                 color: white;
                 font-size: 14px;
-                padding: 8px 16px;
-                border-radius: 5px;
-                margin-top: 10px;
+                padding: 10px;
+                border-radius: 4px;
             }
             QPushButton:hover {
                 background-color: #ff6666;
@@ -240,7 +252,7 @@ class SimulationPage(QWidget):
             }
         """)
         self.stop_button.clicked.connect(self.stop_simulation)
-        layout.addWidget(self.stop_button, alignment=Qt.AlignCenter)
+        layout.addWidget(self.stop_button)
 
         self.process = QProcess(self)
         self.process.setProcessChannelMode(QProcess.MergedChannels)
@@ -261,7 +273,7 @@ class SimulationPage(QWidget):
 
         base_dir = os.path.dirname(os.path.abspath(__file__))
         if simulation_type == 'Docker':
-            log(INFO, f"Preparing Docker Environments...")
+            self.output_area.appendPlainText("Preparing Docker Environments...")
             work_dir = os.path.join(base_dir, 'Docker')
             command = 'bash'
             args = ['-c', f'NUM_ROUNDS={num_rounds} docker-compose up --scale client={num_supernodes}']

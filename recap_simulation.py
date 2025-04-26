@@ -390,12 +390,8 @@ class RecapSimulationPage(QWidget):
                 msg_box = QMessageBox(self)
                 msg_box.setIcon(QMessageBox.Warning)
                 msg_box.setWindowTitle("Error")
-                msg_box.setText(f"An error occurred while saving the file:\n{e}")
-                
-                # Imposta un timer per chiudere il box dopo 2 secondi
+                msg_box.setText(f"An error occurred while saving the file:\n{e}")      
                 QTimer.singleShot(2000, msg_box.close)
-                
-                # Mostra il box
                 msg_box.exec_()
     
     def run_simulation(self):
