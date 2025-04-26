@@ -8,7 +8,8 @@ import zlib
 import pickle
 import numpy as np
 import psutil
-# import ray  # Ray rimosso
+import socket
+from multiprocessing import Process
 from datetime import datetime
 from io import BytesIO
 from flwr.client import ClientApp, NumPyClient, start_client
@@ -98,7 +99,8 @@ def set_cpu_affinity(process_pid: int, num_cpus: int) -> bool:
 class FlowerClient(NumPyClient):
     def __init__(self, client_config: dict, model_type: str):
         self.client_config = client_config
-        self.cid = client_config.get("client_id", "unknown")
+        hostname = socket.gethostname()
+        self.cid = hostname if hostname else client_config.get("client_id", "unknown")
         self.n_cpu = client_config.get("cpu")
         self.ram = client_config.get("ram")
         self.dataset = client_config.get("dataset")
@@ -289,7 +291,7 @@ class FlowerClient(NumPyClient):
 
 if __name__ == "__main__":
     details = load_client_details()
-    client_id = os.getenv("CLIENT_ID", "1")
+    client_id = os.getenv("CLIENT_ID")
     config = next((c for c in details if str(c.get("client_id")) == client_id), details[0])
     model_type = config.get("model")
     start_client(

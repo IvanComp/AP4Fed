@@ -38,6 +38,8 @@ services:
       - ./performance:/app/performance
       - ./configuration:/app/configuration
       - ./model_weights:/app/model_weights
+    environment:
+      - SERVER_ADDRESS=server:8080
     deploy:
       resources:
         limits:

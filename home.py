@@ -183,9 +183,6 @@ class HomePage(QWidget):
                 QMessageBox.warning(self, "Error", f"An error occurred while loading the file:\n{e}")
 
     def validate_configuration(self, config):
-        """
-        Valida la configurazione caricata.
-        """
         expected_keys = {'simulation_type', 'rounds', 'clients', 'patterns', 'client_details'}
 
         if not isinstance(config, dict):

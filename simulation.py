@@ -33,7 +33,6 @@ class DashboardWindow(QWidget):
         base_dir = os.path.dirname(__file__)
         subdir   = 'Docker' if simulation_type == 'Docker' else 'Local'
         cfg_path = os.path.join(base_dir, subdir, 'configuration', 'config.json')
-
         model_name = ""
         dataset_name = ""
 
@@ -289,22 +288,48 @@ class SimulationPage(QWidget):
             encoding = locale.getpreferredencoding(False)
             stdout = bytes(data).decode(encoding)
         except UnicodeDecodeError:
-            stdout = bytes(data).decode('utf-8', errors='replace')  # fallback
-        lines = stdout.splitlines()
-        for line in lines:
-            cleaned_line = self.remove_ansi_sequences(line)
-            if "This is a deprecated feature." in cleaned_line or "entirely in future versions of Flower." in cleaned_line:
+            stdout = bytes(data).decode('utf-8', errors='replace')
+
+        for line in stdout.splitlines():
+            cleaned = self.remove_ansi_sequences(line)
+            stripped = cleaned.lstrip()
+
+            if not stripped:
                 continue
-            if "WARNING" in cleaned_line or "warning" in cleaned_line:
+            if stripped.startswith('#'):
                 continue
-            if "Client" in cleaned_line or "client" in cleaned_line:
-                colored_line = f"<span style='color: #4caf50;'>{cleaned_line}</span>"
-            elif "Server" in cleaned_line or "server" in cleaned_line:
-                colored_line = f"<span style='color: #2196f3;'>{cleaned_line}</span>"
+            if stripped.startswith('Network '):
+                continue
+            if stripped.startswith('Container '):
+                continue
+            if stripped.startswith('Attaching to'):
+                continue
+            if 'flower-super' in stripped:
+                continue
+            lower = stripped.lower()
+            if any(key in lower for key in [
+                'deprecated',
+                'to view usage',
+                'to view all available options',
+                'warning',
+                'entirely in future versions'
+            ]):
+                continue
+            if re.match(r'^[^|]+\|\s*$', cleaned):
+                continue
+
+            if 'client' in lower:
+                html = f"<span style='color:#4caf50;'>{cleaned}</span>"
+            elif 'server' in lower:
+                html = f"<span style='color:#2196f3;'>{cleaned}</span>"
             else:
-                colored_line = f"<span style='color: white;'>{cleaned_line}</span>"
-            self.output_area.appendHtml(colored_line)
-        self.output_area.verticalScrollBar().setValue(self.output_area.verticalScrollBar().maximum())
+                html = f"<span style='color:white;'>{cleaned}</span>"
+
+            self.output_area.appendHtml(html)
+
+        self.output_area.verticalScrollBar().setValue(
+            self.output_area.verticalScrollBar().maximum()
+        )
 
     def remove_ansi_sequences(self, text):
         ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')

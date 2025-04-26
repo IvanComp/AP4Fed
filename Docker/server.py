@@ -198,11 +198,11 @@ def preprocess_csv():
     import seaborn as sns
 
     df = pd.read_csv(csv_file)
-
-    df["Client ID"] = (
+    
+    df["Client Number"] = (
         df["Client ID"]
-        .astype(str)                 
-        .str.extract(r"(\d+)")[0]    
+        .astype(str)
+        .str.extract(r"(\d+)")[0]
         .astype(int)
     )
 
@@ -215,12 +215,10 @@ def preprocess_csv():
         df.groupby("FL Round")["Total Time of FL Round"]
         .transform(lambda x: [None] * (len(x) - 1) + [x.iloc[-1]])
     )
-    mapping = {cid: cid for cid in sorted(df["Client ID"].unique())}
-    df["Client Number"] = df["Client ID"].map(mapping)
-    df["Client ID"] = df["Client ID"].map(lambda x: f"Client {x}")
+
     df.sort_values(["FL Round", "Client Number"], inplace=True)
     cols_round = ["Total Time of FL Round"] + list(
-        df.columns[df.columns.get_loc("Train Loss") :]
+        df.columns[df.columns.get_loc("Train Loss"):]
     )
 
     def fix_round_values(subdf):
@@ -237,6 +235,7 @@ def preprocess_csv():
     df.drop(columns=["Client Number"], inplace=True)
     df.to_csv(csv_file, index=False)
     sns.set_theme(style="ticks")
+
 
 def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_rounds):
     if agg_model_type not in global_metrics:
