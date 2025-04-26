@@ -42,6 +42,7 @@ import json
 import zlib
 import pickle
 import docker
+docker_client = docker.from_env()
 from APClient import ClientRegistry
 import torch
 
@@ -139,7 +140,6 @@ with open(csv_file, 'w', newline='') as file:
         'Val Loss', 'Val Accuracy', 'Val F1', 'Val MAE'
     ])
 
-# La funzione log_round_time ora riceve anche cpu_percent e ram_percent
 def log_round_time(
      client_id, fl_round,
      training_time, communication_time, time_between_rounds,
@@ -147,13 +147,21 @@ def log_round_time(
      client_model_type, data_distr, dataset_value,
      already_logged, srt1, srt2, agg_key
 ):
-     # Assicuriamoci che i valori esistano
+     try:
+        client_id = docker_client.containers.get(client_id).name
+     except Exception:
+        client_id = client_id
+
+     if client_id.startswith("docker-"):
+      client_id = client_id[len("docker-"):]
+      client_id = client_id.replace("-", " ").title()
+
      if agg_key not in global_metrics:
          global_metrics[agg_key] = {
              "train_loss": [], "train_accuracy": [], "train_f1": [], "train_mae": [],
              "val_loss": [], "val_accuracy": [], "val_f1": [], "val_mae": []
          }
-     # Prendo l'ultimo valore
+
      tm = global_metrics[agg_key]
      train_loss     = tm["train_loss"][-1]     if tm["train_loss"]     else None
      train_accuracy = tm["train_accuracy"][-1] if tm["train_accuracy"] else None

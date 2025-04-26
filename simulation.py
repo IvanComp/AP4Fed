@@ -5,6 +5,8 @@ import re
 import glob
 import random
 import locale
+from flwr.common.logger import log
+from logging import INFO
 import pandas as pd
 import seaborn as sns
 from PyQt5.QtCore import Qt, QProcess, QProcessEnvironment, QTimer
@@ -256,16 +258,14 @@ class SimulationPage(QWidget):
         num_rounds      = self.config['rounds']
         if num_supernodes is None:
             num_supernodes = self.config['clients']
-        print(f"DEBUG simulation_type={simulation_type}, num_rounds={num_rounds}, num_supernodes={num_supernodes}")
 
         base_dir = os.path.dirname(os.path.abspath(__file__))
         if simulation_type == 'Docker':
-            print("DEBUG: entro nel branch Docker")
+            log(INFO, f"Preparing Docker Environments...")
             work_dir = os.path.join(base_dir, 'Docker')
             command = 'bash'
             args = ['-c', f'NUM_ROUNDS={num_rounds} docker-compose up --scale client={num_supernodes}']
         else:
-            print("DEBUG: entro nel branch Local")
             work_dir = os.path.join(base_dir, 'Local')
             command = 'flower-simulation'
             args = ['--server-app', 'server:app', '--client-app', 'client:app', '--num-supernodes', str(num_supernodes)]
@@ -312,7 +312,8 @@ class SimulationPage(QWidget):
                 'to view usage',
                 'to view all available options',
                 'warning',
-                'entirely in future versions'
+                'entirely in future versions',
+                'Files already downloaded and verified'
             ]):
                 continue
             if re.match(r'^[^|]+\|\s*$', cleaned):
