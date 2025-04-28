@@ -90,10 +90,12 @@ def normalize_dataset_name(name: str) -> str:
         return "CIFAR100"
     elif name_clean == "IMAGENET100":
         return "ImageNet100"
-    elif name_clean in ["MNIST"]:
+    elif name_clean == "MNIST":
         return "MNIST"
-    elif name_clean in ["FASHIONMNIST", "FMNIST"]:
+    elif name_clean == "FASHIONMNIST":
         return "FashionMNIST"
+    elif name_clean == "FMNIST":
+        return "FMNIST"
     elif name_clean == "KMNIST":
         return "KMNIST"
     elif name_clean == "OXFORDIIITPET":
@@ -242,7 +244,7 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
     if name in ("cnn_16k", "cnn16k"):
         input_size = {
             "CIFAR10": 32, "CIFAR100": 32,
-            "FashionMNIST": 28, "KMNIST": 28,
+            "FashionMNIST": 28, "KMNIST": 28, "FMNIST": 28,
             "ImageNet100": 224, "OXFORDIIITPET": 224
         }[DATASET_NAME]
         in_ch = AVAILABLE_DATASETS[DATASET_NAME]["channels"]
@@ -255,7 +257,7 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
     if name in ("cnn_64k", "cnn64k"):
         input_size = {
             "CIFAR10": 32, "CIFAR100": 32,
-            "FashionMNIST": 28, "KMNIST": 28,
+            "FashionMNIST": 28, "KMNIST": 28, "FMNIST": 28,
             "ImageNet100": 224, "OXFORDIIITPET": 224
         }[DATASET_NAME]
         in_ch = AVAILABLE_DATASETS[DATASET_NAME]["channels"]
@@ -268,7 +270,7 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
     if name in ("cnn_256k", "cnn256k"):
         input_size = {
             "CIFAR10": 32, "CIFAR100": 32,
-            "FashionMNIST": 28, "KMNIST": 28,
+            "FashionMNIST": 28, "KMNIST": 28, "FMNIST": 28,
             "ImageNet100": 224, "OXFORDIIITPET": 224
         }[DATASET_NAME]
         in_ch = AVAILABLE_DATASETS[DATASET_NAME]["channels"]

@@ -228,9 +228,7 @@ class HomePage(QWidget):
         no_button = msg_box.addButton("No", QMessageBox.NoRole)
         yes_button.setCursor(Qt.PointingHandCursor)
         no_button.setCursor(Qt.PointingHandCursor)
-
         msg_box.exec_()
-
         if msg_box.clickedButton() == yes_button:
             self.close()
 

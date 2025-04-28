@@ -24,6 +24,7 @@ services:
           cpus: '0.5'   
 
   client:
+    image: flwr_client
     build:
       context: .
       dockerfile: Dockerfile.client
@@ -39,12 +40,15 @@ services:
       - ./configuration:/app/configuration
       - ./model_weights:/app/model_weights
     environment:
-      - SERVER_ADDRESS=server:8080
+      NUM_ROUNDS: ${NUM_ROUNDS}
+      NUM_CPUS: ${NUM_CPUS}
+      NUM_RAM: ${NUM_RAM}
+      SERVER_ADDRESS: server:8080
     deploy:
       resources:
         limits:
-          cpus: '4'
-          memory: '4g'
+          cpus: ${NUM_CPUS}
+          memory: ${NUM_RAM}
     command: sh -c "sleep 2 && python client.py"
 
 networks:

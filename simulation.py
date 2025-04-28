@@ -268,15 +268,16 @@ class SimulationPage(QWidget):
     def start_simulation(self, num_supernodes):
         simulation_type = self.config['simulation_type']
         num_rounds      = self.config['rounds']
-        if num_supernodes is None:
-            num_supernodes = self.config['clients']
+        num_cpus = self.config['client_details'][0]['cpu']
+        num_ram = self.config['client_details'][0]['ram']
+        num_supernodes = self.config['clients']
 
         base_dir = os.path.dirname(os.path.abspath(__file__))
         if simulation_type == 'Docker':
             self.output_area.appendPlainText("Preparing Docker Environments...")
             work_dir = os.path.join(base_dir, 'Docker')
             command = 'bash'
-            args = ['-c', f'NUM_ROUNDS={num_rounds} docker-compose up --scale client={num_supernodes}']
+            args = ['-c', f'NUM_ROUNDS={num_rounds} NUM_CPUS={num_cpus}  NUM_RAM={num_ram}g docker-compose up --scale client={num_supernodes}']
         else:
             work_dir = os.path.join(base_dir, 'Local')
             command = 'flower-simulation'
@@ -325,7 +326,8 @@ class SimulationPage(QWidget):
                 'to view all available options',
                 'warning',
                 'entirely in future versions',
-                'Files already downloaded and verified'
+                'Files already downloaded and verified',
+                'client Pulling',
             ]):
                 continue
             if re.match(r'^[^|]+\|\s*$', cleaned):

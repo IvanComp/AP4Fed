@@ -310,8 +310,7 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
         ram_percent = m.get("ram_percent")
         communication_time = m.get("communication_time")      
         if client_id:
-            srt2 = time_between_rounds           
-            total_time = training_time + communication_time
+            srt2 = time_between_rounds 
             client_data_list.append((
                 client_id, training_time, communication_time, time_between_rounds,
                 n_cpu, cpu_percent, ram_percent,
@@ -394,7 +393,7 @@ class MultiModelStrategy(Strategy):
         parameters: Parameters,
         client_manager: ClientManager,
     ) -> List[Tuple[ClientProxy, FitIns]]:
-        t0 = time.time()
+        
         client_manager.wait_for(client_count) 
         clients = client_manager.sample(num_clients=client_count)
         fit_configurations = []
@@ -493,7 +492,6 @@ class MultiModelStrategy(Strategy):
         
         preprocess_csv()
 
-        # crea una copia con il numero del round
         round_csv = os.path.join(
             performance_dir,
             f"FLwithAP_performance_metrics_round{currentRnd}.csv"

@@ -27,6 +27,7 @@ from taskA import (
 )
 
 global_client_details = None
+
 def load_client_details():
     global global_client_details
     if global_client_details is None:
@@ -54,27 +55,20 @@ class ConfigServer:
     def get_config_for(self, client_id: str):
         if client_id in self.assignments:
             return self.assignments[client_id]
-        else:
-            if self.counter < len(self.config_list):
-                config = self.config_list[self.counter]
-                self.assignments[client_id] = config
-                self.counter += 1
-                return config
+        if self.counter < len(self.config_list):
+            config = self.config_list[self.counter]
+            self.assignments[client_id] = config
+            self.counter += 1
+            return config
 
 CLIENT_REGISTRY = ClientRegistry()
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 GLOBAL_ROUND_COUNTER = 1 
 
 def set_cpu_affinity(process_pid: int, num_cpus: int) -> bool:
-    import platform, os
-    import psutil
-
-    def safe_log(message):
-        pass
-
     try:
         process = psutil.Process(process_pid)
-        total_cpus = os.cpu_count()
+        total_cpus = os.cpu_count() or 1
         cpus_to_use = min(num_cpus, total_cpus)
 
         if cpus_to_use <= 0:
@@ -83,18 +77,41 @@ def set_cpu_affinity(process_pid: int, num_cpus: int) -> bool:
         target_cpus = list(range(cpus_to_use))
         if platform.system() in ("Linux", "Windows"):
             process.cpu_affinity(target_cpus)
-            safe_log(f"Client (PID {process_pid}): CPU affinity set to {target_cpus}")
-            return True
         else:
             process.nice(10)
-            safe_log(f"Client (PID {process_pid}): Nice=10 set on macOS")
-            return True
-    except psutil.NoSuchProcess:
-        return False
-    except psutil.AccessDenied:
-        return False
+        return True
     except Exception:
         return False
+
+# Lettura uso memoria nel container (cgroup)
+def get_ram_percent_cgroup():
+    try:
+        with open("/sys/fs/cgroup/memory/memory.usage_in_bytes") as f:
+            used = int(f.read())
+        with open("/sys/fs/cgroup/memory/memory.limit_in_bytes") as f:
+            limit = int(f.read())
+        return used / limit * 100
+    except Exception:
+        return psutil.Process(os.getpid()).memory_percent()
+
+# Lettura uso CPU nel container (cgroup)
+def get_cpu_percent_cgroup(interval: float = 1.0) -> float:
+    try:
+        with open("/sys/fs/cgroup/cpu/cpuacct.usage") as f:
+            start = int(f.read())
+        with open("/sys/fs/cgroup/cpu/cpu.cfs_quota_us") as f:
+            quota = int(f.read())
+        with open("/sys/fs/cgroup/cpu/cpu.cfs_period_us") as f:
+            period = int(f.read())
+        time.sleep(interval)
+        with open("/sys/fs/cgroup/cpu/cpuacct.usage") as f:
+            end = int(f.read())
+        delta_ns = end - start
+        elapsed_ns = interval * 1e9
+        cores = (quota / period) if quota > 0 else (os.cpu_count() or 1)
+        return (delta_ns / elapsed_ns / cores) * 100
+    except Exception:
+        return psutil.cpu_percent(interval=interval)
 
 class FlowerClient(NumPyClient):
     def __init__(self, client_config: dict, model_type: str):
@@ -110,26 +127,13 @@ class FlowerClient(NumPyClient):
 
         current_os = platform.system()
 
-        def safe_log(message):
-            pass
-
         if self.n_cpu is not None:
             try:
                 num_cpus_int = int(self.n_cpu)
                 if num_cpus_int > 0:
                     set_cpu_affinity(os.getpid(), num_cpus_int)
-                    if current_os in ("Linux", "Windows"):
-                        try:
-                            aff = psutil.Process(os.getpid()).cpu_affinity()
-                            safe_log(f"Client {self.cid}: Current CPU affinity {aff}")
-                        except Exception:
-                            safe_log(f"Client {self.cid}: Could not read CPU affinity")
-                    elif current_os == "Darwin":
-                        safe_log(f"Client {self.cid}: Reading CPU affinity not supported on macOS")
-            except (ValueError, TypeError):
-                safe_log(f"Client {self.cid}: Invalid CPU value {self.n_cpu}")
-        else:
-            safe_log(f"Client {self.cid}: No 'cpu' in config")
+            except Exception:
+                pass
 
         CLIENT_REGISTRY.register_client(self.cid, model_type)
         self.net = NetA().to(DEVICE)
@@ -137,6 +141,7 @@ class FlowerClient(NumPyClient):
         self.DEVICE = DEVICE
 
     def fit(self, parameters, config):
+        global GLOBAL_ROUND_COUNTER
         proc = psutil.Process(os.getpid())
         cpu_start = proc.cpu_times().user + proc.cpu_times().system
         wall_start = time.time()
@@ -153,25 +158,18 @@ class FlowerClient(NumPyClient):
         current_dir = os.path.abspath(os.path.dirname(__file__))
         config_dir = os.path.join(current_dir, '..', 'configuration')
         config_file = os.path.join(config_dir, 'config.json')
-        numpy_arrays = None
 
         if os.path.exists(config_file):
             with open(config_file, 'r') as f:
                 configJSON = json.load(f)
-            for pattern_name, pattern_info in configJSON["patterns"].items():
-                if pattern_info["enabled"]:
-                    if pattern_name == "client_selector":
-                        CLIENT_SELECTOR = True
-                    elif pattern_name == "client_cluster":
-                        CLIENT_CLUSTER = True
-                    elif pattern_name == "message_compressor":
-                        MESSAGE_COMPRESSOR = True
-                    elif pattern_name == "model_co-versioning_registry":
-                        MODEL_COVERSIONING = True
-                    elif pattern_name == "multi-task_model_trainer":
-                        MULTI_TASK_MODEL_TRAINER = True
-                    elif pattern_name == "heterogeneous_data_handler":
-                        HETEROGENEOUS_DATA_HANDLER = True
+            for pattern_name, pattern_info in configJSON.get("patterns", {}).items():
+                if pattern_info.get("enabled"):
+                    if pattern_name == "client_selector": CLIENT_SELECTOR = True
+                    elif pattern_name == "client_cluster": CLIENT_CLUSTER = True
+                    elif pattern_name == "message_compressor": MESSAGE_COMPRESSOR = True
+                    elif pattern_name == "model_co-versioning_registry": MODEL_COVERSIONING = True
+                    elif pattern_name == "multi-task_model_trainer": MULTI_TASK_MODEL_TRAINER = True
+                    elif pattern_name == "heterogeneous_data_handler": HETEROGENEOUS_DATA_HANDLER = True
 
         n_cpu = self.n_cpu
         ram = self.ram
@@ -182,7 +180,7 @@ class FlowerClient(NumPyClient):
             selector_params = configJSON["patterns"]["client_selector"]["params"]
             selection_strategy = selector_params.get("selection_strategy", "")
             selection_criteria = selector_params.get("selection_criteria", "")
-            selection_value = selector_params.get("selection_value", "")
+            selection_value = selector_params.get("selection_value", 0)
             if selection_strategy == "Resource-Based":
                 if selection_criteria == "CPU" and n_cpu < selection_value:
                     log(INFO, f"Client {self.cid} has insufficient CPU ({n_cpu}). Will not participate.")
@@ -192,13 +190,11 @@ class FlowerClient(NumPyClient):
                     return parameters, 0, {}
             log(INFO, f"Client {self.cid} participates in this round. (CPU: {n_cpu}, RAM: {ram})")
 
-        if MESSAGE_COMPRESSOR:
-            if compressed_parameters_hex:
-                compressed_parameters = bytes.fromhex(compressed_parameters_hex)
-                decompressed = pickle.loads(zlib.decompress(compressed_parameters))
-                numpy_arrays = [np.load(BytesIO(tensor)) for tensor in decompressed.tensors]
-                numpy_arrays = [arr.astype(np.float32) for arr in numpy_arrays]
-                parameters = numpy_arrays
+        if MESSAGE_COMPRESSOR and compressed_parameters_hex:
+            comp = bytes.fromhex(compressed_parameters_hex)
+            decompressed = pickle.loads(zlib.decompress(comp))
+            numpy_arrays = [np.load(BytesIO(t)) for t in decompressed.tensors]
+            parameters = [arr.astype(np.float32) for arr in numpy_arrays]
 
         set_weights_A(self.net, parameters)
         results, training_time = train_A(
@@ -208,16 +204,14 @@ class FlowerClient(NumPyClient):
         communication_time = time.time()
 
         new_parameters = get_weights_A(self.net)
-        compressed_parameters_hex = None
 
-        global GLOBAL_ROUND_COUNTER
         round_number = GLOBAL_ROUND_COUNTER
         GLOBAL_ROUND_COUNTER += 1
 
         wall_end = time.time()
         cpu_end = proc.cpu_times().user + proc.cpu_times().system
-        cpu_percent = (cpu_end - cpu_start) / (wall_end - wall_start) * 100
-        ram_percent = proc.memory_percent()
+        cpu_percent = get_cpu_percent_cgroup()
+        ram_percent = get_ram_percent_cgroup()
 
         if MODEL_COVERSIONING:
             client_folder = os.path.join("model_weights", "clients", str(self.cid))
@@ -235,13 +229,13 @@ class FlowerClient(NumPyClient):
             reduction_percentage = (reduction_bytes / original_size) * 100
             log(INFO, f"Local parameters compressed: reduced {reduction_bytes} bytes ({reduction_percentage:.2f}%)")
             metrics = {
-                "train_loss": results["train_loss"],
-                "train_accuracy": results["train_accuracy"],
-                "train_f1": results["train_f1"],
+                "train_loss": results.get("train_loss", 0.0),
+                "train_accuracy": results.get("train_accuracy", 0.0),
+                "train_f1": results.get("train_f1", 0.0),
                 "train_mae": results.get("train_mae", 0.0),
-                "val_loss": results["val_loss"],
-                "val_accuracy": results["val_accuracy"],
-                "val_f1": results["val_f1"],
+                "val_loss": results.get("val_loss", 0.0),
+                "val_accuracy": results.get("val_accuracy", 0.0),
+                "val_f1": results.get("val_f1", 0.0),
                 "val_mae": results.get("val_mae", 0.0),
                 "training_time": training_time,
                 "n_cpu": n_cpu,
@@ -258,13 +252,13 @@ class FlowerClient(NumPyClient):
             return [], len(self.trainloader.dataset), metrics
         else:
             metrics = {
-                "train_loss": results["train_loss"],
-                "train_accuracy": results["train_accuracy"],
-                "train_f1": results["train_f1"],
+                "train_loss": results.get("train_loss", 0.0),
+                "train_accuracy": results.get("train_accuracy", 0.0),
+                "train_f1": results.get("train_f1", 0.0),
                 "train_mae": results.get("train_mae", 0.0),
-                "val_loss": results["val_loss"],
-                "val_accuracy": results["val_accuracy"],
-                "val_f1": results["val_f1"],
+                "val_loss": results.get("val_loss", 0.0),
+                "val_accuracy": results.get("val_accuracy", 0.0),
+                "val_f1": results.get("val_f1", 0.0),
                 "val_mae": results.get("val_mae", 0.0),
                 "training_time": training_time,
                 "n_cpu": n_cpu,
@@ -296,5 +290,5 @@ if __name__ == "__main__":
     model_type = config.get("model")
     start_client(
         server_address=os.getenv("SERVER_ADDRESS", "server:8080"),
-        client=FlowerClient(client_config=config, model_type=model_type).to_client(),
+        client=FlowerClient(client_config=config, model_type=model_type)
     )
