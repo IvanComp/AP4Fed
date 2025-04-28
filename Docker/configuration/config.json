@@ -35,7 +35,7 @@
     "client_details": [
         {
             "client_id": 1,
-            "cpu": 1,
+            "cpu": 5,
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
@@ -43,7 +43,7 @@
         },
         {
             "client_id": 2,
-            "cpu": 1,
+            "cpu": 4,
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID",

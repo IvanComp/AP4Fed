@@ -1,0 +1,77 @@
+networks:
+  flwr_network:
+    driver: bridge
+services:
+  client1:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    command: sh -c "sleep 2 && python client.py"
+    container_name: Client1
+    cpus: 5
+    depends_on:
+    - server
+    environment:
+      CLIENT_ID: '1'
+      NUM_CPUS: '5'
+      NUM_RAM: '2'
+      NUM_ROUNDS: '2'
+      SERVER_ADDRESS: server:8080
+    labels:
+    - type=client
+    mem_limit: 2g
+    networks:
+    - flwr_network
+    volumes:
+    - ./data:/app/data
+    - ./performance:/app/performance
+    - ./configuration:/app/configuration
+    - ./model_weights:/app/model_weights
+  client2:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    command: sh -c "sleep 2 && python client.py"
+    container_name: Client2
+    cpus: 4
+    depends_on:
+    - server
+    environment:
+      CLIENT_ID: '2'
+      NUM_CPUS: '4'
+      NUM_RAM: '2'
+      NUM_ROUNDS: '2'
+      SERVER_ADDRESS: server:8080
+    labels:
+    - type=client
+    mem_limit: 2g
+    networks:
+    - flwr_network
+    volumes:
+    - ./data:/app/data
+    - ./performance:/app/performance
+    - ./configuration:/app/configuration
+    - ./model_weights:/app/model_weights
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: flwr_server
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+    environment:
+      DOCKER_HOST_IP: host.docker.internal
+      NUM_ROUNDS: ${NUM_ROUNDS}
+    networks:
+    - flwr_network
+    ports:
+    - 8080:8080
+    volumes:
+    - ./data:/app/data
+    - ./performance:/app/performance
+    - ./configuration:/app/configuration
+    - ./model_weights:/app/model_weights
+    - .:/app
+    - /var/run/docker.sock:/var/run/docker.sock

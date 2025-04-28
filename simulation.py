@@ -2,6 +2,8 @@ import os
 import sys
 import json
 import re
+import yaml
+import copy
 import glob
 import random
 import locale
@@ -266,35 +268,90 @@ class SimulationPage(QWidget):
         self.db.show()
 
     def start_simulation(self, num_supernodes):
-        simulation_type = self.config['simulation_type']
-        num_rounds      = self.config['rounds']
-        num_cpus = self.config['client_details'][0]['cpu']
-        num_ram = self.config['client_details'][0]['ram']
-        num_supernodes = self.config['clients']
-
+        sim_type = self.config['simulation_type']
+        rounds   = self.config['rounds']
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        if simulation_type == 'Docker':
-            self.output_area.appendPlainText("Preparing Docker Environments...")
+
+        if sim_type == 'Docker':
             work_dir = os.path.join(base_dir, 'Docker')
-            command = 'bash'
-            args = ['-c', f'NUM_ROUNDS={num_rounds} NUM_CPUS={num_cpus}  NUM_RAM={num_ram}g docker-compose up --scale client={num_supernodes}']
+            dc_in    = os.path.join(work_dir, 'docker-compose.yml')
+            dc_out   = os.path.join(work_dir, 'docker-compose.dynamic.yml')
+
+            self.output_area.appendPlainText("Launching Docker Compose...")
+
+            # 1) carico template
+            with open(dc_in, 'r') as f:
+                compose = yaml.safe_load(f)
+
+            server_svc = compose['services'].get('server')
+            client_tpl = compose['services'].get('client')
+            if not server_svc or not client_tpl:
+                self.output_area.appendPlainText("Error: manca server o client")
+                return
+
+            # 2) ricreo i servizi
+            new_svcs = {'server': server_svc}
+            for detail in self.config['client_details']:
+                cid = detail['client_id']
+                cpu = detail['cpu']
+                ram = detail['ram']
+                svc = copy.deepcopy(client_tpl)
+
+                svc.pop('image', None)
+                svc.pop('deploy', None)            
+                svc['container_name'] = f"Client{cid}"
+                svc['cpus']           = cpu
+                svc['mem_limit']      = f"{ram}g"
+
+                env = svc.setdefault('environment', {})
+                env['NUM_ROUNDS']     = str(rounds)
+                env['NUM_CPUS']       = str(cpu)
+                env['NUM_RAM']        = str(ram)
+                env['CLIENT_ID']      = str(cid) 
+
+                new_svcs[f'client{cid}'] = svc
+
+            compose['services'] = new_svcs
+
+            # 3) salvo file dinamico
+            with open(dc_out, 'w') as f:
+                yaml.safe_dump(compose, f)
+
+            # 4) lancio in foreground
+            self.output_area.appendPlainText("Avvio tutti i container…")
+            cmd  = 'docker-compose'
+            args = ['-f', dc_out, 'up']
+
+            self.process = QProcess(self)
+            self.process.setProcessChannelMode(QProcess.MergedChannels)
+            self.process.readyReadStandardOutput.connect(self.handle_stdout)
+            self.process.readyReadStandardError.connect(self.handle_stdout)
+            self.process.setWorkingDirectory(work_dir)
+            self.process.start(cmd, args)
+
+            if not self.process.waitForStarted():
+                self.output_area.appendPlainText("Errore avvio docker-compose")
+                return
+
+
         else:
+            # Simulazione locale invariata
             work_dir = os.path.join(base_dir, 'Local')
-            command = 'flower-simulation'
-            args = ['--server-app', 'server:app', '--client-app', 'client:app', '--num-supernodes', str(num_supernodes)]
+            cmd      = 'flower-simulation'
+            args     = ['--server-app','server:app',
+                        '--client-app','client:app',
+                        '--num-supernodes',str(num_supernodes)]
 
-        if not os.path.exists(work_dir):
-            self.output_area.appendPlainText(f"Directory mancante: {work_dir}")
-            return
-        self.process.setWorkingDirectory(work_dir)
-        if not self.is_command_available(command.split()[0]):
-            self.output_area.appendPlainText(f"Comando '{command}' non trovato.")
-            return
-        self.process.start(command, args)
-        if not self.process.waitForStarted():
-            self.output_area.appendPlainText("Impossibile avviare la simulazione.")
+            self.process = QProcess(self)
+            self.process.setProcessChannelMode(QProcess.MergedChannels)
+            self.process.readyReadStandardOutput.connect(self.handle_stdout)
+            self.process.readyReadStandardError.connect(self.handle_stdout)
+            self.process.setWorkingDirectory(work_dir)
+            self.process.start(cmd, args)
 
-
+            if not self.process.waitForStarted():
+                self.output_area.appendPlainText("Avvio locale fallito")
+          
     def handle_stdout(self):
         data = self.process.readAllStandardOutput()
         try:

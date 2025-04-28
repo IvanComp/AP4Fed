@@ -290,5 +290,5 @@ if __name__ == "__main__":
     model_type = config.get("model")
     start_client(
         server_address=os.getenv("SERVER_ADDRESS", "server:8080"),
-        client=FlowerClient(client_config=config, model_type=model_type)
+        client=FlowerClient(client_config=config, model_type=model_type).to_client()
     )
