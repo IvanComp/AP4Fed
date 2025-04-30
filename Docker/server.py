@@ -305,10 +305,10 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
         data_distr = m.get("data_distribution_type", "N/A")
         dataset_value = m.get("dataset", "N/A")
         training_time = m.get("training_time")
+        communication_time = m.get("communication_time")
         n_cpu = m.get("n_cpu")
         cpu_percent = m.get("cpu_percent")
         ram_percent = m.get("ram_percent")
-        communication_time = m.get("communication_time")      
         if client_id:
             srt2 = time_between_rounds 
             client_data_list.append((
@@ -433,72 +433,92 @@ class MultiModelStrategy(Strategy):
         results: List[Tuple[ClientProxy, FitRes]],
         failures: List[BaseException],
     ) -> Optional[Tuple[Parameters, Dict[str, Scalar]]]:
-        global previous_round_end_time
+        global previous_round_end_time, currentRnd
 
+        # inizio misurazione aggregazione
+        agg_start = time.time()
         if previous_round_end_time is not None:
             time_between_rounds = time.time() - previous_round_end_time
-            log(INFO, f"Results Aggregated in {time_between_rounds:.2f} seconds.")
+            log(INFO, f"Time between rounds: {time_between_rounds:.2f}s")
+        else:
+            time_between_rounds = 0.0
 
         results_a = []
         training_times = []
-        global currentRnd
         currentRnd += 1
-        srt1 = 'N/A'
-        srt2 = 'N/A'
-        
+
+        # raccolta risultati client
         for client_proxy, fit_res in results:
+            training_time = fit_res.metrics.get("training_time")
+            communication_time = fit_res.metrics.get("communication_time")
+            training_times.append(training_time)
+
             client_id = fit_res.metrics.get("client_id")
             model_type = fit_res.metrics.get("model_type")
-            training_time = fit_res.metrics.get("training_time")
-            communication_time_client = fit_res.metrics.get("communication_time")
-            recv_time = time.time()
-            communication_time = recv_time - communication_time_client
-            fit_res.metrics["communication_time"] = communication_time
-            
-            compressed_parameters_hex = fit_res.metrics.get("compressed_parameters_hex")
             client_model_mapping[client_id] = model_type
 
+            # decompressione se serve
             if MESSAGE_COMPRESSOR:
-                compressed_parameters = bytes.fromhex(compressed_parameters_hex)
-                decompressed_parameters = pickle.loads(zlib.decompress(compressed_parameters))
-                fit_res.parameters = ndarrays_to_parameters(decompressed_parameters)
+                comp_hex = fit_res.metrics.get("compressed_parameters_hex", "")
+                if comp_hex:
+                    comp = bytes.fromhex(comp_hex)
+                    decomp = pickle.loads(zlib.decompress(comp))
+                    fit_res.parameters = ndarrays_to_parameters(decomp)
 
-            if training_time is not None:
-                training_times.append(training_time)              
             results_a.append((fit_res.parameters, fit_res.num_examples, fit_res.metrics))
 
+        # fine round client
         previous_round_end_time = time.time()
-        srt1 = max(training_times)
-        agg_model_type = results_a[0][2].get("model_type", "Unknown")
-        self.parameters_a = self.aggregate_parameters(results_a, agg_model_type, srt1, srt2, time_between_rounds)
 
-        metrics_aggregated = {}
-        if any(global_metrics[agg_model_type].values()):
-            metrics_aggregated[agg_model_type] = {
-                key: global_metrics[agg_model_type][key][-1] if global_metrics[agg_model_type][key] else None
-                for key in global_metrics[agg_model_type]
-            }
+        # training time massimo
+        max_train = max(training_times) if training_times else 0.0
 
+        # fine misurazione aggregazione
+        agg_end = time.time()
+        aggregation_time = agg_end - agg_start
+        log(INFO, f"Aggregation completed in {aggregation_time:.2f}s")
+
+        # aggrega parametri
+        self.parameters_a = self.aggregate_parameters(
+            results_a,
+            model_type,
+            max_train,
+            communication_time,
+            time_between_rounds
+        )
+
+        # setto i pesi nel modello server
         aggregated_model = NetA()
-        aggregated_params_list = parameters_to_ndarrays(self.parameters_a)
-        set_weights_A(aggregated_model, aggregated_params_list)
+        params_list = parameters_to_ndarrays(self.parameters_a)
+        set_weights_A(aggregated_model, params_list)
 
+        # salvataggio facoltativo
         if MODEL_COVERSIONING:
             server_folder = os.path.join("model_weights", "server")
             os.makedirs(server_folder, exist_ok=True)
-            server_file_path = os.path.join(server_folder, f"MW_round{currentRnd}.pt")
-            torch.save(aggregated_model.state_dict(), server_file_path)
-            log(INFO, f"Aggregated model weights saved to {server_file_path}")
-        
-        preprocess_csv()
+            path = os.path.join(server_folder, f"MW_round{currentRnd}.pt")
+            torch.save(aggregated_model.state_dict(), path)
+            log(INFO, f"Aggregated model weights saved to {path}")
 
+        # metriche aggregate
+        metrics_aggregated: Dict[str, Scalar] = {}
+        if any(global_metrics[model_type].values()):
+            metrics_aggregated[model_type] = {
+                key: global_metrics[model_type][key][-1]
+                if global_metrics[model_type][key]
+                else None
+                for key in global_metrics[model_type]
+            }
+        #metrics_aggregated["aggregation_time"] = aggregation_time
+        #metrics_aggregated["communication_time"] = communication_time
+        preprocess_csv()
         round_csv = os.path.join(
             performance_dir,
             f"FLwithAP_performance_metrics_round{currentRnd}.csv"
         )
         shutil.copy(csv_file, round_csv)
 
-        return (self.parameters_a), metrics_aggregated
+        return self.parameters_a, metrics_aggregated
 
     def aggregate_parameters(self, results, agg_model_type, srt1, srt2, time_between_rounds):
         total_examples = sum([num_examples for _, num_examples, _ in results])
@@ -539,16 +559,6 @@ class MultiModelStrategy(Strategy):
         server_round: int,
         parameters: Parameters,
     ) -> Optional[Tuple[float, Dict[str, Scalar]]]:
-    
-        if server_round == 0:
-            return None
-        
-        #log(INFO, f"[ROUND {server_round}] Evaluating Performance Metrics...")
-
-        # ADAPTATION CODE
-
-        #log(INFO, f"[ROUND {server_round+1}] Adapting new settings...")
-
         return None
 
 if __name__ == "__main__":

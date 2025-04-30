@@ -6,7 +6,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.client
-    command: sh -c "sleep 2 && python client.py"
+    command: sh -c "sleep 5 && python client.py"
     container_name: Client1
     cpus: 5
     depends_on:
@@ -31,7 +31,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.client
-    command: sh -c "sleep 2 && python client.py"
+    command: sh -c "sleep 5 && python client.py"
     container_name: Client2
     cpus: 4
     depends_on:
@@ -39,12 +39,12 @@ services:
     environment:
       CLIENT_ID: '2'
       NUM_CPUS: '4'
-      NUM_RAM: '2'
+      NUM_RAM: '1'
       NUM_ROUNDS: '2'
       SERVER_ADDRESS: server:8080
     labels:
     - type=client
-    mem_limit: 2g
+    mem_limit: 1g
     networks:
     - flwr_network
     volumes:

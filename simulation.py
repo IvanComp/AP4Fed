@@ -279,17 +279,15 @@ class SimulationPage(QWidget):
 
             self.output_area.appendPlainText("Launching Docker Compose...")
 
-            # 1) carico template
             with open(dc_in, 'r') as f:
                 compose = yaml.safe_load(f)
 
             server_svc = compose['services'].get('server')
             client_tpl = compose['services'].get('client')
             if not server_svc or not client_tpl:
-                self.output_area.appendPlainText("Error: manca server o client")
+                self.output_area.appendPlainText("Error: Missing server or client service in docker-compose.yml")
                 return
 
-            # 2) ricreo i servizi
             new_svcs = {'server': server_svc}
             for detail in self.config['client_details']:
                 cid = detail['client_id']
@@ -313,12 +311,9 @@ class SimulationPage(QWidget):
 
             compose['services'] = new_svcs
 
-            # 3) salvo file dinamico
             with open(dc_out, 'w') as f:
                 yaml.safe_dump(compose, f)
 
-            # 4) lancio in foreground
-            self.output_area.appendPlainText("Avvio tutti i container…")
             cmd  = 'docker-compose'
             args = ['-f', dc_out, 'up']
 
@@ -330,12 +325,10 @@ class SimulationPage(QWidget):
             self.process.start(cmd, args)
 
             if not self.process.waitForStarted():
-                self.output_area.appendPlainText("Errore avvio docker-compose")
+                self.output_area.appendPlainText("Error: Docker Compose failed to start")
                 return
 
-
         else:
-            # Simulazione locale invariata
             work_dir = os.path.join(base_dir, 'Local')
             cmd      = 'flower-simulation'
             args     = ['--server-app','server:app',
@@ -350,7 +343,7 @@ class SimulationPage(QWidget):
             self.process.start(cmd, args)
 
             if not self.process.waitForStarted():
-                self.output_area.appendPlainText("Avvio locale fallito")
+                self.output_area.appendPlainText("Local simulation failed to start")
           
     def handle_stdout(self):
         data = self.process.readAllStandardOutput()

@@ -44,7 +44,7 @@
         {
             "client_id": 2,
             "cpu": 4,
-            "ram": 2,
+            "ram": 1,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
             "model": "CNN 16k"
