@@ -295,7 +295,6 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
         communication_time = m.get("communication_time")      
         if client_id:
             srt2 = time_between_rounds           
-            total_time = training_time + communication_time
             client_data_list.append((
                 client_id, training_time, communication_time, time_between_rounds,
                 n_cpu, cpu_percent, ram_percent,
@@ -418,8 +417,9 @@ class MultiModelStrategy(Strategy):
         results: List[Tuple[ClientProxy, FitRes]],
         failures: List[BaseException],
     ) -> Optional[Tuple[Parameters, Dict[str, Scalar]]]:
-        global previous_round_end_time
+        global previous_round_end_time, currentRnd
 
+        agg_start = time.time()
         if previous_round_end_time is not None:
             time_between_rounds = time.time() - previous_round_end_time
             log(INFO, f"Results Aggregated in {time_between_rounds:.2f} seconds.")
@@ -428,63 +428,67 @@ class MultiModelStrategy(Strategy):
         training_times = []
         global currentRnd
         currentRnd += 1
-        srt1 = 'N/A'
-        srt2 = 'N/A'
         
         for client_proxy, fit_res in results:
             client_id = fit_res.metrics.get("client_id")
             model_type = fit_res.metrics.get("model_type")
             training_time = fit_res.metrics.get("training_time")
-            communication_time_client = fit_res.metrics.get("communication_time")
-            recv_time = time.time()
-            communication_time = recv_time - communication_time_client
-            fit_res.metrics["communication_time"] = communication_time
-            
-            compressed_parameters_hex = fit_res.metrics.get("compressed_parameters_hex")
+            communication_time = fit_res.metrics.get("communication_time")    
+            training_times.append(training_time)        
             client_model_mapping[client_id] = model_type
 
             if MESSAGE_COMPRESSOR:
+                compressed_parameters_hex = fit_res.metrics.get("compressed_parameters_hex")
                 compressed_parameters = bytes.fromhex(compressed_parameters_hex)
                 decompressed_parameters = pickle.loads(zlib.decompress(compressed_parameters))
                 fit_res.parameters = ndarrays_to_parameters(decompressed_parameters)
 
-            if training_time is not None:
-                training_times.append(training_time)              
+                          
             results_a.append((fit_res.parameters, fit_res.num_examples, fit_res.metrics))
 
         previous_round_end_time = time.time()
-        srt1 = max(training_times)
-        agg_model_type = results_a[0][2].get("model_type", "Unknown")
-        self.parameters_a = self.aggregate_parameters(results_a, agg_model_type, srt1, srt2, time_between_rounds)
+        max_train = max(training_times) if training_times else 0.0
 
-        metrics_aggregated = {}
-        if any(global_metrics[agg_model_type].values()):
-            metrics_aggregated[agg_model_type] = {
-                key: global_metrics[agg_model_type][key][-1] if global_metrics[agg_model_type][key] else None
-                for key in global_metrics[agg_model_type]
-            }
+        agg_end = time.time()
+        aggregation_time = agg_end - agg_start
+        log(INFO, f"Aggregation completed in {aggregation_time:.2f}s")
+
+        self.parameters_a = self.aggregate_parameters(
+            results_a,
+            model_type,
+            max_train,
+            communication_time,
+            time_between_rounds
+        )
 
         aggregated_model = NetA()
-        aggregated_params_list = parameters_to_ndarrays(self.parameters_a)
-        set_weights_A(aggregated_model, aggregated_params_list)
+        params_list = parameters_to_ndarrays(self.parameters_a)
+        set_weights_A(aggregated_model, params_list)
 
         if MODEL_COVERSIONING:
             server_folder = os.path.join("model_weights", "server")
             os.makedirs(server_folder, exist_ok=True)
-            server_file_path = os.path.join(server_folder, f"MW_round{currentRnd}.pt")
-            torch.save(aggregated_model.state_dict(), server_file_path)
-            log(INFO, f"Aggregated model weights saved to {server_file_path}")
-        
-        preprocess_csv()
+            path = os.path.join(server_folder, f"MW_round{currentRnd}.pt")
+            torch.save(aggregated_model.state_dict(), path)
+            log(INFO, f"Aggregated model weights saved to {path}")
 
-        # crea una copia con il numero del round
+        metrics_aggregated: Dict[str, Scalar] = {}
+        if any(global_metrics[model_type].values()):
+            metrics_aggregated[model_type] = {
+                key: global_metrics[model_type][key][-1]
+                if global_metrics[model_type][key]
+                else None
+                for key in global_metrics[model_type]
+            }
+
+        preprocess_csv()
         round_csv = os.path.join(
             performance_dir,
             f"FLwithAP_performance_metrics_round{currentRnd}.csv"
         )
         shutil.copy(csv_file, round_csv)
 
-        return (self.parameters_a), metrics_aggregated
+        return self.parameters_a, metrics_aggregated
 
     def aggregate_parameters(self, results, agg_model_type, srt1, srt2, time_between_rounds):
         total_examples = sum([num_examples for _, num_examples, _ in results])

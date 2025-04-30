@@ -9,6 +9,7 @@ import pickle
 import numpy as np
 import psutil
 import ray
+import taskA
 from datetime import datetime
 from io import BytesIO
 from flwr.client import ClientApp, NumPyClient
@@ -70,7 +71,6 @@ def set_cpu_affinity(process_pid: int, num_cpus: int) -> bool:
     import psutil
 
     def safe_log(message):
-        # log(INFO, message)  
         pass
 
     system = platform.system()
@@ -241,19 +241,19 @@ class FlowerClient(NumPyClient):
             self.net, self.trainloader, self.testloader,
             epochs=1, DEVICE=self.DEVICE
         )
-        communication_time = time.time()
-
+        train_end_ts = taskA.TRAIN_COMPLETED_TS or time.time()
         new_parameters = get_weights_A(self.net)
+        send_ready_ts = time.time()
+        communication_time = send_ready_ts - train_end_ts
+        wall_end = time.time()
+        cpu_end = proc.cpu_times().user + proc.cpu_times().system
+        cpu_percent = (cpu_end - cpu_start) / (wall_end - wall_start) * 100
+        ram_percent = proc.memory_percent()
         compressed_parameters_hex = None
 
         global GLOBAL_ROUND_COUNTER
         round_number = GLOBAL_ROUND_COUNTER
         GLOBAL_ROUND_COUNTER += 1
-
-        wall_end = time.time()
-        cpu_end = proc.cpu_times().user + proc.cpu_times().system
-        cpu_percent = (cpu_end - cpu_start) / (wall_end - wall_start) * 100
-        ram_percent = proc.memory_percent()
 
         if MODEL_COVERSIONING:
             client_folder = os.path.join("model_weights", "clients", str(self.cid))

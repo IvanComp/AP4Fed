@@ -174,12 +174,6 @@ class FlowerClient(NumPyClient):
                     elif name == "multi-task_model_trainer": MULTI_TASK_MODEL_TRAINER = True
                     elif name == "heterogeneous_data_handler": HETEROGENEOUS_DATA_HANDLER = True
 
-        # Applica Message Compressor se abilitato
-        if MESSAGE_COMPRESSOR and compressed_parameters_hex:
-            comp = bytes.fromhex(compressed_parameters_hex)
-            decompressed = pickle.loads(zlib.decompress(comp))
-            parameters = [arr.astype(np.float32) for arr in [np.load(BytesIO(t)) for t in decompressed.tensors]]
-
         set_weights_A(self.net, parameters)
         results, training_time = train_A(self.net, self.trainloader, self.testloader, epochs=1, DEVICE=self.DEVICE)
         train_end_ts = taskA.TRAIN_COMPLETED_TS or time.time()
@@ -192,7 +186,6 @@ class FlowerClient(NumPyClient):
         duration = wall_end - wall_start
         cpu_pct = ((cpu_end - cpu_start) / duration * 100) if duration > 0 else 0.0
         ram_pct = get_ram_percent_cgroup()
-        #send_ts = wall_end
 
         round_number = GLOBAL_ROUND_COUNTER
         GLOBAL_ROUND_COUNTER += 1
