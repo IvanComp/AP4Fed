@@ -338,40 +338,54 @@ def Net():
     num_classes = AVAILABLE_DATASETS[dataset_name]["num_classes"]
     return get_dynamic_model(num_classes, model_name)
 
-# Funzione per sbilanciare il dataset in percentuale
-def unbalance_dataset_percent(
-    trainset,
-    remove_class_frac: float = 0.3,
-    add_class_frac: float = 0.3,
-    remove_pct_range: tuple = (0.5, 1.0),
-    add_pct_range: tuple = (0.5, 1.0)
-):
-    class_to_idxs = {}
-    for idx, (_, label) in enumerate(trainset):
-        class_to_idxs.setdefault(label, []).append(idx)
+def get_non_iid_indices(dataset,
+                        remove_class_frac,
+                        add_class_frac,
+                        remove_pct_range,
+                        add_pct_range):
+    cls2idx = {}
+    for i, (_, lbl) in enumerate(dataset):
+        cls2idx.setdefault(lbl, []).append(i)
 
-    classes = list(class_to_idxs.keys())
-    n = len(classes)
-    n_remove = max(1, int(remove_class_frac * n))
-    n_add    = max(1, int(add_class_frac * n))
+    classes = list(cls2idx.keys())
+    n_cls = len(classes)
+    n_remove = max(1, int(remove_class_frac * n_cls))
     remove_cls = random.sample(classes, n_remove)
-    add_cls    = random.sample([c for c in classes if c not in remove_cls], n_add)
 
-    new_idxs = []
-    for c in classes:
-        idxs = class_to_idxs[c].copy()
-        if c in remove_cls:
-            pct = random.uniform(*remove_pct_range)
-            to_remove = int(len(idxs) * pct)
-            keep = max(1, len(idxs) - to_remove)
-            idxs = random.sample(idxs, keep)
-        if c in add_cls:
-            pct = random.uniform(*add_pct_range)
-            to_add = int(len(class_to_idxs[c]) * pct)
-            idxs += random.choices(class_to_idxs[c], k=to_add)
-        new_idxs += idxs
+    avail = [c for c in classes if c not in remove_cls]
+    raw_add = max(1, int(add_class_frac * n_cls))
+    n_add = min(raw_add, len(avail))
+    add_cls = random.sample(avail, n_add)
+    pct_remove = {c: random.uniform(*remove_pct_range) for c in remove_cls}
+    pct_add    = {c: random.uniform(*add_pct_range)    for c in add_cls}
 
-    return Subset(trainset, new_idxs)
+    selected = []
+
+    for c, idxs in cls2idx.items():
+        n = len(idxs)
+        if c in pct_remove:
+            keep = int(n * (1 - pct_remove[c]))
+            selected += random.sample(idxs, keep)
+        elif c in pct_add:
+            add_n = int(n * pct_add[c])
+            selected += idxs + random.choices(idxs, k=add_n)
+        else:
+            selected += idxs
+
+    total = len(dataset)
+    if len(selected) > total:
+        selected = random.sample(selected, total)
+    elif len(selected) < total:
+        selected += random.choices(selected, k=total-len(selected))
+
+    zero_cls = random.choice(classes)
+    selected = [i for i in selected if dataset[i][1] != zero_cls]
+    if len(selected) > total:
+        selected = random.sample(selected, total)
+    elif len(selected) < total:
+        selected += random.choices(selected, k=total-len(selected))
+
+    return selected
 
 def load_data(client_config, dataset_name_override=None):
     global DATASET_NAME, DATASET_TYPE
@@ -455,16 +469,28 @@ def load_data(client_config, dataset_name_override=None):
     if ds_type == "iid":
         final_train = trainset
     elif ds_type == "non-iid":
-        final_train = unbalance_dataset_percent(
+        classes = list({lbl for _, lbl in trainset})
+        n_cls = len(classes)
+        remove_class_frac = random.uniform(1/n_cls, (n_cls-1)/n_cls)
+        add_class_frac    = random.uniform(0,     (n_cls-1)/n_cls)
+        low_r, high_r     = sorted([random.uniform(0.5, 1.0),
+                                     random.uniform(0.5, 1.0)])
+        low_a, high_a     = sorted([random.uniform(0.5, 1.0),
+                                     random.uniform(0.5, 1.0)])
+
+        idxs = get_non_iid_indices(
             trainset,
-            remove_class_frac=0.3,
-            add_class_frac=0.3,
-            remove_pct_range=(0.5, 1.0),
-            add_pct_range=(0.5, 1.0),
+            remove_class_frac,
+            add_class_frac,
+            (low_r, high_r),
+            (low_a, high_a),
         )
+        final_train = Subset(trainset, idxs)
 
     trainloader = DataLoader(final_train, batch_size=batch_size, shuffle=True)
     testloader  = DataLoader(testset,    batch_size=batch_size, shuffle=False)
+    dist = Counter(lbl for _, lbl in final_train)
+    #log(INFO, f"Distribuzione classi non-IID: {dict(dist)}")
     return trainloader, testloader
 
 # Funzione per augmentazione con GAN

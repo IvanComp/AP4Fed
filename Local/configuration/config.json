@@ -16,7 +16,7 @@
             "params": {}
         },
         "message_compressor": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         },
         "model_co-versioning_registry": {
@@ -39,15 +39,15 @@
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
-            "model": "CNN 16k"
+            "model": "CNN 256k"
         },
         {
             "client_id": 2,
             "cpu": 1,
             "ram": 2,
             "dataset": "CIFAR-10",
-            "data_distribution_type": "IID",
-            "model": "CNN 16k"
+            "data_distribution_type": "non-IID",
+            "model": "CNN 256k"
         }
     ]
 }

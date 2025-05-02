@@ -16,11 +16,11 @@
             "params": {}
         },
         "message_compressor": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         },
         "model_co-versioning_registry": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         },
         "multi-task_model_trainer": {
@@ -46,7 +46,7 @@
             "cpu": 5,
             "ram": 2,
             "dataset": "CIFAR-10",
-            "data_distribution_type": "IID",
+            "data_distribution_type": "non-IID",
             "model": "CNN 16k"
         }
     ]

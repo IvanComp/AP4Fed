@@ -467,9 +467,8 @@ class MultiModelStrategy(Strategy):
         max_train = max(training_times) if training_times else 0.0
         agg_end = time.time()
         aggregation_time = agg_end - agg_start
-        log(INFO, f"Aggregation completed in {aggregation_time:.2f}s")
+        #log(INFO, f"Aggregation completed in {aggregation_time:.2f}s")
 
-        # aggrega parametri
         self.parameters_a = self.aggregate_parameters(
             results_a,
             model_type,

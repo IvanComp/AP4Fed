@@ -631,8 +631,8 @@ class PreSimulationPage(QWidget):
                 info_button.clicked.connect(info_clicked)
 
                 checkbox = QCheckBox(pattern_name)
-                if pattern_name == "Model co-Versioning Registry":
-                    checkbox.setChecked(True)
+                #if pattern_name == "Model co-Versioning Registry":
+                    #checkbox.setChecked(True)
                 checkbox.setToolTip(pattern_desc)
                 checkbox.setStyleSheet("QCheckBox { color: black; font-size: 12px; }")
 

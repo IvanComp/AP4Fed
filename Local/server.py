@@ -452,7 +452,7 @@ class MultiModelStrategy(Strategy):
 
         agg_end = time.time()
         aggregation_time = agg_end - agg_start
-        log(INFO, f"Aggregation completed in {aggregation_time:.2f}s")
+        #log(INFO, f"Aggregation completed in {aggregation_time:.2f}s")
 
         self.parameters_a = self.aggregate_parameters(
             results_a,
