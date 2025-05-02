@@ -244,7 +244,7 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
     if name in ("cnn_16k", "cnn16k"):
         input_size = {
             "CIFAR10": 32, "CIFAR100": 32,
-            "FashionMNIST": 28, "KMNIST": 28, "FMNIST": 28,
+            "FashionMNIST": 28, "MNIST": 28, "KMNIST": 28, "FMNIST": 28,
             "ImageNet100": 224, "OXFORDIIITPET": 224
         }[DATASET_NAME]
         in_ch = AVAILABLE_DATASETS[DATASET_NAME]["channels"]
@@ -257,7 +257,7 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
     if name in ("cnn_64k", "cnn64k"):
         input_size = {
             "CIFAR10": 32, "CIFAR100": 32,
-            "FashionMNIST": 28, "KMNIST": 28, "FMNIST": 28,
+            "FashionMNIST": 28, "MNIST": 28, "KMNIST": 28, "FMNIST": 28,
             "ImageNet100": 224, "OXFORDIIITPET": 224
         }[DATASET_NAME]
         in_ch = AVAILABLE_DATASETS[DATASET_NAME]["channels"]
@@ -270,7 +270,7 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
     if name in ("cnn_256k", "cnn256k"):
         input_size = {
             "CIFAR10": 32, "CIFAR100": 32,
-            "FashionMNIST": 28, "KMNIST": 28, "FMNIST": 28,
+            "FashionMNIST": 28, "MNIST": 28, "KMNIST": 28, "FMNIST": 28,
             "ImageNet100": 224, "OXFORDIIITPET": 224
         }[DATASET_NAME]
         in_ch = AVAILABLE_DATASETS[DATASET_NAME]["channels"]
@@ -446,7 +446,6 @@ def load_data(client_config, dataset_name_override=None):
 
     trainset, testset = get_datasets(trf)
 
-    # Applico IID vs non‑IID
     ds_type = DATASET_TYPE.lower()
     if ds_type == "iid":
         final_train = trainset
@@ -463,7 +462,6 @@ def load_data(client_config, dataset_name_override=None):
     testloader  = DataLoader(testset,    batch_size=batch_size, shuffle=False)
     return trainloader, testloader
 
-# Funzione per augmentazione con GAN
 def augment_with_gan(clients_data, target_samples_per_class=2500):
     augmented_clients_data = []
     for idx, (subset, class_distribution) in enumerate(clients_data):

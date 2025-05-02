@@ -447,33 +447,24 @@ class MultiModelStrategy(Strategy):
         training_times = []
         currentRnd += 1
 
-        # raccolta risultati client
         for client_proxy, fit_res in results:
             training_time = fit_res.metrics.get("training_time")
             communication_time = fit_res.metrics.get("communication_time")
+            compressed_parameters_hex = fit_res.metrics.get("compressed_parameters_hex")
             training_times.append(training_time)
-
             client_id = fit_res.metrics.get("client_id")
             model_type = fit_res.metrics.get("model_type")
             client_model_mapping[client_id] = model_type
 
-            # decompressione se serve
-            if MESSAGE_COMPRESSOR:
-                comp_hex = fit_res.metrics.get("compressed_parameters_hex", "")
-                if comp_hex:
-                    comp = bytes.fromhex(comp_hex)
-                    decomp = pickle.loads(zlib.decompress(comp))
-                    fit_res.parameters = ndarrays_to_parameters(decomp)
+            if MESSAGE_COMPRESSOR:   
+                compressed_parameters = bytes.fromhex(compressed_parameters_hex)
+                decompressed_parameters = pickle.loads(zlib.decompress(compressed_parameters))
+                fit_res.parameters = ndarrays_to_parameters(decompressed_parameters)        
 
             results_a.append((fit_res.parameters, fit_res.num_examples, fit_res.metrics))
 
-        # fine round client
         previous_round_end_time = time.time()
-
-        # training time massimo
         max_train = max(training_times) if training_times else 0.0
-
-        # fine misurazione aggregazione
         agg_end = time.time()
         aggregation_time = agg_end - agg_start
         log(INFO, f"Aggregation completed in {aggregation_time:.2f}s")
@@ -487,12 +478,10 @@ class MultiModelStrategy(Strategy):
             time_between_rounds
         )
 
-        # setto i pesi nel modello server
         aggregated_model = NetA()
         params_list = parameters_to_ndarrays(self.parameters_a)
         set_weights_A(aggregated_model, params_list)
 
-        # salvataggio facoltativo
         if MODEL_COVERSIONING:
             server_folder = os.path.join("model_weights", "server")
             os.makedirs(server_folder, exist_ok=True)
@@ -500,7 +489,6 @@ class MultiModelStrategy(Strategy):
             torch.save(aggregated_model.state_dict(), path)
             log(INFO, f"Aggregated model weights saved to {path}")
 
-        # metriche aggregate
         metrics_aggregated: Dict[str, Scalar] = {}
         if any(global_metrics[model_type].values()):
             metrics_aggregated[model_type] = {
@@ -509,8 +497,6 @@ class MultiModelStrategy(Strategy):
                 else None
                 for key in global_metrics[model_type]
             }
-        #metrics_aggregated["aggregation_time"] = aggregation_time
-        #metrics_aggregated["communication_time"] = communication_time
         preprocess_csv()
         round_csv = os.path.join(
             performance_dir,

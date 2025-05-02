@@ -433,17 +433,18 @@ class MultiModelStrategy(Strategy):
             client_id = fit_res.metrics.get("client_id")
             model_type = fit_res.metrics.get("model_type")
             training_time = fit_res.metrics.get("training_time")
-            communication_time = fit_res.metrics.get("communication_time")    
+            communication_time = fit_res.metrics.get("communication_time")
+            compressed_parameters_hex = fit_res.metrics.get("compressed_parameters_hex")    
             training_times.append(training_time)        
             client_model_mapping[client_id] = model_type
 
             if MESSAGE_COMPRESSOR:
-                compressed_parameters_hex = fit_res.metrics.get("compressed_parameters_hex")
                 compressed_parameters = bytes.fromhex(compressed_parameters_hex)
                 decompressed_parameters = pickle.loads(zlib.decompress(compressed_parameters))
                 fit_res.parameters = ndarrays_to_parameters(decompressed_parameters)
 
-                          
+            if training_time is not None:
+                training_times.append(training_time)              
             results_a.append((fit_res.parameters, fit_res.num_examples, fit_res.metrics))
 
         previous_round_end_time = time.time()

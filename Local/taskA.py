@@ -50,6 +50,12 @@ AVAILABLE_DATASETS = {
         "channels": 1,
         "num_classes": 10
     },
+    "MNIST": {
+        "class": MNIST,
+        "normalize": ((0.5,), (0.5,)),
+        "channels": 1,
+        "num_classes": 10
+    },
     "FashionMNIST": {
         "class": FashionMNIST,
         "normalize": ((0.5,), (0.5,)),

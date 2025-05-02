@@ -16,7 +16,7 @@
             "params": {}
         },
         "message_compressor": {
-            "enabled": false,
+            "enabled": true,
             "params": {}
         },
         "model_co-versioning_registry": {

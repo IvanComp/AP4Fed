@@ -160,7 +160,7 @@ class FlowerClient(NumPyClient):
         global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MODEL_COVERSIONING, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
         CLIENT_SELECTOR = CLIENT_CLUSTER = MESSAGE_COMPRESSOR = MODEL_COVERSIONING = MULTI_TASK_MODEL_TRAINER = HETEROGENEOUS_DATA_HANDLER = False
         current_dir = os.path.abspath(os.path.dirname(__file__))
-        config_dir = os.path.join(current_dir, '..', 'configuration')
+        config_dir = os.path.join(current_dir, 'configuration')
         config_file = os.path.join(config_dir, 'config.json')
         if os.path.exists(config_file):
             with open(config_file, 'r') as f:
@@ -174,56 +174,124 @@ class FlowerClient(NumPyClient):
                     elif name == "multi-task_model_trainer": MULTI_TASK_MODEL_TRAINER = True
                     elif name == "heterogeneous_data_handler": HETEROGENEOUS_DATA_HANDLER = True
 
+        if CLIENT_SELECTOR:
+            selector_params = configJSON["patterns"]["client_selector"]["params"]
+            selection_strategy = selector_params.get("selection_strategy", "")
+            selection_criteria = selector_params.get("selection_criteria", "")
+            selection_value = selector_params.get("selection_value", "")
+            if selection_strategy == "Resource-Based":
+                if selection_criteria == "CPU" and self.n_cpu < selection_value:
+                    log(INFO, f"Client {self.cid} has insufficient CPU ({self.n_cpu}). Will not participate in the next FL round.")
+                    return parameters, 0, {}
+                if selection_criteria == "RAM" and self.ram < selection_value:
+                    log(INFO, f"Client {self.cid} has insufficient RAM ({self.ram}). Will not participate in the next FL round.")
+                    return parameters, 0, {}
+            log(INFO, f"Client {self.cid} participates in this round. (CPU: {self.n_cpu}, RAM: {self.ram})")
+
+        if CLIENT_CLUSTER:
+            selector_params = configJSON["patterns"]["client_cluster"]["params"]
+            clustering_strategy = selector_params.get("clustering_strategy", "")
+            clustering_criteria = selector_params.get("clustering_criteria", "")
+            selection_value = selector_params.get("selection_value", "")
+            if clustering_strategy == "Resource-Based":
+                if clustering_criteria == "CPU":
+                    grp = "A" if self.n_cpu < selection_value else "B"
+                else:
+                    grp = "A" if self.ram < selection_value else "B"
+                log(INFO, f"Client {self.cid} assigned to Cluster {grp} {self.model_type}")
+            elif clustering_strategy == "Data-Based":
+                if clustering_criteria == "IID":
+                    log(INFO, f"Client {self.cid} assigned to IID Cluster {self.model_type}")
+                else:
+                    log(INFO, f"Client {self.cid} assigned to non-IID Cluster {self.model_type}")
+               
+        if MESSAGE_COMPRESSOR:
+            compressed_parameters = bytes.fromhex(compressed_parameters_hex)
+            decompressed_parameters = pickle.loads(zlib.decompress(compressed_parameters))
+            numpy_arrays = [np.load(BytesIO(tensor)) for tensor in decompressed_parameters.tensors]
+            numpy_arrays = [arr.astype(np.float32) for arr in numpy_arrays]
+            parameters = numpy_arrays
+        else:
+            parameters = parameters
+
         set_weights_A(self.net, parameters)
         results, training_time = train_A(self.net, self.trainloader, self.testloader, epochs=1, DEVICE=self.DEVICE)
-        train_end_ts = taskA.TRAIN_COMPLETED_TS or time.time()
         new_parameters = get_weights_A(self.net)
+        compressed_parameters_hex = None
+
+        train_end_ts = taskA.TRAIN_COMPLETED_TS or time.time()       
         send_ready_ts = time.time()
         communication_time = send_ready_ts - train_end_ts
 
         wall_end = time.time()
         cpu_end = proc.cpu_times().user + proc.cpu_times().system
         duration = wall_end - wall_start
-        cpu_pct = ((cpu_end - cpu_start) / duration * 100) if duration > 0 else 0.0
-        ram_pct = get_ram_percent_cgroup()
+        cpu_percent = ((cpu_end - cpu_start) / duration * 100) if duration > 0 else 0.0
+        ram_percent = get_ram_percent_cgroup()
 
         round_number = GLOBAL_ROUND_COUNTER
         GLOBAL_ROUND_COUNTER += 1
 
         if MODEL_COVERSIONING:
-            folder = os.path.join("model_weights", "clients", str(self.cid))
-            os.makedirs(folder, exist_ok=True)
-            path = os.path.join(folder, f"MW_round{round_number}.pt")
-            torch.save(self.net.state_dict(), path)
-            log(INFO, f"Client {self.cid} weights saved to {path}")
-
-        metrics = {
-            "train_loss": results.get("train_loss", 0.0),
-            "train_accuracy": results.get("train_accuracy", 0.0),
-            "train_f1": results.get("train_f1", 0.0),
-            "train_mae": results.get("train_mae", 0.0),
-            "val_loss": results.get("val_loss", 0.0),
-            "val_accuracy": results.get("val_accuracy", 0.0),
-            "val_f1": results.get("val_f1", 0.0),
-            "val_mae": results.get("val_mae", 0.0),
-            "training_time": training_time,
-            "n_cpu": self.n_cpu,
-            "ram": self.ram,
-            "cpu_percent": cpu_pct,
-            "ram_percent": ram_pct,
-            "communication_time": communication_time,
-            "client_id": self.cid,
-            "model_type": self.model_type,
-            "data_distribution_type": self.data_distribution_type,
-            "dataset": self.dataset,
-        }
+            client_folder = os.path.join("model_weights", "clients", str(self.cid))
+            os.makedirs(client_folder, exist_ok=True)
+            client_file_path = os.path.join(client_folder, f"MW_round{round_number}.pt")
+            torch.save(self.net.state_dict(), client_file_path)
+            log(INFO, f"Client {self.cid} model weights saved to {client_file_path}")
 
         if MESSAGE_COMPRESSOR:
-            ser = pickle.dumps(new_parameters)
-            comp = zlib.compress(ser)
-            metrics["compressed_parameters_hex"] = comp.hex()
-
-        return new_parameters, len(self.trainloader.dataset), metrics
+            serialized_parameters = pickle.dumps(new_parameters)
+            original_size = len(serialized_parameters)
+            compressed_parameters = zlib.compress(serialized_parameters)
+            compressed_size = len(compressed_parameters)
+            compressed_parameters_hex = compressed_parameters.hex()
+            reduction_bytes = original_size - compressed_size
+            reduction_percentage = (reduction_bytes / original_size) * 100
+            log(INFO, f"Local parameters compressed: reduced {reduction_bytes} bytes ({reduction_percentage:.2f}%)")
+            metrics = {
+                "train_loss": results["train_loss"],
+                "train_accuracy": results["train_accuracy"],
+                "train_f1": results["train_f1"],
+                "train_mae": results.get("train_mae", 0.0),
+                "val_loss": results["val_loss"],
+                "val_accuracy": results["val_accuracy"],
+                "val_f1": results["val_f1"],
+                "val_mae": results.get("val_mae", 0.0),
+                "training_time": training_time,
+                "n_cpu": self.n_cpu,
+                "ram": self.ram,
+                "cpu_percent": cpu_percent,
+                "ram_percent": ram_percent,
+                "communication_time": communication_time,
+                "client_id": self.cid,
+                "model_type": self.model_type,
+                "data_distribution_type": self.data_distribution_type,
+                "dataset": self.dataset,
+                "compressed_parameters_hex": compressed_parameters_hex,
+            }
+            return [], len(self.trainloader.dataset), metrics
+        else:
+            metrics = {
+                "train_loss": results["train_loss"],
+                "train_accuracy": results["train_accuracy"],
+                "train_f1": results["train_f1"],
+                "train_mae": results.get("train_mae", 0.0),
+                "val_loss": results["val_loss"],
+                "val_accuracy": results["val_accuracy"],
+                "val_f1": results["val_f1"],
+                "val_mae": results.get("val_mae", 0.0),
+                "training_time": training_time,
+                "n_cpu": self.n_cpu,
+                "ram": self.ram,
+                "cpu_percent": cpu_percent,
+                "ram_percent": ram_percent,
+                "communication_time": communication_time,
+                "client_id": self.cid,
+                "model_type": self.model_type,
+                "data_distribution_type": self.data_distribution_type,
+                "dataset": self.dataset,
+            }
+            return new_parameters, len(self.trainloader.dataset), metrics
 
     def evaluate(self, parameters, config):
         set_weights_A(self.net, parameters)
@@ -238,8 +306,8 @@ if __name__ == "__main__":
     details = load_client_details()
     cid_env = os.getenv("CLIENT_ID")
     config = next((c for c in details if str(c.get("client_id")) == cid_env), details[0])
-    mt = config.get("model")
+    model_type = config.get("model")
     start_client(
         server_address=os.getenv("SERVER_ADDRESS", "server:8080"),
-        client=FlowerClient(client_config=config, model_type=mt).to_client()
+        client=FlowerClient(client_config=config, model_type=model_type).to_client()
     )

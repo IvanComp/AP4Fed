@@ -191,13 +191,13 @@ class MultiTaskModelTrainerDialog(QDialog):
 
         self.m1_label = QLabel("Select Model M1:")
         self.m1_combo = QComboBox()
-        self.m1_combo.addItems(["CIFAR-10", "CIFAR-100", "FMNIST", "FashionMNIST", "KMNIST", "MNIST"])
+        self.m1_combo.addItems(["CIFAR-10", "CIFAR-100", "MNIST", "FashionMNIST", "KMNIST", "ImageNet100"])
         layout.addWidget(self.m1_label)
         layout.addWidget(self.m1_combo)
 
         self.m2_label = QLabel("Select Model M2:")
         self.m2_combo = QComboBox()
-        self.m2_combo.addItems(["CIFAR-10", "CIFAR-100", "FMNIST", "FashionMNIST", "KMNIST", "MNIST"])
+        self.m2_combo.addItems(["CIFAR-10", "CIFAR-100", "MNIST", "FashionMNIST", "KMNIST", "ImageNet100"])
         layout.addWidget(self.m2_label)
         layout.addWidget(self.m2_combo)
 
@@ -1189,7 +1189,7 @@ class ClientConfigurationPage(QWidget):
         dataset_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         dataset_label.setAlignment(Qt.AlignLeft)
         dataset_combobox = QComboBox()
-        dataset_combobox.addItems(["CIFAR-10", "CIFAR-100", "FMNIST", "KMNIST", "FashionMNIST", "OXFORDIIITPET", "ImageNet100"])
+        dataset_combobox.addItems(["CIFAR-10", "CIFAR-100", "MNIST", "KMNIST", "FashionMNIST", "OXFORDIIITPET", "ImageNet100"])
         dataset_combobox.setFixedWidth(160)
         dataset_layout = QHBoxLayout()
         dataset_layout.setSpacing(12)

@@ -171,7 +171,7 @@ class FlowerClient(NumPyClient):
         HETEROGENEOUS_DATA_HANDLER = False
 
         current_dir = os.path.abspath(os.path.dirname(__file__))
-        config_dir = os.path.join(current_dir, '..', 'configuration')
+        config_dir = os.path.join(current_dir, 'configuration')
         config_file = os.path.join(config_dir, 'config.json')
         numpy_arrays = None
 
@@ -235,6 +235,8 @@ class FlowerClient(NumPyClient):
             numpy_arrays = [np.load(BytesIO(tensor)) for tensor in decompressed_parameters.tensors]
             numpy_arrays = [arr.astype(np.float32) for arr in numpy_arrays]
             parameters = numpy_arrays
+        else:
+            parameters = parameters
 
         set_weights_A(self.net, parameters)
         results, training_time = train_A(
@@ -243,13 +245,14 @@ class FlowerClient(NumPyClient):
         )
         train_end_ts = taskA.TRAIN_COMPLETED_TS or time.time()
         new_parameters = get_weights_A(self.net)
+        compressed_parameters_hex = None
         send_ready_ts = time.time()
         communication_time = send_ready_ts - train_end_ts
         wall_end = time.time()
         cpu_end = proc.cpu_times().user + proc.cpu_times().system
         cpu_percent = (cpu_end - cpu_start) / (wall_end - wall_start) * 100
         ram_percent = proc.memory_percent()
-        compressed_parameters_hex = None
+        
 
         global GLOBAL_ROUND_COUNTER
         round_number = GLOBAL_ROUND_COUNTER
