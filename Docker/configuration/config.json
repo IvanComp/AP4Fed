@@ -20,7 +20,7 @@
             "params": {}
         },
         "model_co-versioning_registry": {
-            "enabled": false,
+            "enabled": true,
             "params": {}
         },
         "multi-task_model_trainer": {
@@ -28,14 +28,14 @@
             "params": {}
         },
         "heterogeneous_data_handler": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         }
     },
     "client_details": [
         {
             "client_id": 1,
-            "cpu": 5,
+            "cpu": 1,
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
@@ -43,10 +43,10 @@
         },
         {
             "client_id": 2,
-            "cpu": 5,
+            "cpu": 1,
             "ram": 2,
             "dataset": "CIFAR-10",
-            "data_distribution_type": "non-IID",
+            "data_distribution_type": "IID",
             "model": "CNN 16k"
         }
     ]

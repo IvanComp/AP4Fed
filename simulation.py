@@ -7,6 +7,7 @@ import copy
 import glob
 import random
 import locale
+import importlib.util
 from flwr.common.logger import log
 from logging import INFO
 import pandas as pd
@@ -14,8 +15,25 @@ import seaborn as sns
 from PyQt5.QtCore import Qt, QProcess, QProcessEnvironment, QTimer
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton, QSizePolicy
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+import os, sys
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
+from PyQt5.QtWidgets import (
+    QDialog, QVBoxLayout, QHBoxLayout,
+    QLabel, QPushButton, QComboBox, QSpinBox
+)
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+import torchvision.transforms as T
+from PIL import Image
+import os
+import torch
+from lime import lime_image
+import numpy as np
+import matplotlib.pyplot as plt
+
+BASE = os.path.dirname(os.path.abspath(__file__))
+if BASE not in sys.path:
+    sys.path.insert(0, BASE)
 
 def random_pastel():
     return (
@@ -36,7 +54,13 @@ class DashboardWindow(QWidget):
 
         base_dir = os.path.dirname(__file__)
         subdir   = 'Docker' if simulation_type == 'Docker' else 'Local'
-        cfg_path = os.path.join(base_dir, subdir, 'configuration', 'config.json')
+        cfg_path = os.path.join(self.base_dir, self.sim_type, "configuration", "config.json")
+        with open(cfg_path, "r") as f:
+            cfg = json.load(f)
+        self.client_configs = {
+            int(d["client_id"]): d
+            for d in cfg.get("client_details", [])
+        }
         model_name = ""
         dataset_name = ""
 
@@ -235,6 +259,30 @@ class SimulationPage(QWidget):
         self.dashboard_button.clicked.connect(self.open_dashboard)
         layout.addWidget(self.dashboard_button)
 
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        self.XAI_button = QPushButton("Explainable AI")
+        self.XAI_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.XAI_button.setCursor(Qt.PointingHandCursor)
+        self.XAI_button.setStyleSheet("""
+            QPushButton {
+                background-color: green;
+                color: white;
+                font-size: 14px;
+                padding: 10px;
+                border-radius: 5px;
+                width: 200px;
+            }
+            QPushButton:hover {
+                background-color: #00b300;
+            }
+            QPushButton:pressed {
+                background-color: #008000;
+            }      
+        """)
+        self.XAI_button.clicked.connect(self.open_XAI)
+        layout.addWidget(self.XAI_button)
+
         self.stop_button = QPushButton("Stop Simulation")
         self.stop_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.stop_button.setCursor(Qt.PointingHandCursor)
@@ -266,6 +314,15 @@ class SimulationPage(QWidget):
     def open_dashboard(self):
         self.db = DashboardWindow(self.config['simulation_type'])
         self.db.show()
+    
+    def open_XAI(self):
+        base = os.path.dirname(os.path.abspath(__file__))
+        sim_type = self.config["simulation_type"]       
+        dataset = self.config["client_details"][0]["dataset"]
+        clients = [d["client_id"] for d in self.config["client_details"]]
+        rounds  = list(range(1, self.config["rounds"] + 1))
+        self.xai_win = XAIWindow(base, dataset, clients, rounds, sim_type)
+        self.xai_win.show()
 
     def start_simulation(self, num_supernodes):
         sim_type = self.config['simulation_type']
@@ -399,7 +456,7 @@ class SimulationPage(QWidget):
     def remove_ansi_sequences(self, text):
         ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
         return ansi_escape.sub('', text)
-
+    
     def process_finished(self):
         self.output_area.appendPlainText("Simulation finished.")
         self.title_label.setText("Simulation Results")
@@ -424,3 +481,161 @@ class SimulationPage(QWidget):
     def is_command_available(self, command):
         from shutil import which
         return which(command) is not None
+    
+class XAIWindow(QDialog):
+    def __init__(self, base_dir, dataset_name, clients, rounds, sim_type):
+        super().__init__()
+        self.clients = clients
+        self.base_dir = base_dir
+        self.sim_type = sim_type
+        self.dataset  = dataset_name
+        self.clients  = clients
+        self.setWindowTitle("Explainable AI")
+        self.resize(800, 600)
+        layout = QVBoxLayout(self)
+
+        cfg_path = os.path.join(self.base_dir, self.sim_type, "configuration", "config.json")
+        with open(cfg_path, "r") as f:
+            full_cfg = json.load(f)
+        self.client_configs = {
+            int(c["client_id"]): c
+            for c in full_cfg["client_details"]
+        }
+
+        # seleziona target (server o client)
+        hl = QHBoxLayout()
+        hl.addWidget(QLabel("Target:"))
+        self.target_cb = QComboBox()
+        self.target_cb.addItem("Server")
+        for c in clients:
+            self.target_cb.addItem(f"Client {c}")
+        hl.addWidget(self.target_cb)
+
+        # seleziona round
+        hl.addWidget(QLabel("Round:"))
+        self.round_sb = QSpinBox()
+        self.round_sb.setMinimum(1)
+        self.round_sb.setMaximum(max(rounds))
+        self.round_sb.setValue(1)
+        hl.addWidget(self.round_sb)
+
+        # seleziona indice immagine
+        hl.addWidget(QLabel("Sample idx:"))
+        self.idx_sb = QSpinBox()
+        self.idx_sb.setMinimum(0)
+        self.idx_sb.setMaximum(99)  # o dimensione dataset-1
+        self.idx_sb.setValue(0)
+        hl.addWidget(self.idx_sb)
+
+        # button genera explain
+        self.run_btn = QPushButton("Run LIME")
+        self.run_btn.clicked.connect(self.run_explain)
+        hl.addWidget(self.run_btn)
+
+        layout.addLayout(hl)
+
+        # area figure
+        self.fig, self.axes = plt.subplots(1, 2)
+        self.canvas = FigureCanvas(self.fig)
+        layout.addWidget(self.canvas)
+
+        # parametri
+        self.sim_type = sim_type
+        self.base_dir = base_dir
+        self.dataset = dataset_name
+        self.clients = clients
+        work_dir   = os.path.join(self.base_dir, self.sim_type)
+        taskA_path = os.path.join(self.base_dir, self.sim_type, "taskA.py")
+        spec       = importlib.util.spec_from_file_location("taskA", taskA_path)
+        taskA_mod  = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(taskA_mod)
+
+        # salvo le funzioni per riusa
+        self.NetA        = taskA_mod.Net
+        self.load_data_A = taskA_mod.load_data
+
+        # istanzio un test_loader per ricavare il transform giusto
+        # uso sempre la config del primo client
+        first_cid       = self.clients[0]
+        _, test_loader  = self.load_data_A(self.client_configs[first_cid])
+        self.test_loader = test_loader
+        self.preprocess = test_loader.dataset.transform
+
+    def load_model(self, target, rnd, client_id=None):
+        work_dir = os.path.join(self.base_dir, self.sim_type)
+        if target == "server":
+            model_path = os.path.join(work_dir, "model_weights", "server", f"MW_round{rnd}.pt")
+            cfg         = { "client_id": self.clients[0], **{} }
+        else:
+            model_path = os.path.join(work_dir, "model_weights", "clients", str(client_id), f"MW_round{rnd}.pt")
+            cfg         = { "client_id": client_id,    **{} }
+
+        if not os.path.isfile(model_path):
+            raise FileNotFoundError(f"Modello non trovato: {model_path}")
+
+        # ricarica taskA da quel folder e prendi Net
+        taskA_path = os.path.join(work_dir, "taskA.py")
+        spec       = importlib.util.spec_from_file_location("taskA", taskA_path)
+        taskA_mod  = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(taskA_mod)
+        model      = taskA_mod.Net()  # istanzia dinamico
+        state      = torch.load(model_path, map_location="cpu")
+        model.load_state_dict(state)
+        model.eval()
+        return model
+
+    def load_image(self, idx, client_id=None):
+        # prendo l'immagine idx già normalizzata
+        img_tensor, _ = self.test_loader.dataset[idx]
+        return T.ToPILImage()(img_tensor)
+
+    def run_explain(self):
+        tgt = self.target_cb.currentText().lower()
+        rnd = self.round_sb.value()
+        idx = self.idx_sb.value()
+
+        if tgt == "server":
+            model = self.load_model("server", rnd)
+            img   = self.load_image(idx)
+        else:
+            cid   = int(self.target_cb.currentText().split()[-1])
+            model = self.load_model("client", rnd, client_id=cid)
+            img   = self.load_image(idx, client_id=cid)
+
+        # converti PIL→numpy
+        img_np = np.array(img)
+
+        explainer = lime_image.LimeImageExplainer()
+        def batch_predict(x):
+            # x è lista di array H×W×C
+            batch = torch.stack([
+                self.preprocess(Image.fromarray(xx))
+                for xx in x
+            ], dim=0)
+            with torch.no_grad():
+                out = model(batch)
+                return torch.softmax(out, dim=1).cpu().numpy()
+
+        exp = explainer.explain_instance(
+            img_np, batch_predict,
+            top_labels=1,
+            hide_color=0,
+            num_samples=100
+        )
+
+        # mostra
+        self.axes[0].imshow(img)
+        self.axes[0].set_title("Original")
+        self.axes[0].axis("off")
+
+        temp, mask = exp.get_image_and_mask(
+            label=exp.top_labels[0],
+            positive_only=True,
+            num_features=5,
+            hide_rest=False
+        )
+        self.axes[1].imshow(temp)
+        self.axes[1].set_title("LIME explanation")
+        self.axes[1].axis("off")
+
+        self.canvas.draw()

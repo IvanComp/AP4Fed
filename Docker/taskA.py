@@ -515,7 +515,7 @@ def load_data(client_config, dataset_name_override=None):
         (lbl.item() if isinstance(lbl, torch.Tensor) else lbl)
         for _, lbl in final_train
     )
-    log(INFO, f"Class Distribution: {dict(dist)}")
+    #log(INFO, f"Class Distribution: {dict(dist)}")
     return trainloader, testloader
 
 def balance_dataset_with_gan(

@@ -339,12 +339,10 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
 def Net():
     with open(config_file, 'r') as f:
         configJSON = json.load(f)
-    ds = configJSON.get("dataset", None)
-    if ds is None:
-        ds = configJSON["client_details"][0].get("dataset", None)
+    ds = configJSON.get("dataset") or configJSON["client_details"][0]["dataset"]
     dataset_name = normalize_dataset_name(ds)
-    model_name = configJSON["client_details"][0].get("model", None)
-    num_classes = AVAILABLE_DATASETS[dataset_name]["num_classes"]
+    model_name   = configJSON["client_details"][0]["model"]
+    num_classes  = AVAILABLE_DATASETS[dataset_name]["num_classes"]
     return get_dynamic_model(num_classes, model_name)
 
 def get_non_iid_indices(dataset,
@@ -511,7 +509,7 @@ def load_data(client_config, dataset_name_override=None):
         (lbl.item() if isinstance(lbl, torch.Tensor) else lbl)
         for _, lbl in final_train
     )
-    log(INFO, f"Class Distribution: {dict(dist)}")
+    #log(INFO, f"Class Distribution: {dict(dist)}")
     return trainloader, testloader
 
 def balance_dataset_with_gan(
