@@ -8,29 +8,45 @@ from logging import INFO
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, Subset
+import torchvision.utils as vutils
+from torch.utils.data import DataLoader, Subset, Dataset
 from flwr.common.logger import log
 from torchvision.datasets import CIFAR10, CIFAR100, MNIST, FashionMNIST, KMNIST, OxfordIIITPet
 from torchvision.transforms import Resize, CenterCrop, ToTensor, Normalize, Compose
 import torchvision.models as models
+from torchgan.models import DCGANGenerator, DCGANDiscriminator
+from torchgan.trainer import Trainer
+from torchgan.losses import MinimaxGeneratorLoss, MinimaxDiscriminatorLoss
+from torch.utils.data import TensorDataset, ConcatDataset
+from collections import Counter
+from torch.utils.data import DataLoader, Subset, TensorDataset, ConcatDataset
+from collections import Counter
+import random
 
+class TensorLabelDataset(Dataset):
+    def __init__(self, dataset):
+        self.dataset = dataset
+    def __len__(self):
+        return len(self.dataset)
+    def __getitem__(self, idx):
+        x, y = self.dataset[idx]
+        if not torch.is_tensor(y):
+            y = torch.tensor(y)
+        return x, y
+    
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 GLOBAL_ROUND_COUNTER = 1
-
-# Flag per i pattern
+HGAN_DONE = False
 global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
 CLIENT_SELECTOR = False
 CLIENT_CLUSTER = False
 MESSAGE_COMPRESSOR = False
 MULTI_TASK_MODEL_TRAINER = False
 HETEROGENEOUS_DATA_HANDLER = False
-
-# Variabili per il dataset
 global DATASET_TYPE, DATASET_NAME
 DATASET_TYPE = ""
 DATASET_NAME = ""
 
-# Configurazioni dei dataset
 AVAILABLE_DATASETS = {
     "CIFAR10": {
         "class": CIFAR10,
@@ -76,12 +92,17 @@ AVAILABLE_DATASETS = {
     }
 }
 
-# Percorso del file di configurazione
+_orig_make_grid = vutils.make_grid
+def make_grid_no_range(*args, **kwargs):
+    kwargs.pop("range", None)
+    return _orig_make_grid(*args, **kwargs)
+
+vutils.make_grid = make_grid_no_range
+
 current_dir = os.path.abspath(os.path.dirname(__file__))
 config_dir = os.path.join(current_dir, 'configuration')
 config_file = os.path.join(config_dir, 'config.json')
 
-# Funzione per normalizzare il nome del dataset
 def normalize_dataset_name(name: str) -> str:
     name_clean = name.replace("-", "").upper()
     if name_clean == "CIFAR10":
@@ -124,7 +145,6 @@ if os.path.exists(config_file):
     DATASET_NAME = normalize_dataset_name(ds)
     DATASET_TYPE = configJSON["client_details"][0].get("data_distribution_type", "")
 
-# Classe dinamica per CNN custom con parametri variabili
 class CNN_Dynamic(nn.Module):
     def __init__(
         self, num_classes: int, input_size: int, in_ch: int,
@@ -149,8 +169,7 @@ class CNN_Dynamic(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         return self.fc3(x)
-
-# Funzione per ottenere dinamicamente la classe dei pesi in base al modello
+    
 def get_weight_class_dynamic(model_name: str):
     weight_mapping = {
         "cnn": None,
@@ -279,7 +298,6 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
             fc1_out=240, fc2_out=168
         )
 
-    # modelli torchvision
     if not hasattr(models, name):
         raise ValueError(f"Modello '{model_name}' non in torchvision.models")
     constructor = getattr(models, name)
@@ -406,11 +424,9 @@ def load_data(client_config, dataset_name_override=None):
     }
     base_size = default_sizes.get(DATASET_NAME, 32)
 
-    # Calcolo target_size in base al modello
-    model_name = client_config.get("model", "resnet18").lower()
+    model_name = client_config.get("model", "CNN 16k").lower()
     target_size = 256 if model_name in ["alexnet", "vgg11", "vgg13", "vgg16", "vgg19"] else base_size
 
-    # Trasformazioni
     if DATASET_NAME == "OXFORDIIITPET":
         transform_list = [
             Resize((base_size, base_size)),
@@ -435,7 +451,6 @@ def load_data(client_config, dataset_name_override=None):
         ]
     trf = Compose(transform_list)
 
-    # Carico i dataset
     if DATASET_NAME == "ImageNet100":
         batch_size = 64
         from torchvision.datasets import ImageFolder
@@ -446,7 +461,6 @@ def load_data(client_config, dataset_name_override=None):
         return DataLoader(trainset, batch_size=batch_size, shuffle=True), \
                DataLoader(testset,  batch_size=batch_size)
 
-    # Per gli altri dataset
     batch_size = 32
     dataset_class = dataset_config["class"]
     def get_datasets(transform):
@@ -480,39 +494,117 @@ def load_data(client_config, dataset_name_override=None):
             (low_r, high_r),
             (low_a, high_a),
         )
-        final_train = Subset(trainset, idxs)
+        base = Subset(trainset, idxs)
+        global HGAN_DONE
+        if HETEROGENEOUS_DATA_HANDLER and not HGAN_DONE:
+            num_cls = AVAILABLE_DATASETS[DATASET_NAME]["num_classes"]
+            target_pc = len(trainset) // num_cls
+            final_train = balance_dataset_with_gan(
+                base,
+                num_classes=num_cls,
+                target_per_class=target_pc
+            )
+            HGAN_DONE = True
+        else:
+            final_train = base
 
+    final_train = TensorLabelDataset(final_train)
     trainloader = DataLoader(final_train, batch_size=batch_size, shuffle=True)
-    testloader  = DataLoader(testset,    batch_size=batch_size, shuffle=False)
-    dist = Counter(lbl for _, lbl in final_train)
-    #log(INFO, f"Distribuzione classi non-IID: {dict(dist)}")
+    testloader  = DataLoader(testset, batch_size=batch_size, shuffle=False)
+    dist = Counter(
+        (lbl.item() if isinstance(lbl, torch.Tensor) else lbl)
+        for _, lbl in final_train
+    )
+    log(INFO, f"Class Distribution: {dict(dist)}")
     return trainloader, testloader
 
-def augment_with_gan(clients_data, target_samples_per_class=2500):
-    augmented_clients_data = []
-    for idx, (subset, class_distribution) in enumerate(clients_data):
-        new_class_distribution = Counter(class_distribution)
-        print("\nApplying GAN Augmentation to non-IID Clients...")
-        print(f"\nAugmenting non-IID Client {idx+1}:")
-        for cls in range(AVAILABLE_DATASETS[DATASET_NAME]["num_classes"]):
-            current_count = new_class_distribution[cls]
-            class_name = str(cls)
-            if hasattr(subset.dataset, 'classes'):
-                class_name = subset.dataset.classes[cls]
-            if current_count < target_samples_per_class:
-                additional_samples = target_samples_per_class - current_count
-                new_class_distribution[cls] += additional_samples
-                print(f"  {class_name} - Adding {additional_samples} samples to reach {target_samples_per_class}")
-            elif current_count > target_samples_per_class:
-                samples_to_remove = current_count - target_samples_per_class
-                new_class_distribution[cls] -= samples_to_remove
-                print(f"  {class_name} - Removing {samples_to_remove} samples to reach {target_samples_per_class}")
-            else:
-                print(f"  {class_name} - No augmentation needed (current: {current_count})")
-        augmented_clients_data.append((subset, new_class_distribution))
-    return augmented_clients_data
+def balance_dataset_with_gan(
+    trainset,
+    num_classes,
+    target_per_class=None,
+    latent_dim=100,
+    epochs=5,
+    batch_size=64,
+    device=DEVICE,
+):
 
-# Funzione di training
+    counts = Counter(lbl for _, lbl in trainset)
+    total  = len(trainset)
+    if target_per_class is None:
+        target_per_class = total // num_classes
+
+    cls2idx = {c: [] for c in range(num_classes)}
+    for idx, (_, lbl) in enumerate(trainset):
+        cls2idx[int(lbl)].append(idx)
+
+    real_indices = []
+    for c in range(num_classes):
+        idxs = cls2idx[c]
+        cnt  = len(idxs)
+        if cnt > target_per_class:
+            real_indices += random.sample(idxs, target_per_class)
+        else:
+            real_indices += idxs
+
+    subset_real = Subset(trainset, real_indices)
+
+    under_cls = [c for c in range(num_classes) if len(cls2idx[c]) < target_per_class]
+    if not under_cls:
+        return subset_real
+
+    idxs_under = [i for i in real_indices if int(trainset[i][1]) in under_cls]
+    loader_under = DataLoader(
+        Subset(trainset, idxs_under),
+        batch_size=batch_size,
+        shuffle=True
+    )
+
+    C, H, W = trainset[0][0].shape
+    models_cfg = {
+        "generator": {
+            "name": DCGANGenerator,
+            "args": {"encoding_dims": latent_dim, "out_size": H, "out_channels": C},
+            "optimizer": {"name": torch.optim.Adam, "args": {"lr": 2e-4, "betas": (0.5, 0.999)}},
+        },
+        "discriminator": {
+            "name": DCGANDiscriminator,
+            "args": {"in_size": H, "in_channels": C},
+            "optimizer": {"name": torch.optim.Adam, "args": {"lr": 2e-4, "betas": (0.5, 0.999)}},
+        },
+    }
+    losses_list = [MinimaxGeneratorLoss(), MinimaxDiscriminatorLoss()]
+
+    trainer = Trainer(
+        models=models_cfg,
+        losses_list=losses_list,
+        device=device,
+        sample_size=batch_size,
+        epochs=epochs,
+    )
+    trainer.train(loader_under)
+
+    synth_imgs = []
+    synth_lbls = []
+    for c in under_cls:
+        cnt    = len(cls2idx[c])
+        to_gen = target_per_class - cnt
+        if to_gen <= 0:
+            continue
+        z = torch.randn(to_gen, latent_dim, device=device)
+        with torch.no_grad():
+            gen_imgs = trainer.generator(z).cpu()
+        synth_imgs.append(gen_imgs)
+        synth_lbls += [c] * to_gen
+
+    if not synth_imgs:
+        return subset_real
+
+    all_imgs = torch.cat(synth_imgs, dim=0)
+    all_lbls = torch.tensor(synth_lbls, dtype=torch.long)
+    synth_ds = TensorDataset(all_imgs, all_lbls)
+
+    return ConcatDataset([subset_real, synth_ds])
+
 def train(net, trainloader, valloader, epochs, DEVICE):
     log(INFO, "Starting training...")
     start_time = time.time()
@@ -546,7 +638,6 @@ def train(net, trainloader, valloader, epochs, DEVICE):
     }
     return results, training_time
 
-# Funzione di test
 def test(net, testloader):
     net.to(DEVICE)
     criterion = torch.nn.CrossEntropyLoss()
@@ -574,7 +665,6 @@ def test(net, testloader):
         mae_value = None
     return loss, accuracy, f1, mae_value
 
-# Calcolo F1
 def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
     confusion_matrix = torch.zeros(num_classes, num_classes)
     for t, p in zip(y_true, y_pred):
