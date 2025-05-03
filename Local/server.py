@@ -230,6 +230,7 @@ def preprocess_csv():
     sns.set_theme(style="ticks")
 
 def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_rounds):
+
     if agg_model_type not in global_metrics:
         global_metrics[agg_model_type] = {
             "train_loss": [],
@@ -241,91 +242,124 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
             "val_f1": [],
             "val_mae": []
         }
-    examples = [num_examples for num_examples, _ in metrics]
+
+    examples = [n for n, _ in metrics]
     total_examples = sum(examples)
     if total_examples == 0:
         return {
-            "train_loss": float('inf'),
+            "train_loss": float("inf"),
             "train_accuracy": 0.0,
             "train_f1": 0.0,
             "train_mae": 0.0,
-            "val_loss": float('inf'),
+            "val_loss": float("inf"),
             "val_accuracy": 0.0,
             "val_f1": 0.0,
             "val_mae": 0.0,
         }
 
-    train_losses = [num_examples * m["train_loss"] for num_examples, m in metrics]
-    train_accuracies = [num_examples * m["train_accuracy"] for num_examples, m in metrics]
-    train_f1 = [num_examples * m["train_f1"] for num_examples, m in metrics]
-    train_maes = [num_examples * m["train_mae"] for num_examples, m in metrics]
-    val_losses = [num_examples * m["val_loss"] for num_examples, m in metrics]
-    val_accuracies = [num_examples * m["val_accuracy"] for num_examples, m in metrics]
-    val_f1 = [num_examples * m["val_f1"] for num_examples, m in metrics]
-    val_maes = [num_examples * m["val_mae"] for num_examples, m in metrics]
+    train_losses     = [n * m.get("train_loss",    0) for n, m in metrics]
+    train_accuracies = [n * m.get("train_accuracy",0) for n, m in metrics]
+    train_f1s        = [n * m.get("train_f1",      0) for n, m in metrics]
+    train_maes       = [n * m.get("train_mae",     0) for n, m in metrics]
+    val_losses       = [n * m.get("val_loss",      0) for n, m in metrics]
+    val_accuracies   = [n * m.get("val_accuracy",  0) for n, m in metrics]
+    val_f1s          = [n * m.get("val_f1",        0) for n, m in metrics]
+    val_maes         = [n * m.get("val_mae",       0) for n, m in metrics]
 
-    avg_train_loss = sum(train_losses) / total_examples
+    avg_train_loss     = sum(train_losses)     / total_examples
     avg_train_accuracy = sum(train_accuracies) / total_examples
-    avg_train_f1 = sum(train_f1) / total_examples
-    avg_train_mae = sum(train_maes) / total_examples
-    avg_val_loss = sum(val_losses) / total_examples
-    avg_val_accuracy = sum(val_accuracies) / total_examples
-    avg_val_f1 = sum(val_f1) / total_examples
-    avg_val_mae = sum(val_maes) / total_examples
+    avg_train_f1       = sum(train_f1s)        / total_examples
+    avg_train_mae      = sum(train_maes)       / total_examples
+    avg_val_loss       = sum(val_losses)       / total_examples
+    avg_val_accuracy   = sum(val_accuracies)   / total_examples
+    avg_val_f1         = sum(val_f1s)          / total_examples
+    avg_val_mae        = sum(val_maes)         / total_examples
 
-    global_metrics[agg_model_type]["train_loss"].append(avg_train_loss)
-    global_metrics[agg_model_type]["train_accuracy"].append(avg_train_accuracy)
-    global_metrics[agg_model_type]["train_f1"].append(avg_train_f1)
-    global_metrics[agg_model_type]["train_mae"].append(avg_train_mae)
-    global_metrics[agg_model_type]["val_loss"].append(avg_val_loss)
-    global_metrics[agg_model_type]["val_accuracy"].append(avg_val_accuracy)
-    global_metrics[agg_model_type]["val_f1"].append(avg_val_f1)
-    global_metrics[agg_model_type]["val_mae"].append(avg_val_mae)
+    gm = global_metrics[agg_model_type]
+    gm["train_loss"].append(avg_train_loss)
+    gm["train_accuracy"].append(avg_train_accuracy)
+    gm["train_f1"].append(avg_train_f1)
+    gm["train_mae"].append(avg_train_mae)
+    gm["val_loss"].append(avg_val_loss)
+    gm["val_accuracy"].append(avg_val_accuracy)
+    gm["val_f1"].append(avg_val_f1)
+    gm["val_mae"].append(avg_val_mae)
 
     client_data_list = []
-    for num_examples, m in metrics:
-        client_id = m.get("client_id")
-        model_type = m.get("model_type", "N/A")
-        data_distr = m.get("data_distribution_type", "N/A")
-        dataset_value = m.get("dataset", "N/A")
-        training_time = m.get("training_time")
-        n_cpu = m.get("n_cpu")
-        cpu_percent = m.get("cpu_percent")
-        ram_percent = m.get("ram_percent")
-        communication_time = m.get("communication_time")      
-        if client_id:
-            srt2 = time_between_rounds           
-            client_data_list.append((
-                client_id, training_time, communication_time, time_between_rounds,
-                n_cpu, cpu_percent, ram_percent,
-                model_type, data_distr, dataset_value, srt1, srt2
-            ))
+    for n, m in metrics:
+        if n == 0:
+            continue
 
+        client_id          = m.get("client_id")
+        model_type         = m.get("model_type", "N/A")
+        data_distr         = m.get("data_distribution_type", "N/A")
+        dataset_value      = m.get("dataset", "N/A")
+        training_time      = m.get("training_time")      or 0.0
+        communication_time = m.get("communication_time") or 0.0
+        n_cpu              = m.get("n_cpu")              or 0
+        cpu_percent        = m.get("cpu_percent")        or 0.0
+        ram_percent        = m.get("ram_percent")        or 0.0
+
+        client_data_list.append((
+            client_id,
+            training_time,
+            communication_time,
+            time_between_rounds,
+            n_cpu,
+            cpu_percent,
+            ram_percent,
+            model_type,
+            data_distr,
+            dataset_value,
+            srt1,
+            srt2
+        ))
+
+    # Scrivo le righe sul CSV
     num_clients = len(client_data_list)
-    for idx, client_data in enumerate(client_data_list):
+    for idx, data in enumerate(client_data_list):
         (
-            client_id, training_time, communication_time, time_between_rounds,
-            n_cpu, cpu_percent, ram_percent,
-            model_type, data_distr, dataset_value, srt1, srt2
-        ) = client_data
-        already_logged = (idx != num_clients - 1)
+            client_id,
+            training_time,
+            communication_time,
+            tb_round,
+            n_cpu,
+            cpu_percent,
+            ram_percent,
+            model_type,
+            data_distr,
+            dataset_value,
+            srt1,
+            srt2
+        ) = data
+        last = (idx == num_clients - 1)
         log_round_time(
-            client_id, currentRnd-1,
-            training_time, communication_time, time_between_rounds,
-            n_cpu, cpu_percent, ram_percent,
-            model_type, data_distr, dataset_value,
-            already_logged, srt1, srt2, agg_model_type
+            client_id,
+            currentRnd - 1,
+            training_time,
+            communication_time,
+            tb_round,
+            n_cpu,
+            cpu_percent,
+            ram_percent,
+            model_type,
+            data_distr,
+            dataset_value,
+            not last,
+            srt1,
+            srt2,
+            agg_model_type
         )
 
     return {
-        "train_loss": avg_train_loss,
+        "train_loss":     avg_train_loss,
         "train_accuracy": avg_train_accuracy,
-        "train_f1": avg_train_f1,
-        "train_mae": avg_train_mae,
-        "val_loss": avg_val_loss,
-        "val_accuracy": avg_val_accuracy,
-        "val_f1": avg_val_f1,
-        "val_mae": avg_val_mae,
+        "train_f1":       avg_train_f1,
+        "train_mae":      avg_train_mae,
+        "val_loss":       avg_val_loss,
+        "val_accuracy":   avg_val_accuracy,
+        "val_f1":         avg_val_f1,
+        "val_mae":        avg_val_mae,
     }
 
 parametersA = ndarrays_to_parameters(get_weights_A(NetA()))
@@ -430,12 +464,12 @@ class MultiModelStrategy(Strategy):
         currentRnd += 1
         
         for client_proxy, fit_res in results:
+            
             client_id = fit_res.metrics.get("client_id")
             model_type = fit_res.metrics.get("model_type")
             training_time = fit_res.metrics.get("training_time")
             communication_time = fit_res.metrics.get("communication_time")
-            compressed_parameters_hex = fit_res.metrics.get("compressed_parameters_hex")    
-            training_times.append(training_time)        
+            compressed_parameters_hex = fit_res.metrics.get("compressed_parameters_hex")          
             client_model_mapping[client_id] = model_type
 
             if MESSAGE_COMPRESSOR:
@@ -491,23 +525,29 @@ class MultiModelStrategy(Strategy):
 
         return self.parameters_a, metrics_aggregated
 
-    def aggregate_parameters(self, results, agg_model_type, srt1, srt2, time_between_rounds):
-        total_examples = sum([num_examples for _, num_examples, _ in results])
+    def aggregate_parameters(self, results, task_type, srt1, srt2, time_between_rounds):
+
+        filtered = [
+            (p, n, m)
+            for p, n, m in results
+            if n > 0
+        ]
+        total = sum(n for _, n, _ in filtered)
         new_weights = None
-
         metrics = []
-        for client_params, num_examples, client_metrics in results:
-            client_weights = parameters_to_ndarrays(client_params)
-            weight = num_examples / total_examples
+        for params, n, m in filtered:
+            w = n / total
+            arrs = parameters_to_ndarrays(params)
             if new_weights is None:
-                new_weights = [w * weight for w in client_weights]
+                new_weights = [x * w for x in arrs]
             else:
-                new_weights = [nw + w * weight for nw, w in zip(new_weights, client_weights)]
-            metrics.append((num_examples, client_metrics))
+                new_weights = [nw + x * w for nw, x in zip(new_weights, arrs)]
+            metrics.append((n, m))
 
-        weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_rounds)
+        weighted_average_global(metrics, task_type, srt1, srt2, time_between_rounds)
+
         return ndarrays_to_parameters(new_weights)
-    
+
     def configure_evaluate(
         self,
         server_round: int,

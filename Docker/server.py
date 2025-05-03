@@ -271,23 +271,24 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
             "val_mae": 0.0,
         }
 
-    train_losses = [num_examples * m["train_loss"] for num_examples, m in metrics]
-    train_accuracies = [num_examples * m["train_accuracy"] for num_examples, m in metrics]
-    train_f1 = [num_examples * m["train_f1"] for num_examples, m in metrics]
-    train_maes = [num_examples * m["train_mae"] for num_examples, m in metrics]
-    val_losses = [num_examples * m["val_loss"] for num_examples, m in metrics]
-    val_accuracies = [num_examples * m["val_accuracy"] for num_examples, m in metrics]
-    val_f1 = [num_examples * m["val_f1"] for num_examples, m in metrics]
-    val_maes = [num_examples * m["val_mae"] for num_examples, m in metrics]
+    # se il valore è None, viene usato 0
+    train_losses     = [n * (m.get("train_loss")     or 0) for n, m in metrics]
+    train_accuracies = [n * (m.get("train_accuracy") or 0) for n, m in metrics]
+    train_f1         = [n * (m.get("train_f1")       or 0) for n, m in metrics]
+    train_maes       = [n * (m.get("train_mae")      or 0) for n, m in metrics]
+    val_losses       = [n * (m.get("val_loss")       or 0) for n, m in metrics]
+    val_accuracies   = [n * (m.get("val_accuracy")   or 0) for n, m in metrics]
+    val_f1           = [n * (m.get("val_f1")         or 0) for n, m in metrics]
+    val_maes         = [n * (m.get("val_mae")        or 0) for n, m in metrics]
 
-    avg_train_loss = sum(train_losses) / total_examples
+    avg_train_loss     = sum(train_losses)     / total_examples
     avg_train_accuracy = sum(train_accuracies) / total_examples
-    avg_train_f1 = sum(train_f1) / total_examples
-    avg_train_mae = sum(train_maes) / total_examples
-    avg_val_loss = sum(val_losses) / total_examples
-    avg_val_accuracy = sum(val_accuracies) / total_examples
-    avg_val_f1 = sum(val_f1) / total_examples
-    avg_val_mae = sum(val_maes) / total_examples
+    avg_train_f1       = sum(train_f1)         / total_examples
+    avg_train_mae      = sum(train_maes)       / total_examples
+    avg_val_loss       = sum(val_losses)       / total_examples
+    avg_val_accuracy   = sum(val_accuracies)   / total_examples
+    avg_val_f1         = sum(val_f1)           / total_examples
+    avg_val_mae        = sum(val_maes)         / total_examples
 
     global_metrics[agg_model_type]["train_loss"].append(avg_train_loss)
     global_metrics[agg_model_type]["train_accuracy"].append(avg_train_accuracy)
@@ -300,48 +301,77 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
 
     client_data_list = []
     for num_examples, m in metrics:
-        client_id = m.get("client_id")
-        model_type = m.get("model_type", "N/A")
-        data_distr = m.get("data_distribution_type", "N/A")
-        dataset_value = m.get("dataset", "N/A")
-        training_time = m.get("training_time")
-        communication_time = m.get("communication_time")
-        n_cpu = m.get("n_cpu")
-        cpu_percent = m.get("cpu_percent")
-        ram_percent = m.get("ram_percent")
+        if num_examples == 0:
+            continue 
+        client_id          = m.get("client_id")
+        model_type         = m.get("model_type", "N/A")
+        data_distr         = m.get("data_distribution_type", "N/A")
+        dataset_value      = m.get("dataset", "N/A")
+        training_time      = m.get("training_time")      or 0.0
+        communication_time = m.get("communication_time") or 0.0
+        n_cpu              = m.get("n_cpu")              or 0
+        cpu_percent        = m.get("cpu_percent")        or 0.0
+        ram_percent        = m.get("ram_percent")        or 0.0
         if client_id:
-            srt2 = time_between_rounds 
             client_data_list.append((
-                client_id, training_time, communication_time, time_between_rounds,
-                n_cpu, cpu_percent, ram_percent,
-                model_type, data_distr, dataset_value, srt1, srt2
+                client_id,
+                training_time,
+                communication_time,
+                time_between_rounds,
+                n_cpu,
+                cpu_percent,
+                ram_percent,
+                model_type,
+                data_distr,
+                dataset_value,
+                srt1,
+                srt2
             ))
 
     num_clients = len(client_data_list)
     for idx, client_data in enumerate(client_data_list):
         (
-            client_id, training_time, communication_time, time_between_rounds,
-            n_cpu, cpu_percent, ram_percent,
-            model_type, data_distr, dataset_value, srt1, srt2
+            client_id,
+            training_time,
+            communication_time,
+            time_between_rounds,
+            n_cpu,
+            cpu_percent,
+            ram_percent,
+            model_type,
+            data_distr,
+            dataset_value,
+            srt1,
+            srt2
         ) = client_data
         already_logged = (idx != num_clients - 1)
         log_round_time(
-            client_id, currentRnd-1,
-            training_time, communication_time, time_between_rounds,
-            n_cpu, cpu_percent, ram_percent,
-            model_type, data_distr, dataset_value,
-            already_logged, srt1, srt2, agg_model_type
+            client_id,
+            currentRnd - 1,
+            training_time,
+            communication_time,
+            time_between_rounds,
+            n_cpu,
+            cpu_percent,
+            ram_percent,
+            model_type,
+            data_distr,
+            dataset_value,
+            already_logged,
+            srt1,
+            srt2,
+            agg_model_type
         )
 
     return {
-        "train_loss": avg_train_loss,
+        "train_loss":     avg_train_loss,
         "train_accuracy": avg_train_accuracy,
-        "train_f1": avg_train_f1,
-        "train_mae": avg_train_mae,
-        "val_loss": avg_val_loss,
-        "val_accuracy": avg_val_accuracy,
-        "val_f1": avg_val_f1,
-        "val_mae": avg_val_mae,
+        "train_f1":       avg_train_f1,
+        "train_mae":      avg_train_mae,
+        "val_loss":       avg_val_loss,
+        "val_accuracy":   avg_val_accuracy,
+        "val_f1":         avg_val_f1,
+        "val_mae":        avg_val_mae,
     }
 
 parametersA = ndarrays_to_parameters(get_weights_A(NetA()))
@@ -435,7 +465,6 @@ class MultiModelStrategy(Strategy):
     ) -> Optional[Tuple[Parameters, Dict[str, Scalar]]]:
         global previous_round_end_time, currentRnd
 
-        # inizio misurazione aggregazione
         agg_start = time.time()
         if previous_round_end_time is not None:
             time_between_rounds = time.time() - previous_round_end_time
@@ -448,26 +477,51 @@ class MultiModelStrategy(Strategy):
         currentRnd += 1
 
         for client_proxy, fit_res in results:
-            training_time = fit_res.metrics.get("training_time")
-            communication_time = fit_res.metrics.get("communication_time")
-            compressed_parameters_hex = fit_res.metrics.get("compressed_parameters_hex")
-            training_times.append(training_time)
-            client_id = fit_res.metrics.get("client_id")
-            model_type = fit_res.metrics.get("model_type")
-            client_model_mapping[client_id] = model_type
+            # se il client non partecipa, metto tutte le metriche a None
+            if fit_res.num_examples == 0:
+                training_time = None
+                communication_time = None
+                compressed_parameters_hex = None
+                client_id = client_proxy.cid
+                model_type = None
+                metrics = {
+                    "train_loss": None,
+                    "train_accuracy": None,
+                    "train_f1": None,
+                    "train_mae": None,
+                    "val_loss": None,
+                    "val_accuracy": None,
+                    "val_f1": None,
+                    "val_mae": None,
+                    "training_time": None,
+                    "communication_time": None,
+                    "compressed_parameters_hex": None,
+                    "client_id": client_id,
+                    "model_type": None,
+                }
+            else:
+                metrics = fit_res.metrics or {}
+                training_time = metrics.get("training_time")
+                communication_time = metrics.get("communication_time")
+                compressed_parameters_hex = metrics.get("compressed_parameters_hex")
+                client_id = metrics.get("client_id")
+                model_type = metrics.get("model_type")
+                client_model_mapping[client_id] = model_type
 
-            if MESSAGE_COMPRESSOR:   
-                compressed_parameters = bytes.fromhex(compressed_parameters_hex)
-                decompressed_parameters = pickle.loads(zlib.decompress(compressed_parameters))
-                fit_res.parameters = ndarrays_to_parameters(decompressed_parameters)        
+            # decompressione se abilitata
+            if MESSAGE_COMPRESSOR and compressed_parameters_hex:
+                compressed = bytes.fromhex(compressed_parameters_hex)
+                decompressed = pickle.loads(zlib.decompress(compressed))
+                fit_res.parameters = ndarrays_to_parameters(decompressed)
 
-            results_a.append((fit_res.parameters, fit_res.num_examples, fit_res.metrics))
+            # raccolgo i tempi validi
+            if training_time is not None:
+                training_times.append(training_time)
+
+            results_a.append((fit_res.parameters, fit_res.num_examples, metrics))
 
         previous_round_end_time = time.time()
         max_train = max(training_times) if training_times else 0.0
-        agg_end = time.time()
-        aggregation_time = agg_end - agg_start
-        #log(INFO, f"Aggregation completed in {aggregation_time:.2f}s")
 
         self.parameters_a = self.aggregate_parameters(
             results_a,
@@ -489,13 +543,13 @@ class MultiModelStrategy(Strategy):
             log(INFO, f"Aggregated model weights saved to {path}")
 
         metrics_aggregated: Dict[str, Scalar] = {}
-        if any(global_metrics[model_type].values()):
+        if any(global_metrics.get(model_type, {}).values()):
             metrics_aggregated[model_type] = {
                 key: global_metrics[model_type][key][-1]
-                if global_metrics[model_type][key]
-                else None
+                if global_metrics[model_type][key] else None
                 for key in global_metrics[model_type]
             }
+
         preprocess_csv()
         round_csv = os.path.join(
             performance_dir,
