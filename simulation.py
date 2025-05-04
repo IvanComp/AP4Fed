@@ -15,6 +15,7 @@ import seaborn as sns
 from PyQt5.QtCore import Qt, QProcess, QProcessEnvironment, QTimer
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton, QSizePolicy
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from skimage.segmentation import mark_boundaries, slic
 import os, sys
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
@@ -45,6 +46,7 @@ def random_pastel():
 class DashboardWindow(QWidget):
     def __init__(self, simulation_type):
         super().__init__()
+        self.base_dir     = os.path.dirname(os.path.abspath(__file__))
         self.simulation_type = simulation_type
         self.setWindowTitle("Live Dashboard")
         self.setStyleSheet("background-color: white;")
@@ -54,7 +56,7 @@ class DashboardWindow(QWidget):
 
         base_dir = os.path.dirname(__file__)
         subdir   = 'Docker' if simulation_type == 'Docker' else 'Local'
-        cfg_path = os.path.join(self.base_dir, self.sim_type, "configuration", "config.json")
+        cfg_path = os.path.join(self.base_dir, self.simulation_type, "configuration", "config.json")
         with open(cfg_path, "r") as f:
             cfg = json.load(f)
         self.client_configs = {
@@ -485,24 +487,37 @@ class SimulationPage(QWidget):
 class XAIWindow(QDialog):
     def __init__(self, base_dir, dataset_name, clients, rounds, sim_type):
         super().__init__()
-        self.clients = clients
+        # attributi base
         self.base_dir = base_dir
         self.sim_type = sim_type
         self.dataset  = dataset_name
         self.clients  = clients
+
+        # carico config.json dei client
+        cfg_path = os.path.join(self.base_dir, self.sim_type, "configuration", "config.json")
+        with open(cfg_path, "r") as f:
+            full_cfg = json.load(f)
+        self.client_configs = {int(c["client_id"]): c for c in full_cfg["client_details"]}
+
+        # import dinamico di taskA.py
+        taskA_path = os.path.join(self.base_dir, self.sim_type, "taskA.py")
+        spec       = importlib.util.spec_from_file_location("taskA", taskA_path)
+        taskA_mod  = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(taskA_mod)
+        self.NetA        = taskA_mod.Net
+        self.load_data_A = taskA_mod.load_data
+
+        # ricavo test_loader e preprocess
+        first_cid       = self.clients[0]
+        _, test_loader  = self.load_data_A(self.client_configs[first_cid])
+        self.test_loader = test_loader
+        self.preprocess  = test_loader.dataset.transform
+
         self.setWindowTitle("Explainable AI")
         self.resize(800, 600)
         layout = QVBoxLayout(self)
 
-        cfg_path = os.path.join(self.base_dir, self.sim_type, "configuration", "config.json")
-        with open(cfg_path, "r") as f:
-            full_cfg = json.load(f)
-        self.client_configs = {
-            int(c["client_id"]): c
-            for c in full_cfg["client_details"]
-        }
-
-        # seleziona target (server o client)
+        # seleziona target
         hl = QHBoxLayout()
         hl.addWidget(QLabel("Target:"))
         self.target_cb = QComboBox()
@@ -523,7 +538,7 @@ class XAIWindow(QDialog):
         hl.addWidget(QLabel("Sample idx:"))
         self.idx_sb = QSpinBox()
         self.idx_sb.setMinimum(0)
-        self.idx_sb.setMaximum(99)  # o dimensione dataset-1
+        self.idx_sb.setMaximum(len(self.test_loader.dataset) - 1)
         self.idx_sb.setValue(0)
         hl.addWidget(self.idx_sb)
 
@@ -539,27 +554,41 @@ class XAIWindow(QDialog):
         self.canvas = FigureCanvas(self.fig)
         layout.addWidget(self.canvas)
 
-        # parametri
-        self.sim_type = sim_type
+        # preview automatico
+        rand_idx = random.randint(self.idx_sb.minimum(), self.idx_sb.maximum())
+        self.idx_sb.setValue(rand_idx)
+        self.run_explain()
+
+    
+            # 2.a) setto gli attributi base
         self.base_dir = base_dir
-        self.dataset = dataset_name
-        self.clients = clients
-        work_dir   = os.path.join(self.base_dir, self.sim_type)
+        self.sim_type = sim_type
+        self.dataset  = dataset_name
+        self.clients  = clients
+
+        # 2.b) carico config.json per i client
+        cfg_path = os.path.join(self.base_dir, self.sim_type, "configuration", "config.json")
+        with open(cfg_path, "r") as f:
+            full_cfg = json.load(f)
+        self.client_configs = {
+            int(c["client_id"]): c
+            for c in full_cfg["client_details"]
+        }
+
+        # 2.c) import dinamico di taskA.py
         taskA_path = os.path.join(self.base_dir, self.sim_type, "taskA.py")
         spec       = importlib.util.spec_from_file_location("taskA", taskA_path)
         taskA_mod  = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(taskA_mod)
-
-        # salvo le funzioni per riusa
         self.NetA        = taskA_mod.Net
         self.load_data_A = taskA_mod.load_data
 
-        # istanzio un test_loader per ricavare il transform giusto
-        # uso sempre la config del primo client
-        first_cid       = self.clients[0]
-        _, test_loader  = self.load_data_A(self.client_configs[first_cid])
+        # 2.d) ricavo test_loader e preprocess giusti
+        first_cid      = self.clients[0]
+        _, test_loader = self.load_data_A(self.client_configs[first_cid])
         self.test_loader = test_loader
-        self.preprocess = test_loader.dataset.transform
+        self.preprocess  = test_loader.dataset.transform
+
 
     def load_model(self, target, rnd, client_id=None):
         work_dir = os.path.join(self.base_dir, self.sim_type)
@@ -590,51 +619,58 @@ class XAIWindow(QDialog):
         return T.ToPILImage()(img_tensor)
 
     def run_explain(self):
-        tgt = self.target_cb.currentText().lower()
-        rnd = self.round_sb.value()
-        idx = self.idx_sb.value()
+        # prendo target, round e idx
+        target_text = self.target_cb.currentText()
+        round_n     = self.round_sb.value()
+        idx         = self.idx_sb.value()
 
-        if tgt == "server":
-            model = self.load_model("server", rnd)
+        # carico modello e immagine
+        if target_text == "Server":
+            model = self.load_model("server", round_n)
             img   = self.load_image(idx)
         else:
-            cid   = int(self.target_cb.currentText().split()[-1])
-            model = self.load_model("client", rnd, client_id=cid)
+            cid   = int(target_text.split()[-1])
+            model = self.load_model("client", round_n, client_id=cid)
             img   = self.load_image(idx, client_id=cid)
 
-        # converti PIL→numpy
+        # numpy array
         img_np = np.array(img)
 
+        # LIME explainer
         explainer = lime_image.LimeImageExplainer()
-        def batch_predict(x):
-            # x è lista di array H×W×C
-            batch = torch.stack([
-                self.preprocess(Image.fromarray(xx))
-                for xx in x
+        def batch_predict(batch):
+            batch_t = torch.stack([
+                self.preprocess(Image.fromarray(x))
+                for x in batch
             ], dim=0)
             with torch.no_grad():
-                out = model(batch)
+                out = model(batch_t)
                 return torch.softmax(out, dim=1).cpu().numpy()
 
         exp = explainer.explain_instance(
-            img_np, batch_predict,
+            img_np,
+            batch_predict,
             top_labels=1,
             hide_color=0,
             num_samples=100
         )
 
-        # mostra
-        self.axes[0].imshow(img)
+        label = exp.top_labels[0]
+        # prendo solo i super‐pixel positivi e disegno i contorni
+        _, mask = exp.get_image_and_mask(
+            label=label,
+            positive_only=True,
+            num_features=5,
+            hide_rest=True
+        )
+        overlay = mark_boundaries(img_np, mask)
+
+        # disegno le due immagini
+        self.axes[0].imshow(img_np)
         self.axes[0].set_title("Original")
         self.axes[0].axis("off")
 
-        temp, mask = exp.get_image_and_mask(
-            label=exp.top_labels[0],
-            positive_only=True,
-            num_features=5,
-            hide_rest=False
-        )
-        self.axes[1].imshow(temp)
+        self.axes[1].imshow(overlay)
         self.axes[1].set_title("LIME explanation")
         self.axes[1].axis("off")
 

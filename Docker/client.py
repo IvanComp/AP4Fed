@@ -10,6 +10,13 @@ import numpy as np
 import psutil
 import socket
 import taskA
+import sys
+import torch
+import logging
+logging.getLogger("onnx2keras").setLevel(logging.ERROR)
+logging.getLogger("ray").setLevel(logging.WARNING)
+import onnx
+from onnx2keras import onnx_to_keras
 from datetime import datetime
 from io import BytesIO
 from flwr.client import ClientApp, NumPyClient, start_client
@@ -23,6 +30,14 @@ from taskA import (
     set_weights as set_weights_A,
     train as train_A,
     test as test_A
+)
+sys.path.append(
+    os.path.abspath(
+        os.path.join(
+            os.path.dirname(__file__),
+            "arachne"
+        )
+    )
 )
 
 global_client_details = None
@@ -64,6 +79,7 @@ class ConfigServer:
             return config
 
 CLIENT_REGISTRY = ClientRegistry()
+DISTRIBUTED_MODEL_REPAIR = True
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 GLOBAL_ROUND_COUNTER = 1
 
@@ -215,7 +231,87 @@ class FlowerClient(NumPyClient):
             parameters = parameters
 
         set_weights_A(self.net, parameters)
-        results, training_time = train_A(self.net, self.trainloader, self.testloader, epochs=1, DEVICE=self.DEVICE)
+
+        if DISTRIBUTED_MODEL_REPAIR and GLOBAL_ROUND_COUNTER > 1:
+            log(INFO, f"Client {self.cid}: avvio distributed model repair")
+            self.net.eval()
+            X_batch, _ = next(iter(self.trainloader))
+            input_shape = (1,) + tuple(X_batch.shape[1:])  
+
+            onnx_path = "temp_model.onnx"
+            dummy = torch.randn(input_shape).to(DEVICE)
+            torch.onnx.export(
+                self.net, dummy, onnx_path,
+                input_names=["input"], output_names=["output"],
+                opset_version=13
+            )
+
+            model_onnx = onnx.load(onnx_path)
+
+            for node in model_onnx.graph.node:
+                node.name = node.name.replace('/', '_')
+                for i in range(len(node.input)):
+                    node.input[i] = node.input[i].replace('/', '_')
+                for i in range(len(node.output)):
+                    node.output[i] = node.output[i].replace('/', '_')
+
+            for init in model_onnx.graph.initializer:
+                init.name = init.name.replace('/', '_')
+
+            for v in model_onnx.graph.input:
+                v.name = v.name.replace('/', '_')
+            for v in model_onnx.graph.output:
+                v.name = v.name.replace('/', '_')
+
+            onnx.save(model_onnx, onnx_path)
+
+            import keras.layers as _layers
+
+            def _patch_init(layer_cls):
+                orig = layer_cls.__init__
+                def wrapped(self, *args, **kwargs):
+                    w = kwargs.pop("weights", None)
+                    orig(self, *args, **kwargs)
+                    if w is not None and hasattr(self, "set_weights") and len(self.weights) > 0:
+                        self.set_weights(w)
+                layer_cls.__init__ = wrapped
+
+            _patch_init(_layers.Conv2D)
+            _patch_init(_layers.Dense)
+
+            keras_model = onnx_to_keras(model_onnx, ["input"])
+            keras_path = "model_local.h5"
+            keras_model.save(keras_path)
+
+            from arachne.run_localise import compute_FI_and_GL
+
+            try:
+                X_batch, y_batch = next(iter(self.trainloader))
+                X_np = X_batch.cpu().numpy()
+                y_np = y_batch.cpu().numpy()
+            except StopIteration:
+                log(INFO, f"Client {self.cid}: trainloader vuoto, skip repair")
+            else:
+                total_cands = compute_FI_and_GL(
+                    X_np, y_np,
+                    indices_to_target=list(range(len(X_np))),
+                    target_weights={},
+                    is_multi_label=False,
+                    path_to_keras_model=keras_path
+                )
+                sd = self.net.state_dict()
+                for layer_name, idxs, vals in total_cands:
+                    w = sd[layer_name].cpu().numpy()
+                    for idx, val in zip(idxs, vals):
+                        w.flat[idx] = val
+                    sd[layer_name].copy_(torch.from_numpy(w).to(DEVICE))
+                self.net.load_state_dict(sd)
+            self.net.train()
+
+        results, training_time = train_A(
+            self.net, self.trainloader, self.testloader,
+            epochs=1, DEVICE=self.DEVICE
+        )
         new_parameters = get_weights_A(self.net)
         compressed_parameters_hex = None
 
