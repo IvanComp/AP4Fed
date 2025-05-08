@@ -364,10 +364,10 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
 
 parametersA = ndarrays_to_parameters(get_weights_A(NetA()))
 client_model_mapping = {}
-previous_round_end_time = time.time() 
 
 class MultiModelStrategy(Strategy):
     def __init__(self, initial_parameters_a: Parameters):
+        self.round_start_time: float | None = None
         self.parameters_a = initial_parameters_a
         banner = r"""
   ___  ______  ___ ______       _ 
@@ -411,7 +411,7 @@ class MultiModelStrategy(Strategy):
         parameters: Parameters,
         client_manager: ClientManager,
     ) -> List[Tuple[ClientProxy, FitIns]]:
-        t0 = time.time()
+        self.round_start_time = time.time()
         client_manager.wait_for(client_count) 
         clients = client_manager.sample(num_clients=client_count)
         fit_configurations = []
@@ -454,9 +454,8 @@ class MultiModelStrategy(Strategy):
         global previous_round_end_time, currentRnd
 
         agg_start = time.time()
-        if previous_round_end_time is not None:
-            time_between_rounds = time.time() - previous_round_end_time
-            log(INFO, f"Results Aggregated in {time_between_rounds:.2f} seconds.")
+        round_total_time = time.time() - self.round_start_time
+        log(INFO, f"Results Aggregated in {round_total_time:.2f} seconds.")
 
         results_a = []
         training_times = []
@@ -493,7 +492,7 @@ class MultiModelStrategy(Strategy):
             model_type,
             max_train,
             communication_time,
-            time_between_rounds
+            round_total_time
         )
 
         aggregated_model = NetA()

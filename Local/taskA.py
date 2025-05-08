@@ -54,12 +54,6 @@ AVAILABLE_DATASETS = {
         "channels": 1,
         "num_classes": 10
     },
-    "MNIST": {
-        "class": MNIST,
-        "normalize": ((0.5,), (0.5,)),
-        "channels": 1,
-        "num_classes": 10
-    },
     "FashionMNIST": {
         "class": FashionMNIST,
         "normalize": ((0.5,), (0.5,)),
@@ -258,7 +252,7 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
     # cnn 16k
     if name in ("cnn_16k", "cnn16k"):
         input_size = {
-            "CIFAR10": 32, "CIFAR100": 32,
+            "CIFAR10": 32, "CIFAR100": 32, "MNIST": 28,
             "FashionMNIST": 28, "KMNIST": 28,
             "ImageNet100": 224, "OXFORDIIITPET": 224
         }[DATASET_NAME]
@@ -271,7 +265,7 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
     # cnn 64k
     if name in ("cnn_64k", "cnn64k"):
         input_size = {
-            "CIFAR10": 32, "CIFAR100": 32,
+            "CIFAR10": 32, "CIFAR100": 32, "MNIST": 28,
             "FashionMNIST": 28, "KMNIST": 28,
             "ImageNet100": 224, "OXFORDIIITPET": 224
         }[DATASET_NAME]
@@ -284,7 +278,7 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
     # cnn 256k
     if name in ("cnn_256k", "cnn256k"):
         input_size = {
-            "CIFAR10": 32, "CIFAR100": 32,
+            "CIFAR10": 32, "CIFAR100": 32, "MNIST": 28,
             "FashionMNIST": 28, "KMNIST": 28,
             "ImageNet100": 224, "OXFORDIIITPET": 224
         }[DATASET_NAME]

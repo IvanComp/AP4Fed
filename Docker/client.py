@@ -61,9 +61,6 @@ def load_client_details():
     return global_client_details
 
 class ConfigServer:
-    """
-    Assegna configurazioni ai client in base all'ordine definito in client_details.
-    """
     def __init__(self, config_list):
         self.config_list = config_list
         self.counter = 0
@@ -79,7 +76,7 @@ class ConfigServer:
             return config
 
 CLIENT_REGISTRY = ClientRegistry()
-DISTRIBUTED_MODEL_REPAIR = True
+DISTRIBUTED_MODEL_REPAIR = False
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 GLOBAL_ROUND_COUNTER = 1
 
@@ -140,8 +137,7 @@ def get_cpu_percent_cgroup(interval: float = 1.0) -> float:
 class FlowerClient(NumPyClient):
     def __init__(self, client_config: dict, model_type: str):
         self.client_config = client_config
-        hostname = socket.gethostname()
-        self.cid = hostname if hostname else client_config.get("client_id")
+        self.cid = f"Client {client_config.get('client_id')}"
         self.n_cpu = client_config.get("cpu")
         self.ram = client_config.get("ram")
         self.dataset = client_config.get("dataset")
@@ -163,9 +159,6 @@ class FlowerClient(NumPyClient):
         self.DEVICE = DEVICE
 
     def fit(self, parameters, config):
-        """
-        Esegue training e restituisce nuovi pesi + metriche con CPU% e communication_time corretti.
-        """
         global GLOBAL_ROUND_COUNTER
         proc = psutil.Process(os.getpid())
         cpu_start = proc.cpu_times().user + proc.cpu_times().system

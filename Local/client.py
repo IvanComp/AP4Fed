@@ -78,7 +78,7 @@ def load_client_details():
     return global_client_details
 
 CLIENT_REGISTRY = ClientRegistry()
-DISTRIBUTED_MODEL_REPAIR = True
+DISTRIBUTED_MODEL_REPAIR = False
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 GLOBAL_ROUND_COUNTER = 1 
 
@@ -165,7 +165,7 @@ class FlowerClient(NumPyClient):
                 safe_log(f"Client {self.cid}: Valore CPU non valido ({self.n_cpu}), non imposto affinità.")
         else:
             safe_log(f"Client {self.cid}: Parametro 'cpu' non specificato nella configurazione, non imposto affinità.")
-
+            
         CLIENT_REGISTRY.register_client(self.cid, model_type)
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.net = NetA().to(device)
