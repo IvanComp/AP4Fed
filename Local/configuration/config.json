@@ -1,7 +1,7 @@
 {
     "simulation_type": "Local",
-    "rounds": 2,
-    "clients": 2,
+    "rounds": 3,
+    "clients": 3,
     "patterns": {
         "client_registry": {
             "enabled": true,
@@ -37,7 +37,7 @@
             "client_id": 1,
             "cpu": 1,
             "ram": 2,
-            "dataset": "CIFAR-10",
+            "dataset": "ImageNet100",
             "data_distribution_type": "IID",
             "model": "CNN 16k"
         },
@@ -45,8 +45,16 @@
             "client_id": 2,
             "cpu": 1,
             "ram": 2,
-            "dataset": "CIFAR-10",
+            "dataset": "ImageNet100",
             "data_distribution_type": "IID",
+            "model": "CNN 16k"
+        },
+        {
+            "client_id": 3,
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "ImageNet100",
+            "data_distribution_type": "non-IID",
             "model": "CNN 16k"
         }
     ]

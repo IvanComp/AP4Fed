@@ -35,19 +35,19 @@
     "client_details": [
         {
             "client_id": 1,
-            "cpu": 6,
+            "cpu": 1,
             "ram": 2,
-            "dataset": "CIFAR-10",
+            "dataset": "ImageNet100",
             "data_distribution_type": "IID",
-            "model": "CNN 16k"
+            "model": "shufflenet_v2_x0_5"
         },
         {
             "client_id": 2,
-            "cpu": 6,
+            "cpu": 1,
             "ram": 2,
-            "dataset": "CIFAR-10",
+            "dataset": "ImageNet100",
             "data_distribution_type": "IID",
-            "model": "CNN 16k"
+            "model": "shufflenet_v2_x0_5"
         }
     ]
 }

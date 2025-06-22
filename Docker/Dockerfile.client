@@ -16,7 +16,7 @@ COPY server.py /app/server.py
 COPY taskA.py /app/taskA.py
 COPY APClient.py /app/APClient.py
 COPY configuration/ /app/configuration/
-COPY arachne/ /app/arachne/
+COPY data/ /app/data/
 
 # Create the folder for data
 RUN mkdir -p data

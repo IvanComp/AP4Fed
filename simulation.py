@@ -31,6 +31,35 @@ import torch
 from lime import lime_image
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import subprocess
+import ctypes 
+
+def keep_awake():
+    if sys.platform == "darwin":
+        # macOS
+        subprocess.Popen(["caffeinate", "-dimsu"])
+    elif os.name == "nt":
+        ES_CONTINUOUS        = 0x80000000
+        ES_SYSTEM_REQUIRED   = 0x00000001
+        ES_AWAYMODE_REQUIRED = 0x00000040
+        ctypes.windll.kernel32.SetThreadExecutionState(
+            ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED
+        )
+    else:
+        try:
+            subprocess.Popen([
+                "systemd-inhibit",
+                "--what=idle",
+                "--why=Keep app awake",
+                "--mode=block",
+                "sleep",
+                "infinity"
+            ])
+        except FileNotFoundError:
+            pass
+
+keep_awake()
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 if BASE not in sys.path:
@@ -327,11 +356,13 @@ class SimulationPage(QWidget):
         self.xai_win.show()
 
     def start_simulation(self, num_supernodes):
+        # base_dir = dove sta simulation.py
+        base_dir = os.path.dirname(os.path.abspath(__file__))
         sim_type = self.config['simulation_type']
         rounds   = self.config['rounds']
-        base_dir = os.path.dirname(os.path.abspath(__file__))
 
         if sim_type == 'Docker':
+            # — Lasci tutto com’era per Docker —
             work_dir = os.path.join(base_dir, 'Docker')
             dc_in    = os.path.join(work_dir, 'docker-compose.yml')
             dc_out   = os.path.join(work_dir, 'docker-compose.dynamic.yml')
@@ -353,23 +384,19 @@ class SimulationPage(QWidget):
                 cpu = detail['cpu']
                 ram = detail['ram']
                 svc = copy.deepcopy(client_tpl)
-
                 svc.pop('image', None)
-                svc.pop('deploy', None)            
+                svc.pop('deploy', None)
                 svc['container_name'] = f"Client{cid}"
                 svc['cpus']           = cpu
                 svc['mem_limit']      = f"{ram}g"
-
                 env = svc.setdefault('environment', {})
-                env['NUM_ROUNDS']     = str(rounds)
-                env['NUM_CPUS']       = str(cpu)
-                env['NUM_RAM']        = str(ram)
-                env['CLIENT_ID']      = str(cid) 
-
+                env['NUM_ROUNDS'] = str(rounds)
+                env['NUM_CPUS']   = str(cpu)
+                env['NUM_RAM']    = str(ram)
+                env['CLIENT_ID']  = str(cid)
                 new_svcs[f'client{cid}'] = svc
 
             compose['services'] = new_svcs
-
             with open(dc_out, 'w') as f:
                 yaml.safe_dump(compose, f)
 
@@ -388,17 +415,20 @@ class SimulationPage(QWidget):
                 return
 
         else:
+            # ** Ramo locale: working dir = progetto/Local **
             work_dir = os.path.join(base_dir, 'Local')
             cmd      = 'flower-simulation'
-            args     = ['--server-app','server:app',
-                        '--client-app','client:app',
-                        '--num-supernodes',str(num_supernodes)]
+            args     = [
+                '--server-app', 'server:app',
+                '--client-app', 'client:app',
+                '--num-supernodes', str(num_supernodes),
+            ]
 
             self.process = QProcess(self)
             self.process.setProcessChannelMode(QProcess.MergedChannels)
             self.process.readyReadStandardOutput.connect(self.handle_stdout)
             self.process.readyReadStandardError.connect(self.handle_stdout)
-            self.process.setWorkingDirectory(work_dir)
+            self.process.setWorkingDirectory(work_dir)   
             self.process.start(cmd, args)
 
             if not self.process.waitForStarted():
@@ -509,9 +539,20 @@ class XAIWindow(QDialog):
 
         # ricavo test_loader e preprocess
         first_cid       = self.clients[0]
-        _, test_loader  = self.load_data_A(self.client_configs[first_cid])
-        self.test_loader = test_loader
-        self.preprocess  = test_loader.dataset.transform
+        if "imagenet100" in self.dataset.lower():
+            from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normalize
+            self.preprocess = Compose([
+                Resize((256, 256)),
+                CenterCrop(224),
+                ToTensor(),
+                Normalize(mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225]),
+            ])
+            self.test_loader = None
+        else:
+            # tutti gli altri dataset (CIFAR, ecc.)
+            _, test_loader = self.load_data_A(self.client_configs[first_cid])
+            self.test_loader = test_loader
+            self.preprocess  = test_loader.dataset.transform
 
         self.setWindowTitle("Explainable AI")
         self.resize(800, 600)
@@ -538,7 +579,11 @@ class XAIWindow(QDialog):
         hl.addWidget(QLabel("Sample idx:"))
         self.idx_sb = QSpinBox()
         self.idx_sb.setMinimum(0)
-        self.idx_sb.setMaximum(len(self.test_loader.dataset) - 1)
+        if self.test_loader:
+            max_idx = len(self.test_loader.dataset) - 1
+        else:
+            max_idx = len(self.image_paths) - 1
+        self.idx_sb.setMaximum(max_idx)
         self.idx_sb.setValue(0)
         hl.addWidget(self.idx_sb)
 
@@ -584,11 +629,37 @@ class XAIWindow(QDialog):
         self.load_data_A = taskA_mod.load_data
 
         # 2.d) ricavo test_loader e preprocess giusti
-        first_cid      = self.clients[0]
-        _, test_loader = self.load_data_A(self.client_configs[first_cid])
-        self.test_loader = test_loader
-        self.preprocess  = test_loader.dataset.transform
+        first_cid = self.clients[0]
+        if "imagenet100" in self.dataset.lower():
+            from pathlib import Path
+            from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normalize
 
+            project_dir = Path(self.base_dir) / self.sim_type
+            subset_dir  = project_dir / "data" / self.dataset / "test"
+            if not subset_dir.is_dir():
+                raise FileNotFoundError(f"{subset_dir} non trovato")
+
+            # elenco ordinato di tutti i file immagine
+            self.image_paths = sorted(
+                f
+                for cls in sorted(subset_dir.iterdir()) if cls.is_dir()
+                for f   in sorted(cls.iterdir())
+                if f.suffix.lower() in (".png", ".jpg", ".jpeg")
+            )
+
+            # stessa pipeline di trasformazione usata in training
+            self.preprocess = Compose([
+                Resize(256), CenterCrop(224),
+                ToTensor(),
+                Normalize(mean=[0.485,0.456,0.406],
+                        std =[0.229,0.224,0.225]),
+            ])
+            self.test_loader = None
+        else:
+            _, test_loader = self.load_data_A(self.client_configs[first_cid])
+            self.test_loader = test_loader
+            self.preprocess  = test_loader.dataset.transform
+            self.image_paths  = []
 
     def load_model(self, target, rnd, client_id=None):
         work_dir = os.path.join(self.base_dir, self.sim_type)
@@ -599,79 +670,116 @@ class XAIWindow(QDialog):
             model_path = os.path.join(work_dir, "model_weights", "clients", str(client_id), f"MW_round{rnd}.pt")
             cfg         = { "client_id": client_id,    **{} }
 
-        if not os.path.isfile(model_path):
-            raise FileNotFoundError(f"Modello non trovato: {model_path}")
-
-        # ricarica taskA da quel folder e prendi Net
         taskA_path = os.path.join(work_dir, "taskA.py")
         spec       = importlib.util.spec_from_file_location("taskA", taskA_path)
         taskA_mod  = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(taskA_mod)
-        model      = taskA_mod.Net()  # istanzia dinamico
+        model      = taskA_mod.Net()  
         state      = torch.load(model_path, map_location="cpu")
         model.load_state_dict(state)
         model.eval()
         return model
 
     def load_image(self, idx, client_id=None):
-        # prendo l'immagine idx già normalizzata
         img_tensor, _ = self.test_loader.dataset[idx]
         return T.ToPILImage()(img_tensor)
 
     def run_explain(self):
-        # prendo target, round e idx
-        target_text = self.target_cb.currentText()
-        round_n     = self.round_sb.value()
-        idx         = self.idx_sb.value()
+        from PIL import Image
+        import numpy as np
+        import torch
+        from lime import lime_image
+        from skimage.segmentation import mark_boundaries
 
-        # carico modello e immagine
-        if target_text == "Server":
-            model = self.load_model("server", round_n)
-            img   = self.load_image(idx)
+        # 1) modello e device
+        idx = self.idx_sb.value()
+        if self.target_cb.currentText() == "Server":
+            model = self.load_model("server", self.round_sb.value())
         else:
-            cid   = int(target_text.split()[-1])
-            model = self.load_model("client", round_n, client_id=cid)
-            img   = self.load_image(idx, client_id=cid)
+            cid   = int(self.target_cb.currentText().split()[-1])
+            model = self.load_model("client", self.round_sb.value(), client_id=cid)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model  = model.to(device).eval()
 
-        # numpy array
-        img_np = np.array(img)
+        # 2) carica immagine
+        if self.test_loader is None:
+            # ImageNet100
+            path  = self.image_paths[idx]
+            img   = Image.open(path).convert("RGB")
+            img_np = np.array(img) / 255.0
+            preprocess_fn = self.preprocess
+        else:
+            # CIFAR o altro
+            from torchvision.transforms import Normalize
+            tensor, _ = self.test_loader.dataset[idx]
+            # inverti l'ultima Normalize
+            inv = None
+            for t in reversed(self.preprocess.transforms):
+                if isinstance(t, Normalize):
+                    inv = Normalize(
+                        mean=[-m/s for m,s in zip(t.mean,t.std)],
+                        std =[1/s    for s   in t.std],
+                    )
+                    break
+            un = inv(tensor) if inv else tensor
+            img_np = un.cpu().numpy().transpose(1,2,0)
+            img_np = np.clip(img_np, 0, 1)
+            preprocess_fn = self.preprocess
 
-        # LIME explainer
+        # 3) spiegazione LIME
         explainer = lime_image.LimeImageExplainer()
         def batch_predict(batch):
             batch_t = torch.stack([
-                self.preprocess(Image.fromarray(x))
-                for x in batch
-            ], dim=0)
+                preprocess_fn(Image.fromarray((img*255).astype(np.uint8)))
+                for img in batch
+            ], dim=0).to(device)
             with torch.no_grad():
                 out = model(batch_t)
                 return torch.softmax(out, dim=1).cpu().numpy()
 
         exp = explainer.explain_instance(
-            img_np,
-            batch_predict,
-            top_labels=1,
-            hide_color=0,
-            num_samples=100
+            img_np, batch_predict,
+            top_labels=5, hide_color=0, num_samples=1000
         )
+        lbl = exp.top_labels[0]
 
-        label = exp.top_labels[0]
-        # prendo solo i super‐pixel positivi e disegno i contorni
-        _, mask = exp.get_image_and_mask(
-            label=label,
-            positive_only=True,
-            num_features=5,
-            hide_rest=True
+        # 4) mask e boundary
+        temp, mask = exp.get_image_and_mask(
+            label=lbl,
+            positive_only=False,
+            num_features=10,
+            hide_rest=False
         )
-        overlay = mark_boundaries(img_np, mask)
+        if temp.max() > 1:
+            temp = temp / 255.0
+        seg = mark_boundaries(temp, mask)
 
-        # disegno le due immagini
+        # 5) disegna
+        self.axes[0].clear()
+        self.axes[1].clear()
+
         self.axes[0].imshow(img_np)
-        self.axes[0].set_title("Original")
+        self.axes[0].set_title("Originale")
         self.axes[0].axis("off")
 
-        self.axes[1].imshow(overlay)
-        self.axes[1].set_title("LIME explanation")
+        self.axes[1].imshow(seg)
+        self.axes[1].set_title("LIME Explanation")
         self.axes[1].axis("off")
 
+        # 6) legenda
+        import matplotlib.patches as mpatches
+        pos = mpatches.Patch(color='green', label='Positive')
+        neg = mpatches.Patch(color='red',   label='Negative')
+        self.fig.legend(
+            handles=[pos, neg],
+            labels =['Positive', 'Negative'],
+            loc    ='upper right',
+            frameon=False
+        )
+
         self.canvas.draw()
+
+
+
+
+

@@ -8,13 +8,13 @@ import zlib
 import pickle
 import numpy as np
 import psutil
-import ray
 import sys
 import taskA
 import torch
+from pathlib import Path
+import fcntl 
 import logging
 logging.getLogger("onnx2keras").setLevel(logging.ERROR)
-logging.getLogger("ray").setLevel(logging.WARNING)
 import onnx
 from onnx2keras import onnx_to_keras
 from datetime import datetime
@@ -41,44 +41,49 @@ sys.path.append(
     )
 )
 
-@ray.remote
-class ConfigServer:
-    def __init__(self, config_list):
-        self.config_list = config_list
-        self.counter = 0
-        self.assignments = {}
-
-    def get_config_for(self, client_id: str):
-        if client_id in self.assignments:
-            return self.assignments[client_id]
-        else:
-            if self.counter < len(self.config_list):
-                config = self.config_list[self.counter]
-                self.assignments[client_id] = config
-                self.counter += 1
-                return config
-
 global_client_details = None
 def load_client_details():
     global global_client_details
     if global_client_details is None:
-        current_dir = os.path.abspath(os.path.dirname(__file__))
-        config_dir = os.path.join(current_dir, 'configuration')
-        config_file = os.path.join(config_dir, 'config.json')
-        with open(config_file, 'r') as f:
-            configJSON = json.load(f)
-        client_details_list = configJSON.get("client_details", [])
-        def client_sort_key(item):
-            try:
-                return int(item.get("client_id", 0))
-            except:
-                return 0
-        client_details_list = sorted(client_details_list, key=client_sort_key)
-        global_client_details = client_details_list
+        cfg_path = os.path.join(os.path.dirname(__file__), 'configuration', 'config.json')
+        with open(cfg_path, 'r') as f:
+            cfg = json.load(f)
+        details = cfg.get("client_details", [])
+        # ordino per client_id
+        try:
+            details.sort(key=lambda x: int(x.get("client_id", 0)))
+        except Exception:
+            pass
+        # mappa id → dict
+        global_client_details = {str(d["client_id"]): d for d in details}
     return global_client_details
 
+CLIENT_DETAILS = load_client_details()  # resta
+CLIENT_CONFIG_LIST = sorted(           # resta
+    CLIENT_DETAILS.values(), key=lambda c: int(c["client_id"])
+)
+COUNTER_PATH = Path(__file__).with_name(".client_idx")
+if not COUNTER_PATH.exists():
+    COUNTER_PATH.write_text("0")   
+
+def get_next_config() -> dict:
+    """Legge/aggiorna in modo atomico il contatore nel file e
+    restituisce la configurazione da assegnare a questo processo."""
+    with COUNTER_PATH.open("r+") as f:
+        # lock esclusivo
+        fcntl.flock(f, fcntl.LOCK_EX)
+        idx = int(f.read().strip() or 0)
+        config = CLIENT_CONFIG_LIST[idx % len(CLIENT_CONFIG_LIST)]
+        f.seek(0)
+        f.truncate()
+        f.write(str((idx + 1) % len(CLIENT_CONFIG_LIST)))
+        f.flush()
+        # rilascia il lock
+        fcntl.flock(f, fcntl.LOCK_UN)
+    return config
+
 CLIENT_REGISTRY = ClientRegistry()
-DISTRIBUTED_MODEL_REPAIR = True
+DISTRIBUTED_MODEL_REPAIR = False
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 GLOBAL_ROUND_COUNTER = 1 
 
@@ -142,6 +147,9 @@ class FlowerClient(NumPyClient):
 
         current_os = platform.system()
 
+        def get_parameters(self, config):
+            return get_parameters(self.net)
+
         def safe_log(message):
             #log(INFO, message)
             pass
@@ -165,7 +173,7 @@ class FlowerClient(NumPyClient):
                 safe_log(f"Client {self.cid}: Valore CPU non valido ({self.n_cpu}), non imposto affinità.")
         else:
             safe_log(f"Client {self.cid}: Parametro 'cpu' non specificato nella configurazione, non imposto affinità.")
-
+            
         CLIENT_REGISTRY.register_client(self.cid, model_type)
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.net = NetA().to(device)
@@ -335,7 +343,7 @@ class FlowerClient(NumPyClient):
 
         results, training_time = train_A(
             self.net, self.trainloader, self.testloader,
-            epochs=1, DEVICE=self.DEVICE
+            epochs=5, DEVICE=self.DEVICE
         )
         train_end_ts = taskA.TRAIN_COMPLETED_TS or time.time()
         new_parameters = get_weights_A(self.net)
@@ -351,7 +359,9 @@ class FlowerClient(NumPyClient):
         GLOBAL_ROUND_COUNTER += 1
 
         if MODEL_COVERSIONING:
-            client_folder = os.path.join("model_weights", "clients", str(self.cid))
+           
+            base_path = os.path.dirname(os.path.abspath(__file__)) 
+            client_folder = os.path.join(base_path, "model_weights", "clients", str(self.cid))
             os.makedirs(client_folder, exist_ok=True)
             client_file_path = os.path.join(client_folder, f"MW_round{round_number}.pt")
             torch.save(self.net.state_dict(), client_file_path)
@@ -422,18 +432,10 @@ class FlowerClient(NumPyClient):
         return loss, len(self.testloader.dataset), metrics
 
 def client_fn(context: Context):
-    client_identifier = context.node_id
-    try:
-        config_server = ray.get_actor("config_server")
-    except Exception:
-        details = load_client_details()
-        try:
-            config_server = ConfigServer.options(name="config_server", lifetime="detached").remote(details)
-        except Exception:
-            config_server = ray.get_actor("config_server")
-    config = ray.get(config_server.get_config_for.remote(client_identifier))
-    # Impostazione del model type in base al campo "model" della configurazione anziché un valore fisso
-    model_type = config.get("model")
-    return FlowerClient(client_config=config, model_type=model_type).to_client()
+    config = get_next_config()
+    cid_str = str(config["client_id"])
+    #log(INFO, f"Assigned config to client: {config}, "
+    #    f"model_type: {config.get('model')}, client_id: {cid_str}")
+    return FlowerClient(client_config=config, model_type=config.get("model"))
 
 app = ClientApp(client_fn=client_fn)

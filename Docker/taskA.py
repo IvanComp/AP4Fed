@@ -19,9 +19,11 @@ from torchgan.trainer import Trainer
 from torchgan.losses import MinimaxGeneratorLoss, MinimaxDiscriminatorLoss
 from torch.utils.data import TensorDataset, ConcatDataset
 from collections import Counter
+from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader, Subset, TensorDataset, ConcatDataset
 from collections import Counter
 import random
+from sklearn.metrics import f1_score
 
 class TensorLabelDataset(Dataset):
     def __init__(self, dataset):
@@ -308,32 +310,48 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
     else:
         model = constructor(weights=None, progress=False)
 
-    if hasattr(model, "fc"):
+    if hasattr(model, 'fc'):
         in_f = model.fc.in_features
-        model.fc = nn.Linear(in_f, num_classes)
-    elif hasattr(model, "head"):
+        model.fc = nn.Sequential(
+            nn.Dropout(p=0.8),
+            nn.Linear(in_f, num_classes)
+        )
+
+    elif hasattr(model, 'head'):
         in_f = model.head.in_features
-        model.head = nn.Linear(in_f, num_classes)
-    elif hasattr(model, "classifier"):
+        model.head = nn.Sequential(
+            nn.Dropout(p=0.8),
+            nn.Linear(in_f, num_classes)
+        )
+
+    elif hasattr(model, 'classifier'):
         cls = model.classifier
         if isinstance(cls, nn.Sequential):
             for i in reversed(range(len(cls))):
                 m = cls[i]
                 if isinstance(m, nn.Linear):
                     in_f = m.in_features
-                    cls[i] = nn.Linear(in_f, num_classes)
+                    cls[i] = nn.Sequential(
+                        nn.Dropout(p=0.8),
+                        nn.Linear(in_f, num_classes)
+                    )
                     break
                 if isinstance(m, nn.Conv2d):
-                    out_ch = m.out_channels
-                    cls[i] = nn.Conv2d(m.in_channels, num_classes,
-                                       kernel_size=m.kernel_size,
-                                       stride=m.stride,
-                                       padding=m.padding)
+                    cls[i] = nn.Sequential(
+                        nn.Dropout2d(p=0.8),
+                        nn.Conv2d(m.in_channels, num_classes,
+                                  kernel_size=m.kernel_size,
+                                  stride=m.stride,
+                                  padding=m.padding)
+                    )
                     break
             model.classifier = cls
         else:
             in_f = cls.in_features
-            model.classifier = nn.Linear(in_f, num_classes)
+            model.classifier = nn.Sequential(
+                nn.Dropout(p=0.8),
+                nn.Linear(in_f, num_classes)
+            )
     else:
         raise NotImplementedError(f"{name} not Supported!")
 
@@ -342,12 +360,10 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
 def Net():
     with open(config_file, 'r') as f:
         configJSON = json.load(f)
-    ds = configJSON.get("dataset", None)
-    if ds is None:
-        ds = configJSON["client_details"][0].get("dataset", None)
+    ds = configJSON.get("dataset") or configJSON["client_details"][0]["dataset"]
     dataset_name = normalize_dataset_name(ds)
-    model_name = configJSON["client_details"][0].get("model", None)
-    num_classes = AVAILABLE_DATASETS[dataset_name]["num_classes"]
+    model_name   = configJSON["client_details"][0]["model"]
+    num_classes  = AVAILABLE_DATASETS[dataset_name]["num_classes"]
     return get_dynamic_model(num_classes, model_name)
 
 def get_non_iid_indices(dataset,
@@ -402,120 +418,89 @@ def get_non_iid_indices(dataset,
     return selected
 
 def load_data(client_config, dataset_name_override=None):
-    global DATASET_NAME, DATASET_TYPE
-    DATASET_TYPE = client_config.get("data_distribution_type")
-    dataset_name = dataset_name_override or client_config.get("dataset")
+    """
+    Carica e restituisce trainloader e testloader.
+    Gestisce sia distribuzione IID sia non-IID per qualsiasi dataset.
+    """
+    global DATASET_NAME, DATASET_TYPE, HGAN_DONE
+
+    DATASET_TYPE = client_config.get("data_distribution_type", "").lower()
+    dataset_name = dataset_name_override or client_config.get("dataset", "")
     DATASET_NAME = normalize_dataset_name(dataset_name)
-    
+
     if DATASET_NAME not in AVAILABLE_DATASETS:
         raise ValueError(f"[ERROR] Dataset '{DATASET_NAME}' non trovato in AVAILABLE_DATASETS.")
-    dataset_config = AVAILABLE_DATASETS[DATASET_NAME]
+    config = AVAILABLE_DATASETS[DATASET_NAME]
+    normalize_params = config["normalize"]
 
-    normalize_params = dataset_config["normalize"]
+    base_size = {
+        "CIFAR10": 32, "CIFAR100": 32, "MNIST": 28,
+        "FashionMNIST": 28, "KMNIST": 28,
+        "ImageNet100": 256, "OXFORDIIITPET": 256
+    }[DATASET_NAME]
+    model_name = client_config.get("model", "resnet18").lower()
+    target_size = 256 if model_name in ["alexnet","vgg11","vgg13","vgg16","vgg19"] else base_size
 
-    default_sizes = {
-        "CIFAR10": 32,
-        "CIFAR100": 32,
-        "FashionMNIST": 28,
-        "KMNIST": 28,
-        "FMNIST": 28,
-        "ImageNet100": 256,
-        "OXFORDIIITPET": 256
-    }
-    base_size = default_sizes.get(DATASET_NAME, 32)
-
-    model_name = client_config.get("model", "CNN 16k").lower()
-    target_size = 256 if model_name in ["alexnet", "vgg11", "vgg13", "vgg16", "vgg19"] else base_size
-
-    if DATASET_NAME == "OXFORDIIITPET":
-        transform_list = [
-            Resize((base_size, base_size)),
-            CenterCrop(224),
-            ToTensor(),
-            Normalize(*normalize_params),
-        ]
-    elif DATASET_NAME == "ImageNet100":
-        transform_list = [
-            Resize((target_size, target_size)),
-            CenterCrop(224),
-            ToTensor(),
-            Normalize(*normalize_params),
-        ]
+    transforms_list = []
+    if DATASET_NAME == "ImageNet100":
+        transforms_list = [Resize(224), CenterCrop(224)]
+        batch_size = 64
     else:
-        transform_list = []
         if target_size != base_size:
-            transform_list.append(Resize((target_size, target_size)))
-        transform_list += [
-            ToTensor(),
-            Normalize(*normalize_params),
-        ]
-    trf = Compose(transform_list)
+            transforms_list.append(Resize((target_size, target_size)))
+        batch_size = 64
+    transforms_list += [ToTensor(), Normalize(*normalize_params)]
+    trf = Compose(transforms_list)
 
     if DATASET_NAME == "ImageNet100":
-        batch_size = 64
-        from torchvision.datasets import ImageFolder
         train_path = os.path.join("./data", "imagenet100-preprocessed", "train")
         test_path  = os.path.join("./data", "imagenet100-preprocessed", "test")
+        if not os.path.isdir(train_path) or not os.path.isdir(test_path):
+            raise FileNotFoundError(
+                f"Dataset ImageNet100 non trovato in {train_path} e {test_path}"
+            )
         trainset = ImageFolder(train_path, transform=trf)
-        testset  = ImageFolder(test_path, transform=trf)
-        return DataLoader(trainset, batch_size=batch_size, shuffle=True), \
-               DataLoader(testset,  batch_size=batch_size)
-
-    batch_size = 32
-    dataset_class = dataset_config["class"]
-    def get_datasets(transform):
+        testset  = ImageFolder(test_path,  transform=trf)
+    else:
+        cls = config["class"]
         if DATASET_NAME == "OXFORDIIITPET":
-            trainset = dataset_class("./data", split="trainval", download=True, transform=transform)
-            testset  = dataset_class("./data", split="test", download=True, transform=transform)
+            trainset = cls("./data", split="trainval", download=True, transform=trf)
+            testset  = cls("./data", split="test",     download=True, transform=trf)
         else:
-            trainset = dataset_class("./data", train=True,  download=True, transform=transform)
-            testset  = dataset_class("./data", train=False, download=True, transform=transform)
-        return trainset, testset
+            trainset = cls("./data", train=True,  download=True, transform=trf)
+            testset  = cls("./data", train=False, download=True, transform=trf)
 
-    trainset, testset = get_datasets(trf)
-
-    ds_type = DATASET_TYPE.lower()
-    if ds_type == "iid":
-        final_train = trainset
-    elif ds_type == "non-iid":
+    if DATASET_TYPE == "non-iid":
         classes = list({lbl for _, lbl in trainset})
         n_cls = len(classes)
-        remove_class_frac = random.uniform(1/n_cls, (n_cls-1)/n_cls)
-        add_class_frac    = random.uniform(0,     (n_cls-1)/n_cls)
-        low_r, high_r     = sorted([random.uniform(0.5, 1.0),
-                                     random.uniform(0.5, 1.0)])
-        low_a, high_a     = sorted([random.uniform(0.5, 1.0),
-                                     random.uniform(0.5, 1.0)])
+        remove_frac = random.uniform(1/n_cls, (n_cls-1)/n_cls)
+        add_frac    = random.uniform(0,     (n_cls-1)/n_cls)
+        low_r, high_r = sorted((random.uniform(0.5,1.0), random.uniform(0.5,1.0)))
+        low_a, high_a = sorted((random.uniform(0.5,1.0), random.uniform(0.5,1.0)))
 
         idxs = get_non_iid_indices(
             trainset,
-            remove_class_frac,
-            add_class_frac,
+            remove_frac,
+            add_frac,
             (low_r, high_r),
             (low_a, high_a),
         )
         base = Subset(trainset, idxs)
-        global HGAN_DONE
+
         if HETEROGENEOUS_DATA_HANDLER and not HGAN_DONE:
-            num_cls = AVAILABLE_DATASETS[DATASET_NAME]["num_classes"]
+            num_cls = config["num_classes"]
             target_pc = len(trainset) // num_cls
-            final_train = balance_dataset_with_gan(
+            trainset = balance_dataset_with_gan(
                 base,
                 num_classes=num_cls,
                 target_per_class=target_pc
             )
             HGAN_DONE = True
         else:
-            final_train = base
+            trainset = base
 
-    final_train = TensorLabelDataset(final_train)
-    trainloader = DataLoader(final_train, batch_size=batch_size, shuffle=True)
-    testloader  = DataLoader(testset, batch_size=batch_size, shuffle=False)
-    dist = Counter(
-        (lbl.item() if isinstance(lbl, torch.Tensor) else lbl)
-        for _, lbl in final_train
-    )
-    #log(INFO, f"Class Distribution: {dict(dist)}")
+    trainloader = DataLoader(TensorLabelDataset(trainset), batch_size=batch_size, shuffle=True)
+    testloader  = DataLoader(testset,                 batch_size=batch_size, shuffle=False)
     return trainloader, testloader
 
 def balance_dataset_with_gan(
@@ -606,11 +591,16 @@ def balance_dataset_with_gan(
     return ConcatDataset([subset_real, synth_ds])
 
 def train(net, trainloader, valloader, epochs, DEVICE):
-    log(INFO, "Starting training...")
+
+    labels = [lbl.item() if isinstance(lbl, torch.Tensor) else lbl for _, lbl in trainloader.dataset]
+    dist = dict(Counter(labels))
+    log(INFO, f"Training dataset distribution ({DATASET_NAME}): {dist}")
+
+    log(INFO, f"Starting training...")
     start_time = time.time()
     net.to(DEVICE)
     criterion = torch.nn.CrossEntropyLoss().to(DEVICE)
-    optimizer = torch.optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+    optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
     net.train()
     for _ in range(epochs):
         for images, labels in trainloader:
@@ -638,32 +628,31 @@ def train(net, trainloader, valloader, epochs, DEVICE):
     }
     return results, training_time
 
-def test(net, testloader):
+def test(net, loader):
     net.to(DEVICE)
-    criterion = torch.nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss()
+    net.eval()
+    all_preds, all_labels = [], []
+    total_loss = 0.0
     correct = 0
-    loss = 0.0
-    all_preds = []
-    all_labels = []
     with torch.no_grad():
-        for images, labels in testloader:
-            images = images.to(DEVICE)
-            labels = labels.to(DEVICE)
-            outputs = net(images)
-            loss += criterion(outputs, labels).item()
-            _, predicted = torch.max(outputs.data, 1)
-            correct += (predicted == labels).sum().item()
-            all_preds.append(predicted)
-            all_labels.append(labels)
-    accuracy = correct / len(testloader.dataset)
-    all_preds = torch.cat(all_preds)
-    all_labels = torch.cat(all_labels)
-    f1 = f1_score_torch(all_labels, all_preds, num_classes=AVAILABLE_DATASETS[DATASET_NAME]["num_classes"], average='macro')
+        for imgs, labels in loader:
+            imgs, labels = imgs.to(DEVICE), labels.to(DEVICE)
+            outputs = net(imgs)
+            loss = criterion(outputs, labels)
+            total_loss += loss.item() * imgs.size(0)
+            _, preds = torch.max(outputs, 1)
+            correct += (preds == labels).sum().item()
+            all_preds.extend(preds.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+    avg_loss = total_loss / len(loader.dataset)
+    accuracy = correct / len(loader.dataset)
+    f1 = f1_score(all_labels, all_preds, average='macro')
     try:
-        mae_value = torch.mean(torch.abs(all_labels.float() - all_preds.float())).item()
-    except Exception:
-        mae_value = None
-    return loss, accuracy, f1, mae_value
+        mae = np.mean(np.abs(np.array(all_labels) - np.array(all_preds)))
+    except:
+        mae = None
+    return avg_loss, accuracy, f1, mae
 
 def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
     confusion_matrix = torch.zeros(num_classes, num_classes)
