@@ -639,8 +639,7 @@ def train(net, trainloader, valloader, epochs, DEVICE):
             optimizer.step()
     training_time = time.time() - start_time
     log(INFO,
-    f"Training completed in {training_time:.2f} seconds "
-    f"at {datetime.now().strftime('%H:%M:%S')}")
+    f"Training completed in {training_time:.2f} seconds.")
     global TRAIN_COMPLETED_TS
     TRAIN_COMPLETED_TS = start_time + training_time
     train_loss, train_acc, train_f1, train_mae = test(net, trainloader)

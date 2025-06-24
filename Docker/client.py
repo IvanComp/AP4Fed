@@ -197,6 +197,9 @@ class FlowerClient(NumPyClient):
                     return parameters, 0, {}
             log(INFO, f"Client {self.cid} participates in this round. (CPU: {self.n_cpu}, RAM: {self.ram})")
 
+            if selection_strategy == "SSIM-Based":
+                log(INFO, f"Entering SSIM.")
+
         if CLIENT_CLUSTER:
             selector_params = configJSON["patterns"]["client_cluster"]["params"]
             clustering_strategy = selector_params.get("clustering_strategy", "")

@@ -18,8 +18,7 @@ class ClientSelectorDialog(QDialog):
     def __init__(self, existing_params=None):
         super().__init__()
         self.setWindowTitle("AP4Fed")
-        self.resize(400, 300)  # Modificato per aggiungere spazio al layout
-
+        self.resize(400, 300) 
         self.existing_params = existing_params or {}
 
         layout = QVBoxLayout(self)
@@ -28,12 +27,12 @@ class ClientSelectorDialog(QDialog):
         # Selection Strategy
         self.strategy_label = QLabel("Selection Strategy:")
         self.strategy_combo = QComboBox()
-        self.strategy_combo.addItem("Resource-Based")  # Aggiungi prima la voce selezionabile
-        self.strategy_combo.addItem("Data-Based")  # Aggiungi le altre voci
+        self.strategy_combo.addItem("Resource-Based")  
+        self.strategy_combo.addItem("SSIM-Based") 
+        self.strategy_combo.addItem("Data-Based") 
         self.strategy_combo.addItem("Performance-based")
-        # Disabilita le altre voci
-        self.strategy_combo.model().item(1).setEnabled(False)
         self.strategy_combo.model().item(2).setEnabled(False)
+        self.strategy_combo.model().item(3).setEnabled(False)
         layout.addWidget(self.strategy_label)
         layout.addWidget(self.strategy_combo)
 
