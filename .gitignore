@@ -1,3 +1,5 @@
+__pycache__/
+*.pyc
 **/data
 **/Local/img
 **/Local/model_weights
