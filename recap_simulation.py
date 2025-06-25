@@ -16,7 +16,6 @@ class RecapSimulationPage(QWidget):
 
         self.setWindowTitle("AP4Fed")
         self.resize(1000, 800)
-        # Remove global style that might interfere with QMessageBox
         self.setStyleSheet("background-color: white;")
         back_btn = QPushButton()
         back_btn.setIcon(self.style().standardIcon(QStyle.SP_ArrowBack))
@@ -39,8 +38,6 @@ class RecapSimulationPage(QWidget):
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignTop)
         self.setLayout(layout)
-
-        # header con back‑button e titolo sulla stessa riga
         title_label = QLabel("List of Input Parameters for the Simulation")
         title_label.setStyleSheet("color: black; font-size: 24px; font-weight: bold;")
         title_label.setAlignment(Qt.AlignCenter)
@@ -51,23 +48,18 @@ class RecapSimulationPage(QWidget):
         header_layout.addWidget(title_label, stretch=1)
 
         layout.insertLayout(0, header_layout)
-
-        # Scrollable area to display configuration details
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_content = QWidget()
         scroll_layout = QVBoxLayout(scroll_content)
         scroll_layout.setAlignment(Qt.AlignTop)
 
-        # Divide configuration into sections
         self.display_general_parameters(scroll_layout)
         self.display_clients(scroll_layout)
         self.display_patterns(scroll_layout)
 
         scroll_area.setWidget(scroll_content)
         layout.addWidget(scroll_area)
-
-        # Button layout
         buttons_layout = QVBoxLayout()
         buttons_layout.setAlignment(Qt.AlignCenter)
         buttons_layout.setSpacing(5)
@@ -92,7 +84,6 @@ class RecapSimulationPage(QWidget):
         """)
         buttons_layout.addWidget(run_button)
 
-        # "Download .json Configuration" Button
         download_button = QPushButton("Download .json Configuration")
         download_button.clicked.connect(self.download_configuration)
         download_button.setCursor(Qt.PointingHandCursor)
@@ -120,28 +111,21 @@ class RecapSimulationPage(QWidget):
         self.home_page_callback()
 
     def display_general_parameters(self, layout):
-        """
-        Displays general parameters.
-        """
-        # Merge configurations
         merged_config = {}
         for choice in self.user_choices:
             if isinstance(choice, dict):
                 merged_config.update(choice)
 
-        # General Parameters Section
         general_label = QLabel("General Parameters")
         general_label.setAlignment(Qt.AlignLeft)
         general_label.setStyleSheet("color: black; font-size: 20px; font-weight: bold; margin-top: 10px;")
         layout.addWidget(general_label)
 
-        # Display general parameters
         general_params = {}
         for key in ['simulation_type', 'rounds']:
             if key in merged_config:
                 general_params[key] = merged_config[key]
 
-        # Clean up parameter names for display
         display_params = {}
         for key, value in general_params.items():
             display_key = key.replace('_', ' ').title()
@@ -150,10 +134,6 @@ class RecapSimulationPage(QWidget):
         self.add_configuration_items(display_params, layout)
 
     def display_clients(self, layout):
-        """
-        Displays client information in cards.
-        """
-        # Merge configurations
         merged_config = {}
         for choice in self.user_choices:
             if isinstance(choice, dict):
@@ -165,8 +145,6 @@ class RecapSimulationPage(QWidget):
             clients_label = QLabel("Clients")
             clients_label.setStyleSheet("color: black; font-size: 20px; font-weight: bold; margin-top: 20px;")
             layout.addWidget(clients_label)
-
-            # Grid layout for client cards
             grid_layout = QGridLayout()
             grid_layout.setSpacing(10)
             max_columns = 6
@@ -184,29 +162,20 @@ class RecapSimulationPage(QWidget):
             layout.addLayout(grid_layout)
 
     def create_client_card(self, client_info):
-        """
-        Creates a card for the client with a computer icon and its information.
-        """
         card = QFrame()
         card.setFrameShape(QFrame.Box)
         card.setLineWidth(1)
         card.setStyleSheet("background-color: #f9f9f9; border-radius: 5px;")
-
         card_layout = QVBoxLayout()
         card_layout.setAlignment(Qt.AlignCenter)
         card.setLayout(card_layout)
-
-        # Computer icon using standard icon
         pc_icon = self.style().standardIcon(QStyle.SP_ComputerIcon)
         pc_icon_label = QLabel()
         pc_icon_label.setPixmap(pc_icon.pixmap(32, 32))
         card_layout.addWidget(pc_icon_label, alignment=Qt.AlignCenter)
 
-        # Client information
         for key, value in client_info.items():
             display_key = key.replace('_', ' ').title()
-
-            # Capitalize "CPU", "RAM", and "ID"
             words = display_key.split()
             words = [word.upper() if word.lower() in ['cpu', 'ram', 'id'] else word for word in words]
             display_key = ' '.join(words)
@@ -234,15 +203,10 @@ class RecapSimulationPage(QWidget):
             QMessageBox.critical(self, "Error", f"Failed to load config.json from {subdir}: {e}")
             return
 
-        # Sezione Patterns
         patterns_label = QLabel("Patterns")
         patterns_label.setStyleSheet("color: black; font-size: 20px; font-weight: bold; margin-top: 20px;")
         layout.addWidget(patterns_label)
-
-        # Otteniamo il dict dei pattern dal config
         all_patterns = merged_config.get('patterns', {})
-
-        # Definiamo la struttura delle 4 categorie, ciascuna con una lista di (chiave_config, label_amichevole)
         categories = [
             ("Client Management", [
                 ("client_registry", "Client Registry"),
@@ -268,14 +232,11 @@ class RecapSimulationPage(QWidget):
             ])
         ]
 
-        # Creiamo una griglia 2x2 per le 4 categorie
         categories_grid = QGridLayout()
         categories_grid.setSpacing(20)
         layout.addLayout(categories_grid)
-
         row, col = 0, 0
         for category_title, pattern_list in categories:
-            # Crea un frame per la singola categoria
             cat_frame = QFrame()
             cat_frame.setFrameShape(QFrame.Box)
             cat_frame.setLineWidth(1)
@@ -284,38 +245,29 @@ class RecapSimulationPage(QWidget):
             cat_layout = QVBoxLayout()
             cat_layout.setAlignment(Qt.AlignTop)
             cat_frame.setLayout(cat_layout)
-
-            # Titolo della categoria
             cat_label = QLabel(category_title)
             cat_label.setStyleSheet("color: black; font-size: 14px; font-weight: bold; margin-top: 5px;")
             cat_layout.addWidget(cat_label, alignment=Qt.AlignCenter)
 
-            # Elenco pattern
             for pattern_key, pattern_display_name in pattern_list:
-                # Crea un layout orizzontale per l'icona e il nome
                 pattern_layout = QHBoxLayout()
                 pattern_layout.setAlignment(Qt.AlignLeft)
-
-                # Icona verde (check) o rossa (X) PRIMA del nome pattern
-                is_enabled = all_patterns.get(pattern_key, {}).get("enabled", False)  # Controllo sullo stato del pattern
+                is_enabled = all_patterns.get(pattern_key, {}).get("enabled", False) 
                 icon_label = QLabel()
                 if is_enabled:
-                    icon_label.setText("✔")  # Check unicode
+                    icon_label.setText("✔")  
                     icon_label.setStyleSheet("color: green; font-size: 14px; margin-right: 5px;")
                 else:
-                    icon_label.setText("✘")  # X unicode
+                    icon_label.setText("✘")  
                     icon_label.setStyleSheet("color: red; font-size: 14px; margin-right: 5px;")
 
                 pattern_layout.addWidget(icon_label)
-
-                # Nome pattern
                 p_label = QLabel(pattern_display_name)
                 p_label.setStyleSheet("color: black; font-size: 13px;")
                 pattern_layout.addWidget(p_label)
 
                 cat_layout.addLayout(pattern_layout)
 
-            # Inseriamo il frame della categoria nella griglia 2x2
             categories_grid.addWidget(cat_frame, row, col)
 
             col += 1
@@ -328,48 +280,33 @@ class RecapSimulationPage(QWidget):
         self.home_page_callback()
 
     def add_configuration_items(self, config, layout, indent=0):
-        """
-        Recursively adds configuration items to the layout.
-        """
         for key, value in config.items():
-            # Horizontal layout for each item
             item_layout = QHBoxLayout()
             item_layout.setAlignment(Qt.AlignLeft)
-            # Indentation
-            indent_str = ' ' * indent * 20  # 20 pixels per indentation level
-
-            # Key label
+            indent_str = ' ' * indent * 20  
             key_label = QLabel(f"{key}:")
             key_label.setStyleSheet(f"color: black; font-size: 14px; margin-left: {indent_str}px;")
             item_layout.addWidget(key_label)
 
             if isinstance(value, dict):
-                # If the value is a dictionary, add its items recursively
                 layout.addLayout(item_layout)
                 self.add_configuration_items(value, layout, indent + 1)
             elif isinstance(value, list):
-                # If the value is a list, display each item
                 layout.addLayout(item_layout)
                 for idx, item in enumerate(value, start=1):
                     self.add_configuration_items({f"Item {idx}": item}, layout, indent + 1)
             else:
-                # Value label
                 value_label = QLabel(str(value))
                 value_label.setStyleSheet("color: black; font-size: 14px;")
                 item_layout.addWidget(value_label)
                 layout.addLayout(item_layout)
 
     def download_configuration(self):
-        """
-        Downloads the merged configuration as a JSON file.
-        """
-        # Merge configurations
         merged_config = {}
         for choice in self.user_choices:
             if isinstance(choice, dict):
                 merged_config.update(choice)
 
-        # Open a file dialog to save the file
         options = QFileDialog.Options()
         file_name, _ = QFileDialog.getSaveFileName(
             self,
@@ -379,7 +316,6 @@ class RecapSimulationPage(QWidget):
             options=options
         )
         if file_name:
-            # Ensure the file has a .json extension
             if not file_name.endswith('.json'):
                 file_name += '.json'
             try:

@@ -152,9 +152,6 @@ class HomePage(QWidget):
         self.close()
 
     def load_configuration(self):
-        """
-        Funzione per caricare un file di configurazione JSON.
-        """
         options = QFileDialog.Options()
         file_name, _ = QFileDialog.getOpenFileName(
             self,

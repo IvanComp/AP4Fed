@@ -82,9 +82,6 @@ class DashboardWindow(QWidget):
         self.resize(1200, 800)
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignTop)
-
-        base_dir = os.path.dirname(__file__)
-        subdir   = 'Docker' if simulation_type == 'Docker' else 'Local'
         cfg_path = os.path.join(self.base_dir, self.simulation_type, "configuration", "config.json")
         with open(cfg_path, "r") as f:
             cfg = json.load(f)
@@ -102,13 +99,11 @@ class DashboardWindow(QWidget):
                 model_name = first.get("model")
                 dataset_name = first.get("dataset")
 
-        # Persistent pastel colors
         self.color_f1 = random_pastel()
         self.color_tot = random_pastel()
         self.client_colors = {}
         self.clients = []
 
-        # Model section
         lbl_mod = QLabel(f"Model ({model_name})")
         lbl_mod.setStyleSheet("font-weight: bold; font-size: 16px; color: black;")
         layout.addWidget(lbl_mod)
@@ -116,8 +111,6 @@ class DashboardWindow(QWidget):
         self.model_area.setReadOnly(True)
         self.model_area.setStyleSheet("background-color: #f9f9f9; color: black;")
         layout.addWidget(self.model_area)
-
-        # Model plots: F1 and Total Time
         h_model = QHBoxLayout()
         self.fig_f1, self.ax_f1 = plt.subplots()
         self.fig_f1.patch.set_facecolor('white')
@@ -129,7 +122,6 @@ class DashboardWindow(QWidget):
         h_model.addWidget(self.canvas_tot)
         layout.addLayout(h_model)
 
-        # Clients section
         lbl_cli = QLabel(f"Clients ({dataset_name})")
         lbl_cli.setStyleSheet("font-weight: bold; font-size: 16px; color: black;")
         layout.addWidget(lbl_cli)
@@ -138,7 +130,6 @@ class DashboardWindow(QWidget):
         self.client_area.setStyleSheet("background-color: #f9f9f9; color: black;")
         layout.addWidget(self.client_area)
 
-        # Client plots: Training and Communication
         h_client = QHBoxLayout()
         self.fig_train, self.ax_train = plt.subplots()
         self.fig_train.patch.set_facecolor('white')
@@ -150,7 +141,6 @@ class DashboardWindow(QWidget):
         h_client.addWidget(self.canvas_comm)
         layout.addLayout(h_client)
 
-        # Timer to update
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_data)
         self.timer.start(1000)
@@ -163,7 +153,6 @@ class DashboardWindow(QWidget):
         if not files:
             return
 
-        # fixed clients
         df0 = pd.read_csv(files[0])
         if not self.clients:
             self.clients = df0['Client ID'].tolist()
@@ -182,7 +171,6 @@ class DashboardWindow(QWidget):
             text_model += f"Round {rnd}: F1={last['Val F1']:.2f}, Total Round Time={last['Total Time of FL Round']:.0f}s\n"
         self.model_area.setPlainText(text_model)
 
-        # plot F1
         self.ax_f1.clear()
         sns.lineplot(x=rounds, y=f1s, marker='o', ax=self.ax_f1, color=self.color_f1)
         self.ax_f1.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -191,7 +179,6 @@ class DashboardWindow(QWidget):
         self.ax_f1.set_ylabel('F1 Score')
         self.canvas_f1.draw()
 
-        # plot Total Time
         self.ax_tot.clear()
         sns.lineplot(x=rounds, y=totals, marker='o', ax=self.ax_tot, color=self.color_tot)
         self.ax_tot.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -200,7 +187,6 @@ class DashboardWindow(QWidget):
         self.ax_tot.set_ylabel('Total Round Time (sec)')
         self.canvas_tot.draw()
 
-        # clients text
         df_last = pd.read_csv(files[-1])
         text_cli = ''
         for cid in self.clients:
@@ -356,13 +342,11 @@ class SimulationPage(QWidget):
         self.xai_win.show()
 
     def start_simulation(self, num_supernodes):
-        # base_dir = dove sta simulation.py
         base_dir = os.path.dirname(os.path.abspath(__file__))
         sim_type = self.config['simulation_type']
         rounds   = self.config['rounds']
 
         if sim_type == 'Docker':
-            # — Lasci tutto com’era per Docker —
             work_dir = os.path.join(base_dir, 'Docker')
             dc_in    = os.path.join(work_dir, 'docker-compose.yml')
             dc_out   = os.path.join(work_dir, 'docker-compose.dynamic.yml')
@@ -415,7 +399,6 @@ class SimulationPage(QWidget):
                 return
 
         else:
-            # ** Ramo locale: working dir = progetto/Local **
             work_dir = os.path.join(base_dir, 'Local')
             cmd      = 'flower-simulation'
             args     = [
@@ -517,19 +500,16 @@ class SimulationPage(QWidget):
 class XAIWindow(QDialog):
     def __init__(self, base_dir, dataset_name, clients, rounds, sim_type):
         super().__init__()
-        # attributi base
         self.base_dir = base_dir
         self.sim_type = sim_type
         self.dataset  = dataset_name
         self.clients  = clients
 
-        # carico config.json dei client
         cfg_path = os.path.join(self.base_dir, self.sim_type, "configuration", "config.json")
         with open(cfg_path, "r") as f:
             full_cfg = json.load(f)
         self.client_configs = {int(c["client_id"]): c for c in full_cfg["client_details"]}
 
-        # import dinamico di taskA.py
         taskA_path = os.path.join(self.base_dir, self.sim_type, "taskA.py")
         spec       = importlib.util.spec_from_file_location("taskA", taskA_path)
         taskA_mod  = importlib.util.module_from_spec(spec)
@@ -537,7 +517,6 @@ class XAIWindow(QDialog):
         self.NetA        = taskA_mod.Net
         self.load_data_A = taskA_mod.load_data
 
-        # ricavo test_loader e preprocess
         first_cid       = self.clients[0]
         if "imagenet100" in self.dataset.lower():
             from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normalize
@@ -549,7 +528,6 @@ class XAIWindow(QDialog):
             ])
             self.test_loader = None
         else:
-            # tutti gli altri dataset (CIFAR, ecc.)
             _, test_loader = self.load_data_A(self.client_configs[first_cid])
             self.test_loader = test_loader
             self.preprocess  = test_loader.dataset.transform
@@ -558,7 +536,6 @@ class XAIWindow(QDialog):
         self.resize(800, 600)
         layout = QVBoxLayout(self)
 
-        # seleziona target
         hl = QHBoxLayout()
         hl.addWidget(QLabel("Target:"))
         self.target_cb = QComboBox()
@@ -567,7 +544,6 @@ class XAIWindow(QDialog):
             self.target_cb.addItem(f"Client {c}")
         hl.addWidget(self.target_cb)
 
-        # seleziona round
         hl.addWidget(QLabel("Round:"))
         self.round_sb = QSpinBox()
         self.round_sb.setMinimum(1)
@@ -575,7 +551,6 @@ class XAIWindow(QDialog):
         self.round_sb.setValue(1)
         hl.addWidget(self.round_sb)
 
-        # seleziona indice immagine
         hl.addWidget(QLabel("Sample idx:"))
         self.idx_sb = QSpinBox()
         self.idx_sb.setMinimum(0)
@@ -587,31 +562,22 @@ class XAIWindow(QDialog):
         self.idx_sb.setValue(0)
         hl.addWidget(self.idx_sb)
 
-        # button genera explain
         self.run_btn = QPushButton("Run LIME")
         self.run_btn.clicked.connect(self.run_explain)
         hl.addWidget(self.run_btn)
-
         layout.addLayout(hl)
 
-        # area figure
         self.fig, self.axes = plt.subplots(1, 2)
         self.canvas = FigureCanvas(self.fig)
         layout.addWidget(self.canvas)
 
-        # preview automatico
         rand_idx = random.randint(self.idx_sb.minimum(), self.idx_sb.maximum())
         self.idx_sb.setValue(rand_idx)
         self.run_explain()
-
-    
-            # 2.a) setto gli attributi base
         self.base_dir = base_dir
         self.sim_type = sim_type
         self.dataset  = dataset_name
         self.clients  = clients
-
-        # 2.b) carico config.json per i client
         cfg_path = os.path.join(self.base_dir, self.sim_type, "configuration", "config.json")
         with open(cfg_path, "r") as f:
             full_cfg = json.load(f)
@@ -620,7 +586,6 @@ class XAIWindow(QDialog):
             for c in full_cfg["client_details"]
         }
 
-        # 2.c) import dinamico di taskA.py
         taskA_path = os.path.join(self.base_dir, self.sim_type, "taskA.py")
         spec       = importlib.util.spec_from_file_location("taskA", taskA_path)
         taskA_mod  = importlib.util.module_from_spec(spec)
@@ -628,7 +593,6 @@ class XAIWindow(QDialog):
         self.NetA        = taskA_mod.Net
         self.load_data_A = taskA_mod.load_data
 
-        # 2.d) ricavo test_loader e preprocess giusti
         first_cid = self.clients[0]
         if "imagenet100" in self.dataset.lower():
             from pathlib import Path
@@ -639,7 +603,6 @@ class XAIWindow(QDialog):
             if not subset_dir.is_dir():
                 raise FileNotFoundError(f"{subset_dir} non trovato")
 
-            # elenco ordinato di tutti i file immagine
             self.image_paths = sorted(
                 f
                 for cls in sorted(subset_dir.iterdir()) if cls.is_dir()
@@ -647,7 +610,6 @@ class XAIWindow(QDialog):
                 if f.suffix.lower() in (".png", ".jpg", ".jpeg")
             )
 
-            # stessa pipeline di trasformazione usata in training
             self.preprocess = Compose([
                 Resize(256), CenterCrop(224),
                 ToTensor(),
@@ -691,7 +653,6 @@ class XAIWindow(QDialog):
         from lime import lime_image
         from skimage.segmentation import mark_boundaries
 
-        # 1) modello e device
         idx = self.idx_sb.value()
         if self.target_cb.currentText() == "Server":
             model = self.load_model("server", self.round_sb.value())
@@ -701,18 +662,14 @@ class XAIWindow(QDialog):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         model  = model.to(device).eval()
 
-        # 2) carica immagine
         if self.test_loader is None:
-            # ImageNet100
             path  = self.image_paths[idx]
             img   = Image.open(path).convert("RGB")
             img_np = np.array(img) / 255.0
             preprocess_fn = self.preprocess
         else:
-            # CIFAR o altro
             from torchvision.transforms import Normalize
             tensor, _ = self.test_loader.dataset[idx]
-            # inverti l'ultima Normalize
             inv = None
             for t in reversed(self.preprocess.transforms):
                 if isinstance(t, Normalize):
@@ -726,7 +683,6 @@ class XAIWindow(QDialog):
             img_np = np.clip(img_np, 0, 1)
             preprocess_fn = self.preprocess
 
-        # 3) spiegazione LIME
         explainer = lime_image.LimeImageExplainer()
         def batch_predict(batch):
             batch_t = torch.stack([
@@ -743,7 +699,6 @@ class XAIWindow(QDialog):
         )
         lbl = exp.top_labels[0]
 
-        # 4) mask e boundary
         temp, mask = exp.get_image_and_mask(
             label=lbl,
             positive_only=False,
@@ -754,19 +709,16 @@ class XAIWindow(QDialog):
             temp = temp / 255.0
         seg = mark_boundaries(temp, mask)
 
-        # 5) disegna
+
         self.axes[0].clear()
         self.axes[1].clear()
-
         self.axes[0].imshow(img_np)
         self.axes[0].set_title("Originale")
         self.axes[0].axis("off")
-
         self.axes[1].imshow(seg)
         self.axes[1].set_title("LIME Explanation")
         self.axes[1].axis("off")
 
-        # 6) legenda
         import matplotlib.patches as mpatches
         pos = mpatches.Patch(color='green', label='Positive')
         neg = mpatches.Patch(color='red',   label='Negative')
