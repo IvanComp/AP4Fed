@@ -1,4 +1,4 @@
-**/__pycache__/
+pycache/*
 *.pyc
 **/data
 **/Local/img

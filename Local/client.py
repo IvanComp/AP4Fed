@@ -86,6 +86,7 @@ CLIENT_REGISTRY = ClientRegistry()
 DISTRIBUTED_MODEL_REPAIR = False
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 GLOBAL_ROUND_COUNTER = 1 
+SSIM = False
 
 def set_cpu_affinity(process_pid: int, num_cpus: int) -> bool:
     import platform, os
@@ -235,9 +236,10 @@ class FlowerClient(NumPyClient):
                 if selection_criteria == "RAM" and ram < selection_value:
                     log(INFO, f"Client {self.cid} has insufficient RAM ({ram}). Will not participate.")
                     return parameters, 0, {}
-            log(INFO, f"Client {self.cid} participates in this round. (CPU: {n_cpu}, RAM: {ram})")
+            log(INFO, f"Client {self.cid} participates in this round.")
 
             if selection_strategy == "SSIM-Based":
+                SSIM = True
                 log(INFO, f"Entering SSIM.")
 
         if CLIENT_CLUSTER:
@@ -361,14 +363,16 @@ class FlowerClient(NumPyClient):
         round_number = GLOBAL_ROUND_COUNTER
         GLOBAL_ROUND_COUNTER += 1
 
-        if MODEL_COVERSIONING:
-           
+        if MODEL_COVERSIONING:          
             base_path = os.path.dirname(os.path.abspath(__file__)) 
             client_folder = os.path.join(base_path, "model_weights", "clients", str(self.cid))
             os.makedirs(client_folder, exist_ok=True)
             client_file_path = os.path.join(client_folder, f"MW_round{round_number}.pt")
             torch.save(self.net.state_dict(), client_file_path)
             log(INFO, f"Client {self.cid} model weights saved to {client_file_path}")
+
+            #if SSIM:
+             #   log(INFO, f"Entering SSIM after model.")
                 
         if MESSAGE_COMPRESSOR:
             serialized_parameters = pickle.dumps(new_parameters)

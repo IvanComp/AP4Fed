@@ -44,21 +44,24 @@ An initial version of <tt>AP4FED</tt> was developed and tested in the research p
    
 # Prerequisites
 
-To run <tt>AP4FED</tt>, ensure that the following prerequisites are met:
+You can create two different types of projects: **Local** project or **Docker** project.
+Docker (Docker Compose) is not required to run local Federated Learning projects, but they are valuable tools for configurations that emulate real clients, particularly by distributing physical resources such as CPUs while avoiding CPU overcommitment. The framework allows flexibility between running a fully containerized setup or opting for a local simulation, depending on the project’s requirements and the desired level of fidelity in emulating a distributed system.
+
+## Local Project
+
+To install all the required Python libraries and run the tool, run the following command:
+
+```bash
+pip install -r requirements.txt && python home.py
+```
+
+## Docker Project
+
+To run a Docker Project, ensure that the following prerequisites are met:
 
 - [Python (version 3.12.X or higher)](https://www.python.org/downloads/) 
 - [Docker](https://docs.docker.com/get-docker/)
 
-Docker (Docker Compose) is not required to run local Federated Learning projects, but they are valuable tools for configurations that emulate real clients, particularly by distributing physical resources such as CPUs while avoiding CPU overcommitment. The framework allows flexibility between running a fully containerized setup or opting for a local simulation, depending on the project’s requirements and the desired level of fidelity in emulating a distributed system.
-
-- **Docker**: Required to create and run containers.
-- **Docker Compose**: Enables running multi-container applications with Docker using the `docker-compose.yml` file.
-
-You can verify the installation with the following commands:
-```bash
-docker --version
-docker compose version
-```
 
 # How To Run
 
@@ -66,10 +69,8 @@ Please ensure that all [Prerequisites](#Prerequisites) are met before proceeding
 In the main folder run the following command:
 
 ```bash
-pip install -r requirements.txt && python home.py
+python home.py
 ```
-
-It will install all the required Python libraries. 
 
 Then, follow the instructions on the GUI of <tt>AP4FED</tt> to configure and run a FL simulation. This interface allows you to configure the Federated Learning system and proceed with benchmarking, providing a user-friendly way to manage and test the setup (Please see the next [Section](#Framework))
 

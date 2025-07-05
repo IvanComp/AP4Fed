@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from typing import List, Tuple, Dict, Optional
+from skimage.metrics import structural_similarity as ssim
 from flwr.common import (
     Metrics,
     ndarrays_to_parameters,
@@ -506,6 +507,70 @@ class FedAvg(Strategy):
             torch.save(aggregated_model.state_dict(), path)
             log(INFO, f"Aggregated model weights saved to {path}")
 
+        if currentRnd > 1:
+            import numpy as np
+            from PIL import Image
+            from pytorch_grad_cam import GradCAM
+            from pytorch_grad_cam.utils.image import preprocess_image, show_cam_on_image
+            from skimage.metrics import structural_similarity as ssim, mean_squared_error as mse
+
+            mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+            std  = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+
+            clients_dir = os.path.join("model_weights", "clients")
+            for client_id in sorted(os.listdir(clients_dir)):
+                dataset_name = None
+                for cd in GLOBAL_CLIENT_DETAILS:
+                    if str(cd["client_id"]) == client_id:
+                        dataset_name = cd["dataset"]
+                        break
+                if dataset_name is None:
+                    continue
+
+                data_cfg = {"dataset": dataset_name}
+                _, test_loader = load_data_A(data_cfg)
+                batch = next(iter(test_loader))
+                img_tensor, _ = batch
+                img_tensor = img_tensor[0].cpu()  
+                inv = img_tensor.numpy().transpose(1,2,0) * std + mean
+                inv = np.clip(inv, 0.0, 1.0)
+
+                input_tensor = preprocess_image(
+                    inv,
+                    mean=mean.tolist(),
+                    std=std.tolist(),
+                ).to("cpu")
+                if client_id == sorted(os.listdir(clients_dir))[0]:
+                    server_model = NetA()
+                    server_model.load_state_dict(torch.load(path, map_location="cpu"))
+                    target_layers = [server_model.features[12].expand3x3]
+                    server_cam_gen = GradCAM(model=server_model, target_layers=target_layers)
+                    gray_srv = server_cam_gen(input_tensor=input_tensor)[0]
+                    server_cam = show_cam_on_image(inv, gray_srv, use_rgb=True)
+                    server_cam_arr = (server_cam * 255).astype(np.uint8)
+
+                client_w = os.path.join(clients_dir, client_id, f"MW_round{currentRnd}.pt")
+                if not os.path.isfile(client_w):
+                    continue
+                client_model = NetA()
+                client_model.load_state_dict(torch.load(client_w, map_location="cpu"))
+                client_cam_gen = GradCAM(model=client_model, target_layers=target_layers)
+                gray_clt = client_cam_gen(input_tensor=input_tensor)[0]
+                client_cam = show_cam_on_image(inv, gray_clt, use_rgb=True)
+                client_cam_arr = (client_cam * 255).astype(np.uint8)
+
+                arr_s = server_cam_arr.astype(np.float32) / 255.0
+                arr_c = client_cam_arr.astype(np.float32) / 255.0
+                mse_val  = mse(arr_s, arr_c)
+                ssim_val = ssim(arr_s, arr_c,
+                                data_range=arr_s.max() - arr_s.min(),
+                                channel_axis=2)
+
+                print(
+                    f"[CAM-SSIM] round {currentRnd} – dataset {dataset_name} – "
+                    f"client {client_id}: SSIM={ssim_val:.4f}, MSE={mse_val:.4f}"
+                )
+
         metrics_aggregated: Dict[str, Scalar] = {}
         if any(global_metrics[model_type].values()):
             metrics_aggregated[model_type] = {
@@ -546,7 +611,7 @@ class FedAvg(Strategy):
         weighted_average_global(metrics, task_type, srt1, srt2, time_between_rounds)
 
         return ndarrays_to_parameters(new_weights)
-
+    
     def configure_evaluate(
         self,
         server_round: int,

@@ -140,8 +140,6 @@ class HomePage(QWidget):
         footer_layout.addWidget(github_button)
 
         layout.addLayout(footer_layout)
-
-        # Personalizza la finestra
         self.setStyleSheet("background-color: white;")
 
     def start_new_project(self):
@@ -191,14 +189,12 @@ class HomePage(QWidget):
         return True
 
     def close_application(self):
-        # Mostra un popup di conferma
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Confirmation")
         msg_box.setText("Are you sure you want to close the application?")
         msg_box.setIcon(QMessageBox.Question)
         msg_box.setObjectName("myMessageBox")
 
-        # Stile del popup corretto
         msg_box.setStyleSheet("""
             #myMessageBox {
                 background-color: white;

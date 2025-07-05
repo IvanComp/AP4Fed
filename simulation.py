@@ -278,27 +278,27 @@ class SimulationPage(QWidget):
 
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
-        self.XAI_button = QPushButton("Explainable AI")
-        self.XAI_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.XAI_button.setCursor(Qt.PointingHandCursor)
-        self.XAI_button.setStyleSheet("""
-            QPushButton {
-                background-color: green;
-                color: white;
-                font-size: 14px;
-                padding: 10px;
-                border-radius: 5px;
-                width: 200px;
-            }
-            QPushButton:hover {
-                background-color: #00b300;
-            }
-            QPushButton:pressed {
-                background-color: #008000;
-            }      
-        """)
-        self.XAI_button.clicked.connect(self.open_XAI)
-        layout.addWidget(self.XAI_button)
+        #self.XAI_button = QPushButton("Explainable AI")
+        #self.XAI_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        #self.XAI_button.setCursor(Qt.PointingHandCursor)
+        #self.XAI_button.setStyleSheet("""
+        #   QPushButton {
+        #        background-color: green;
+        #       color: white;
+        #        font-size: 14px;
+        #        padding: 10px;
+        #        border-radius: 5px;
+        #        width: 200px;
+        #    }
+        #   QPushButton:hover {
+        #        background-color: #00b300;
+        #    }
+        #    QPushButton:pressed {
+        #        background-color: #008000;
+        #    }      
+        #""")
+        #self.XAI_button.clicked.connect(self.open_XAI)
+        #layout.addWidget(self.XAI_button)
 
         self.stop_button = QPushButton("Stop Simulation")
         self.stop_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
