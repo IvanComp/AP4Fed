@@ -1,3 +1,0 @@
-Client ID,FL Round,Training Time,Communication Time,Total Time of FL Round,# of CPU,CPU Usage (%),RAM Usage (%),Model Type,Data Distr. Type,Dataset,Train Loss,Train Accuracy,Train F1,Train MAE,Val Loss,Val Accuracy,Val F1,Val MAE
-Client 1,1,309.26,209.48,,1,234,7,squeezenet1_1,IID,ImageNet100,,,,,,,,
-Client 2,1,314.34,200.08,628.8,1,234,7,squeezenet1_1,non-IID,ImageNet100,1.95,0.276,0.0921,2.227,2.4,0.149,0.052,3.052

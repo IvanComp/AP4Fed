@@ -8,8 +8,12 @@
             "params": {}
         },
         "client_selector": {
-            "enabled": false,
-            "params": {}
+            "enabled": true,
+            "params": {
+                "selection_strategy": "SSIM-Based",
+                "selection_criteria": "Min",
+                "selection_value": 1
+            }
         },
         "client_cluster": {
             "enabled": false,
@@ -39,15 +43,15 @@
             "ram": 2,
             "dataset": "ImageNet100",
             "data_distribution_type": "IID",
-            "model": "squeezenet1_1"
+            "model": "shufflenet_v2_x0_5"
         },
         {
             "client_id": 2,
             "cpu": 1,
             "ram": 2,
             "dataset": "ImageNet100",
-            "data_distribution_type": "non-IID",
-            "model": "squeezenet1_1"
+            "data_distribution_type": "IID",
+            "model": "shufflenet_v2_x0_5"
         }
     ]
 }

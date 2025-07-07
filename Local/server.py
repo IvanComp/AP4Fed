@@ -124,6 +124,10 @@ if os.path.exists(config_file):
         })
     GLOBAL_CLIENT_DETAILS = client_details_structure
 
+selector_params = config["patterns"]["client_selector"]["params"]
+selection_strategy = selector_params.get("selection_strategy")      
+selection_criteria = selector_params.get("selection_criteria")
+
 MODEL_NAME = GLOBAL_CLIENT_DETAILS[0]["model"]
 currentRnd = 0
 
@@ -521,7 +525,7 @@ class FedAvg(Strategy):
             torch.save(aggregated_model.state_dict(), path)
             log(INFO, f"Aggregated model weights saved to {path}")
 
-        if currentRnd > 0:
+        if currentRnd > 0 and CLIENT_SELECTOR and selection_strategy == "SSIM-Based":
 
             def get_image(path):
                 with open(os.path.abspath(path), 'rb') as f:
@@ -649,8 +653,27 @@ class FedAvg(Strategy):
                 MODEL_NAME
             )
 
-            for idx, val in enumerate(ssim_values, start=1):
-                log(INFO, f"[CAM-SSIM] round {currentRnd} – client {idx}: SSIM={val:.4f}")
+            values_str = ", ".join(
+                f"Client {idx}: {val:.4f}"
+                for idx, val in enumerate(ssim_values, start=1)
+            )
+
+            if selection_criteria.lower().startswith("max"):
+                exclude_idx = int(np.argmax(ssim_values))
+            else:  
+                exclude_idx = int(np.argmin(ssim_values))
+
+            excluded_val = ssim_values[exclude_idx]
+            excludingCID = exclude_idx + 1
+            with open("exclusion_log.txt", "w") as f:
+                f.write(f"{excludingCID}")
+
+            log(
+                INFO,
+                #f"[CAM-SSIM] Criteria: Exclude Clients with {selection_criteria} SSIM. "
+                f"\nRound {currentRnd} – {values_str}. "
+                f"\nExcluding Client {exclude_idx+1} with SSIM={excluded_val:.4f}"
+            )
 
         metrics_aggregated: Dict[str, Scalar] = {}
         if any(global_metrics[model_type].values()):

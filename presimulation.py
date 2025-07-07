@@ -71,8 +71,7 @@ class ClientSelectorDialog(QDialog):
         strategy = self.strategy_combo.currentText()
         self.criteria_combo.clear()
         if strategy == "SSIM-Based":
-                self.criteria_label.hide()
-                self.criteria_combo.hide()
+                self.criteria_combo.addItems(["Min", "Max"])
                 self.value_label.hide()
                 self.value_spinbox.hide()
                 self.explanation_label.hide()
