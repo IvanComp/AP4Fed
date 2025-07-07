@@ -555,15 +555,9 @@ class FedAvg(Strategy):
                 weights_filename: str,
                 image_filename: str,
             ):
-                # skip gradcam computation if the image already exists
-                if os.path.isfile(define_save_filename(weights_filename, "gradcam", image_filename)):
-                    return
-
-                # configure input image
+            
                 img = get_image(image_filename)
-
                 img = np.float32(img) / 255
-
                 img_tensor = preprocess_image(
                     img,
                     mean = [0.485, 0.456, 0.406],
@@ -571,11 +565,9 @@ class FedAvg(Strategy):
                 ).to("cpu")
 
                 cam = GradCAM(model=model, target_layers=target_layers)
-
                 grayscale_cam = cam(input_tensor=img_tensor, targets=None)
                 grayscale_cam = grayscale_cam[0, :]
                 img_explanation = show_cam_on_image(img, grayscale_cam, use_rgb=True)
-
                 plt.imsave(define_save_filename(weights_filename, "gradcam", image_filename), img_explanation)
                 return
 
@@ -592,14 +584,14 @@ class FedAvg(Strategy):
                     model = models.shufflenet_v2_x0_5(weights=None, num_classes=10)
                     target_layers = [model.conv5[0]]
 
-                # get image file paths
-                images = glob.glob("images/val.X/**/*.JPEG")
-
-                # compute the folder path for the model weights
+                images = glob.glob("data/imagenet100-preprocessed/test/**/*.JPEG", recursive=True)
+                #log(INFO, f"[SSIM DEBUG] looking under {os.path.abspath('data/imagenet100-preprocessed/test')}")
+                #log(INFO, f"[SSIM DEBUG] found {len(images)} images to process for round {round}")
                 server_pt = f"{model_weights_folder}/server/MW_round{round}.pt"
                 clients_pt = glob.glob(f"{model_weights_folder}/clients/*/MW_round{round}.pt")
+                #log(INFO, f"[SSIM DEBUG] server_pt = {server_pt}")
+                #log(INFO, f"[SSIM DEBUG] clients_pt = {clients_pt}")
 
-                # create directories for gradcam images if they don't exist
                 if not os.path.exists(f"{os.path.dirname(server_pt)}/gradcam_images"):
                     os.makedirs(f"{os.path.dirname(server_pt)}/gradcam_images")
 
@@ -607,13 +599,11 @@ class FedAvg(Strategy):
                     if not os.path.exists(f"{os.path.dirname(client_pt)}/gradcam_images"):
                         os.makedirs(f"{os.path.dirname(client_pt)}/gradcam_images")
 
-                # load server model weights
                 if model_name == "squeezenet1_1":
                     model = load_squeezenet_weights(model, server_pt)
                 elif model_name == "shufflenet_v2_x0_5":
                     model = load_shufflenet_weights(model, server_pt)
 
-                # generate gradcam images for server
                 for image in images:
                     run_cam(
                         model=model,
@@ -622,7 +612,6 @@ class FedAvg(Strategy):
                         image_filename=image,
                     )
 
-                # generate gradcam images for each client
                 for client_pt in clients_pt:
                     if model_name == "squeezenet1_1":
                         model = load_squeezenet_weights(model, client_pt)

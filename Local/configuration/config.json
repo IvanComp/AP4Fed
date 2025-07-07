@@ -1,7 +1,7 @@
 {
     "simulation_type": "Local",
     "rounds": 2,
-    "clients": 1,
+    "clients": 2,
     "patterns": {
         "client_registry": {
             "enabled": true,
@@ -39,7 +39,15 @@
             "ram": 2,
             "dataset": "ImageNet100",
             "data_distribution_type": "IID",
-            "model": "shufflenet_v2_x0_5"
+            "model": "squeezenet1_1"
+        },
+        {
+            "client_id": 2,
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "ImageNet100",
+            "data_distribution_type": "non-IID",
+            "model": "squeezenet1_1"
         }
     ]
 }
