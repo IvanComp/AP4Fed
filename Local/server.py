@@ -3,7 +3,7 @@ from typing import List, Tuple, Dict, Optional
 import contextlib
 import os
 import builtins
-import os
+import re
 import glob
 import numpy as np
 import matplotlib.pyplot as plt
@@ -589,7 +589,22 @@ class FedAvg(Strategy):
 
                 images = glob.glob("data/imagenet100-preprocessed/test/**/*.JPEG", recursive=True)
                 server_pt = f"{model_weights_folder}/server/MW_round{round}.pt"
-                clients_pt = glob.glob(f"{model_weights_folder}/clients/*/MW_round{round}.pt")
+                client_dirs = sorted(glob.glob(os.path.join(model_weights_folder, "clients", "*")), key=lambda d: int(os.path.basename(d)))
+                clients_pt = []
+                client_ids = []
+                for client_dir in client_dirs:
+                    all_models = glob.glob(os.path.join(client_dir, "MW_round*.pt"))
+                    valid = []
+                    for p in all_models:
+                        m = re.search(r"MW_round(\d+)\.pt$", p)
+                        if m and int(m.group(1)) <= round:
+                            valid.append((int(m.group(1)), p))
+                    if valid:
+                        latest_path = max(valid, key=lambda x: x[0])[1]
+                        clients_pt.append(latest_path)
+                        client_ids.append(int(os.path.basename(client_dir)))
+                    else:
+                        log(INFO, f"Nessun modello per client {os.path.basename(client_dir)} fino al round {round}.")
 
                 if not os.path.exists(f"{os.path.dirname(server_pt)}/gradcam_images"):
                     os.makedirs(f"{os.path.dirname(server_pt)}/gradcam_images")
@@ -640,18 +655,11 @@ class FedAvg(Strategy):
                     client_ssim = np.array(client_ssim)
                     ssim_values.append(client_ssim.mean())
 
-                return ssim_values
+                return client_ids, ssim_values
 
-            ssim_values = compute_ssims(
-                currentRnd,
-                "model_weights",
-                MODEL_NAME
-            )
+            client_ids, ssim_values = compute_ssims(currentRnd, "model_weights", MODEL_NAME)
 
-            values_str = ", ".join(
-                f"Client {idx}: {val:.4f}"
-                for idx, val in enumerate(ssim_values, start=1)
-            )
+            values_str = ", ".join(f"Client {cid}: {val:.4f}"for cid, val in zip(client_ids, ssim_values))
 
             if selection_criteria.lower().startswith("max"):
                 exclude_idx = int(np.argmax(ssim_values))

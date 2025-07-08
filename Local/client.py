@@ -368,7 +368,7 @@ class FlowerClient(NumPyClient):
 
         results, training_time = train_A(
             self.net, self.trainloader, self.testloader,
-            epochs=5, DEVICE=self.DEVICE
+            epochs=1, DEVICE=self.DEVICE
         )
         train_end_ts = taskA.TRAIN_COMPLETED_TS or time.time()
         new_parameters = get_weights_A(self.net)
