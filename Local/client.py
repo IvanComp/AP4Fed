@@ -239,28 +239,6 @@ class FlowerClient(NumPyClient):
                     return parameters, 0, {}
                 else:
                     log(INFO, f"Client {self.cid} participates in this round.")
-            
-            
-            if selection_strategy == "SSIM-Based":
-                BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-                EXCLUDED_PATH = os.path.join(BASE_DIR, "exclusion_log.txt")
-                def get_excluded_cid(path=None):
-                    if path is None:
-                        path = EXCLUDED_PATH
-                    try:
-                        with open(path, "r") as f:
-                            return int(f.read().strip())
-                    except (FileNotFoundError, ValueError):
-                        return None
-                excludingCID = get_excluded_cid()
-                if selection_criteria == "Max" and self.cid == excludingCID:
-                    log(INFO, f"Client {self.cid} has the maximum SSIM value. Will not participate to the next round.")
-                    return parameters, 0, {}
-                if selection_criteria == "Min" and self.cid == excludingCID:
-                    log(INFO, f"Client {self.cid} has the minimum SSIM value. Will not participate to the next round.")
-                    return parameters, 0, {}
-                else:
-                    log(INFO, f"Client {self.cid} participates in this round.")
 
         if CLIENT_CLUSTER:
             selector_params = configJSON["patterns"]["client_cluster"]["params"]

@@ -9,12 +9,15 @@ from PyQt5.QtCore import Qt, QUrl, QSize
 from presimulation import PreSimulationPage 
 from recap_simulation import RecapSimulationPage 
 
-base_dir = os.path.abspath(os.path.dirname(__file__))
-local_dir = os.path.join(base_dir, 'Local')
-for folder in ['performance', 'model_weights']:
-    folder_path = os.path.join(local_dir, folder)
-    if os.path.exists(folder_path):
-        shutil.rmtree(folder_path)
+base_dir   = os.path.abspath(os.path.dirname(__file__))
+local_dir  = os.path.join(base_dir, 'Local')
+targets    = ['performance', 'model_weights', 'exclusion_log.txt']
+for name in targets:
+    path = os.path.join(local_dir, name)
+    if os.path.isdir(path):
+        shutil.rmtree(path)
+    elif os.path.isfile(path):
+        os.remove(path)
 
 user_choices = []
 

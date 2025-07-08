@@ -470,6 +470,15 @@ class FedAvg(Strategy):
         failures: List[BaseException],
     ) -> Optional[Tuple[Parameters, Dict[str, Scalar]]]:
         global previous_round_end_time, currentRnd
+        excluded_cid = []
+        
+        if CLIENT_SELECTOR and selection_strategy == "SSIM-Based":
+            try:
+                with open("exclusion_log.txt", "r") as f:
+                    excluded_cid = f.read().strip()
+                    log(INFO, f"[Round {currentRnd}] Escludo client {excluded_cid} dall'aggregazione")
+            except FileNotFoundError:
+                log(INFO, "PRIMO ROUND: nessun client da escludere")
 
         agg_start = time.time()
         round_total_time = time.time() - self.round_start_time
@@ -477,17 +486,23 @@ class FedAvg(Strategy):
 
         results_a = []
         training_times = []
-        global currentRnd
+        #global currentRnd
         currentRnd += 1
         
         for client_proxy, fit_res in results:
             
+            cid = fit_res.metrics.get("client_id") or client_proxy.cid
             client_id = fit_res.metrics.get("client_id")
             model_type = fit_res.metrics.get("model_type")
             training_time = fit_res.metrics.get("training_time")
             communication_time = fit_res.metrics.get("communication_time")
             compressed_parameters_hex = fit_res.metrics.get("compressed_parameters_hex")          
             client_model_mapping[client_id] = model_type
+
+            if CLIENT_SELECTOR and selection_strategy == "SSIM-Based" and excluded_cid:
+                if str(cid) == excluded_cid:
+                    log(INFO, f"[Round {currentRnd}] Skipping aggregation of client {cid}")
+                    continue
 
             if MESSAGE_COMPRESSOR:
                 compressed_parameters = bytes.fromhex(compressed_parameters_hex)
@@ -743,6 +758,7 @@ class FedAvg(Strategy):
         return None
 
 def server_fn(context: Context):
+
     strategy = FedAvg(
         initial_parameters_a=parameters,
     )
