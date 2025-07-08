@@ -229,6 +229,7 @@ class FlowerClient(NumPyClient):
             selection_strategy = selector_params.get("selection_strategy", "")
             selection_criteria = selector_params.get("selection_criteria", "")
             selection_value = selector_params.get("selection_value", "")
+
             if selection_strategy == "Resource-Based":
                 if selection_criteria == "CPU" and n_cpu < selection_value:
                     log(INFO, f"Client {self.cid} has insufficient CPU ({n_cpu}). Will not participate.")
@@ -236,27 +237,30 @@ class FlowerClient(NumPyClient):
                 if selection_criteria == "RAM" and ram < selection_value:
                     log(INFO, f"Client {self.cid} has insufficient RAM ({ram}). Will not participate.")
                     return parameters, 0, {}
-            log(INFO, f"Client {self.cid} participates in this round.")
+                else:
+                    log(INFO, f"Client {self.cid} participates in this round.")
             
-            BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-            EXCLUDED_PATH = os.path.join(BASE_DIR, "excluded_client.txt")
-            def get_excluded_cid(EXCLUDED_PATH):
-                try:
-                    with open(EXCLUDED_PATH, "r") as f:
-                        return int(f.read().strip())
-                except (FileNotFoundError, ValueError):
-                    return None
-
+            
             if selection_strategy == "SSIM-Based":
+                BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+                EXCLUDED_PATH = os.path.join(BASE_DIR, "exclusion_log.txt")
+                def get_excluded_cid(path=None):
+                    if path is None:
+                        path = EXCLUDED_PATH
+                    try:
+                        with open(path, "r") as f:
+                            return int(f.read().strip())
+                    except (FileNotFoundError, ValueError):
+                        return None
                 excludingCID = get_excluded_cid()
-                log(INFO, f"Client {self.cid} controlla {excludingCID}")
                 if selection_criteria == "Max" and self.cid == excludingCID:
                     log(INFO, f"Client {self.cid} has the maximum SSIM value. Will not participate to the next round.")
                     return parameters, 0, {}
                 if selection_criteria == "Min" and self.cid == excludingCID:
                     log(INFO, f"Client {self.cid} has the minimum SSIM value. Will not participate to the next round.")
                     return parameters, 0, {}
-            log(INFO, f"Client {self.cid} participates in this round.")
+                else:
+                    log(INFO, f"Client {self.cid} participates in this round.")
 
         if CLIENT_CLUSTER:
             selector_params = configJSON["patterns"]["client_cluster"]["params"]
@@ -364,7 +368,7 @@ class FlowerClient(NumPyClient):
 
         results, training_time = train_A(
             self.net, self.trainloader, self.testloader,
-            epochs=1, DEVICE=self.DEVICE
+            epochs=5, DEVICE=self.DEVICE
         )
         train_end_ts = taskA.TRAIN_COMPLETED_TS or time.time()
         new_parameters = get_weights_A(self.net)

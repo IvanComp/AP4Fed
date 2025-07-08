@@ -1,0 +1,18 @@
+Client ID,FL Round,Training Time,Communication Time,Total Time of FL Round,# of CPU,CPU Usage (%),RAM Usage (%),Model Type,Data Distr. Type,Dataset,Train Loss,Train Accuracy,Train F1,Train MAE,Val Loss,Val Accuracy,Val F1,Val MAE
+Client 1,1,1947.39,177.46,,2,198,5,shufflenet_v2_x0_5,IID,ImageNet100,,,,,,,,
+Client 2,1,1946.87,172.89,,2,196,5,shufflenet_v2_x0_5,IID,ImageNet100,,,,,,,,
+Client 3,1,1947.45,179.13,,2,198,5,shufflenet_v2_x0_5,IID,ImageNet100,,,,,,,,
+Client 4,1,1981.05,135.44,,2,198,7,shufflenet_v2_x0_5,non-IID,ImageNet100,,,,,,,,
+Client 5,1,1978.14,132.2,2245.52,1,196,7,shufflenet_v2_x0_5,non-IID,ImageNet100,0.74,0.7499,0.7064,0.9895,1.54,0.6076,0.5912,1.53
+Client 1,2,1891.98,164.53,,2,196,4,shufflenet_v2_x0_5,IID,ImageNet100,,,,,,,,
+Client 2,2,1891.83,162.32,,2,194,4,shufflenet_v2_x0_5,IID,ImageNet100,,,,,,,,
+Client 3,2,1892.11,165.37,,2,196,4,shufflenet_v2_x0_5,IID,ImageNet100,,,,,,,,
+Client 4,2,1921.96,127.47,2185.81,2,194,4,shufflenet_v2_x0_5,non-IID,ImageNet100,0.57,0.8101,0.8057,0.7043,1.14,0.694,0.6876,1.1735
+Client 2,3,1768.72,167.96,,2,202,2,shufflenet_v2_x0_5,IID,ImageNet100,,,,,,,,
+Client 3,3,1768.64,168.78,,2,204,3,shufflenet_v2_x0_5,IID,ImageNet100,,,,,,,,
+Client 4,3,1808.51,128.01,,2,202,5,shufflenet_v2_x0_5,non-IID,ImageNet100,,,,,,,,
+Client 5,3,1807.92,126.58,2066.53,1,200,4,shufflenet_v2_x0_5,non-IID,ImageNet100,0.29,0.9027,0.8829,0.348,1.63,0.6575,0.6418,1.314
+Client 1,4,1778.09,164.25,,2,205,5,shufflenet_v2_x0_5,IID,ImageNet100,,,,,,,,
+Client 2,4,1778.08,164.2,,2,206,5,shufflenet_v2_x0_5,IID,ImageNet100,,,,,,,,
+Client 4,4,1806.71,130.2,,2,203,7,shufflenet_v2_x0_5,non-IID,ImageNet100,,,,,,,,
+Client 5,4,1808.86,128.61,2067.47,1,203,7,shufflenet_v2_x0_5,non-IID,ImageNet100,0.19,0.9359,0.9195,0.2347,1.57,0.6925,0.6716,1.163

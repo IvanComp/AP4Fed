@@ -78,7 +78,6 @@ MODEL_COVERSIONING = False
 MULTI_TASK_MODEL_TRAINER = False
 HETEROGENEOUS_DATA_HANDLER = False
 
-# Non inizializziamo global_metrics con una chiave fissa, verrà creata dinamicamente
 global_metrics = {}
 
 matplotlib.use('Agg')
@@ -589,12 +588,8 @@ class FedAvg(Strategy):
                     target_layers = [model.conv5[0]]
 
                 images = glob.glob("data/imagenet100-preprocessed/test/**/*.JPEG", recursive=True)
-                #log(INFO, f"[SSIM DEBUG] looking under {os.path.abspath('data/imagenet100-preprocessed/test')}")
-                #log(INFO, f"[SSIM DEBUG] found {len(images)} images to process for round {round}")
                 server_pt = f"{model_weights_folder}/server/MW_round{round}.pt"
                 clients_pt = glob.glob(f"{model_weights_folder}/clients/*/MW_round{round}.pt")
-                #log(INFO, f"[SSIM DEBUG] server_pt = {server_pt}")
-                #log(INFO, f"[SSIM DEBUG] clients_pt = {clients_pt}")
 
                 if not os.path.exists(f"{os.path.dirname(server_pt)}/gradcam_images"):
                     os.makedirs(f"{os.path.dirname(server_pt)}/gradcam_images")
@@ -670,7 +665,6 @@ class FedAvg(Strategy):
 
             log(
                 INFO,
-                #f"[CAM-SSIM] Criteria: Exclude Clients with {selection_criteria} SSIM. "
                 f"\nRound {currentRnd} – {values_str}. "
                 f"\nExcluding Client {exclude_idx+1} with SSIM={excluded_val:.4f}"
             )

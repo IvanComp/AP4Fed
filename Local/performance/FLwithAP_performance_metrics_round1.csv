@@ -1,0 +1,6 @@
+Client ID,FL Round,Training Time,Communication Time,Total Time of FL Round,# of CPU,CPU Usage (%),RAM Usage (%),Model Type,Data Distr. Type,Dataset,Train Loss,Train Accuracy,Train F1,Train MAE,Val Loss,Val Accuracy,Val F1,Val MAE
+Client 1,1,1947.39,177.46,,2,198,5,shufflenet_v2_x0_5,IID,ImageNet100,,,,,,,,
+Client 2,1,1946.87,172.89,,2,196,5,shufflenet_v2_x0_5,IID,ImageNet100,,,,,,,,
+Client 3,1,1947.45,179.13,,2,198,5,shufflenet_v2_x0_5,IID,ImageNet100,,,,,,,,
+Client 4,1,1981.05,135.44,,2,198,7,shufflenet_v2_x0_5,non-IID,ImageNet100,,,,,,,,
+Client 5,1,1978.14,132.2,2245.52,1,196,7,shufflenet_v2_x0_5,non-IID,ImageNet100,0.74,0.7499,0.7064,0.9895,1.54,0.6076,0.5912,1.53
