@@ -676,10 +676,20 @@ class FedAvg(Strategy):
 
             values_str = ", ".join(f"Client {cid}: {val:.4f}"for cid, val in zip(client_ids, ssim_values))
 
-            if selection_criteria.lower().startswith("max"):
-                exclude_idx = int(np.argmax(ssim_values))
-            else:  
-                exclude_idx = int(np.argmin(ssim_values))
+            if selection_criteria.lower() == "mid":
+                sorted_indices_and_values = sorted(enumerate(ssim_values), key=lambda x: x[1])
+                n_clients = len(ssim_values)
+                if n_clients % 2 == 1:
+                    median_idx = n_clients // 2
+                    exclude_idx = sorted_indices_and_values[median_idx][0]
+                else:
+                    median_idx_low = (n_clients // 2) - 1
+                    exclude_idx = sorted_indices_and_values[median_idx_low][0]
+            else:
+                if selection_criteria.lower().startswith("max"):
+                    exclude_idx = int(np.argmax(ssim_values))
+                else:
+                    exclude_idx = int(np.argmin(ssim_values))
 
             excluded_val = ssim_values[exclude_idx]
             excludingCID = exclude_idx + 1
