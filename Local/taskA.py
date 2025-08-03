@@ -147,6 +147,7 @@ if os.path.exists(config_file):
         raise ValueError("Il file di configurazione non specifica il dataset né tramite la chiave 'dataset' né in 'client_details'.")
     DATASET_NAME = normalize_dataset_name(ds)
     DATASET_TYPE = configJSON["client_details"][0].get("data_distribution_type", "")
+    EPOCHS = configJSON["client_details"][0]["epochs"]
 
 class CNN_Dynamic(nn.Module):
     def __init__(
@@ -418,15 +419,14 @@ def get_non_iid_indices(dataset,
 
     return selected
 
-def load_data(client_config, dataset_name_override=None):
-    """
-    Carica e restituisce trainloader e testloader.
-    Gestisce sia distribuzione IID sia non-IID per qualsiasi dataset.
-    """
-    global DATASET_NAME, DATASET_TYPE, _HD_H_SKIP_INIT
+def load_data(client_config, GLOBAL_ROUND_COUNTER, dataset_name_override=None):
+    global DATASET_NAME, DATASET_TYPE, DATASET_PERSISTANCE,_HD_H_SKIP_INIT
 
-    # 1) Leggi configurazione
+    CLIENT_ID = client_config.get("client_id", "")
+    TOTAL_ROUND = client_config.get("total_rounds", 10)
     DATASET_TYPE = client_config.get("data_distribution_type", "").lower()
+    DATASET_PERSISTANCE = client_config.get("data_persistance_type", "")
+    EPOCHS = client_config.get("epochs", "")
     dataset_name = dataset_name_override or client_config.get("dataset", "")
     DATASET_NAME = normalize_dataset_name(dataset_name)
 
@@ -435,7 +435,7 @@ def load_data(client_config, dataset_name_override=None):
     config = AVAILABLE_DATASETS[DATASET_NAME]
     normalize_params = config["normalize"]
 
-    # 2) Dimensioni e batch
+    # Dimensioni e batch
     base_size = {
         "CIFAR10": 32, "CIFAR100": 32, "MNIST": 28,
         "FashionMNIST": 28, "KMNIST": 28,
@@ -444,7 +444,7 @@ def load_data(client_config, dataset_name_override=None):
     model_name = client_config.get("model", "resnet18").lower()
     target_size = 256 if model_name in ["alexnet","vgg11","vgg13","vgg16","vgg19"] else base_size
 
-    # 3) Trasformazioni
+    # Trasformazioni
     transforms_list = []
     if DATASET_NAME == "ImageNet100":
         transforms_list = [Resize(224), CenterCrop(224)]
@@ -456,7 +456,7 @@ def load_data(client_config, dataset_name_override=None):
     transforms_list += [ToTensor(), Normalize(*normalize_params)]
     trf = Compose(transforms_list)
 
-    # 4) Carica trainset / testset
+    # Caricamento trainset / testset
     if DATASET_NAME == "ImageNet100":
         DATA_ROOT = Path(__file__).resolve().parent / "data"
         train_path = DATA_ROOT / "imagenet100-preprocessed" / "train"
@@ -476,7 +476,6 @@ def load_data(client_config, dataset_name_override=None):
             trainset = cls("./data", train=True,  download=True, transform=trf)
             testset  = cls("./data", train=False, download=True, transform=trf)
 
-    # 5) Se non-IID, creazione subset
     if DATASET_TYPE == "non-iid":
         classes = list({lbl for _, lbl in trainset})
         n_cls = len(classes)
@@ -495,32 +494,57 @@ def load_data(client_config, dataset_name_override=None):
         base = Subset(trainset, idxs)
 
         if HETEROGENEOUS_DATA_HANDLER:
-            # 1) bilanciamento GAN
             trainset = balance_dataset_with_gan(
                 base,
                 num_classes=config["num_classes"],
                 target_per_class=len(base) // config["num_classes"],
             )
-
-            # 2) truncamento delle classi che superano il limite
-            #    puoi specificare il limite direttamente o
-            #    prenderlo da config, ad esempio:
             ds_name = client_config.get("dataset", "").lower()
             if "cifar" in ds_name:
                 max_limit = 5000
             elif "imagenet" in ds_name:
                 max_limit = 1300
             else:
-                # default: ricadi sul target per classe usato nel GAN
                 max_limit = len(base) // config["num_classes"]
 
             trainset = truncate_dataset(trainset, max_limit)
-
         else:
             trainset = base
 
+    config_path = os.path.join(os.path.dirname(__file__), 'configuration', 'config.json')
+    with open(config_path, 'r') as f:
+        total_rounds = json.load(f).get("rounds")
+
+    # carica tutto (default)
+    if DATASET_PERSISTANCE == "Same Data":   
+        pass
+    else:
+        class_to_indices = defaultdict(list)
+        for idx in range(len(trainset)):
+            _, label = trainset[idx]
+            class_to_indices[label].append(idx)
+
+        selected_indices = []
+
+        for label, indices in class_to_indices.items():
+            n_total = len(indices)
+            if DATASET_PERSISTANCE == "New Data":
+                # incrementale
+                n_take = int(n_total * GLOBAL_ROUND_COUNTER / total_rounds)
+            elif DATASET_PERSISTANCE == "Remove Data":
+                # decrementale
+                n_take = int(n_total * (total_rounds - GLOBAL_ROUND_COUNTER + 1) / total_rounds)
+            else:
+                n_take = n_total
+
+            if n_take > 0:
+                selected_indices.extend(indices[:n_take])
+
+        trainset = Subset(trainset, selected_indices)
+
     trainloader = DataLoader(TensorLabelDataset(trainset), batch_size=batch_size, shuffle=True)
-    testloader  = DataLoader(testset,                 batch_size=batch_size, shuffle=False)
+    testloader = DataLoader(testset, batch_size=batch_size, shuffle=False)
+
     return trainloader, testloader
 
 from collections import defaultdict
@@ -620,9 +644,9 @@ def balance_dataset_with_gan(
     return trainset
 
 def train(net, trainloader, valloader, epochs, DEVICE):
-    #labels = [lbl.item() if isinstance(lbl, torch.Tensor) else lbl for _, lbl in trainloader.dataset]
-    #dist = dict(Counter(labels))
-    #log(INFO, f"Training dataset distribution ({DATASET_NAME}): {dist}")
+    labels = [lbl.item() if isinstance(lbl, torch.Tensor) else lbl for _, lbl in trainloader.dataset]
+    dist = dict(Counter(labels))
+    log(INFO, f"Training dataset distribution ({DATASET_NAME}): {dist}")
 
     log(INFO, f"Starting training...")
     start_time = time.time()

@@ -1075,27 +1075,35 @@ class ClientConfigurationPage(QWidget):
 
     def copy_to_each_client(self):
         first = self.client_configs[0]
-        cpu    = first["cpu_input"].value()
-        ram    = first["ram_input"].value()
-        ds     = first["dataset_combobox"].currentText()
-        part   = first["partition_combobox"].currentText()
-        model  = first["model_combobox"].currentText()
+        cpu = first["cpu_input"].value()
+        ram = first["ram_input"].value()
+        ds = first["dataset_combobox"].currentText()
+        part = first["partition_combobox"].currentText()
+        pers = first["persistance_combobox"].currentText()
+        model = first["model_combobox"].currentText()
+        epochs = first["epochs_spinbox"].value()
 
         for cfg in self.client_configs:
             cfg["cpu_input"].setValue(cpu)
             cfg["ram_input"].setValue(ram)
 
-            idx = cfg["dataset_combobox"].findText(ds)
-            if idx >= 0:
-                cfg["dataset_combobox"].setCurrentIndex(idx)
+            idx_ds = cfg["dataset_combobox"].findText(ds)
+            if idx_ds >= 0:
+                cfg["dataset_combobox"].setCurrentIndex(idx_ds)
 
-            idx = cfg["partition_combobox"].findText(part)
-            if idx >= 0:
-                cfg["partition_combobox"].setCurrentIndex(idx)
+            idx_part = cfg["partition_combobox"].findText(part)
+            if idx_part >= 0:
+                cfg["partition_combobox"].setCurrentIndex(idx_part)
 
-            idx = cfg["model_combobox"].findText(model)
-            if idx >= 0:
-                cfg["model_combobox"].setCurrentIndex(idx)
+            idx_pers = cfg["persistance_combobox"].findText(pers)
+            if idx_pers >= 0:
+                cfg["persistance_combobox"].setCurrentIndex(idx_pers)
+
+            idx_model = cfg["model_combobox"].findText(model)
+            if idx_model >= 0:
+                cfg["model_combobox"].setCurrentIndex(idx_model)
+
+            cfg["epochs_spinbox"].setValue(epochs)
 
     def create_client_card(self, client_id):
         card = QFrame(objectName="ClientCard")
@@ -1105,7 +1113,7 @@ class ClientConfigurationPage(QWidget):
         card.setLayout(card_layout)
 
         fixed_width = 305
-        fixed_height = 300
+        fixed_height = 400
         card.setFixedWidth(fixed_width)
         card.setFixedHeight(fixed_height)
 
@@ -1152,7 +1160,7 @@ class ClientConfigurationPage(QWidget):
         dataset_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         dataset_label.setAlignment(Qt.AlignLeft)
         dataset_combobox = QComboBox()
-        dataset_combobox.addItems(["ImageNet100","CIFAR-10", "CIFAR-100", "MNIST", "KMNIST", "FashionMNIST", "OXFORDIIITPET"])
+        dataset_combobox.addItems(["CIFAR-10", "CIFAR-100", "MNIST", "KMNIST", "FashionMNIST", "OXFORDIIITPET","ImageNet100"])
         dataset_combobox.setFixedWidth(160)
         dataset_layout = QHBoxLayout()
         dataset_layout.setSpacing(12)
@@ -1171,16 +1179,63 @@ class ClientConfigurationPage(QWidget):
         partition_layout.addWidget(partition_combobox)
         card_layout.addLayout(partition_layout)
 
-        model_label = QLabel("Training Model:")
-        model_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
+        persistance_label = QLabel("Data Persistance:")
+        persistance_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
+        persistance_label.setAlignment(Qt.AlignLeft)
+        persistance_combobox = QComboBox()
+        persistance_combobox.addItems(["Same Data", "New Data", "Remove Data"])
+        persistance_combobox.setFixedWidth(160)
+        persistance_layout = QHBoxLayout()
+        persistance_layout.addWidget(persistance_label)
+        persistance_layout.addWidget(persistance_combobox)
+        card_layout.addLayout(persistance_layout)
+
+        model_group = QGroupBox("Model Training Settings")
+        model_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 14px;
+                border: 1px solid gray;
+                border-radius: 5px;
+                margin-top: 10px;
+                padding: 8px;
+            }
+            QGroupBox:title {
+                subcontrol-origin: margin;
+                subcontrol-position: top center;
+                padding: 0 3px;
+            }
+        """)
+
+        model_group_layout = QVBoxLayout()
+        model_group.setLayout(model_group_layout)  
+
+        model_label = QLabel("Model:")
+        model_label.setStyleSheet("font-size: 12px;")
         model_label.setAlignment(Qt.AlignLeft)
         model_combobox = QComboBox()
         model_combobox.setFixedWidth(160)
+
         model_layout = QHBoxLayout()
-        model_layout.setSpacing(17)
         model_layout.addWidget(model_label)
         model_layout.addWidget(model_combobox)
-        card_layout.addLayout(model_layout)
+        model_group_layout.addLayout(model_layout)
+
+        epochs_label = QLabel("Epochs:")
+        epochs_label.setStyleSheet("font-size: 12px;")
+        epochs_label.setAlignment(Qt.AlignLeft)
+        epochs_spinbox = QSpinBox()
+        epochs_spinbox.setRange(1, 100)
+        epochs_spinbox.setValue(1)
+        epochs_spinbox.setFixedWidth(60)
+
+        epochs_layout = QHBoxLayout()
+        epochs_layout.setSpacing(17)
+        epochs_layout.addWidget(epochs_label)
+        epochs_layout.addWidget(epochs_spinbox)
+        model_group_layout.addLayout(epochs_layout)
+
+        card_layout.addWidget(model_group)
 
         def update_model_options():
             models_list = [
@@ -1206,14 +1261,16 @@ class ClientConfigurationPage(QWidget):
             model_combobox.addItems(models_list)
 
         dataset_combobox.currentIndexChanged.connect(update_model_options)
-        update_model_options()  
+        update_model_options() 
 
         config_dict = {
             "cpu_input": cpu_input,
             "ram_input": ram_input,
             "dataset_combobox": dataset_combobox,
+            "persistance_combobox": persistance_combobox,
             "partition_combobox": partition_combobox,
-            "model_combobox": model_combobox
+            "model_combobox": model_combobox,
+            "epochs_spinbox": epochs_spinbox
         }
 
         return card, config_dict
@@ -1227,7 +1284,9 @@ class ClientConfigurationPage(QWidget):
                 "ram": cfg["ram_input"].value(),
                 "dataset": cfg["dataset_combobox"].currentText(),
                 "data_distribution_type": cfg["partition_combobox"].currentText(),
-                "model": cfg["model_combobox"].currentText()
+                "data_persistance_type": cfg["persistance_combobox"].currentText(),
+                "model": cfg["model_combobox"].currentText(),
+                "epochs": cfg["epochs_spinbox"].value()
             }
             client_details.append(client_info)
 

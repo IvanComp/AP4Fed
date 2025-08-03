@@ -8,12 +8,8 @@
             "params": {}
         },
         "client_selector": {
-            "enabled": true,
-            "params": {
-                "selection_strategy": "SSIM-Based",
-                "selection_criteria": "Mid",
-                "selection_value": 1
-            }
+            "enabled": false,
+            "params": {}
         },
         "client_cluster": {
             "enabled": false,
@@ -41,17 +37,21 @@
             "client_id": 1,
             "cpu": 1,
             "ram": 2,
-            "dataset": "ImageNet100",
+            "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
-            "model": "shufflenet_v2_x0_5"
+            "data_persistance_type": "Remove Data",
+            "model": "CNN 16k",
+            "epochs": 1
         },
         {
             "client_id": 2,
             "cpu": 1,
             "ram": 2,
-            "dataset": "ImageNet100",
+            "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
-            "model": "shufflenet_v2_x0_5"
+            "data_persistance_type": "Remove Data",
+            "model": "CNN 16k",
+            "epochs": 1
         }
     ]
 }

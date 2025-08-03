@@ -178,7 +178,7 @@ class FlowerClient(NumPyClient):
         CLIENT_REGISTRY.register_client(self.cid, model_type)
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.net = NetA().to(device)
-        self.trainloader, self.testloader = load_data_A(self.client_config)
+        self.trainloader, self.testloader = load_data_A(self.client_config,GLOBAL_ROUND_COUNTER)
         self.DEVICE = device
 
     def fit(self, parameters, config):
