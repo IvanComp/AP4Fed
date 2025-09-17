@@ -144,6 +144,7 @@ class FlowerClient(NumPyClient):
         self.dataset = client_config.get("dataset")
         self.data_distribution_type = client_config.get("data_distribution_type")
         self.model = client_config.get("model")
+        self.epochs = client_config.get("epochs")
         self.model_type = model_type
 
         current_os = platform.system()

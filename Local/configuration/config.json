@@ -39,7 +39,7 @@
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
-            "data_persistance_type": "Remove Data",
+            "data_persistance_type": "Same Data",
             "model": "CNN 16k",
             "epochs": 1
         },
@@ -49,7 +49,7 @@
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
-            "data_persistance_type": "Remove Data",
+            "data_persistance_type": "Same Data",
             "model": "CNN 16k",
             "epochs": 1
         }

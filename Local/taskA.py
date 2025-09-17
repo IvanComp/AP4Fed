@@ -5,7 +5,7 @@ import random
 from datetime import datetime
 import numpy as np
 from pathlib import Path
-from collections import OrderedDict, Counter
+from collections import OrderedDict, Counter, defaultdict
 from logging import INFO
 import torch
 import torch.nn as nn
@@ -28,9 +28,7 @@ from sklearn.metrics import f1_score
 
 DATA_ROOT = Path(__file__).resolve().parent / "data"
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-_HD_H_SKIP_INIT = False
-
-# Flag per i pattern
+GLOBAL_ROUND_COUNTER = 1
 global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
 CLIENT_SELECTOR = False
 CLIENT_CLUSTER = False
@@ -87,7 +85,6 @@ AVAILABLE_DATASETS = {
 }
 
 class TensorLabelDataset(Dataset):
-    """Wrap any Dataset to force labels to be torch.Tensor."""
     def __init__(self, dataset):
         self.dataset = dataset
     def __len__(self):
@@ -97,10 +94,6 @@ class TensorLabelDataset(Dataset):
         if not torch.is_tensor(y):
             y = torch.tensor(y)
         return x, y
-
-current_dir = os.path.abspath(os.path.dirname(__file__))
-config_dir = os.path.join(current_dir, 'configuration')
-config_file = os.path.join(config_dir, 'config.json')
 
 def get_valid_downscale_size(size: int) -> int:
     power = 32
@@ -126,6 +119,10 @@ def normalize_dataset_name(name: str) -> str:
         return "OXFORDIIITPET"
     else:
         return name
+
+current_dir = os.path.abspath(os.path.dirname(__file__))
+config_dir = os.path.join(current_dir, 'configuration')
+config_file = os.path.join(config_dir, 'config.json')
 
 if os.path.exists(config_file):
     with open(config_file, 'r') as f:
@@ -420,13 +417,10 @@ def get_non_iid_indices(dataset,
     return selected
 
 def load_data(client_config, GLOBAL_ROUND_COUNTER, dataset_name_override=None):
-    global DATASET_NAME, DATASET_TYPE, DATASET_PERSISTANCE,_HD_H_SKIP_INIT
+    global DATASET_NAME, DATASET_TYPE, DATASET_PERSISTANCE
 
-    CLIENT_ID = client_config.get("client_id", "")
-    TOTAL_ROUND = client_config.get("total_rounds", 10)
     DATASET_TYPE = client_config.get("data_distribution_type", "").lower()
     DATASET_PERSISTANCE = client_config.get("data_persistance_type", "")
-    EPOCHS = client_config.get("epochs", "")
     dataset_name = dataset_name_override or client_config.get("dataset", "")
     DATASET_NAME = normalize_dataset_name(dataset_name)
 
@@ -546,9 +540,6 @@ def load_data(client_config, GLOBAL_ROUND_COUNTER, dataset_name_override=None):
     testloader = DataLoader(testset, batch_size=batch_size, shuffle=False)
 
     return trainloader, testloader
-
-from collections import defaultdict
-from torch.utils.data import Subset
 
 def truncate_dataset(dataset, max_per_class: int):
     counts = defaultdict(int)

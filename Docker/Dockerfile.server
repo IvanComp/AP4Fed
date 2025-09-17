@@ -16,7 +16,6 @@ COPY server.py /app/server.py
 COPY taskA.py /app/taskA.py
 COPY APClient.py /app/APClient.py
 COPY configuration/ /app/configuration/
-COPY data/ /app/data/
 
 # Expose the port
 EXPOSE 8080

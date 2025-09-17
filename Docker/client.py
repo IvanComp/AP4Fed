@@ -8,7 +8,6 @@ import zlib
 import pickle
 import numpy as np
 import psutil
-import socket
 import taskA
 import sys
 import torch
@@ -155,7 +154,7 @@ class FlowerClient(NumPyClient):
 
         CLIENT_REGISTRY.register_client(self.cid, model_type)
         self.net = NetA().to(DEVICE)
-        self.trainloader, self.testloader = load_data_A(self.client_config)
+        self.trainloader, self.testloader = load_data_A(self.client_config, GLOBAL_ROUND_COUNTER)
         self.DEVICE = DEVICE
 
     def fit(self, parameters, config):

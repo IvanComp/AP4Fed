@@ -3,7 +3,8 @@ import json
 import time
 import random
 import numpy as np
-from collections import OrderedDict, Counter
+from pathlib import Path
+from collections import OrderedDict, Counter, defaultdict
 from logging import INFO
 import torch
 import torch.nn as nn
@@ -12,7 +13,7 @@ import torchvision.utils as vutils
 from torch.utils.data import DataLoader, Subset, Dataset
 from flwr.common.logger import log
 from torchvision.datasets import CIFAR10, CIFAR100, MNIST, FashionMNIST, KMNIST, OxfordIIITPet
-from torchvision.transforms import Resize, CenterCrop, ToTensor, Normalize, Compose
+from torchvision.transforms import Resize, CenterCrop, ToTensor, Normalize, Compose, ToPILImage
 import torchvision.models as models
 from torchgan.models import DCGANGenerator, DCGANDiscriminator
 from torchgan.trainer import Trainer
@@ -24,21 +25,9 @@ from torch.utils.data import DataLoader, Subset, TensorDataset, ConcatDataset
 from collections import Counter
 import random
 from sklearn.metrics import f1_score
-
-class TensorLabelDataset(Dataset):
-    def __init__(self, dataset):
-        self.dataset = dataset
-    def __len__(self):
-        return len(self.dataset)
-    def __getitem__(self, idx):
-        x, y = self.dataset[idx]
-        if not torch.is_tensor(y):
-            y = torch.tensor(y)
-        return x, y
     
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 GLOBAL_ROUND_COUNTER = 1
-HGAN_DONE = False
 global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
 CLIENT_SELECTOR = False
 CLIENT_CLUSTER = False
@@ -94,16 +83,22 @@ AVAILABLE_DATASETS = {
     }
 }
 
-_orig_make_grid = vutils.make_grid
-def make_grid_no_range(*args, **kwargs):
-    kwargs.pop("range", None)
-    return _orig_make_grid(*args, **kwargs)
+class TensorLabelDataset(Dataset):
+    def __init__(self, dataset):
+        self.dataset = dataset
+    def __len__(self):
+        return len(self.dataset)
+    def __getitem__(self, idx):
+        x, y = self.dataset[idx]
+        if not torch.is_tensor(y):
+            y = torch.tensor(y)
+        return x, y
 
-vutils.make_grid = make_grid_no_range
-
-current_dir = os.path.abspath(os.path.dirname(__file__))
-config_dir = os.path.join(current_dir, 'configuration')
-config_file = os.path.join(config_dir, 'config.json')
+def get_valid_downscale_size(size: int) -> int:
+    power = 32
+    while power * 2 <= size and power * 2 <= 128:
+        power *= 2
+    return power
 
 def normalize_dataset_name(name: str) -> str:
     name_clean = name.replace("-", "").upper()
@@ -125,6 +120,10 @@ def normalize_dataset_name(name: str) -> str:
         return "OXFORDIIITPET"
     else:
         return name
+    
+current_dir = os.path.abspath(os.path.dirname(__file__))
+config_dir = os.path.join(current_dir, 'configuration')
+config_file = os.path.join(config_dir, 'config.json')
 
 if os.path.exists(config_file):
     with open(config_file, 'r') as f:
@@ -146,6 +145,8 @@ if os.path.exists(config_file):
         raise ValueError("Il file di configurazione non specifica il dataset né tramite la chiave 'dataset' né in 'client_details'.")
     DATASET_NAME = normalize_dataset_name(ds)
     DATASET_TYPE = configJSON["client_details"][0].get("data_distribution_type", "")
+    EPOCHS = configJSON["client_details"][0]["epochs"]
+
 
 class CNN_Dynamic(nn.Module):
     def __init__(
@@ -417,22 +418,21 @@ def get_non_iid_indices(dataset,
 
     return selected
 
-def load_data(client_config, dataset_name_override=None):
-    """
-    Carica e restituisce trainloader e testloader.
-    Gestisce sia distribuzione IID sia non-IID per qualsiasi dataset.
-    """
-    global DATASET_NAME, DATASET_TYPE, HGAN_DONE
+def load_data(client_config, GLOBAL_ROUND_COUNTER, dataset_name_override=None):
+    global DATASET_NAME, DATASET_TYPE, DATASET_PERSISTANCE
 
     DATASET_TYPE = client_config.get("data_distribution_type", "").lower()
+    DATASET_PERSISTANCE = client_config.get("data_persistance_type", "")
     dataset_name = dataset_name_override or client_config.get("dataset", "")
     DATASET_NAME = normalize_dataset_name(dataset_name)
+    log(INFO, f"round number: {GLOBAL_ROUND_COUNTER}, Persist: {DATASET_PERSISTANCE}")
 
     if DATASET_NAME not in AVAILABLE_DATASETS:
         raise ValueError(f"[ERROR] Dataset '{DATASET_NAME}' non trovato in AVAILABLE_DATASETS.")
     config = AVAILABLE_DATASETS[DATASET_NAME]
     normalize_params = config["normalize"]
 
+    # Dimensioni e batch
     base_size = {
         "CIFAR10": 32, "CIFAR100": 32, "MNIST": 28,
         "FashionMNIST": 28, "KMNIST": 28,
@@ -441,6 +441,7 @@ def load_data(client_config, dataset_name_override=None):
     model_name = client_config.get("model", "resnet18").lower()
     target_size = 256 if model_name in ["alexnet","vgg11","vgg13","vgg16","vgg19"] else base_size
 
+    # Trasformazioni
     transforms_list = []
     if DATASET_NAME == "ImageNet100":
         transforms_list = [Resize(224), CenterCrop(224)]
@@ -452,9 +453,11 @@ def load_data(client_config, dataset_name_override=None):
     transforms_list += [ToTensor(), Normalize(*normalize_params)]
     trf = Compose(transforms_list)
 
+    # Caricamento trainset / testset
     if DATASET_NAME == "ImageNet100":
-        train_path = os.path.join("./data", "imagenet100-preprocessed", "train")
-        test_path  = os.path.join("./data", "imagenet100-preprocessed", "test")
+        DATA_ROOT = Path(__file__).resolve().parent / "data"
+        train_path = DATA_ROOT / "imagenet100-preprocessed" / "train"
+        test_path  = DATA_ROOT / "imagenet100-preprocessed" / "test"
         if not os.path.isdir(train_path) or not os.path.isdir(test_path):
             raise FileNotFoundError(
                 f"Dataset ImageNet100 non trovato in {train_path} e {test_path}"
@@ -487,111 +490,152 @@ def load_data(client_config, dataset_name_override=None):
         )
         base = Subset(trainset, idxs)
 
-        if HETEROGENEOUS_DATA_HANDLER and not HGAN_DONE:
-            num_cls = config["num_classes"]
-            target_pc = len(trainset) // num_cls
+        if HETEROGENEOUS_DATA_HANDLER:
             trainset = balance_dataset_with_gan(
                 base,
-                num_classes=num_cls,
-                target_per_class=target_pc
+                num_classes=config["num_classes"],
+                target_per_class=len(base) // config["num_classes"],
             )
-            HGAN_DONE = True
+            ds_name = client_config.get("dataset", "").lower()
+            if "cifar" in ds_name:
+                max_limit = 5000
+            elif "imagenet" in ds_name:
+                max_limit = 1300
+            else:
+                max_limit = len(base) // config["num_classes"]
+
+            trainset = truncate_dataset(trainset, max_limit)
         else:
             trainset = base
 
+    config_path = os.path.join(os.path.dirname(__file__), 'configuration', 'config.json')
+    with open(config_path, 'r') as f:
+        total_rounds = json.load(f).get("rounds")
+
+    # carica tutto (default)
+    if DATASET_PERSISTANCE == "Same Data":   
+        pass
+    else:
+        class_to_indices = defaultdict(list)
+        for idx in range(len(trainset)):
+            _, label = trainset[idx]
+            class_to_indices[label].append(idx)
+
+        selected_indices = []
+
+        for label, indices in class_to_indices.items():
+            n_total = len(indices)
+            if DATASET_PERSISTANCE == "New Data":
+                n_take = int(n_total * GLOBAL_ROUND_COUNTER / total_rounds)
+            elif DATASET_PERSISTANCE == "Remove Data":
+                n_take = int(n_total * (total_rounds - GLOBAL_ROUND_COUNTER + 1) / total_rounds)
+            else:
+                n_take = n_total
+
+            if n_take > 0:
+                selected_indices.extend(indices[:n_take])
+
+        trainset = Subset(trainset, selected_indices)
+
     trainloader = DataLoader(TensorLabelDataset(trainset), batch_size=batch_size, shuffle=True)
-    testloader  = DataLoader(testset,                 batch_size=batch_size, shuffle=False)
+    testloader = DataLoader(testset, batch_size=batch_size, shuffle=False)
+
     return trainloader, testloader
+
+def truncate_dataset(dataset, max_per_class: int):
+    counts = defaultdict(int)
+    kept_indices = []
+    for idx, (_, lbl) in enumerate(dataset):
+        lbl = int(lbl)  
+        if counts[lbl] < max_per_class:
+            kept_indices.append(idx)
+            counts[lbl] += 1
+    return Subset(dataset, kept_indices)
 
 def balance_dataset_with_gan(
     trainset,
     num_classes,
     target_per_class=None,
     latent_dim=100,
-    epochs=5,
-    batch_size=64,
+    epochs=1,
+    batch_size=32,
     device=DEVICE,
 ):
-
     counts = Counter(lbl for _, lbl in trainset)
-    total  = len(trainset)
+    total = len(trainset)
     if target_per_class is None:
         target_per_class = total // num_classes
 
-    cls2idx = {c: [] for c in range(num_classes)}
-    for idx, (_, lbl) in enumerate(trainset):
-        cls2idx[int(lbl)].append(idx)
-
-    real_indices = []
-    for c in range(num_classes):
-        idxs = cls2idx[c]
-        cnt  = len(idxs)
-        if cnt > target_per_class:
-            real_indices += random.sample(idxs, target_per_class)
-        else:
-            real_indices += idxs
-
-    subset_real = Subset(trainset, real_indices)
-
-    under_cls = [c for c in range(num_classes) if len(cls2idx[c]) < target_per_class]
+    under_cls = [c for c, cnt in counts.items() if 0 < cnt < target_per_class]
     if not under_cls:
-        return subset_real
+        return trainset
 
-    idxs_under = [i for i in real_indices if int(trainset[i][1]) in under_cls]
-    loader_under = DataLoader(
-        Subset(trainset, idxs_under),
-        batch_size=batch_size,
-        shuffle=True
-    )
+    idxs = [i for i, (_, lbl) in enumerate(trainset) if lbl in under_cls]
 
     C, H, W = trainset[0][0].shape
+    target_size = get_valid_downscale_size(min(H, W))  
+    if H != target_size or W != target_size:
+        resize_for_gan = Compose([
+            ToPILImage(),
+            Resize((target_size, target_size)),
+            ToTensor(),
+        ])
+        train_for_gan = [(resize_for_gan(img), lbl) for img, lbl in trainset]
+    else:
+        train_for_gan = list(trainset)
+
+    # Log e subset per GAN
+    log(INFO, f"[HDH GAN] Applying GAN to rebalance classes: {under_cls}")
+    subset = Subset(train_for_gan, idxs)
+    loader = DataLoader(subset, batch_size=batch_size, shuffle=True)
+
+    import torchvision
+    _orig_make_grid = torchvision.utils.make_grid
+    def _make_grid_wrapper(*args, **kwargs):
+        if 'range' in kwargs:
+            kwargs['value_range'] = kwargs.pop('range')
+        return _orig_make_grid(*args, **kwargs)
+    torchvision.utils.make_grid = _make_grid_wrapper
+
     models_cfg = {
-        "generator": {
-            "name": DCGANGenerator,
-            "args": {"encoding_dims": latent_dim, "out_size": H, "out_channels": C},
-            "optimizer": {"name": torch.optim.Adam, "args": {"lr": 2e-4, "betas": (0.5, 0.999)}},
-        },
-        "discriminator": {
-            "name": DCGANDiscriminator,
-            "args": {"in_size": H, "in_channels": C},
-            "optimizer": {"name": torch.optim.Adam, "args": {"lr": 2e-4, "betas": (0.5, 0.999)}},
-        },
+        'generator': {'name': DCGANGenerator, 'args': {'encoding_dims': latent_dim, 'out_size': target_size, 'out_channels': C},
+                      'optimizer': {'name': torch.optim.Adam, 'args': {'lr': 2e-4, 'betas': (0.5, 0.999)}}},
+        'discriminator': {'name': DCGANDiscriminator, 'args': {'in_size': target_size, 'in_channels': C},
+                          'optimizer': {'name': torch.optim.Adam, 'args': {'lr': 2e-4, 'betas': (0.5, 0.999)}}},
     }
-    losses_list = [MinimaxGeneratorLoss(), MinimaxDiscriminatorLoss()]
+    losses = [MinimaxGeneratorLoss(), MinimaxDiscriminatorLoss()]
 
-    trainer = Trainer(
-        models=models_cfg,
-        losses_list=losses_list,
-        device=device,
-        sample_size=batch_size,
-        epochs=epochs,
-    )
-    trainer.train(loader_under)
+    log(INFO, "[HDH GAN] Starting GAN training...")
+    trainer = Trainer(models=models_cfg, losses_list=losses, device=device, sample_size=batch_size, epochs=epochs)
+    trainer.train(loader)
 
-    synth_imgs = []
-    synth_lbls = []
+    synth_imgs, synth_lbls = [], []
     for c in under_cls:
-        cnt    = len(cls2idx[c])
+        cnt = counts[c]
         to_gen = target_per_class - cnt
         if to_gen <= 0:
             continue
         z = torch.randn(to_gen, latent_dim, device=device)
         with torch.no_grad():
-            gen_imgs = trainer.generator(z).cpu()
-        synth_imgs.append(gen_imgs)
+            gen = trainer.generator(z).cpu()
+        synth_imgs.append(gen)
         synth_lbls += [c] * to_gen
 
-    if not synth_imgs:
-        return subset_real
+    
+    if synth_imgs:
+        all_imgs_gan = torch.cat(synth_imgs, dim=0)
+        downsample = Compose([ToPILImage(), Resize((H, W)), ToTensor()])
+        resized = torch.stack([downsample(img) for img in all_imgs_gan])
+        all_lbls = torch.tensor(synth_lbls, dtype=torch.long)
+        synth_ds = TensorDataset(resized, all_lbls)
+        result = ConcatDataset([trainset, synth_ds])
+        log(INFO, f"[HDH GAN] GAN Training Completed.")
+        log(INFO, f"[HDH GAN] Rebalanced dataset size: {len(result)} (added {len(synth_lbls)} samples)")
+        return result
 
-    all_imgs = torch.cat(synth_imgs, dim=0)
-    all_lbls = torch.tensor(synth_lbls, dtype=torch.long)
-    synth_ds = TensorDataset(all_imgs, all_lbls)
-
-    return ConcatDataset([subset_real, synth_ds])
+    return trainset
 
 def train(net, trainloader, valloader, epochs, DEVICE):
-
     labels = [lbl.item() if isinstance(lbl, torch.Tensor) else lbl for _, lbl in trainloader.dataset]
     dist = dict(Counter(labels))
     log(INFO, f"Training dataset distribution ({DATASET_NAME}): {dist}")
@@ -653,32 +697,6 @@ def test(net, loader):
     except:
         mae = None
     return avg_loss, accuracy, f1, mae
-
-def f1_score_torch(y_true, y_pred, num_classes, average='macro'):
-    confusion_matrix = torch.zeros(num_classes, num_classes)
-    for t, p in zip(y_true, y_pred):
-        confusion_matrix[t.long(), p.long()] += 1
-    precision = torch.zeros(num_classes)
-    recall    = torch.zeros(num_classes)
-    f1_per_class = torch.zeros(num_classes)
-    for i in range(num_classes):
-        TP = confusion_matrix[i, i]
-        FP = confusion_matrix[:, i].sum() - TP
-        FN = confusion_matrix[i, :].sum() - TP
-        precision[i] = TP / (TP + FP + 1e-8)
-        recall[i]    = TP / (TP + FN + 1e-8)
-        f1_per_class[i] = 2 * (precision[i] * recall[i]) / (precision[i] + recall[i] + 1e-8)
-    if average == 'macro':
-        return f1_per_class.mean().item()
-    elif average == 'micro':
-        TP = torch.diag(confusion_matrix).sum()
-        FP = confusion_matrix.sum() - TP
-        FN = FP
-        precision_micro = TP / (TP + FP + 1e-8)
-        recall_micro    = TP / (TP + FN + 1e-8)
-        return (2 * precision_micro * recall_micro / (precision_micro + recall_micro + 1e-8)).item()
-    else:
-        raise ValueError("Average must be 'macro' or 'micro'")
 
 def get_weights(net):
     return [val.cpu().numpy() for _, val in net.state_dict().items()]
