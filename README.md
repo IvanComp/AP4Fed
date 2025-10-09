@@ -8,7 +8,7 @@ Testing Models: [torchvision.models (+120)]
 # AP4FED
 
 <p align="center">
-<img src="img/readme/logo.svg" width="340px" height="210px"/>
+<img src="img/readme/logo.png" width="340px" height="210px"/>
 </p>
 
 <p align="center">
