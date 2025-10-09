@@ -256,7 +256,7 @@ You can explore use cases and performance testing of architectural patterns [1] 
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14539962.svg)](https://zenodo.org/records/14539962)
 
-You can explore the performance in combining **multiple** architectural patterns using <tt>AP4FED</tt> in the following Zenodo repository: 
+You can explore the performance in combining **multiple** architectural patterns [2] using <tt>AP4FED</tt> in the following Zenodo repository: 
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14938910.svg)](https://zenodo.org/records/14938910)
 
@@ -282,7 +282,7 @@ Accepted for the 22nd IEEE International Conference on Software Architecture. IC
 Accepted in The Journal of Systems & Software. 2025. (_In Press_)
 
 ```
-@article{CompagnucciFL,
+@article{CompagnucciFLJSS,
   author       = {Compagnucci, Ivan and Pinciroli, Riccardo and Trubiani, Catia},
   title        = {{Experimenting Architectural Patterns in Federated Learning Systems}},
   journal      = {J. Syst. Softw.},
