@@ -6,6 +6,10 @@ APP_TITLE = "Multi-LLM Debate • 3 Agents + Coordinator"
 DEFAULT_ROUNDS = 3
 DEFAULT_MODEL = "llama3"
 
+# Cooperation patterns
+PATTERN_CHOICES = ("Voting", "Role", "Debate")
+DEFAULT_PATTERN = "Debate"
+
 AGENTS = [
     {"id":"A1", "name":"Astra", "title":"### [MULTI-AGENT • Astra • Debate]"},
     {"id":"A2", "name":"Marvin", "title":"### [MULTI-AGENT • Marvin • Debate]"},
@@ -59,6 +63,7 @@ def query(model, prompt):
         return f"ERROR: {e}"
 
 NON_ANSWERS = {"", "ok", "okay", "okay im ready lets begin", "im ready", "lets begin", "```", "ready", "sure"}
+
 def norm_answer(s):
     s = (s or "").strip().lower()
     s = re.sub(r"\s+"," ", s)
@@ -262,6 +267,17 @@ def build_ui():
         w.grid(row=row,column=1,sticky="w")
     dd(mf, coord_var, 0); dd(mf, c1_var, 1); dd(mf, c2_var, 2); dd(mf, c3_var, 3)
 
+    # Pattern selector (mutually exclusive)
+    pat_var = tk.StringVar(value=DEFAULT_PATTERN)
+    pf = tk.Frame(right, bg="white"); pf.pack(pady=(12,0), fill="x")
+    tk.Label(pf, text="Cooperation Pattern:", font=ft, bg="white", fg="black").grid(row=0, column=0, sticky="w", padx=(0,8))
+
+    def rb(parent, text, col):
+        r=tk.Radiobutton(parent, text=text, variable=pat_var, value=text, font=("Courier",14), bg="white", fg="black", selectcolor="#f0f0f0", indicatoron=True, highlightthickness=0, anchor="w")
+        r.grid(row=0, column=col, sticky="w", padx=(4,4))
+        return r
+    rb(pf, PATTERN_CHOICES[0], 1); rb(pf, PATTERN_CHOICES[1], 2); rb(pf, PATTERN_CHOICES[2], 3)
+
     icon_img = None
     try:
         from PIL import Image, ImageTk
@@ -377,6 +393,28 @@ def build_ui():
             widget.config(state=tk.NORMAL); widget.delete("1.0", tk.END); widget.insert(tk.END, text); widget.see(tk.END); widget.config(state=tk.DISABLED)
         widget.after(0, _set)
 
+    # Shared helpers for pattern runners
+    def write_log(path, line):
+        try:
+            with open(path, "a", encoding="utf-8") as f: f.write(line+"\n")
+        except Exception:
+            pass
+
+    busy = {AGENTS[0]["name"]: False, AGENTS[1]["name"]: False, AGENTS[2]["name"]: False}
+    def start_spinner(name):
+        busy[name]=True
+        def tick(i=0):
+            if not busy.get(name): return
+            dots = "." * (i%3+1)
+            ui_set(out_boxes[name], f"⏳ {name} is reasoning{dots}")
+            out_boxes[name].after(350, lambda: tick(i+1))
+        tick()
+    def stop_spinner(name): busy[name]=False
+
+    def set_box(name, content):
+        stop_spinner(name); ui_set(out_boxes[name], content)
+
+    # Pattern runner: Debate (existing behavior)
     def run_debate(task):
         log_path = Path(__file__).with_name("debate.log")
         try:
@@ -385,32 +423,13 @@ def build_ui():
         except Exception:
             pass
 
-        def write_log(line):
-            try:
-                with open(log_path, "a", encoding="utf-8") as f: f.write(line+"\n")
-            except Exception: pass
-
         for tbox in out_boxes.values(): ui_set(tbox, "")
         ui_set(coord_text, f"Starting Debate.\nAgents: {AGENTS[0]['name']}, {AGENTS[1]['name']}, {AGENTS[2]['name']}\nTopic: {task}\n\n(Log saved to: {log_path})")
-
-        busy = {AGENTS[0]["name"]: False, AGENTS[1]["name"]: False, AGENTS[2]["name"]: False}
-        def start_spinner(name):
-            busy[name]=True
-            def tick(i=0):
-                if not busy.get(name): return
-                dots = "." * (i%3+1)
-                ui_set(out_boxes[name], f"⏳ {name} is reasoning{dots}")
-                out_boxes[name].after(350, lambda: tick(i+1))
-            tick()
-        def stop_spinner(name): busy[name]=False
 
         c1=Client(AGENTS[0]["name"], AGENTS[0]["title"], c1_var.get())
         c2=Client(AGENTS[1]["name"], AGENTS[1]["title"], c2_var.get())
         c3=Client(AGENTS[2]["name"], AGENTS[2]["title"], c3_var.get())
         coord=Coordinator(coord_var.get())
-
-        def set_box(name, content):
-            stop_spinner(name); ui_set(out_boxes[name], content)
 
         hooks = {
             AGENTS[0]["name"]: lambda s: set_box(AGENTS[0]["name"], f"Answer: {s['answer']}\nConfidence: {s['confidence']}\n\nRationale:\n{(s.get('rationale') or '')}\n"),
@@ -420,26 +439,156 @@ def build_ui():
 
         deb=Debate([c1,c2,c3], coord, rounds=DEFAULT_ROUNDS, per_agent_hooks=hooks, on_agent_start=start_spinner)
 
-        def log(s): write_log(s)
+        def log(s): write_log(log_path, s)
 
         def do_run():
             try:
-                write_log(f"Starting debate with models -> Coordinator: {coord_var.get()} | {AGENTS[0]['name']}: {c1_var.get()} | {AGENTS[1]['name']}: {c2_var.get()} | {AGENTS[2]['name']}: {c3_var.get()}")
+                write_log(log_path, f"Starting debate with models -> Coordinator: {coord_var.get()} | {AGENTS[0]['name']}: {c1_var.get()} | {AGENTS[1]['name']}: {c2_var.get()} | {AGENTS[2]['name']}: {c3_var.get()}")
                 final, _ = deb.run(task, log_fn=log)
             except Exception as e:
                 final={"error":str(e), "final_answer": "", "confidence": 0, "justification": "Runtime error"}
             if "error" in final:
-                ui_set(coord_text, f"Starting debate.\nAgents: {AGENTS[0]['name']}, {AGENTS[1]['name']}, {AGENTS[2]['name']}\nTopic: {task}\n\nFinal output: (error)\nWhy: {final.get('error','')}\n\n(Log saved to: {log_path})")
+                ui_set(coord_text, f"Starting Debate.\nAgents: {AGENTS[0]['name']}, {AGENTS[1]['name']}, {AGENTS[2]['name']}\nTopic: {task}\n\nFinal output: (error)\nWhy: {final.get('error','')}\n\n(Log saved to: {log_path})")
             else:
                 why = final.get('justification') or "Majority among valid answers."
-                ui_set(coord_text, f"Starting debate.\nAgents: {AGENTS[0]['name']}, {AGENTS[1]['name']}, {AGENTS[2]['name']}\nTopic: {task}\n\nFinal output: {final.get('final_answer','')}\nWhy: {why}\n\n(Log saved to: {log_path})")
+                ui_set(coord_text, f"Starting Debate.\nAgents: {AGENTS[0]['name']}, {AGENTS[1]['name']}, {AGENTS[2]['name']}\nTopic: {task}\n\nFinal output: {final.get('final_answer','')}\nWhy: {why}\n\n(Log saved to: {log_path})")
         start_spinner(AGENTS[0]["name"]); start_spinner(AGENTS[1]["name"]); start_spinner(AGENTS[2]["name"])
+        threading.Thread(target=do_run, daemon=True).start()
+
+    # Pattern runner: Voting (democratic majority with single runoff)
+    def run_voting(task):
+        log_path = Path(__file__).with_name("voting.log")
+        try:
+            with open(log_path, "w", encoding="utf-8") as f:
+                f.write(f"=== VOTING LOG ===\nTask: {task}\n")
+        except Exception:
+            pass
+
+        for tbox in out_boxes.values(): ui_set(tbox, "")
+        ui_set(coord_text, f"Starting Voting (democratic).\nAgents: {AGENTS[0]['name']}, {AGENTS[1]['name']}, {AGENTS[2]['name']}\nTopic: {task}\n\n(Log saved to: {log_path})")
+
+        c1=Client(AGENTS[0]["name"], AGENTS[0]["title"], c1_var.get())
+        c2=Client(AGENTS[1]["name"], AGENTS[1]["title"], c2_var.get())
+        c3=Client(AGENTS[2]["name"], AGENTS[2]["title"], c3_var.get())
+        # Coordinator object not used here; democratic voting has no weighting
+
+        def tally(statements):
+            votes={}
+            for s in statements:
+                k=norm_answer(s.get("answer",""))
+                if not is_non_answer(k):
+                    votes[k]=votes.get(k,0)+1
+            return votes
+
+        def do_run():
+            try:
+                for name in (AGENTS[0]['name'], AGENTS[1]['name'], AGENTS[2]['name']): start_spinner(name)
+                statements=[]
+                for client in (c1,c2,c3):
+                    s = client.speak(task, history="", log_fn=lambda m: write_log(log_path, m))
+                    statements.append(s)
+                    set_box(client.name, f"Answer: {s['answer']}\nConfidence: {s['confidence']}\n\nRationale:\n{(s.get('rationale') or '')}\n")
+
+                votes = tally(statements)
+                winners=[]
+                if votes:
+                    max_votes = max(votes.values())
+                    winners=[k for k,v in votes.items() if v==max_votes]
+
+                if len(winners)==1:
+                    best=winners[0]
+                    final_answer = next((s['answer'] for s in statements if norm_answer(s['answer'])==best), "")
+                    decision = {"decision":"democratic-majority","final_answer":final_answer,"confidence":0.75,"justification":"Simple majority"}
+                elif len(winners)>1:
+                    # Single runoff among tied options (still democratic)
+                    allowed = sorted(set(winners))
+                    runoff_task = task + "\n\nChoose ONLY one of these options: " + ", ".join(allowed)
+                    runoff=[]
+                    for client in (c1,c2,c3):
+                        s = client.speak(runoff_task, history="", log_fn=lambda m: write_log(log_path, m))
+                        runoff.append(s)
+                        set_box(client.name, f"Answer: {s['answer']}\nConfidence: {s['confidence']}\n\nRationale:\n{(s.get('rationale') or '')}\n")
+                    runoff_votes = tally(runoff)
+                    winners2=[]
+                    if runoff_votes:
+                        max2 = max(runoff_votes.values())
+                        winners2=[k for k,v in runoff_votes.items() if v==max2]
+                    if len(winners2)==1:
+                        best = winners2[0]
+                        final_answer = next((s['answer'] for s in runoff if norm_answer(s['answer'])==best), "")
+                        decision = {"decision":"runoff-majority","final_answer":final_answer,"confidence":0.75,"justification":"Runoff majority among tied options"}
+                    else:
+                        # Deterministic fallback to keep UI stable (no weighting)
+                        best = sorted(allowed)[0] if allowed else ""
+                        final_answer = next((s['answer'] for s in statements if norm_answer(s['answer'])==best), best)
+                        decision = {"decision":"runoff-tie-deterministic","final_answer":final_answer,"confidence":0.6,"justification":"Runoff tie; deterministic choice (lexicographic)"}
+                else:
+                    decision = {"decision":"no-valid-votes","final_answer":"","confidence":0.0,"justification":"No valid votes"}
+
+                why = decision.get('justification') or "Democratic majority."
+                ui_set(coord_text, f"Starting Voting (democratic).\nAgents: {AGENTS[0]['name']}, {AGENTS[1]['name']}, {AGENTS[2]['name']}\nTopic: {task}\n\nFinal output: {decision.get('final_answer','')}\nWhy: {why}\n\n(Log saved to: {log_path})")
+            except Exception as e:
+                ui_set(coord_text, f"Starting Voting (democratic).\nAgents: {AGENTS[0]['name']}, {AGENTS[1]['name']}, {AGENTS[2]['name']}\nTopic: {task}\n\nFinal output: (error)\nWhy: {e}\n\n(Log saved to: {log_path})")
+            finally:
+                for name in (AGENTS[0]['name'], AGENTS[1]['name'], AGENTS[2]['name']): stop_spinner(name)
+        threading.Thread(target=do_run, daemon=True).start()
+
+    # Pattern runner: Role-based (confidence-weighted approval) (confidence-weighted approval)
+    def run_role(task):
+        log_path = Path(__file__).with_name("role.log")
+        try:
+            with open(log_path, "w", encoding="utf-8") as f:
+                f.write(f"=== ROLE LOG ===\nTask: {task}\n")
+        except Exception:
+            pass
+
+        for tbox in out_boxes.values(): ui_set(tbox, "")
+        ui_set(coord_text, f"Starting Role-based.\nAgents: {AGENTS[0]['name']}, {AGENTS[1]['name']}, {AGENTS[2]['name']}\nTopic: {task}\n\n(Log saved to: {log_path})")
+
+        c1=Client(AGENTS[0]["name"], AGENTS[0]["title"], c1_var.get())
+        c2=Client(AGENTS[1]["name"], AGENTS[1]["title"], c2_var.get())
+        c3=Client(AGENTS[2]["name"], AGENTS[2]["title"], c3_var.get())
+        coord=Coordinator(coord_var.get())
+
+        # Default role weights (can be externalized later)
+        role_weights = {AGENTS[0]['name']: 1.0, AGENTS[1]['name']: 1.0, AGENTS[2]['name']: 1.0}
+
+        def do_run():
+            try:
+                for name in (AGENTS[0]['name'], AGENTS[1]['name'], AGENTS[2]['name']): start_spinner(name)
+                proposals=[]
+                for client in (c1,c2,c3):
+                    s = client.speak(task, history="", log_fn=lambda m: write_log(log_path, m))
+                    proposals.append(s)
+                    set_box(client.name, f"Answer: {s['answer']}\nConfidence: {s['confidence']}\n\nRationale:\n{(s.get('rationale') or '')}\n")
+                filtered = [p for p in proposals if not is_non_answer(p.get("answer",""))] or proposals[:]
+                scored=[]
+                for p in filtered:
+                    w = role_weights.get(p['agent'], 1.0)
+                    scored.append((p, w * float(p.get('confidence', 0))))
+                if scored:
+                    best = sorted(scored, key=lambda x:(-x[1], -len(norm_answer(x[0]['answer']))))[0][0]
+                    decision = {"decision":"role-policy","final_answer":best['answer'],"confidence":float(best.get('confidence',0.7)),"justification":"Approved by coordinator using role-weighted confidence"}
+                else:
+                    decision = coord.decide(task, filtered, log_fn=lambda m: write_log(log_path, m))
+                why = decision.get('justification') or "Role-weighted approval."
+                ui_set(coord_text, f"Starting Role-based.\nAgents: {AGENTS[0]['name']}, {AGENTS[1]['name']}, {AGENTS[2]['name']}\nTopic: {task}\n\nFinal output: {decision.get('final_answer','')}\nWhy: {why}\n\n(Log saved to: {log_path})")
+            except Exception as e:
+                ui_set(coord_text, f"Starting Role-based.\nAgents: {AGENTS[0]['name']}, {AGENTS[1]['name']}, {AGENTS[2]['name']}\nTopic: {task}\n\nFinal output: (error)\nWhy: {e}\n\n(Log saved to: {log_path})")
+            finally:
+                for name in (AGENTS[0]['name'], AGENTS[1]['name'], AGENTS[2]['name']): stop_spinner(name)
         threading.Thread(target=do_run, daemon=True).start()
 
     def submit():
         p = input_box.get("1.0", tk.END).strip()
         if not p: return
-        run_debate(p)
+        mode = pat_var.get()
+        if mode == "Voting":
+            run_voting(p)
+        elif mode == "Role":
+            run_role(p)
+        else:
+            run_debate(p)
 
     send_btn.config(command=submit)
 

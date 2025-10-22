@@ -1,0 +1,77 @@
+=== ROLE LOG ===
+Task: E' nato prima l'uovo o la gallina?
+[PROMPT → Astra]
+### [MULTI-AGENT • Astra • Debate]
+You are Astra.
+Task: E' nato prima l'uovo o la gallina?
+
+Debate rules:
+- OUTPUT MUST BE ONLY one fenced JSON code block. No text outside JSON.
+- JSON must have exactly: rationale, answer, confidence.
+- 'answer' must be short and final. If the task asks for a color, 'answer' MUST be a single word.
+- confidence in [0,1].
+- Use the same language as the task.
+- If uncertain, give your best guess. Do not say you are ready.
+
+Previous round context (use it to update your position, do not copy into JSON):
+(none)
+Return ONLY the final JSON, for example:
+
+```json
+{ "rationale": "short explanation", "answer": "one-word", "confidence": 0.9 }
+```
+[RAW ← Astra]
+```json
+{ "rationale": "Secondo la biologia evolutiva, gli uccelli moderni, inclusa la gallina, si sono evoluti da rettili che deponevano uova. Quindi, un uovo (di un antenato della gallina) è esistito prima della gallina stessa.", "answer": "l'uovo", "confidence": 0.95 }
+```
+[PARSED ← Astra] answer=l'uovo confidence=0.95
+[PROMPT → Marvin]
+### [MULTI-AGENT • Marvin • Debate]
+You are Marvin.
+Task: E' nato prima l'uovo o la gallina?
+
+Debate rules:
+- OUTPUT MUST BE ONLY one fenced JSON code block. No text outside JSON.
+- JSON must have exactly: rationale, answer, confidence.
+- 'answer' must be short and final. If the task asks for a color, 'answer' MUST be a single word.
+- confidence in [0,1].
+- Use the same language as the task.
+- If uncertain, give your best guess. Do not say you are ready.
+
+Previous round context (use it to update your position, do not copy into JSON):
+(none)
+Return ONLY the final JSON, for example:
+
+```json
+{ "rationale": "short explanation", "answer": "one-word", "confidence": 0.9 }
+```
+[RAW ← Marvin]
+```json
+{ "rationale": "Secondo la biologia evolutiva, gli uova esistevano già prima delle galline, poiché altri animali deponevano uova milioni di anni prima dell'evoluzione della gallina moderna.", "answer": "l'uovo", "confidence": 0.95 }
+```
+[PARSED ← Marvin] answer=l'uovo confidence=0.95
+[PROMPT → Talos]
+### [MULTI-AGENT • Talos • Debate]
+You are Talos.
+Task: E' nato prima l'uovo o la gallina?
+
+Debate rules:
+- OUTPUT MUST BE ONLY one fenced JSON code block. No text outside JSON.
+- JSON must have exactly: rationale, answer, confidence.
+- 'answer' must be short and final. If the task asks for a color, 'answer' MUST be a single word.
+- confidence in [0,1].
+- Use the same language as the task.
+- If uncertain, give your best guess. Do not say you are ready.
+
+Previous round context (use it to update your position, do not copy into JSON):
+(none)
+Return ONLY the final JSON, for example:
+
+```json
+{ "rationale": "short explanation", "answer": "one-word", "confidence": 0.9 }
+```
+[RAW ← Talos]
+```json
+{ "rationale": "Secondo la biologia evolutiva, gli uccelli moderni, inclusa la gallina, si sono evoluti da antenati rettiliani che deponevano uova. Quindi, l'uovo è esistito prima della gallina come specie.", "answer": "l'uovo", "confidence": 0.95 }
+```
+[PARSED ← Talos] answer=l'uovo confidence=0.95
