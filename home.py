@@ -27,7 +27,7 @@ class HomePage(QWidget):
         self.setWindowTitle("AP4FED - Home Page")
         self.resize(800, 600)
         base_dir = os.path.dirname(__file__)
-        logo_path = os.path.join(base_dir, "img/readme/logo.svg")
+        logo_path = os.path.join(base_dir, "img/readme/logo.png")
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignCenter)
         self.setLayout(layout)

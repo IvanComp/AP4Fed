@@ -340,7 +340,7 @@ class PreSimulationPage(QWidget):
             "Heterogeneous Data Handler": {
                 "category": "Model Training Category",
                 "image": "img/patterns/heterogeneousdatahandler.png",
-                "description": "Addresses issues with non-IID and skewed data while maintaining data privacy.",
+                "description": "Addresses issues with non-IID and skewed data with synthetic data.",
                 "benefits": "Better management of varied data distributions.",
                 "drawbacks": "Requires more sophisticated data partitioning and handling logic."
             },
@@ -525,8 +525,8 @@ class PreSimulationPage(QWidget):
                 "Deployment Selector: Matches converging global models with suitable clients for task optimization."
             ]),
             ("Model Training Category", [
-                "Multi-Task Model Trainer: Utilizes data from related models on local devices to enhance efficiency.",
                 "Heterogeneous Data Handler: Addresses issues with non-IID and skewed data while maintaining data privacy.",
+                "Multi-Task Model Trainer: Utilizes data from related models on local devices to enhance efficiency.",
                 "Incentive Registry: Measures and records client contributions and provides incentives."
             ]),
             ("Model Aggregation Category", [
@@ -543,9 +543,9 @@ class PreSimulationPage(QWidget):
             "Client Selector",
             "Client Cluster",
             "Message Compressor",
-            "Model co-Versioning Registry",
-            "Multi-Task Model Trainer",
             "Heterogeneous Data Handler",
+            "Model co-Versioning Registry",
+            #"Multi-Task Model Trainer",
         ]
 
         for topic, patterns_list in macrotopics:

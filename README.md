@@ -29,6 +29,7 @@ Testing Models: [torchvision.models (+120)]
 <tt>AP4FED</tt> supports software architects by offering a framework for the quantitative evaluation of specific design decisions, enabling a deeper understanding of their impact on system performance and guiding the optimization of Federated Learning architectures.
 
 An initial version of <tt>AP4FED</tt> was developed and tested in the research paper "_Performance Analysis of Architectural Patterns for Federated Learning Systems_" accepted for the 22nd IEEE International Conference on Software Architecture (ICSA 2025) [1].
+<tt>AP4FED</tt> was also used in the research paper "_Experimenting Architectural Patterns in Federated Learning Systems_" accepted for the Journal of Systems & Software [2].
 
 <p align="center">
 <img src="img/readme/Poster.png" width="440px" height="610px"/>
