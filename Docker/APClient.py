@@ -1,6 +1,8 @@
 import platform
-import psutil
 from datetime import datetime
+
+import psutil
+
 
 class ClientRegistry:
     def __init__(self):
@@ -72,6 +74,6 @@ class ClientRegistry:
                 print(f"Client {i}: {cid}")
                 for key, value in system_info.items():
                     print(f"  {key}: {value}")
-                print()  # Newline for readability
+                print() 
         else:
             print("No active clients registered.")

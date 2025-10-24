@@ -5,7 +5,7 @@ Testing Datasets: [torchvision.datasets (+38)]
 Testing Models: [torchvision.models (+120)]
 ---
 
-# AP4FED
+# <tt>AP4FED</tt> a Federated Learning Benchmark platform
 
 <p align="center">
 <img src="img/readme/logo.png" width="340px" height="210px"/>
