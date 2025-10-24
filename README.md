@@ -107,9 +107,9 @@ Users can choose to create a new project or load an existing JSON configuration 
 <img src="img/readme/8.png" width="400px" height="300px"/>
 </p>
 
-## Testing Models and Dataset
+# Testing Models and Dataset
 
-# Dataset
+## Dataset
 
 <tt>AP4FED</tt> supports the following dataset from the <tt>torchvision.dataset</tt> library: 
 
@@ -120,7 +120,7 @@ Users can choose to create a new project or load an existing JSON configuration 
 - "KMNIST"
 - "MNIST"
 
-# Models
+## Models
 
 <tt>AP4FED</tt> supports the following models the <tt>torchvision.models</tt> library:
 
@@ -279,7 +279,7 @@ Accepted for the 22nd IEEE International Conference on Software Architecture. IC
 }
 ```
 
-[2] Compagnucci, I., Pinciroli, R., & Trubiani, C. (2025). **Experimenting Architectural Patterns in Federated Learning Systems.**
+[2] Compagnucci, I., Pinciroli, R., & Trubiani, C. (2025). [**Experimenting Architectural Patterns in Federated Learning Systems.**](https://cs.gssi.it/catia.trubiani/download/2025-JSS-Experimenting_Architectural_Patterns_in_Federated_Learning_Systems-preprint.pdf)
 Accepted in The Journal of Systems & Software. 2025. (_In Press_)
 
 ```
