@@ -1,6 +1,7 @@
 import os
 import json
 import subprocess
+import random
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QFrame, QVBoxLayout, QLabel, QPushButton, QSpinBox,
     QCheckBox, QGroupBox, QFormLayout, QHBoxLayout, QGridLayout,
@@ -340,7 +341,7 @@ class PreSimulationPage(QWidget):
             "Heterogeneous Data Handler": {
                 "category": "Model Training Category",
                 "image": "img/patterns/heterogeneousdatahandler.png",
-                "description": "Addresses issues with non-IID and skewed data with synthetic data.",
+                "description": "Addresses issues with non-IID and skewed data while maintaining data privacy.",
                 "benefits": "Better management of varied data distributions.",
                 "drawbacks": "Requires more sophisticated data partitioning and handling logic."
             },
@@ -505,7 +506,7 @@ class PreSimulationPage(QWidget):
 
         patterns_label = QLabel("Select Architectural Patterns to be applied:")
         patterns_label.setAlignment(Qt.AlignLeft)
-        patterns_label.setStyleSheet("font-size: 14px; color: #333; margin-top: 10px;")
+        patterns_label.setStyleSheet("font-size: 14px; color: black; margin-top: 10px;")
         main_layout.addWidget(patterns_label)
 
         patterns_grid = QGridLayout()
@@ -543,9 +544,9 @@ class PreSimulationPage(QWidget):
             "Client Selector",
             "Client Cluster",
             "Message Compressor",
-            "Heterogeneous Data Handler",
             "Model co-Versioning Registry",
             #"Multi-Task Model Trainer",
+            "Heterogeneous Data Handler",
         ]
 
         for topic, patterns_list in macrotopics:
@@ -610,9 +611,8 @@ class PreSimulationPage(QWidget):
 
                 checkbox = QCheckBox(pattern_name)
                 if pattern_name == "Model co-Versioning Registry":
-                    checkbox.setChecked(True)
-                checkbox.setToolTip(pattern_desc)
-                checkbox.setStyleSheet("QCheckBox { color: black; font-size: 12px; }")
+                    checkbox.setToolTip(pattern_desc)
+                    checkbox.setStyleSheet("QCheckBox { color: black; font-size: 12px; }")
 
                 if pattern_name not in enabled_patterns:
                     checkbox.setEnabled(False)
@@ -1079,7 +1079,8 @@ class ClientConfigurationPage(QWidget):
         ram = first["ram_input"].value()
         ds = first["dataset_combobox"].currentText()
         part = first["partition_combobox"].currentText()
-        pers = first["persistance_combobox"].currentText()
+        pers = first["persistence_combobox"].currentText()
+        delay = first["delay_combobox"].currentText()
         model = first["model_combobox"].currentText()
         epochs = first["epochs_spinbox"].value()
 
@@ -1095,9 +1096,13 @@ class ClientConfigurationPage(QWidget):
             if idx_part >= 0:
                 cfg["partition_combobox"].setCurrentIndex(idx_part)
 
-            idx_pers = cfg["persistance_combobox"].findText(pers)
+            idx_pers = cfg["persistence_combobox"].findText(pers)
             if idx_pers >= 0:
-                cfg["persistance_combobox"].setCurrentIndex(idx_pers)
+                cfg["persistence_combobox"].setCurrentIndex(idx_pers)
+
+            idx_delay = cfg["delay_combobox"].findText(delay)
+            if idx_delay >= 0:
+                cfg["delay_combobox"].setCurrentIndex(idx_delay)
 
             idx_model = cfg["model_combobox"].findText(model)
             if idx_model >= 0:
@@ -1108,12 +1113,12 @@ class ClientConfigurationPage(QWidget):
     def create_client_card(self, client_id):
         card = QFrame(objectName="ClientCard")
         card_layout = QVBoxLayout()
-        card_layout.setContentsMargins(8, 8, 8, 8)
+        card_layout.setContentsMargins(8, 8, 9, 9)
         card_layout.setSpacing(5)
         card.setLayout(card_layout)
 
         fixed_width = 305
-        fixed_height = 400
+        fixed_height = 420
         card.setFixedWidth(fixed_width)
         card.setFixedHeight(fixed_height)
 
@@ -1133,7 +1138,7 @@ class ClientConfigurationPage(QWidget):
         cpu_label.setAlignment(Qt.AlignLeft)
         cpu_input = QSpinBox()
         cpu_input.setRange(1, 16)
-        cpu_input.setValue(1)
+        cpu_input.setValue(5)
         cpu_input.setSuffix(" CPUs")
         cpu_input.setFixedWidth(160)
         cpu_layout = QHBoxLayout()
@@ -1160,7 +1165,7 @@ class ClientConfigurationPage(QWidget):
         dataset_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
         dataset_label.setAlignment(Qt.AlignLeft)
         dataset_combobox = QComboBox()
-        dataset_combobox.addItems(["CIFAR-10", "CIFAR-100", "MNIST", "KMNIST", "FashionMNIST", "OXFORDIIITPET","ImageNet100"])
+        dataset_combobox.addItems(["FashionMNIST", "CIFAR-10", "CIFAR-100", "MNIST", "KMNIST", "OXFORDIIITPET","ImageNet100"])
         dataset_combobox.setFixedWidth(160)
         dataset_layout = QHBoxLayout()
         dataset_layout.setSpacing(12)
@@ -1179,16 +1184,28 @@ class ClientConfigurationPage(QWidget):
         partition_layout.addWidget(partition_combobox)
         card_layout.addLayout(partition_layout)
 
-        persistance_label = QLabel("Data Persistance:")
-        persistance_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
-        persistance_label.setAlignment(Qt.AlignLeft)
-        persistance_combobox = QComboBox()
-        persistance_combobox.addItems(["Same Data", "New Data", "Remove Data"])
-        persistance_combobox.setFixedWidth(160)
-        persistance_layout = QHBoxLayout()
-        persistance_layout.addWidget(persistance_label)
-        persistance_layout.addWidget(persistance_combobox)
-        card_layout.addLayout(persistance_layout)
+        persistence_label = QLabel("Data Persistence:")
+        persistence_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
+        persistence_label.setAlignment(Qt.AlignLeft)
+        persistence_combobox = QComboBox()
+        persistence_combobox.addItems(["Same Data", "New Data", "Remove Data"])
+        persistence_combobox.setFixedWidth(160)
+        persistence_layout = QHBoxLayout()
+        persistence_layout.addWidget(persistence_label)
+        persistence_layout.addWidget(persistence_combobox)
+        card_layout.addLayout(persistence_layout)
+
+        delay_label = QLabel("Delay Injection:")
+        delay_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
+        delay_label.setAlignment(Qt.AlignLeft)
+        delay_combobox = QComboBox()
+        delay_combobox.addItems(["No","Yes","Random"])
+        delay_combobox.setFixedWidth(160)
+        delay_layout = QHBoxLayout()
+        delay_layout.addWidget(delay_label)
+        delay_layout.setSpacing(17) 
+        delay_layout.addWidget(delay_combobox)
+        card_layout.addLayout(delay_layout)
 
         model_group = QGroupBox("Model Training Settings")
         model_group.setStyleSheet("""
@@ -1267,8 +1284,9 @@ class ClientConfigurationPage(QWidget):
             "cpu_input": cpu_input,
             "ram_input": ram_input,
             "dataset_combobox": dataset_combobox,
-            "persistance_combobox": persistance_combobox,
+            "persistence_combobox": persistence_combobox,
             "partition_combobox": partition_combobox,
+            "delay_combobox": delay_combobox,
             "model_combobox": model_combobox,
             "epochs_spinbox": epochs_spinbox
         }
@@ -1278,13 +1296,20 @@ class ClientConfigurationPage(QWidget):
     def save_client_configurations_and_continue(self):
         client_details = []
         for idx, cfg in enumerate(self.client_configs):
+            _dist = cfg['partition_combobox'].currentText()
+            if _dist == 'Random':
+                _dist = 'IID' if random.random() < 0.5 else 'non-IID'
+            _delay = cfg['delay_combobox'].currentText()
+            if _delay == 'Random':
+                _delay = 'Yes' if random.random() < 0.5 else 'No'
             client_info = {
                 "client_id": idx + 1,
                 "cpu": cfg["cpu_input"].value(),
                 "ram": cfg["ram_input"].value(),
                 "dataset": cfg["dataset_combobox"].currentText(),
                 "data_distribution_type": cfg["partition_combobox"].currentText(),
-                "data_persistance_type": cfg["persistance_combobox"].currentText(),
+                "data_persistence_type": cfg["persistence_combobox"].currentText(),
+                "delay_combobox": cfg["delay_combobox"].currentText(),
                 "model": cfg["model_combobox"].currentText(),
                 "epochs": cfg["epochs_spinbox"].value()
             }
@@ -1298,6 +1323,12 @@ class ClientConfigurationPage(QWidget):
 
     def save_configuration_to_file(self):
         try:
+            cfg = self.user_choices[-1]
+            for c in cfg.get('client_details', []):
+                if c.get('data_distribution_type') == 'Random':
+                    c['data_distribution_type'] = 'IID' if random.random() < 0.5 else 'non-IID'
+                if c.get('delay_combobox') == 'Random':
+                    c['delay_combobox'] = 'Yes' if random.random() < 0.5 else 'No'
             base_dir = os.path.dirname(os.path.abspath(__file__))
             sim_type = self.user_choices[-1].get("simulation_type")
             if sim_type.lower() == "docker":

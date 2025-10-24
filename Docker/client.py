@@ -1,24 +1,19 @@
-from multiprocessing import Process
+import base64
 import json
+import logging
 import os
-import torch
+import pickle
 import platform
+import random
+import sys
 import time
 import zlib
-import pickle
 import numpy as np
 import psutil
-import taskA
-import sys
 import torch
-import logging
-logging.getLogger("onnx2keras").setLevel(logging.ERROR)
-logging.getLogger("ray").setLevel(logging.WARNING)
-import onnx
-from onnx2keras import onnx_to_keras
-from datetime import datetime
+import taskA
 from io import BytesIO
-from flwr.client import ClientApp, NumPyClient, start_client
+from flwr.client import NumPyClient, start_client
 from flwr.common.logger import log
 from logging import INFO
 from APClient import ClientRegistry
@@ -28,8 +23,11 @@ from taskA import (
     load_data as load_data_A,
     set_weights as set_weights_A,
     train as train_A,
-    test as test_A
+    test as test_A,
+    get_jsd as get_jsd_A,
+    rebalance_trainloader_with_gan as rebalance_trainloader_with_gan_A
 )
+
 sys.path.append(
     os.path.abspath(
         os.path.join(
@@ -41,6 +39,7 @@ sys.path.append(
 
 global_client_details = None
 
+
 def load_client_details():
     global global_client_details
     if global_client_details is None:
@@ -50,14 +49,17 @@ def load_client_details():
         with open(config_file, 'r') as f:
             configJSON = json.load(f)
         client_details_list = configJSON.get("client_details", [])
+
         def client_sort_key(item):
             try:
                 return int(item.get("client_id", 0))
             except:
                 return 0
+
         client_details_list = sorted(client_details_list, key=client_sort_key)
         global_client_details = client_details_list
     return global_client_details
+
 
 class ConfigServer:
     def __init__(self, config_list):
@@ -74,10 +76,12 @@ class ConfigServer:
             self.counter += 1
             return config
 
+
 CLIENT_REGISTRY = ClientRegistry()
 DISTRIBUTED_MODEL_REPAIR = False
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 GLOBAL_ROUND_COUNTER = 1
+
 
 def set_cpu_affinity(process_pid: int, num_cpus: int) -> bool:
     try:
@@ -95,10 +99,11 @@ def set_cpu_affinity(process_pid: int, num_cpus: int) -> bool:
     except Exception:
         return False
 
+
 def get_ram_percent_cgroup():
     paths = [
-        ("/sys/fs/cgroup/memory.current", "/sys/fs/cgroup/memory.max"),               
-        ("/sys/fs/cgroup/memory/memory.usage_in_bytes",                                
+        ("/sys/fs/cgroup/memory.current", "/sys/fs/cgroup/memory.max"),
+        ("/sys/fs/cgroup/memory/memory.usage_in_bytes",
          "/sys/fs/cgroup/memory/memory.limit_in_bytes"),
     ]
     for used_path, limit_path in paths:
@@ -114,6 +119,7 @@ def get_ram_percent_cgroup():
                 break
 
     return psutil.Process(os.getpid()).memory_percent()
+
 
 def get_cpu_percent_cgroup(interval: float = 1.0) -> float:
     try:
@@ -133,6 +139,7 @@ def get_cpu_percent_cgroup(interval: float = 1.0) -> float:
     except Exception:
         return psutil.cpu_percent(interval=interval)
 
+
 class FlowerClient(NumPyClient):
     def __init__(self, client_config: dict, model_type: str):
         self.client_config = client_config
@@ -141,8 +148,13 @@ class FlowerClient(NumPyClient):
         self.ram = client_config.get("ram")
         self.dataset = client_config.get("dataset")
         self.data_distribution_type = client_config.get("data_distribution_type")
+        self.data_persistence_type = client_config.get("data_persistence_type", "Same Data")
         self.model = client_config.get("model")
         self.model_type = model_type
+        self.did_hdh = False
+        self.trainloader, self.testloader = None, None
+        self.delay_enabled = (client_config.get("delay_combobox") == "Yes")
+        self.delay_injection = 50
 
         if self.n_cpu is not None:
             try:
@@ -154,16 +166,14 @@ class FlowerClient(NumPyClient):
 
         CLIENT_REGISTRY.register_client(self.cid, model_type)
         self.net = NetA().to(DEVICE)
-        self.trainloader, self.testloader = load_data_A(self.client_config, GLOBAL_ROUND_COUNTER)
         self.DEVICE = DEVICE
 
     def fit(self, parameters, config):
         global GLOBAL_ROUND_COUNTER
+        hdh_ms = 0.0
         proc = psutil.Process(os.getpid())
         cpu_start = proc.cpu_times().user + proc.cpu_times().system
         wall_start = time.time()
-
-        # Carica pattern abilitati
         compressed_parameters_hex = config.get("compressed_parameters_hex")
         global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MODEL_COVERSIONING, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
         CLIENT_SELECTOR = CLIENT_CLUSTER = MESSAGE_COMPRESSOR = MODEL_COVERSIONING = MULTI_TASK_MODEL_TRAINER = HETEROGENEOUS_DATA_HANDLER = False
@@ -173,14 +183,31 @@ class FlowerClient(NumPyClient):
         if os.path.exists(config_file):
             with open(config_file, 'r') as f:
                 configJSON = json.load(f)
+            ADAPTATION_ENABLED = configJSON.get("adaptation", False)
             for name, info in configJSON.get("patterns", {}).items():
                 if info.get("enabled"):
-                    if name == "client_selector": CLIENT_SELECTOR = True
-                    elif name == "client_cluster": CLIENT_CLUSTER = True
-                    elif name == "message_compressor": MESSAGE_COMPRESSOR = True
-                    elif name == "model_co-versioning_registry": MODEL_COVERSIONING = True
-                    elif name == "multi-task_model_trainer": MULTI_TASK_MODEL_TRAINER = True
-                    elif name == "heterogeneous_data_handler": HETEROGENEOUS_DATA_HANDLER = True
+                    if name == "client_selector":
+                        CLIENT_SELECTOR = True
+                    elif name == "client_cluster":
+                        CLIENT_CLUSTER = True
+                    elif name == "message_compressor":
+                        MESSAGE_COMPRESSOR = True
+                    elif name == "model_co-versioning_registry":
+                        MODEL_COVERSIONING = True
+                    elif name == "multi-task_model_trainer":
+                        MULTI_TASK_MODEL_TRAINER = True
+                    elif name == "heterogeneous_data_handler":
+                        if not ADAPTATION_ENABLED or self.cid in info.get("params", {}).get("enabled_clients", []):
+                            HETEROGENEOUS_DATA_HANDLER = True
+
+        never_loaded_data = self.trainloader is None and self.testloader is None
+        needs_to_reload_data = self.data_persistence_type != "Same Data" and not never_loaded_data
+        if never_loaded_data or needs_to_reload_data:
+            self.trainloader, self.testloader = load_data_A(self.client_config, GLOBAL_ROUND_COUNTER)
+
+        if HETEROGENEOUS_DATA_HANDLER and (ADAPTATION_ENABLED or not self.did_hdh):
+            self.trainloader, hdh_ms = rebalance_trainloader_with_gan_A(self.trainloader)
+            self.did_hdh = True
 
         if CLIENT_SELECTOR:
             selector_params = configJSON["patterns"]["client_selector"]["params"]
@@ -189,15 +216,14 @@ class FlowerClient(NumPyClient):
             selection_value = selector_params.get("selection_value", "")
             if selection_strategy == "Resource-Based":
                 if selection_criteria == "CPU" and self.n_cpu < selection_value:
-                    log(INFO, f"Client {self.cid} has insufficient CPU ({self.n_cpu}). Will not participate in the next FL round.")
+                    log(INFO,
+                        f"Client {self.cid} has insufficient CPU ({self.n_cpu}). Will not participate in the next FL round.")
                     return parameters, 0, {}
                 if selection_criteria == "RAM" and self.ram < selection_value:
-                    log(INFO, f"Client {self.cid} has insufficient RAM ({self.ram}). Will not participate in the next FL round.")
+                    log(INFO,
+                        f"Client {self.cid} has insufficient RAM ({self.ram}). Will not participate in the next FL round.")
                     return parameters, 0, {}
             log(INFO, f"Client {self.cid} participates in this round. (CPU: {self.n_cpu}, RAM: {self.ram})")
-
-            if selection_strategy == "SSIM-Based":
-                log(INFO, f"Entering SSIM.")
 
         if CLIENT_CLUSTER:
             selector_params = configJSON["patterns"]["client_cluster"]["params"]
@@ -215,9 +241,10 @@ class FlowerClient(NumPyClient):
                     log(INFO, f"Client {self.cid} assigned to IID Cluster {self.model_type}")
                 else:
                     log(INFO, f"Client {self.cid} assigned to non-IID Cluster {self.model_type}")
-               
+
         if MESSAGE_COMPRESSOR:
-            compressed_parameters = bytes.fromhex(compressed_parameters_hex)
+            payload_b64 = config.get("compressed_parameters_b64")
+            compressed_parameters = base64.b64decode(payload_b64)
             decompressed_parameters = pickle.loads(zlib.decompress(compressed_parameters))
             numpy_arrays = [np.load(BytesIO(tensor)) for tensor in decompressed_parameters.tensors]
             numpy_arrays = [arr.astype(np.float32) for arr in numpy_arrays]
@@ -226,91 +253,15 @@ class FlowerClient(NumPyClient):
             parameters = parameters
 
         set_weights_A(self.net, parameters)
-
-        if DISTRIBUTED_MODEL_REPAIR and GLOBAL_ROUND_COUNTER > 1:
-            log(INFO, f"Client {self.cid}: avvio distributed model repair")
-            self.net.eval()
-            X_batch, _ = next(iter(self.trainloader))
-            input_shape = (1,) + tuple(X_batch.shape[1:])  
-
-            onnx_path = "temp_model.onnx"
-            dummy = torch.randn(input_shape).to(DEVICE)
-            torch.onnx.export(
-                self.net, dummy, onnx_path,
-                input_names=["input"], output_names=["output"],
-                opset_version=13
-            )
-
-            model_onnx = onnx.load(onnx_path)
-
-            for node in model_onnx.graph.node:
-                node.name = node.name.replace('/', '_')
-                for i in range(len(node.input)):
-                    node.input[i] = node.input[i].replace('/', '_')
-                for i in range(len(node.output)):
-                    node.output[i] = node.output[i].replace('/', '_')
-
-            for init in model_onnx.graph.initializer:
-                init.name = init.name.replace('/', '_')
-
-            for v in model_onnx.graph.input:
-                v.name = v.name.replace('/', '_')
-            for v in model_onnx.graph.output:
-                v.name = v.name.replace('/', '_')
-
-            onnx.save(model_onnx, onnx_path)
-
-            import keras.layers as _layers
-
-            def _patch_init(layer_cls):
-                orig = layer_cls.__init__
-                def wrapped(self, *args, **kwargs):
-                    w = kwargs.pop("weights", None)
-                    orig(self, *args, **kwargs)
-                    if w is not None and hasattr(self, "set_weights") and len(self.weights) > 0:
-                        self.set_weights(w)
-                layer_cls.__init__ = wrapped
-
-            _patch_init(_layers.Conv2D)
-            _patch_init(_layers.Dense)
-
-            keras_model = onnx_to_keras(model_onnx, ["input"])
-            keras_path = "model_local.h5"
-            keras_model.save(keras_path)
-
-            from arachne.run_localise import compute_FI_and_GL
-
-            try:
-                X_batch, y_batch = next(iter(self.trainloader))
-                X_np = X_batch.cpu().numpy()
-                y_np = y_batch.cpu().numpy()
-            except StopIteration:
-                log(INFO, f"Client {self.cid}: trainloader vuoto, skip repair")
-            else:
-                total_cands = compute_FI_and_GL(
-                    X_np, y_np,
-                    indices_to_target=list(range(len(X_np))),
-                    target_weights={},
-                    is_multi_label=False,
-                    path_to_keras_model=keras_path
-                )
-                sd = self.net.state_dict()
-                for layer_name, idxs, vals in total_cands:
-                    w = sd[layer_name].cpu().numpy()
-                    for idx, val in zip(idxs, vals):
-                        w.flat[idx] = val
-                    sd[layer_name].copy_(torch.from_numpy(w).to(DEVICE))
-                self.net.load_state_dict(sd)
-            self.net.train()
-
-        results, training_time = train_A(
-            self.net, self.trainloader, self.testloader,
-            epochs=1, DEVICE=self.DEVICE
-        )
+        results, training_time = train_A(self.net, self.trainloader, self.testloader, epochs=1, DEVICE=self.DEVICE)
         new_parameters = get_weights_A(self.net)
         compressed_parameters_hex = None
 
-        train_end_ts = taskA.TRAIN_COMPLETED_TS or time.time()       
+        train_end_ts = taskA.TRAIN_COMPLETED_TS or time.time()
+        if self.delay_enabled:
+            random_delay = random.randint(0, self.delay_injection)
+            log(INFO, f"client {self.cid} injecting delay of {random_delay} seconds")
+            time.sleep(random_delay)
         send_ready_ts = time.time()
         communication_time = send_ready_ts - train_end_ts
 
@@ -335,7 +286,7 @@ class FlowerClient(NumPyClient):
             original_size = len(serialized_parameters)
             compressed_parameters = zlib.compress(serialized_parameters)
             compressed_size = len(compressed_parameters)
-            compressed_parameters_hex = compressed_parameters.hex()
+            compressed_parameters_b64 = base64.b64encode(compressed_parameters).decode("ascii")
             reduction_bytes = original_size - compressed_size
             reduction_percentage = (reduction_bytes / original_size) * 100
             log(INFO, f"Local parameters compressed: reduced {reduction_bytes} bytes ({reduction_percentage:.2f}%)")
@@ -353,12 +304,15 @@ class FlowerClient(NumPyClient):
                 "ram": self.ram,
                 "cpu_percent": cpu_percent,
                 "ram_percent": ram_percent,
+                "hdh_ms": hdh_ms if HETEROGENEOUS_DATA_HANDLER else 0.0,
                 "communication_time": communication_time,
+                "client_sent_ts": send_ready_ts,
+                "train_end_ts": train_end_ts,
                 "client_id": self.cid,
                 "model_type": self.model_type,
                 "data_distribution_type": self.data_distribution_type,
                 "dataset": self.dataset,
-                "compressed_parameters_hex": compressed_parameters_hex,
+                "compressed_parameters_b64": compressed_parameters_b64,
             }
             return [], len(self.trainloader.dataset), metrics
         else:
@@ -376,11 +330,15 @@ class FlowerClient(NumPyClient):
                 "ram": self.ram,
                 "cpu_percent": cpu_percent,
                 "ram_percent": ram_percent,
+                "hdh_ms": hdh_ms if hdh_ms is not None else 0.0,
                 "communication_time": communication_time,
+                "client_sent_ts": send_ready_ts,
+                "train_end_ts": train_end_ts,
                 "client_id": self.cid,
                 "model_type": self.model_type,
                 "data_distribution_type": self.data_distribution_type,
                 "dataset": self.dataset,
+                "jsd": get_jsd_A(self.trainloader)
             }
             return new_parameters, len(self.trainloader.dataset), metrics
 

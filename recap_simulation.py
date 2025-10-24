@@ -41,19 +41,16 @@ class RecapSimulationPage(QWidget):
         title_label = QLabel("List of Input Parameters for the Simulation")
         title_label.setStyleSheet("color: black; font-size: 24px; font-weight: bold;")
         title_label.setAlignment(Qt.AlignCenter)
-
         header_layout = QHBoxLayout()
         header_layout.setContentsMargins(0, 0, 0, 10)
         header_layout.addWidget(back_btn, alignment=Qt.AlignLeft)
         header_layout.addWidget(title_label, stretch=1)
-
         layout.insertLayout(0, header_layout)
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_content = QWidget()
         scroll_layout = QVBoxLayout(scroll_content)
         scroll_layout.setAlignment(Qt.AlignTop)
-
         self.display_general_parameters(scroll_layout)
         self.display_clients(scroll_layout)
         self.display_patterns(scroll_layout)
@@ -83,7 +80,6 @@ class RecapSimulationPage(QWidget):
             }
         """)
         buttons_layout.addWidget(run_button)
-
         download_button = QPushButton("Download .json Configuration")
         download_button.clicked.connect(self.download_configuration)
         download_button.setCursor(Qt.PointingHandCursor)
@@ -120,7 +116,6 @@ class RecapSimulationPage(QWidget):
         general_label.setAlignment(Qt.AlignLeft)
         general_label.setStyleSheet("color: black; font-size: 20px; font-weight: bold; margin-top: 10px;")
         layout.addWidget(general_label)
-
         general_params = {}
         for key in ['simulation_type', 'rounds']:
             if key in merged_config:
@@ -235,13 +230,13 @@ class RecapSimulationPage(QWidget):
         categories_grid = QGridLayout()
         categories_grid.setSpacing(20)
         layout.addLayout(categories_grid)
+
         row, col = 0, 0
         for category_title, pattern_list in categories:
             cat_frame = QFrame()
             cat_frame.setFrameShape(QFrame.Box)
             cat_frame.setLineWidth(1)
             cat_frame.setStyleSheet("background-color: #f9f9f9; border-radius: 5px;")
-
             cat_layout = QVBoxLayout()
             cat_layout.setAlignment(Qt.AlignTop)
             cat_frame.setLayout(cat_layout)
@@ -252,7 +247,7 @@ class RecapSimulationPage(QWidget):
             for pattern_key, pattern_display_name in pattern_list:
                 pattern_layout = QHBoxLayout()
                 pattern_layout.setAlignment(Qt.AlignLeft)
-                is_enabled = all_patterns.get(pattern_key, {}).get("enabled", False) 
+                is_enabled = all_patterns.get(pattern_key, {}).get("enabled", False)  
                 icon_label = QLabel()
                 if is_enabled:
                     icon_label.setText("✔")  
@@ -307,6 +302,7 @@ class RecapSimulationPage(QWidget):
             if isinstance(choice, dict):
                 merged_config.update(choice)
 
+        # Open a file dialog to save the file
         options = QFileDialog.Options()
         file_name, _ = QFileDialog.getSaveFileName(
             self,
@@ -316,6 +312,7 @@ class RecapSimulationPage(QWidget):
             options=options
         )
         if file_name:
+            # Ensure the file has a .json extension
             if not file_name.endswith('.json'):
                 file_name += '.json'
             try:
@@ -334,9 +331,6 @@ class RecapSimulationPage(QWidget):
         from simulation import SimulationPage
         merged={}
         for c in self.user_choices: merged.update(c if isinstance(c,dict) else {})
-        for cli in merged.get('client_details',[]):
-            if cli.get('data_distribution_type')=='Random':
-                cli['data_distribution_type'] = 'IID' if random.random()<0.5 else 'non-IID'
         base=os.path.dirname(os.path.abspath(__file__))
         st=merged.get('simulation_type','local').lower()
         cfg_folder = os.path.join(base, 'Local' if st=='local' else 'Docker', 'configuration')

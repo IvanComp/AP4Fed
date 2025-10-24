@@ -20,7 +20,7 @@
             "params": {}
         },
         "model_co-versioning_registry": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         },
         "multi-task_model_trainer": {
@@ -35,21 +35,23 @@
     "client_details": [
         {
             "client_id": 1,
-            "cpu": 1,
+            "cpu": 5,
             "ram": 2,
-            "dataset": "CIFAR-10",
+            "dataset": "FashionMNIST",
             "data_distribution_type": "IID",
-            "data_persistance_type": "Same Data",
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
             "model": "CNN 16k",
             "epochs": 1
         },
         {
             "client_id": 2,
-            "cpu": 1,
+            "cpu": 5,
             "ram": 2,
-            "dataset": "CIFAR-10",
+            "dataset": "FashionMNIST",
             "data_distribution_type": "IID",
-            "data_persistance_type": "Same Data",
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
             "model": "CNN 16k",
             "epochs": 1
         }

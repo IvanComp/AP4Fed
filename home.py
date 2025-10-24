@@ -9,15 +9,12 @@ from PyQt5.QtCore import Qt, QUrl, QSize
 from presimulation import PreSimulationPage 
 from recap_simulation import RecapSimulationPage 
 
-base_dir   = os.path.abspath(os.path.dirname(__file__))
-local_dir  = os.path.join(base_dir, 'Local')
-targets    = ['performance', 'model_weights', 'exclusion_log.txt']
-for name in targets:
-    path = os.path.join(local_dir, name)
-    if os.path.isdir(path):
-        shutil.rmtree(path)
-    elif os.path.isfile(path):
-        os.remove(path)
+base_dir = os.path.abspath(os.path.dirname(__file__))
+local_dir = os.path.join(base_dir, 'Local')
+for folder in ['performance', 'model_weights']:
+    folder_path = os.path.join(local_dir, folder)
+    if os.path.exists(folder_path):
+        shutil.rmtree(folder_path)
 
 user_choices = []
 
@@ -27,7 +24,7 @@ class HomePage(QWidget):
         self.setWindowTitle("AP4FED - Home Page")
         self.resize(800, 600)
         base_dir = os.path.dirname(__file__)
-        logo_path = os.path.join(base_dir, "img/readme/logo.png")
+        logo_path = os.path.join(base_dir, "img/readme/logo.svg")
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignCenter)
         self.setLayout(layout)
@@ -153,6 +150,9 @@ class HomePage(QWidget):
         self.close()
 
     def load_configuration(self):
+        """
+        Funzione per caricare un file di configurazione JSON.
+        """
         options = QFileDialog.Options()
         file_name, _ = QFileDialog.getOpenFileName(
             self,
@@ -192,12 +192,14 @@ class HomePage(QWidget):
         return True
 
     def close_application(self):
+        # Mostra un popup di conferma
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Confirmation")
         msg_box.setText("Are you sure you want to close the application?")
         msg_box.setIcon(QMessageBox.Question)
         msg_box.setObjectName("myMessageBox")
 
+        # Stile del popup corretto
         msg_box.setStyleSheet("""
             #myMessageBox {
                 background-color: white;

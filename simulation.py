@@ -2,6 +2,8 @@ import os
 import sys
 import json
 import re
+import time
+
 import yaml
 import copy
 import glob
@@ -82,6 +84,9 @@ class DashboardWindow(QWidget):
         self.resize(1200, 800)
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignTop)
+
+        base_dir = os.path.dirname(__file__)
+        subdir   = 'Docker' if simulation_type == 'Docker' else 'Local'
         cfg_path = os.path.join(self.base_dir, self.simulation_type, "configuration", "config.json")
         with open(cfg_path, "r") as f:
             cfg = json.load(f)
@@ -99,11 +104,13 @@ class DashboardWindow(QWidget):
                 model_name = first.get("model")
                 dataset_name = first.get("dataset")
 
+        # Persistent pastel colors
         self.color_f1 = random_pastel()
         self.color_tot = random_pastel()
         self.client_colors = {}
         self.clients = []
 
+        # Model section
         lbl_mod = QLabel(f"Model ({model_name})")
         lbl_mod.setStyleSheet("font-weight: bold; font-size: 16px; color: black;")
         layout.addWidget(lbl_mod)
@@ -111,6 +118,8 @@ class DashboardWindow(QWidget):
         self.model_area.setReadOnly(True)
         self.model_area.setStyleSheet("background-color: #f9f9f9; color: black;")
         layout.addWidget(self.model_area)
+
+        # Model plots: F1 and Total Time
         h_model = QHBoxLayout()
         self.fig_f1, self.ax_f1 = plt.subplots()
         self.fig_f1.patch.set_facecolor('white')
@@ -122,6 +131,7 @@ class DashboardWindow(QWidget):
         h_model.addWidget(self.canvas_tot)
         layout.addLayout(h_model)
 
+        # Clients section
         lbl_cli = QLabel(f"Clients ({dataset_name})")
         lbl_cli.setStyleSheet("font-weight: bold; font-size: 16px; color: black;")
         layout.addWidget(lbl_cli)
@@ -130,6 +140,7 @@ class DashboardWindow(QWidget):
         self.client_area.setStyleSheet("background-color: #f9f9f9; color: black;")
         layout.addWidget(self.client_area)
 
+        # Client plots: Training and Communication
         h_client = QHBoxLayout()
         self.fig_train, self.ax_train = plt.subplots()
         self.fig_train.patch.set_facecolor('white')
@@ -141,6 +152,7 @@ class DashboardWindow(QWidget):
         h_client.addWidget(self.canvas_comm)
         layout.addLayout(h_client)
 
+        # Timer to update
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_data)
         self.timer.start(1000)
@@ -153,6 +165,7 @@ class DashboardWindow(QWidget):
         if not files:
             return
 
+        # fixed clients
         df0 = pd.read_csv(files[0])
         if not self.clients:
             self.clients = df0['Client ID'].tolist()
@@ -171,6 +184,7 @@ class DashboardWindow(QWidget):
             text_model += f"Round {rnd}: F1={last['Val F1']:.2f}, Total Round Time={last['Total Time of FL Round']:.0f}s\n"
         self.model_area.setPlainText(text_model)
 
+        # plot F1
         self.ax_f1.clear()
         sns.lineplot(x=rounds, y=f1s, marker='o', ax=self.ax_f1, color=self.color_f1)
         self.ax_f1.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -179,6 +193,7 @@ class DashboardWindow(QWidget):
         self.ax_f1.set_ylabel('F1 Score')
         self.canvas_f1.draw()
 
+        # plot Total Time
         self.ax_tot.clear()
         sns.lineplot(x=rounds, y=totals, marker='o', ax=self.ax_tot, color=self.color_tot)
         self.ax_tot.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -187,6 +202,7 @@ class DashboardWindow(QWidget):
         self.ax_tot.set_ylabel('Total Round Time (sec)')
         self.canvas_tot.draw()
 
+        # clients text
         df_last = pd.read_csv(files[-1])
         text_cli = ''
         for cid in self.clients:
@@ -278,27 +294,27 @@ class SimulationPage(QWidget):
 
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
-        #self.XAI_button = QPushButton("Explainable AI")
-        #self.XAI_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        #self.XAI_button.setCursor(Qt.PointingHandCursor)
-        #self.XAI_button.setStyleSheet("""
-        #   QPushButton {
-        #        background-color: green;
-        #       color: white;
-        #        font-size: 14px;
-        #        padding: 10px;
-        #        border-radius: 5px;
-        #        width: 200px;
-        #    }
-        #   QPushButton:hover {
-        #        background-color: #00b300;
-        #    }
-        #    QPushButton:pressed {
-        #        background-color: #008000;
-        #    }      
-        #""")
-        #self.XAI_button.clicked.connect(self.open_XAI)
-        #layout.addWidget(self.XAI_button)
+        self.XAI_button = QPushButton("Explainable AI")
+        self.XAI_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.XAI_button.setCursor(Qt.PointingHandCursor)
+        self.XAI_button.setStyleSheet("""
+            QPushButton {
+                background-color: green;
+                color: white;
+                font-size: 14px;
+                padding: 10px;
+                border-radius: 5px;
+                width: 200px;
+            }
+            QPushButton:hover {
+                background-color: #00b300;
+            }
+            QPushButton:pressed {
+                background-color: #008000;
+            }      
+        """)
+        self.XAI_button.clicked.connect(self.open_XAI)
+        layout.addWidget(self.XAI_button)
 
         self.stop_button = QPushButton("Stop Simulation")
         self.stop_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -384,8 +400,8 @@ class SimulationPage(QWidget):
             with open(dc_out, 'w') as f:
                 yaml.safe_dump(compose, f)
 
-            cmd  = 'docker-compose'
-            args = ['-f', dc_out, 'up']
+            cmd  = '/opt/homebrew/bin/docker'
+            args = ['compose', '-f', dc_out, 'up']
 
             self.process = QProcess(self)
             self.process.setProcessChannelMode(QProcess.MergedChannels)
@@ -396,9 +412,11 @@ class SimulationPage(QWidget):
 
             if not self.process.waitForStarted():
                 self.output_area.appendPlainText("Error: Docker Compose failed to start")
+                self.output_area.appendPlainText(self.process.errorString())
                 return
 
         else:
+            # ** Ramo locale: working dir = progetto/Local **
             work_dir = os.path.join(base_dir, 'Local')
             cmd      = 'flower-simulation'
             args     = [
@@ -411,7 +429,7 @@ class SimulationPage(QWidget):
             self.process.setProcessChannelMode(QProcess.MergedChannels)
             self.process.readyReadStandardOutput.connect(self.handle_stdout)
             self.process.readyReadStandardError.connect(self.handle_stdout)
-            self.process.setWorkingDirectory(work_dir)   
+            self.process.setWorkingDirectory(work_dir)   # <— qui
             self.process.start(cmd, args)
 
             if not self.process.waitForStarted():
@@ -504,19 +522,16 @@ class XAIWindow(QDialog):
         self.sim_type = sim_type
         self.dataset  = dataset_name
         self.clients  = clients
-
         cfg_path = os.path.join(self.base_dir, self.sim_type, "configuration", "config.json")
         with open(cfg_path, "r") as f:
             full_cfg = json.load(f)
         self.client_configs = {int(c["client_id"]): c for c in full_cfg["client_details"]}
-
         taskA_path = os.path.join(self.base_dir, self.sim_type, "taskA.py")
         spec       = importlib.util.spec_from_file_location("taskA", taskA_path)
         taskA_mod  = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(taskA_mod)
         self.NetA        = taskA_mod.Net
         self.load_data_A = taskA_mod.load_data
-
         first_cid       = self.clients[0]
         if "imagenet100" in self.dataset.lower():
             from torchvision.transforms import Compose, Resize, CenterCrop, ToTensor, Normalize
@@ -551,6 +566,7 @@ class XAIWindow(QDialog):
         self.round_sb.setValue(1)
         hl.addWidget(self.round_sb)
 
+        # seleziona indice immagine
         hl.addWidget(QLabel("Sample idx:"))
         self.idx_sb = QSpinBox()
         self.idx_sb.setMinimum(0)
@@ -561,12 +577,10 @@ class XAIWindow(QDialog):
         self.idx_sb.setMaximum(max_idx)
         self.idx_sb.setValue(0)
         hl.addWidget(self.idx_sb)
-
         self.run_btn = QPushButton("Run LIME")
         self.run_btn.clicked.connect(self.run_explain)
         hl.addWidget(self.run_btn)
         layout.addLayout(hl)
-
         self.fig, self.axes = plt.subplots(1, 2)
         self.canvas = FigureCanvas(self.fig)
         layout.addWidget(self.canvas)
@@ -653,6 +667,7 @@ class XAIWindow(QDialog):
         from lime import lime_image
         from skimage.segmentation import mark_boundaries
 
+        # 1) modello e device
         idx = self.idx_sb.value()
         if self.target_cb.currentText() == "Server":
             model = self.load_model("server", self.round_sb.value())
@@ -698,7 +713,6 @@ class XAIWindow(QDialog):
             top_labels=5, hide_color=0, num_samples=1000
         )
         lbl = exp.top_labels[0]
-
         temp, mask = exp.get_image_and_mask(
             label=lbl,
             positive_only=False,
@@ -708,13 +722,13 @@ class XAIWindow(QDialog):
         if temp.max() > 1:
             temp = temp / 255.0
         seg = mark_boundaries(temp, mask)
-
-
         self.axes[0].clear()
         self.axes[1].clear()
+
         self.axes[0].imshow(img_np)
         self.axes[0].set_title("Originale")
         self.axes[0].axis("off")
+
         self.axes[1].imshow(seg)
         self.axes[1].set_title("LIME Explanation")
         self.axes[1].axis("off")
@@ -730,8 +744,3 @@ class XAIWindow(QDialog):
         )
 
         self.canvas.draw()
-
-
-
-
-
