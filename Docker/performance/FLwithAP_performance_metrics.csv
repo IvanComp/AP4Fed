@@ -1,5 +1,5 @@
-Client ID,FL Round,Training Time,Communication Time,Total Time of FL Round,# of CPU,CPU Usage (%),RAM Usage (%),Model Type,Data Distr. Type,Dataset,Train Loss,Train Accuracy,Train F1,Train MAE,Val Loss,Val Accuracy,Val F1,Val MAE
-Client 1,1,21.36,15.39,,5,480,17,CNN 16k,IID,FashionMNIST,,,,,,,,
-Client 2,1,21.95,14.75,41.53,5,479,17,CNN 16k,IID,FashionMNIST,0.51,0.8103,0.8027,0.608,0.54,0.7996,0.7919,0.6409
-Client 1,2,21.53,17.29,,5,481,17,CNN 16k,IID,FashionMNIST,,,,,,,,
-Client 2,2,20.16,15.0,43.03,5,478,18,CNN 16k,IID,FashionMNIST,0.43,0.8424,0.8422,0.5202,0.46,0.8327,0.8331,0.5504
+Client ID,FL Round,Training Time,JSD,HDH Time,Communication Time,Total Time of FL Round,# of CPU,CPU Usage (%),RAM Usage (%),Model Type,Data Distr. Type,Dataset,Train Loss,Train Accuracy,Train F1,Train MAE,Val Loss,Val Accuracy,Val F1,Val MAE
+Client 1,1,17.08,0.0,0.0,13.98,,5,478,18,CNN 16k,IID,FashionMNIST,,,,,,,,
+Client 2,1,16.44,0.0,0.0,14.08,35.38,5,478,17,CNN 16k,IID,FashionMNIST,0.57,0.7908,0.7864,0.6599,0.6,0.7795,0.7752,0.6978
+Client 1,2,16.85,0.0,0.0,13.28,,5,476,18,CNN 16k,IID,FashionMNIST,,,,,,,,
+Client 2,2,17.52,0.0,0.0,15.1,36.73,5,477,17,CNN 16k,IID,FashionMNIST,0.51,0.8108,0.8054,0.6037,0.54,0.7994,0.7944,0.6363

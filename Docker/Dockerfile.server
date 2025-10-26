@@ -12,6 +12,7 @@ COPY server.py /app/server.py
 COPY taskA.py /app/taskA.py
 COPY APClient.py /app/APClient.py
 COPY configuration/ /app/configuration/
+COPY adaptation.py /app/adaptation.py
 
 EXPOSE 8080
 

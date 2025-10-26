@@ -13,10 +13,6 @@ import taskA
 import torch
 from pathlib import Path
 import fcntl 
-import logging
-logging.getLogger("onnx2keras").setLevel(logging.ERROR)
-import onnx
-from onnx2keras import onnx_to_keras
 from datetime import datetime
 from io import BytesIO
 from flwr.client import ClientApp, NumPyClient
@@ -49,17 +45,15 @@ def load_client_details():
         with open(cfg_path, 'r') as f:
             cfg = json.load(f)
         details = cfg.get("client_details", [])
-        # ordino per client_id
         try:
             details.sort(key=lambda x: int(x.get("client_id", 0)))
         except Exception:
             pass
-        # mappa id → dict
         global_client_details = {str(d["client_id"]): d for d in details}
     return global_client_details
 
-CLIENT_DETAILS = load_client_details()  # resta
-CLIENT_CONFIG_LIST = sorted(           # resta
+CLIENT_DETAILS = load_client_details()  
+CLIENT_CONFIG_LIST = sorted(          
     CLIENT_DETAILS.values(), key=lambda c: int(c["client_id"])
 )
 COUNTER_PATH = Path(__file__).with_name(".client_idx")
