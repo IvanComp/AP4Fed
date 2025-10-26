@@ -1,6 +1,5 @@
 import base64
 import json
-import logging
 import os
 import pickle
 import platform
@@ -38,7 +37,6 @@ sys.path.append(
 )
 
 global_client_details = None
-
 
 def load_client_details():
     global global_client_details

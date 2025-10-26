@@ -408,6 +408,9 @@ class SimulationPage(QWidget):
             self.process.readyReadStandardOutput.connect(self.handle_stdout)
             self.process.readyReadStandardError.connect(self.handle_stdout)
             self.process.setWorkingDirectory(work_dir)
+            env = QProcessEnvironment.systemEnvironment()
+            env.insert("COMPOSE_BAKE", "true")
+            self.process.setProcessEnvironment(env)
             self.process.start(cmd, args)
 
             if not self.process.waitForStarted():

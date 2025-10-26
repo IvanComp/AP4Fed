@@ -1,21 +1,17 @@
 #!/usr/bin/env python3
 from typing import List, Tuple, Dict, Optional
 from flwr.common import (
-    Metrics,
     ndarrays_to_parameters,
     parameters_to_ndarrays,
     Parameters,
     FitRes,
     EvaluateRes,
     Scalar,
-    Context,
     FitIns,
     EvaluateIns,
 )
 from flwr.server import (
     ServerConfig,
-    ServerApp,
-    ServerAppComponents,
     start_server
 )
 from io import BytesIO
@@ -25,19 +21,13 @@ from flwr.server.client_manager import ClientManager
 from flwr.server.client_proxy import ClientProxy
 from flwr.common.logger import log
 from logging import INFO
-import textwrap
 import numpy as np
-from taskA import Net as NetA, get_weights as get_weights_A, set_weights as set_weights_A, load_data as load_data_A
-from rich.console import Console
+from taskA import Net as NetA, get_weights as get_weights_A, set_weights as set_weights_A
 import shutil
 import time
 import csv
 import os
 import pandas as pd
-import matplotlib
-import matplotlib.pyplot as plt
-import seaborn as sns
-import psutil
 import json  
 import zlib
 import pickle
@@ -52,7 +42,6 @@ folders_to_delete = ["performance", "model_weights"]
 for folder in folders_to_delete:
     folder_path = os.path.join(current_dir, folder)
     if os.path.exists(folder_path):
-        # svuota la cartella senza toccare il mount point
         for nome in os.listdir(folder_path):
             percorso = os.path.join(folder_path, nome)
             if os.path.isdir(percorso):
@@ -64,8 +53,6 @@ for folder in folders_to_delete:
                     pass
         
 client_registry = ClientRegistry()
-
-################### GLOBAL PARAMETERS
 global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MODEL_COVERSIONING, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
 CLIENT_SELECTOR = False
 CLIENT_CLUSTER = False
@@ -73,18 +60,11 @@ MESSAGE_COMPRESSOR = False
 MODEL_COVERSIONING = False
 MULTI_TASK_MODEL_TRAINER = False
 HETEROGENEOUS_DATA_HANDLER = False
-
-# Non inizializziamo global_metrics con una chiave fissa, verrà creata dinamicamente
 global_metrics = {}
-
-matplotlib.use('Agg')
 current_dir = os.path.abspath(os.path.dirname(__file__))
-
-# Path to the 'configuration' directory
 config_dir = os.path.join(current_dir, 'configuration') 
 config_file = os.path.join(config_dir, 'config.json')
 
-# Lettura dei parametri dal file di configurazione
 if os.path.exists(config_file):
     with open(config_file, 'r') as f:
         config = json.load(f)
@@ -202,8 +182,6 @@ def log_round_time(
          ])
 
 def preprocess_csv():
-    import pandas as pd
-    import seaborn as sns
 
     df = pd.read_csv(csv_file)
     
@@ -242,7 +220,7 @@ def preprocess_csv():
     df = df.groupby("FL Round", group_keys=False).apply(fix_round_values)
     df.drop(columns=["Client Number"], inplace=True)
     df.to_csv(csv_file, index=False)
-    sns.set_theme(style="ticks")
+    #sns.set_theme(style="ticks")
 
 
 def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_rounds):
