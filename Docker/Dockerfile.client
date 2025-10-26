@@ -14,7 +14,6 @@ WORKDIR /app
 COPY client.py /app/client.py
 COPY server.py /app/server.py
 COPY taskA.py /app/taskA.py
-COPY APClient.py /app/APClient.py
 COPY configuration/ /app/configuration/
 
 # Create the folder for data

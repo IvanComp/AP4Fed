@@ -9,12 +9,8 @@
             "params": {}
         },
         "client_selector": {
-            "enabled": true,
-            "params": {
-                "selection_strategy": "SSIM-Based",
-                "selection_criteria": "Min",
-                "selection_value": 1
-            }
+            "enabled": false,
+            "params": {}
         },
         "client_cluster": {
             "enabled": false,
@@ -55,7 +51,7 @@
             "ram": 2,
             "dataset": "FashionMNIST",
             "data_distribution_type": "IID",
-            "data_persistence_type": "Same Data",
+            "data_persistence_type": "New Data",
             "delay_combobox": "No",
             "model": "CNN 16k",
             "epochs": 1

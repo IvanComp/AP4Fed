@@ -30,7 +30,6 @@ from flwr.server.strategy import Strategy
 from flwr.common.logger import log
 from taskA import Net as NetA, get_weights as get_weights_A, set_weights as set_weights_A
 docker_client = docker.from_env()
-from APClient import ClientRegistry
 import torch
 from adaptation import AdaptationManager
 
@@ -50,7 +49,6 @@ for folder in folders_to_delete:
                 except OSError:
                     pass
 
-client_registry = ClientRegistry()
 global ADAPTATION
 global metrics_history
 metrics_history = {}

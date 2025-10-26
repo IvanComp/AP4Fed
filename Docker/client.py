@@ -15,7 +15,6 @@ from io import BytesIO
 from flwr.client import NumPyClient, start_client
 from flwr.common.logger import log
 from logging import INFO
-from APClient import ClientRegistry
 from taskA import (
     Net as NetA,
     get_weights as get_weights_A,
@@ -74,12 +73,8 @@ class ConfigServer:
             self.counter += 1
             return config
 
-
-CLIENT_REGISTRY = ClientRegistry()
-DISTRIBUTED_MODEL_REPAIR = False
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 GLOBAL_ROUND_COUNTER = 1
-
 
 def set_cpu_affinity(process_pid: int, num_cpus: int) -> bool:
     try:
@@ -162,7 +157,6 @@ class FlowerClient(NumPyClient):
             except Exception:
                 pass
 
-        CLIENT_REGISTRY.register_client(self.cid, model_type)
         self.net = NetA().to(DEVICE)
         self.DEVICE = DEVICE
 
@@ -198,10 +192,11 @@ class FlowerClient(NumPyClient):
                         if not ADAPTATION_ENABLED or self.cid in info.get("params", {}).get("enabled_clients", []):
                             HETEROGENEOUS_DATA_HANDLER = True
 
-        never_loaded_data = self.trainloader is None and self.testloader is None
-        needs_to_reload_data = self.data_persistence_type != "Same Data" and not never_loaded_data
-        if never_loaded_data or needs_to_reload_data:
+        self.cached_round_loaded = None
+        if self.cached_round_loaded != GLOBAL_ROUND_COUNTER:
             self.trainloader, self.testloader = load_data_A(self.client_config, GLOBAL_ROUND_COUNTER)
+            self.cached_round_loaded = GLOBAL_ROUND_COUNTER
+
 
         if HETEROGENEOUS_DATA_HANDLER and (ADAPTATION_ENABLED or not self.did_hdh):
             self.trainloader, hdh_ms = rebalance_trainloader_with_gan_A(self.trainloader)
