@@ -2,14 +2,19 @@
     "simulation_type": "Docker",
     "rounds": 2,
     "clients": 2,
+    "adaptation": "None",
     "patterns": {
         "client_registry": {
             "enabled": true,
             "params": {}
         },
         "client_selector": {
-            "enabled": false,
-            "params": {}
+            "enabled": true,
+            "params": {
+                "selection_strategy": "SSIM-Based",
+                "selection_criteria": "Min",
+                "selection_value": 1
+            }
         },
         "client_cluster": {
             "enabled": false,

@@ -88,7 +88,7 @@ config_file = os.path.join(config_dir, 'config.json')
 if os.path.exists(config_file):
     with open(config_file, 'r') as f:
         config = json.load(f)
-    ADAPTATION = config.get('adaptation', False)
+    ADAPTATION = config.get('adaptation', False).strip().lower()
 
     num_rounds = int(config.get('rounds', 10))
     client_count = int(config.get('clients', 2))
@@ -122,12 +122,15 @@ if os.path.exists(csv_file):
 with open(csv_file, 'w', newline='') as file:
     writer = csv.writer(file)
     writer.writerow([
-        'Client ID', 'FL Round', 'Training Time', 'JSD', 'HDH Time', 'Communication Time', 'Total Time of FL Round',
+        'Client ID', 'FL Round',
+        'Training Time', 'JSD', 'HDH Time', 'Communication Time', 'Total Time of FL Round',
         '# of CPU', 'CPU Usage (%)', 'RAM Usage (%)',
         'Model Type', 'Data Distr. Type', 'Dataset',
         'Train Loss', 'Train Accuracy', 'Train F1', 'Train MAE',
-        'Val Loss', 'Val Accuracy', 'Val F1', 'Val MAE'
+        'Val Loss', 'Val Accuracy', 'Val F1', 'Val MAE',
+        'AP List (client_selector,client_cluster,message_compressor,model_co-versioning_registry,multi-task_model_trainer,heterogeneous_data_handler)'
     ])
+
 
 
 def log_round_time(
@@ -167,6 +170,18 @@ def log_round_time(
 
     with open(csv_file, 'a', newline='') as file:
         writer = csv.writer(file)
+        def onoff(b):
+            return "ON" if b else "OFF"
+
+        ap_list = "{" + ",".join([
+            onoff(CLIENT_SELECTOR),
+            onoff(CLIENT_CLUSTER),
+            onoff(MESSAGE_COMPRESSOR),
+            onoff(MODEL_COVERSIONING),
+            onoff(MULTI_TASK_MODEL_TRAINER),
+            onoff(HETEROGENEOUS_DATA_HANDLER),
+        ]) + "}"
+
         writer.writerow([
             client_id,
             fl_round + 1,
@@ -189,6 +204,7 @@ def log_round_time(
             f"{val_accuracy:.4f}" if val_accuracy is not None else "",
             f"{val_f1:.4f}" if val_f1 is not None else "",
             f"{val_mae:.4f}" if val_mae is not None else "",
+            ap_list
         ])
 
 
@@ -409,12 +425,13 @@ class MultiModelStrategy(Strategy):
             if pattern_info["enabled"]:
                 enabled_patterns.append((pattern_name, pattern_info))
 
-        if ADAPTATION:
-            log(INFO, "Adaptation Enabled ✅")
+        if ADAPTATION == "ai-agents".lower():
+            log(INFO, ADAPTATION)
+            log(INFO, "AI-Agents Adaptation Enabled ✅")
             self.adapt_mgr = AdaptationManager(True, config)
             self.adapt_mgr.describe()
         else:
-            log(INFO, "Adaptation Disabled X")
+            log(INFO, "Adaptation Disabled ❌")
             self.adapt_mgr = AdaptationManager(False, config)
 
         if not enabled_patterns:

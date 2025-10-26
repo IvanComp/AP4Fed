@@ -470,6 +470,15 @@ class PreSimulationPage(QWidget):
         self.sim_type_combo.setFixedWidth(90)
         g_layout.addRow(label, self.sim_type_combo)
 
+        label = QLabel("Type of Adaptation:")
+        font = label.font()
+        font.setBold(True)
+        label.setFont(font)
+        self.adaptation_combo = QComboBox()
+        self.adaptation_combo.addItems(["None","AI-Agents"])
+        self.adaptation_combo.setFixedWidth(90)
+        g_layout.addRow(label, self.adaptation_combo)
+
         docker_status_label = QLabel("Docker Status:")
         font = docker_status_label.font()
         font.setBold(True)
@@ -919,6 +928,7 @@ class PreSimulationPage(QWidget):
             "simulation_type": self.sim_type_combo.currentText(),
             "rounds": self.rounds_input.value(),
             "clients": self.clients_input.value(),
+            "adaptation": self.adaptation_combo.currentText(),
             "patterns": patterns_data,
             "client_details": []
         }

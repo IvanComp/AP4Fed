@@ -117,7 +117,7 @@ class RecapSimulationPage(QWidget):
         general_label.setStyleSheet("color: black; font-size: 20px; font-weight: bold; margin-top: 10px;")
         layout.addWidget(general_label)
         general_params = {}
-        for key in ['simulation_type', 'rounds']:
+        for key in ['simulation_type', 'adaptation','rounds']:
             if key in merged_config:
                 general_params[key] = merged_config[key]
 

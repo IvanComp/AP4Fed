@@ -180,7 +180,7 @@ class HomePage(QWidget):
                 QMessageBox.warning(self, "Error", f"An error occurred while loading the file:\n{e}")
 
     def validate_configuration(self, config):
-        expected_keys = {'simulation_type', 'rounds', 'clients', 'patterns', 'client_details'}
+        expected_keys = {'simulation_type', 'rounds', 'clients', 'adaptation','patterns', 'client_details'}
 
         if not isinstance(config, dict):
             return False
@@ -192,7 +192,6 @@ class HomePage(QWidget):
         return True
 
     def close_application(self):
-        # Mostra un popup di conferma
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Confirmation")
         msg_box.setText("Are you sure you want to close the application?")
