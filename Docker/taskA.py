@@ -724,21 +724,17 @@ def rebalance_trainloader_with_gan(trainloader):
     dataset_config = AVAILABLE_DATASETS[DATASET_NAME]
 
     batch_size = 32
-
-    # Extract (data, label) pairs from the existing DataLoader
     base = []
     for x, y in trainloader:
         for xi, yi in zip(x, y):
             base.append((xi, yi))
 
-    # Apply GAN-based balancing
     trainset = balance_dataset_with_gan(
         base,
         num_classes=dataset_config["num_classes"],
         target_per_class=len(base) // dataset_config["num_classes"],
     )
 
-    # Determine max_limit based on dataset name
     ds_name = DATASET_NAME.lower()
     if "cifar" in ds_name:
         max_limit = 5000
@@ -747,18 +743,16 @@ def rebalance_trainloader_with_gan(trainloader):
     else:
         max_limit = len(base) // dataset_config["num_classes"]
 
-    # Truncate the dataset
     trainset = truncate_dataset(trainset, max_limit)
     hdh_ms = (time.time() - _t0_hdh)
-    # Temporal workaround
+
     if hdh_ms < 10:
         hdh_ms = 0.0
     log(INFO, f"HDH Data Handler (GAN) Total Processing time: {hdh_ms:.2f} seconds")
     return DataLoader(TensorLabelDataset(trainset), batch_size=batch_size, shuffle=True), hdh_ms
 
-
 def get_jsd(trainloader):
-    log(INFO, "Calculating Jensen-Shannon Divergence (JSD) for dataset distribution...")
+    #log(INFO, "Calculating Jensen-Shannon Divergence (JSD) for dataset distribution...")
 
     labels = [lbl.item() if isinstance(lbl, torch.Tensor) else lbl for _, lbl in trainloader.dataset]
     dist = dict(Counter(labels))
@@ -781,10 +775,9 @@ def get_jsd(trainloader):
 
 def train(net, trainloader, valloader, epochs, DEVICE):
     labels = [lbl.item() if isinstance(lbl, torch.Tensor) else lbl for _, lbl in trainloader.dataset]
-    dist = dict(Counter(labels))
-    log(INFO, f"Training dataset distribution ({DATASET_NAME}): {dist}")
-
-    num_classes = AVAILABLE_DATASETS[DATASET_NAME]["num_classes"]
+    #dist = dict(Counter(labels))
+    #log(INFO, f"Training dataset distribution ({DATASET_NAME}): {dist}")
+    #num_classes = AVAILABLE_DATASETS[DATASET_NAME]["num_classes"]
 
     log(INFO, "Starting training...")
     start_time = time.time()

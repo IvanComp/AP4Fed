@@ -297,7 +297,7 @@ class FlowerClient(NumPyClient):
                 "ram": self.ram,
                 "cpu_percent": cpu_percent,
                 "ram_percent": ram_percent,
-                "hdh_ms": hdh_ms if HETEROGENEOUS_DATA_HANDLER else 0.0,
+                "hdh_ms": hdh_ms if HETEROGENEOUS_DATA_HANDLER else None,
                 "communication_time": communication_time,
                 "client_sent_ts": send_ready_ts,
                 "train_end_ts": train_end_ts,
@@ -306,6 +306,7 @@ class FlowerClient(NumPyClient):
                 "data_distribution_type": self.data_distribution_type,
                 "dataset": self.dataset,
                 "compressed_parameters_b64": compressed_parameters_b64,
+                "jsd": get_jsd_A(self.trainloader) if HETEROGENEOUS_DATA_HANDLER else None,
             }
             return [], len(self.trainloader.dataset), metrics
         else:
@@ -323,7 +324,7 @@ class FlowerClient(NumPyClient):
                 "ram": self.ram,
                 "cpu_percent": cpu_percent,
                 "ram_percent": ram_percent,
-                "hdh_ms": hdh_ms if hdh_ms is not None else 0.0,
+                "hdh_ms": hdh_ms if hdh_ms is not None else None,
                 "communication_time": communication_time,
                 "client_sent_ts": send_ready_ts,
                 "train_end_ts": train_end_ts,
@@ -331,7 +332,7 @@ class FlowerClient(NumPyClient):
                 "model_type": self.model_type,
                 "data_distribution_type": self.data_distribution_type,
                 "dataset": self.dataset,
-                "jsd": get_jsd_A(self.trainloader)
+                "jsd": get_jsd_A(self.trainloader) if HETEROGENEOUS_DATA_HANDLER else None,
             }
             return new_parameters, len(self.trainloader.dataset), metrics
 

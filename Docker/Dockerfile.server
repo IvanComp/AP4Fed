@@ -1,12 +1,27 @@
-# Dockerfile.server
 FROM python:3.12-slim
+
 ENV PYTHONUNBUFFERED=1
 
-RUN pip install flwr[simulations] docker torch==2.2.1 torchvision==0.17.1 pandas docker grpcio==1.66.1 numpy==1.26.2 psutil torchgan scikit-learn
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libgl1 libglib2.0-0 && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir \
+    flwr[simulations] \
+    docker \
+    torch==2.2.1 \
+    torchvision==0.17.1 \
+    pandas \
+    grpcio==1.66.1 \
+    numpy==1.26.2 \
+    psutil \
+    torchgan \
+    scikit-learn \
+    scikit-image \
+    grad-cam
 
 WORKDIR /app
 
-# Copy the server code
 COPY client.py /app/client.py
 COPY server.py /app/server.py
 COPY taskA.py /app/taskA.py
@@ -15,6 +30,6 @@ COPY adaptation.py /app/adaptation.py
 
 EXPOSE 8080
 
-RUN mkdir -p performance
+RUN mkdir -p /app/performance
 
 CMD ["python", "server.py"]

@@ -51,7 +51,7 @@
             "ram": 2,
             "dataset": "FashionMNIST",
             "data_distribution_type": "IID",
-            "data_persistence_type": "New Data",
+            "data_persistence_type": "Same Data",
             "delay_combobox": "No",
             "model": "CNN 16k",
             "epochs": 1

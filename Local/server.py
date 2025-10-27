@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+import base64
 from typing import List, Tuple, Dict, Optional
 import contextlib
 import os
@@ -15,7 +15,6 @@ from torchvision import models
 from pytorch_grad_cam import GradCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image, preprocess_image
 from flwr.common import (
-    Metrics,
     ndarrays_to_parameters,
     parameters_to_ndarrays,
     Parameters,
@@ -29,8 +28,7 @@ from flwr.common import (
 from flwr.server import (
     ServerConfig,
     ServerApp,
-    ServerAppComponents,
-    start_server
+    ServerAppComponents
 )
 from io import BytesIO
 from rich.panel import Panel
@@ -48,16 +46,11 @@ import time
 import csv
 import os
 import pandas as pd
-import matplotlib
-import matplotlib.pyplot as plt
-import seaborn as sns
-import psutil
 import json  
 import zlib
 import pickle
-import docker
-from APClient import ClientRegistry
 import torch
+from adaptation import AdaptationManager
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 folders_to_delete = ["performance", "model_weights"]
@@ -65,11 +58,20 @@ folders_to_delete = ["performance", "model_weights"]
 for folder in folders_to_delete:
     folder_path = os.path.join(current_dir, folder)
     if os.path.exists(folder_path):
-        shutil.rmtree(folder_path)
-        
-client_registry = ClientRegistry()
+        for nome in os.listdir(folder_path):
+            percorso = os.path.join(folder_path, nome)
+            if os.path.isdir(percorso):
+                shutil.rmtree(percorso, ignore_errors=True)
+            else:
+                try:
+                    os.remove(percorso)
+                except OSError:
+                    pass
 
 ################### GLOBAL PARAMETERS
+global ADAPTATION
+global metrics_history
+metrics_history = {}
 global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MODEL_COVERSIONING, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
 CLIENT_SELECTOR = False
 CLIENT_CLUSTER = False
@@ -79,34 +81,36 @@ MULTI_TASK_MODEL_TRAINER = False
 HETEROGENEOUS_DATA_HANDLER = False
 
 global_metrics = {}
-
-matplotlib.use('Agg')
 current_dir = os.path.abspath(os.path.dirname(__file__))
 
-# Path to the 'configuration' directory
-config_dir = os.path.join(current_dir, 'configuration') 
+def config_patterns(config):
+    global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MODEL_COVERSIONING, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER
+
+    for pattern_name, pattern_info in config.items():
+        if pattern_name == "client_selector":
+            CLIENT_SELECTOR = pattern_info["enabled"]
+        elif pattern_name == "client_cluster":
+            CLIENT_CLUSTER = pattern_info["enabled"]
+        elif pattern_name == "message_compressor":
+            MESSAGE_COMPRESSOR = pattern_info["enabled"]
+        elif pattern_name == "model_co-versioning_registry":
+            MODEL_COVERSIONING = pattern_info["enabled"]
+        elif pattern_name == "multi-task_model_trainer":
+            MULTI_TASK_MODEL_TRAINER = pattern_info["enabled"]
+        elif pattern_name == "heterogeneous_data_handler":
+            HETEROGENEOUS_DATA_HANDLER = pattern_info["enabled"]
+
+config_dir = os.path.join(current_dir, 'configuration')
 config_file = os.path.join(config_dir, 'config.json')
 
-# Lettura dei parametri dal file di configurazione
 if os.path.exists(config_file):
     with open(config_file, 'r') as f:
         config = json.load(f)
+    ADAPTATION = config.get('adaptation', False).strip().lower()
+
     num_rounds = int(config.get('rounds', 10))
     client_count = int(config.get('clients', 2))
-    for pattern_name, pattern_info in config["patterns"].items():
-        if pattern_info["enabled"]:
-            if pattern_name == "client_selector":
-                CLIENT_SELECTOR = True
-            elif pattern_name == "client_cluster":
-                CLIENT_CLUSTER = True
-            elif pattern_name == "message_compressor":
-                MESSAGE_COMPRESSOR = True
-            elif pattern_name == "model_co-versioning_registry":
-                MODEL_COVERSIONING = True
-            elif pattern_name == "multi-task_model_trainer":
-                MULTI_TASK_MODEL_TRAINER = True
-            elif pattern_name == "heterogeneous_data_handler":
-                HETEROGENEOUS_DATA_HANDLER = True
+    config_patterns(config["patterns"])
 
     CLIENT_DETAILS = config.get("client_details", [])
     client_details_structure = []
@@ -126,7 +130,6 @@ if os.path.exists(config_file):
 selector_params = config["patterns"]["client_selector"]["params"]
 selection_strategy = selector_params.get("selection_strategy")      
 selection_criteria = selector_params.get("selection_criteria")
-
 MODEL_NAME = GLOBAL_CLIENT_DETAILS[0]["model"]
 currentRnd = 0
 
@@ -141,81 +144,96 @@ if os.path.exists(csv_file):
 with open(csv_file, 'w', newline='') as file:
     writer = csv.writer(file)
     writer.writerow([
-        'Client ID', 'FL Round', 'Training Time', 'Communication Time', 'Total Time of FL Round',
+        'Client ID', 'FL Round',
+        'Training Time', 'JSD', 'HDH Time', 'Communication Time', 'Total Time of FL Round',
         '# of CPU', 'CPU Usage (%)', 'RAM Usage (%)',
         'Model Type', 'Data Distr. Type', 'Dataset',
         'Train Loss', 'Train Accuracy', 'Train F1', 'Train MAE',
-        'Val Loss', 'Val Accuracy', 'Val F1', 'Val MAE'
+        'Val Loss', 'Val Accuracy', 'Val F1', 'Val MAE',
+        'AP List (client_selector,client_cluster,message_compressor,model_co-versioning_registry,multi-task_model_trainer,heterogeneous_data_handler)'
     ])
 
-# La funzione log_round_time ora riceve anche cpu_percent e ram_percent
 def log_round_time(
-     client_id, fl_round,
-     training_time, communication_time, time_between_rounds,
-     n_cpu, cpu_percent, ram_percent,
-     client_model_type, data_distr, dataset_value,
-     already_logged, srt1, srt2, agg_key
+        client_id, fl_round,
+        training_time, jsd, hdh_ms, communication_time, time_between_rounds,
+        n_cpu, cpu_percent, ram_percent,
+        client_model_type, data_distr, dataset_value,
+        already_logged, srt1, srt2, agg_key
 ):
-     # Assicuriamoci che i valori esistano
-     if agg_key not in global_metrics:
-         global_metrics[agg_key] = {
-             "train_loss": [], "train_accuracy": [], "train_f1": [], "train_mae": [],
-             "val_loss": [], "val_accuracy": [], "val_f1": [], "val_mae": []
-         }
-     # Prendo l'ultimo valore
-     tm = global_metrics[agg_key]
-     train_loss     = tm["train_loss"][-1]     if tm["train_loss"]     else None
-     train_accuracy = tm["train_accuracy"][-1] if tm["train_accuracy"] else None
-     train_f1       = tm["train_f1"][-1]       if tm["train_f1"]       else None
-     train_mae      = tm["train_mae"][-1]      if tm["train_mae"]      else None
-     val_loss       = tm["val_loss"][-1]       if tm["val_loss"]       else None
-     val_accuracy   = tm["val_accuracy"][-1]   if tm["val_accuracy"]   else None
-     val_f1         = tm["val_f1"][-1]         if tm["val_f1"]         else None
-     val_mae        = tm["val_mae"][-1]        if tm["val_mae"]        else None
 
-     # Per le righe non-last, vuoto i metrici e srt2
-     if already_logged:
-         srt2 = None
+    if agg_key not in global_metrics:
+        global_metrics[agg_key] = {
+            "train_loss": [], "train_accuracy": [], "train_f1": [], "train_mae": [],
+            "val_loss": [], "val_accuracy": [], "val_f1": [], "val_mae": []
+        }
 
-     # Scrivo i valori nella CSV nell’ordine giusto
-     with open(csv_file, 'a', newline='') as file:
-         writer = csv.writer(file)
-         writer.writerow([
-             client_id,
-             fl_round + 1,
-             f"{training_time:.2f}",        
-             f"{communication_time:.2f}",   
-             f"{time_between_rounds:.2f}",           
-             n_cpu,   
-             f"{cpu_percent:.0f}",                      
-             f"{ram_percent:.0f}"  ,    
-             client_model_type,
-             data_distr,
-             dataset_value,
-             f"{train_loss:.2f}"     if train_loss    is not None else "",
-             f"{train_accuracy:.4f}" if train_accuracy is not None else "",
-             f"{train_f1:.4f}"       if train_f1       is not None else "",
-             f"{train_mae:.4f}"      if train_mae      is not None else "",
-             f"{val_loss:.2f}"       if val_loss       is not None else "",
-             f"{val_accuracy:.4f}"   if val_accuracy   is not None else "",
-             f"{val_f1:.4f}"         if val_f1         is not None else "",
-             f"{val_mae:.4f}"        if val_mae        is not None else "",
-         ])
+    tm = global_metrics[agg_key]
+    train_loss = tm["train_loss"][-1] if tm["train_loss"] else None
+    train_accuracy = tm["train_accuracy"][-1] if tm["train_accuracy"] else None
+    train_f1 = tm["train_f1"][-1] if tm["train_f1"] else None
+    train_mae = tm["train_mae"][-1] if tm["train_mae"] else None
+    val_loss = tm["val_loss"][-1] if tm["val_loss"] else None
+    val_accuracy = tm["val_accuracy"][-1] if tm["val_accuracy"] else None
+    val_f1 = tm["val_f1"][-1] if tm["val_f1"] else None
+    val_mae = tm["val_mae"][-1] if tm["val_mae"] else None
+
+    if already_logged:
+        srt2 = None
+
+    with open(csv_file, 'a', newline='') as file:
+        writer = csv.writer(file)
+        def onoff(b):
+            return "ON" if b else "OFF"
+
+        ap_list = "{" + ",".join([
+            onoff(CLIENT_SELECTOR),
+            onoff(CLIENT_CLUSTER),
+            onoff(MESSAGE_COMPRESSOR),
+            onoff(MODEL_COVERSIONING),
+            onoff(MULTI_TASK_MODEL_TRAINER),
+            onoff(HETEROGENEOUS_DATA_HANDLER),
+        ]) + "}"
+
+        writer.writerow([
+            client_id,
+            fl_round + 1,
+            f"{training_time:.2f}",
+            f"{jsd:.2f}",
+            f"{hdh_ms:.2f}",
+            f"{communication_time:.2f}",
+            f"{time_between_rounds:.2f}",
+            n_cpu,
+            f"{cpu_percent:.0f}",
+            f"{ram_percent:.0f}",
+            client_model_type,
+            data_distr,
+            dataset_value,
+            f"{train_loss:.2f}" if train_loss is not None else "",
+            f"{train_accuracy:.4f}" if train_accuracy is not None else "",
+            f"{train_f1:.4f}" if train_f1 is not None else "",
+            f"{train_mae:.4f}" if train_mae is not None else "",
+            f"{val_loss:.2f}" if val_loss is not None else "",
+            f"{val_accuracy:.4f}" if val_accuracy is not None else "",
+            f"{val_f1:.4f}" if val_f1 is not None else "",
+            f"{val_mae:.4f}" if val_mae is not None else "",
+            ap_list
+        ])
+
 
 def preprocess_csv():
     import pandas as pd
-    import seaborn as sns
-
     df = pd.read_csv(csv_file)
 
-    df["Client ID"] = (
+    df["Client Number"] = (
         df["Client ID"]
-        .astype(str)                 
-        .str.extract(r"(\d+)")[0]    
+        .astype(str)
+        .str.extract(r"(\d+)")[0]
         .astype(int)
     )
 
     df["Training Time"] = pd.to_numeric(df["Training Time"], errors="coerce")
+    df["JSD"] = pd.to_numeric(df["JSD"], errors="coerce")
+
     df["Total Time of FL Round"] = pd.to_numeric(
         df["Total Time of FL Round"], errors="coerce"
     )
@@ -224,12 +242,10 @@ def preprocess_csv():
         df.groupby("FL Round")["Total Time of FL Round"]
         .transform(lambda x: [None] * (len(x) - 1) + [x.iloc[-1]])
     )
-    mapping = {cid: cid for cid in sorted(df["Client ID"].unique())}
-    df["Client Number"] = df["Client ID"].map(mapping)
-    df["Client ID"] = df["Client ID"].map(lambda x: f"Client {x}")
+
     df.sort_values(["FL Round", "Client Number"], inplace=True)
     cols_round = ["Total Time of FL Round"] + list(
-        df.columns[df.columns.get_loc("Train Loss") :]
+        df.columns[df.columns.get_loc("Train Loss"):]
     )
 
     def fix_round_values(subdf):
@@ -245,10 +261,8 @@ def preprocess_csv():
     df = df.groupby("FL Round", group_keys=False).apply(fix_round_values)
     df.drop(columns=["Client Number"], inplace=True)
     df.to_csv(csv_file, index=False)
-    sns.set_theme(style="ticks")
 
 def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_rounds):
-
     if agg_model_type not in global_metrics:
         global_metrics[agg_model_type] = {
             "train_loss": [],
@@ -258,69 +272,94 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
             "val_loss": [],
             "val_accuracy": [],
             "val_f1": [],
-            "val_mae": []
+            "val_mae": [],
+            "jsd": []
         }
-
-    examples = [n for n, _ in metrics]
+    examples = [num_examples for num_examples, _ in metrics]
     total_examples = sum(examples)
     if total_examples == 0:
         return {
-            "train_loss": float("inf"),
+            "train_loss": float('inf'),
             "train_accuracy": 0.0,
             "train_f1": 0.0,
             "train_mae": 0.0,
-            "val_loss": float("inf"),
+            "val_loss": float('inf'),
             "val_accuracy": 0.0,
             "val_f1": 0.0,
             "val_mae": 0.0,
         }
 
-    train_losses     = [n * m.get("train_loss",    0) for n, m in metrics]
-    train_accuracies = [n * m.get("train_accuracy",0) for n, m in metrics]
-    train_f1s        = [n * m.get("train_f1",      0) for n, m in metrics]
-    train_maes       = [n * m.get("train_mae",     0) for n, m in metrics]
-    val_losses       = [n * m.get("val_loss",      0) for n, m in metrics]
-    val_accuracies   = [n * m.get("val_accuracy",  0) for n, m in metrics]
-    val_f1s          = [n * m.get("val_f1",        0) for n, m in metrics]
-    val_maes         = [n * m.get("val_mae",       0) for n, m in metrics]
+    train_losses = [n * (m.get("train_loss") or 0) for n, m in metrics]
+    train_accuracies = [n * (m.get("train_accuracy") or 0) for n, m in metrics]
+    train_f1 = [n * (m.get("train_f1") or 0) for n, m in metrics]
+    train_maes = [n * (m.get("train_mae") or 0) for n, m in metrics]
+    val_losses = [n * (m.get("val_loss") or 0) for n, m in metrics]
+    val_accuracies = [n * (m.get("val_accuracy") or 0) for n, m in metrics]
+    val_f1 = [n * (m.get("val_f1") or 0) for n, m in metrics]
+    val_maes = [n * (m.get("val_mae") or 0) for n, m in metrics]
+    jsds = sorted([(m.get("client_id"), m.get("jsd") or 0) for _, m in metrics],
+                  key=lambda x: x[0])
 
-    avg_train_loss     = sum(train_losses)     / total_examples
+    avg_train_loss = sum(train_losses) / total_examples
     avg_train_accuracy = sum(train_accuracies) / total_examples
-    avg_train_f1       = sum(train_f1s)        / total_examples
-    avg_train_mae      = sum(train_maes)       / total_examples
-    avg_val_loss       = sum(val_losses)       / total_examples
-    avg_val_accuracy   = sum(val_accuracies)   / total_examples
-    avg_val_f1         = sum(val_f1s)          / total_examples
-    avg_val_mae        = sum(val_maes)         / total_examples
+    avg_train_f1 = sum(train_f1) / total_examples
+    avg_train_mae = sum(train_maes) / total_examples
+    avg_val_loss = sum(val_losses) / total_examples
+    avg_val_accuracy = sum(val_accuracies) / total_examples
+    avg_val_f1 = sum(val_f1) / total_examples
+    avg_val_mae = sum(val_maes) / total_examples
+    sorted_jsds = tuple([tup[1] for tup in jsds])
 
-    gm = global_metrics[agg_model_type]
-    gm["train_loss"].append(avg_train_loss)
-    gm["train_accuracy"].append(avg_train_accuracy)
-    gm["train_f1"].append(avg_train_f1)
-    gm["train_mae"].append(avg_train_mae)
-    gm["val_loss"].append(avg_val_loss)
-    gm["val_accuracy"].append(avg_val_accuracy)
-    gm["val_f1"].append(avg_val_f1)
-    gm["val_mae"].append(avg_val_mae)
+    global_metrics[agg_model_type]["train_loss"].append(avg_train_loss)
+    global_metrics[agg_model_type]["train_accuracy"].append(avg_train_accuracy)
+    global_metrics[agg_model_type]["train_f1"].append(avg_train_f1)
+    global_metrics[agg_model_type]["train_mae"].append(avg_train_mae)
+    global_metrics[agg_model_type]["val_loss"].append(avg_val_loss)
+    global_metrics[agg_model_type]["val_accuracy"].append(avg_val_accuracy)
+    global_metrics[agg_model_type]["val_f1"].append(avg_val_f1)
+    global_metrics[agg_model_type]["val_mae"].append(avg_val_mae)
+    global_metrics[agg_model_type]["jsd"].append(sorted_jsds)
 
     client_data_list = []
-    for n, m in metrics:
-        if n == 0:
+    for num_examples, m in metrics:
+        if num_examples == 0:
             continue
-
-        client_id          = m.get("client_id")
-        model_type         = m.get("model_type", "N/A")
-        data_distr         = m.get("data_distribution_type", "N/A")
-        dataset_value      = m.get("dataset", "N/A")
-        training_time      = m.get("training_time")      or 0.0
+        client_id = m.get("client_id")
+        model_type = m.get("model_type", "N/A")
+        data_distr = m.get("data_distribution_type", "N/A")
+        dataset_value = m.get("dataset", "N/A")
+        training_time = m.get("training_time") or 0.0
+        jsd = m.get("jsd") or 0.0
         communication_time = m.get("communication_time") or 0.0
-        n_cpu              = m.get("n_cpu")              or 0
-        cpu_percent        = m.get("cpu_percent")        or 0.0
-        ram_percent        = m.get("ram_percent")        or 0.0
+        n_cpu = m.get("n_cpu") or 0
+        hdh_ms = m.get("hdh_ms") or 0.0
+        cpu_percent = m.get("cpu_percent") or 0.0
+        ram_percent = m.get("ram_percent") or 0.0
+        if client_id:
+            client_data_list.append((
+                client_id,
+                training_time,
+                jsd,
+                hdh_ms,
+                communication_time,
+                time_between_rounds,
+                n_cpu,
+                cpu_percent,
+                ram_percent,
+                model_type,
+                data_distr,
+                dataset_value,
+                srt1,
+                srt2
+            ))
 
-        client_data_list.append((
+    num_clients = len(client_data_list)
+    for idx, client_data in enumerate(client_data_list):
+        (
             client_id,
             training_time,
+            jsd,
+            hdh_ms,
             communication_time,
             time_between_rounds,
             n_cpu,
@@ -331,62 +370,48 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
             dataset_value,
             srt1,
             srt2
-        ))
-
-    # Scrivo le righe sul CSV
-    num_clients = len(client_data_list)
-    for idx, data in enumerate(client_data_list):
-        (
-            client_id,
-            training_time,
-            communication_time,
-            tb_round,
-            n_cpu,
-            cpu_percent,
-            ram_percent,
-            model_type,
-            data_distr,
-            dataset_value,
-            srt1,
-            srt2
-        ) = data
-        last = (idx == num_clients - 1)
+        ) = client_data
+        already_logged = (idx != num_clients - 1)
         log_round_time(
             client_id,
             currentRnd - 1,
             training_time,
+            jsd,
+            hdh_ms,
             communication_time,
-            tb_round,
+            time_between_rounds,
             n_cpu,
             cpu_percent,
             ram_percent,
             model_type,
             data_distr,
             dataset_value,
-            not last,
+            already_logged,
             srt1,
             srt2,
             agg_model_type
         )
 
     return {
-        "train_loss":     avg_train_loss,
+        "train_loss": avg_train_loss,
         "train_accuracy": avg_train_accuracy,
-        "train_f1":       avg_train_f1,
-        "train_mae":      avg_train_mae,
-        "val_loss":       avg_val_loss,
-        "val_accuracy":   avg_val_accuracy,
-        "val_f1":         avg_val_f1,
-        "val_mae":        avg_val_mae,
+        "train_f1": avg_train_f1,
+        "train_mae": avg_train_mae,
+        "val_loss": avg_val_loss,
+        "val_accuracy": avg_val_accuracy,
+        "val_f1": avg_val_f1,
+        "val_mae": avg_val_mae,
+        "jsd": sorted_jsds
     }
 
-parameters = ndarrays_to_parameters(get_weights_A(NetA()))
+parametersA = ndarrays_to_parameters(get_weights_A(NetA()))
 client_model_mapping = {}
 
 class FedAvg(Strategy):
     def __init__(self, initial_parameters_a: Parameters):
         self.round_start_time: float | None = None
         self.parameters_a = initial_parameters_a
+        self._send_ts = {}
         banner = r"""
   ___  ______  ___ ______       _ 
  / _ \ | ___ \/   ||  ___|     | |
@@ -397,8 +422,8 @@ class FedAvg(Strategy):
 
 """
         log(INFO, "==========================================")
-        for raw in banner.splitlines()[1:]:         
-            line = raw.replace(" ", "\u00A0")        
+        for raw in banner.splitlines()[1:]:
+            line = raw.replace(" ", "\u00A0")
             log(INFO, line)
         log(INFO, "==========================================")
         log(INFO, "Simulation Started!")
@@ -409,6 +434,15 @@ class FedAvg(Strategy):
             if pattern_info["enabled"]:
                 enabled_patterns.append((pattern_name, pattern_info))
 
+        if ADAPTATION == "ai-agents".lower():
+            log(INFO, ADAPTATION)
+            log(INFO, "AI-Agents Adaptation Enabled ✅")
+            self.adapt_mgr = AdaptationManager(True, config)
+            self.adapt_mgr.describe()
+        else:
+            log(INFO, "Adaptation Disabled ❌")
+            self.adapt_mgr = AdaptationManager(False, config)
+
         if not enabled_patterns:
             log(INFO, "No patterns are enabled.")
         else:
@@ -418,67 +452,63 @@ class FedAvg(Strategy):
                 if pattern_info["params"]:
                     log(INFO, f" AP Parameters: {pattern_info['params']}")
                 time.sleep(1)
+
         log(INFO, "==========================================")
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
         return None
 
     def configure_fit(
-        self,
-        server_round: int,
-        parameters: Parameters,
-        client_manager: ClientManager,
+            self,
+            server_round: int,
+            parameters: Parameters,
+            client_manager: ClientManager,
     ) -> List[Tuple[ClientProxy, FitIns]]:
+        client_manager.wait_for(client_count)
         self.round_start_time = time.time()
-        client_manager.wait_for(client_count) 
-        clients = client_manager.sample(num_clients=client_count)
-        fit_configurations = []
+        available = client_manager.num_available()
+        if available < 1:
+            return []
 
-        if MESSAGE_COMPRESSOR:
-            fake_tensors = []
-            for tensor in self.parameters_a.tensors:
-                buffer = BytesIO(tensor)
-                loaded_array = np.load(buffer)
-                reduced_shape = tuple(max(dim // 10, 1) for dim in loaded_array.shape)
-                fake_array = np.zeros(reduced_shape, dtype=loaded_array.dtype)
-                fake_serialized = BytesIO()
-                np.save(fake_serialized, fake_array)
-                fake_serialized.seek(0)
-                fake_tensors.append(fake_serialized.read())
-            fake_parameters = Parameters(tensors=fake_tensors, tensor_type=self.parameters_a.tensor_type)
-            serialized_parameters = pickle.dumps(self.parameters_a)
-            original_size = len(serialized_parameters)  
-            compressed_parameters = zlib.compress(serialized_parameters)
-            compressed_parameters_hex = compressed_parameters.hex()
-            compressed_size = len(compressed_parameters)
-            reduction_bytes = original_size - compressed_size
-            reduction_percentage = (reduction_bytes / original_size) * 100
-            log(INFO, f"Global Model Parameters compressed (from Server to Client) reduction of {reduction_bytes} bytes ({reduction_percentage:.2f}%)")
+        num_fit = available
+        clients: List[ClientProxy] = client_manager.sample(
+            num_clients=num_fit,
+            min_num_clients=1
+        )
 
+        base_params: Parameters = self.parameters_a if self.parameters_a is not None else parameters
+        if base_params is None:
+            return []
+
+        fake_parameters = Parameters(tensors=[], tensor_type=base_params.tensor_type)
+        blob = pickle.dumps(base_params, protocol=pickle.HIGHEST_PROTOCOL)
+        compressed = zlib.compress(blob, level=1)
+        compressed_parameters_b64 = base64.b64encode(compressed).decode("ascii")
+        fit_configurations: List[Tuple[ClientProxy, FitIns]] = []
         for client in clients:
-            if MESSAGE_COMPRESSOR:
-                fit_ins = FitIns(fake_parameters, {"compressed_parameters_hex": compressed_parameters_hex})
+            self._send_ts[client.cid] = time.time()
+            if 'MESSAGE_COMPRESSOR' in globals() and MESSAGE_COMPRESSOR:
+                cfg = {"compressed_parameters_b64": compressed_parameters_b64}
+                fit_ins = FitIns(fake_parameters, cfg)
             else:
-                fit_ins = FitIns(self.parameters_a, {})
+                fit_ins = FitIns(base_params, {})
+
             fit_configurations.append((client, fit_ins))
+
         return fit_configurations
 
     def aggregate_fit(
-        self,
-        server_round: int,
-        results: List[Tuple[ClientProxy, FitRes]],
-        failures: List[BaseException],
+            self,
+            server_round: int,
+            results: List[Tuple[ClientProxy, FitRes]],
+            failures: List[BaseException],
     ) -> Optional[Tuple[Parameters, Dict[str, Scalar]]]:
         global previous_round_end_time, currentRnd
-        excluded_cid = []
-        
+
         if CLIENT_SELECTOR and selection_strategy == "SSIM-Based":
-            try:
-                with open("exclusion_log.txt", "r") as f:
-                    excluded_cid = f.read().strip()
-                    log(INFO, f"[Round {currentRnd}] Escludo client {excluded_cid} dall'aggregazione")
-            except FileNotFoundError:
-                log(INFO, "PRIMO ROUND: nessun client da escludere")
+            with open("exclusion_log.txt", "r") as f:
+                excluded_cid = f.read().strip()
+                log(INFO, f"[Round {currentRnd}] Client {excluded_cid} excluded")
 
         agg_start = time.time()
         round_total_time = time.time() - self.round_start_time
@@ -486,39 +516,68 @@ class FedAvg(Strategy):
 
         results_a = []
         training_times = []
-        #global currentRnd
         currentRnd += 1
-        
+
         for client_proxy, fit_res in results:
-            
-            cid = fit_res.metrics.get("client_id") or client_proxy.cid
-            client_id = fit_res.metrics.get("client_id")
-            model_type = fit_res.metrics.get("model_type")
-            training_time = fit_res.metrics.get("training_time")
-            communication_time = fit_res.metrics.get("communication_time")
-            compressed_parameters_hex = fit_res.metrics.get("compressed_parameters_hex")          
-            client_model_mapping[client_id] = model_type
+            if fit_res.num_examples == 0:
+                training_time = None
+                communication_time = None
+                compressed_parameters_hex = None
+                client_id = client_proxy.cid
+                model_type = None
+                metrics = {
+                    "train_loss": None,
+                    "train_accuracy": None,
+                    "train_f1": None,
+                    "train_mae": None,
+                    "val_loss": None,
+                    "val_accuracy": None,
+                    "val_f1": None,
+                    "val_mae": None,
+                    "training_time": None,
+                    "communication_time": None,
+                    "compressed_parameters_hex": None,
+                    "client_id": client_id,
+                    "model_type": None,
+                }
+            else:
+                metrics = fit_res.metrics or {}
+                training_time = metrics.get("training_time")
+                communication_time = metrics.get("communication_time")
+                compressed_parameters_b64 = metrics.get("compressed_parameters_b64")
+                client_id = metrics.get("client_id")
+                model_type = metrics.get("model_type")
+                hdh_ms = metrics.get("hdh_ms", 0.0)
+                client_model_mapping[client_id] = model_type
+                recv_ts = metrics.get("client_sent_ts", None) or time.time()
+                send_ts = self._send_ts.get(client_proxy.cid, recv_ts)
+                rt_total = recv_ts - send_ts
+                train_t = training_time or 0.0
+                server_comm_time = max(rt_total - train_t - hdh_ms, 0.0)
+                if metrics.get("communication_time") is None:
+                    metrics["communication_time"] = server_comm_time
+                else:
+                    metrics["server_comm_time"] = server_comm_time
 
             if CLIENT_SELECTOR and selection_strategy == "SSIM-Based" and excluded_cid:
-                if str(cid) == excluded_cid:
-                    log(INFO, f"[Round {currentRnd}] Skipping aggregation of client {cid}")
+                if str(client_id) == excluded_cid:
+                    log(INFO, f"[Round {currentRnd}] Skipping aggregation of client {client_id}")
                     continue
 
-            if MESSAGE_COMPRESSOR:
-                compressed_parameters = bytes.fromhex(compressed_parameters_hex)
-                decompressed_parameters = pickle.loads(zlib.decompress(compressed_parameters))
-                fit_res.parameters = ndarrays_to_parameters(decompressed_parameters)
+            if MESSAGE_COMPRESSOR and compressed_parameters_b64:
+                compressed = base64.b64decode(compressed_parameters_b64)
+                decompressed = pickle.loads(zlib.decompress(compressed))
+                fit_res.parameters = ndarrays_to_parameters(decompressed)
 
             if training_time is not None:
-                training_times.append(training_time)              
-            results_a.append((fit_res.parameters, fit_res.num_examples, fit_res.metrics))
+                training_times.append(training_time)
+
+            results_a.append((fit_res.parameters, fit_res.num_examples, metrics))
 
         previous_round_end_time = time.time()
         max_train = max(training_times) if training_times else 0.0
-
         agg_end = time.time()
         aggregation_time = agg_end - agg_start
-        #log(INFO, f"Aggregation completed in {aggregation_time:.2f}s")
 
         self.parameters_a = self.aggregate_parameters(
             results_a,
@@ -702,12 +761,19 @@ class FedAvg(Strategy):
                 f"\nExcluding Client {exclude_idx+1} with SSIM={excluded_val:.4f}"
             )
 
+        model_under_training = GLOBAL_CLIENT_DETAILS[0]["model"]
+        if model_under_training not in metrics_history:
+            metrics_history[model_under_training] = {key: [global_metrics[model_type][key][-1]]
+                                                     for key in global_metrics[model_type]}
+        else:
+            for key in global_metrics[model_type]:
+                metrics_history[model_under_training][key].append(global_metrics[model_type][key][-1])
+
         metrics_aggregated: Dict[str, Scalar] = {}
-        if any(global_metrics[model_type].values()):
+        if any(global_metrics.get(model_type, {}).values()):
             metrics_aggregated[model_type] = {
                 key: global_metrics[model_type][key][-1]
-                if global_metrics[model_type][key]
-                else None
+                if global_metrics[model_type][key] else None
                 for key in global_metrics[model_type]
             }
 
@@ -718,59 +784,56 @@ class FedAvg(Strategy):
         )
         shutil.copy(csv_file, round_csv)
 
+        log(INFO, metrics_history)
+        next_round_config = self.adapt_mgr.config_next_round(metrics_history, round_total_time)
+        config_patterns(next_round_config)
+
         return self.parameters_a, metrics_aggregated
 
-    def aggregate_parameters(self, results, task_type, srt1, srt2, time_between_rounds):
-
-        filtered = [
-            (p, n, m)
-            for p, n, m in results
-            if n > 0
-        ]
-        total = sum(n for _, n, _ in filtered)
+    def aggregate_parameters(self, results, agg_model_type, srt1, srt2, time_between_rounds):
+        total_examples = sum([num_examples for _, num_examples, _ in results])
         new_weights = None
+
         metrics = []
-        for params, n, m in filtered:
-            w = n / total
-            arrs = parameters_to_ndarrays(params)
+        for client_params, num_examples, client_metrics in results:
+            client_weights = parameters_to_ndarrays(client_params)
+            weight = num_examples / total_examples
             if new_weights is None:
-                new_weights = [x * w for x in arrs]
+                new_weights = [w * weight for w in client_weights]
             else:
-                new_weights = [nw + x * w for nw, x in zip(new_weights, arrs)]
-            metrics.append((n, m))
+                new_weights = [nw + w * weight for nw, w in zip(new_weights, client_weights)]
+            metrics.append((num_examples, client_metrics))
 
-        weighted_average_global(metrics, task_type, srt1, srt2, time_between_rounds)
-
+        weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_rounds)
         return ndarrays_to_parameters(new_weights)
-    
+
     def configure_evaluate(
-        self,
-        server_round: int,
-        parameters: Parameters,
-        client_manager: ClientManager,
+            self,
+            server_round: int,
+            parameters: Parameters,
+            client_manager: ClientManager,
     ) -> List[Tuple[ClientProxy, EvaluateIns]]:
-        #log(INFO, f"Evaluating Performance Metrics...")
         return []
 
     def aggregate_evaluate(
-        self,
-        server_round: int,
-        results: List[Tuple[ClientProxy, EvaluateRes]],
-        failures: List[BaseException],
+            self,
+            server_round: int,
+            results: List[Tuple[ClientProxy, EvaluateRes]],
+            failures: List[BaseException],
     ) -> Optional[float]:
         return None
 
     def evaluate(
-        self,
-        server_round: int,
-        parameters: Parameters,
+            self,
+            server_round: int,
+            parameters: Parameters,
     ) -> Optional[Tuple[float, Dict[str, Scalar]]]:
         return None
 
 def server_fn(context: Context):
 
     strategy = FedAvg(
-        initial_parameters_a=parameters,
+        initial_parameters_a=parametersA,
     )
     server_config = ServerConfig(num_rounds=num_rounds)
     return ServerAppComponents(strategy=strategy, config=server_config)

@@ -2,6 +2,7 @@
     "simulation_type": "Local",
     "rounds": 2,
     "clients": 2,
+    "adaptation": "None",
     "patterns": {
         "client_registry": {
             "enabled": true,
