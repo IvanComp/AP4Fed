@@ -197,6 +197,8 @@ class HomePage(QWidget):
         msg_box.setText("Are you sure you want to close the application?")
         msg_box.setIcon(QMessageBox.Question)
         msg_box.setObjectName("myMessageBox")
+
+        # Stile del popup corretto
         msg_box.setStyleSheet("""
             #myMessageBox {
                 background-color: white;

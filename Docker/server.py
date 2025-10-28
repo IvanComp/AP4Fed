@@ -5,6 +5,7 @@ import os
 import pickle
 import shutil
 import time
+import re
 import zlib
 import glob
 import numpy as np
@@ -93,8 +94,6 @@ config_file = os.path.join(config_dir, 'config.json')
 if os.path.exists(config_file):
     with open(config_file, 'r') as f:
         config = json.load(f)
-    ADAPTATION = config.get('adaptation', False).strip().lower()
-
     num_rounds = int(config.get('rounds', 10))
     client_count = int(config.get('clients', 2))
     config_patterns(config["patterns"])
@@ -443,22 +442,22 @@ class FedAvg(Strategy):
 
         log(INFO, "==========================================")
 
+        ADAPTATION = config.get('adaptation', False).strip()
+
         if ADAPTATION == "None":
             log(INFO, "Adaptation Disabled ❌")
             self.adapt_mgr = AdaptationManager(False, config)
         else:
             if "Voting" in ADAPTATION:
-                strategy = "voting"
+                ADAPTATION = "Voting-Based"
             elif "Role" in ADAPTATION:
-                strategy = "role"
+                ADAPTATION = "Role-Based"
             elif "Debate" in ADAPTATION:
-                strategy = "debate"
-            else:
-                strategy = None 
+                ADAPTATION = "Debate-Based"
 
             self.adapt_mgr = AdaptationManager(True, config)
             self.adapt_mgr.describe()
-            log(INFO, "AI-Agents Adaptation Enabled ✅ - Strategy: {strategy}")
+            log(INFO, f"AI-Agents Adaptation Enabled ✅ - Coordination Mechanism: {ADAPTATION}")
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
         return None
@@ -788,8 +787,6 @@ class FedAvg(Strategy):
             f"FLwithAP_performance_metrics_round{currentRnd}.csv"
         )
         shutil.copy(csv_file, round_csv)
-
-        log(INFO, metrics_history)
         next_round_config = self.adapt_mgr.config_next_round(metrics_history, round_total_time)
         config_patterns(next_round_config)
 
