@@ -431,15 +431,6 @@ class FedAvg(Strategy):
             if pattern_info["enabled"]:
                 enabled_patterns.append((pattern_name, pattern_info))
 
-        if ADAPTATION == "ai-agents".lower():
-            log(INFO, ADAPTATION)
-            log(INFO, "AI-Agents Adaptation Enabled ✅")
-            self.adapt_mgr = AdaptationManager(True, config)
-            self.adapt_mgr.describe()
-        else:
-            log(INFO, "Adaptation Disabled ❌")
-            self.adapt_mgr = AdaptationManager(False, config)
-
         if not enabled_patterns:
             log(INFO, "No patterns are enabled.")
         else:
@@ -451,6 +442,23 @@ class FedAvg(Strategy):
                 time.sleep(1)
 
         log(INFO, "==========================================")
+
+        if ADAPTATION == "None":
+            log(INFO, "Adaptation Disabled ❌")
+            self.adapt_mgr = AdaptationManager(False, config)
+        else:
+            if "Voting" in ADAPTATION:
+                strategy = "voting"
+            elif "Role" in ADAPTATION:
+                strategy = "role"
+            elif "Debate" in ADAPTATION:
+                strategy = "debate"
+            else:
+                strategy = None 
+
+            self.adapt_mgr = AdaptationManager(True, config)
+            self.adapt_mgr.describe()
+            log(INFO, "AI-Agents Adaptation Enabled ✅ - Strategy: {strategy}")
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
         return None

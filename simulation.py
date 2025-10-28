@@ -3,7 +3,6 @@ import sys
 import json
 import re
 import time
-
 import yaml
 import copy
 import glob
@@ -84,7 +83,6 @@ class DashboardWindow(QWidget):
         self.resize(1200, 800)
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignTop)
-
         base_dir = os.path.dirname(__file__)
         subdir   = 'Docker' if simulation_type == 'Docker' else 'Local'
         cfg_path = os.path.join(self.base_dir, self.simulation_type, "configuration", "config.json")
@@ -292,30 +290,6 @@ class SimulationPage(QWidget):
         self.dashboard_button.clicked.connect(self.open_dashboard)
         layout.addWidget(self.dashboard_button)
 
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
-        self.XAI_button = QPushButton("Explainable AI")
-        self.XAI_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.XAI_button.setCursor(Qt.PointingHandCursor)
-        self.XAI_button.setStyleSheet("""
-            QPushButton {
-                background-color: green;
-                color: white;
-                font-size: 14px;
-                padding: 10px;
-                border-radius: 5px;
-                width: 200px;
-            }
-            QPushButton:hover {
-                background-color: #00b300;
-            }
-            QPushButton:pressed {
-                background-color: #008000;
-            }      
-        """)
-        self.XAI_button.clicked.connect(self.open_XAI)
-        layout.addWidget(self.XAI_button)
-
         self.stop_button = QPushButton("Stop Simulation")
         self.stop_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.stop_button.setCursor(Qt.PointingHandCursor)
@@ -362,44 +336,68 @@ class SimulationPage(QWidget):
         sim_type = self.config['simulation_type']
         rounds   = self.config['rounds']
 
+        # prendo la modalità di adattamento dal config
+        adaptation_mode = self.config.get("adaptation", "None")
+
         if sim_type == 'Docker':
             work_dir = os.path.join(base_dir, 'Docker')
             dc_in    = os.path.join(work_dir, 'docker-compose.yml')
             dc_out   = os.path.join(work_dir, 'docker-compose.dynamic.yml')
 
             self.output_area.appendPlainText("Launching Docker Compose...")
+            self.output_area.appendPlainText(f"Adaptation mode: {adaptation_mode}")
 
             with open(dc_in, 'r') as f:
                 compose = yaml.safe_load(f)
 
             server_svc = compose['services'].get('server')
             client_tpl = compose['services'].get('client')
+            agent_tpl  = compose['services'].get('agent')  # può essere None se non definito
+
             if not server_svc or not client_tpl:
                 self.output_area.appendPlainText("Error: Missing server or client service in docker-compose.yml")
                 return
 
-            new_svcs = {'server': server_svc}
+            new_svcs = {}
+            new_svcs['server'] = server_svc
+            
+            if adaptation_mode.strip() != "None" and agent_tpl is not None:
+                new_svcs['agent'] = agent_tpl
+                self.output_area.appendPlainText("AI-Agents Enabled.")
+            else:
+                self.output_area.appendPlainText("AI-Agents Disabled")
+
+            # 3. clients dinamici
             for detail in self.config['client_details']:
                 cid = detail['client_id']
                 cpu = detail['cpu']
                 ram = detail['ram']
+
                 svc = copy.deepcopy(client_tpl)
+                # rimuovo campi che potrebbero dare fastidio quando duplico
                 svc.pop('image', None)
                 svc.pop('deploy', None)
+
                 svc['container_name'] = f"Client{cid}"
                 svc['cpus']           = cpu
                 svc['mem_limit']      = f"{ram}g"
+
                 env = svc.setdefault('environment', {})
                 env['NUM_ROUNDS'] = str(rounds)
                 env['NUM_CPUS']   = str(cpu)
                 env['NUM_RAM']    = str(ram)
                 env['CLIENT_ID']  = str(cid)
+
                 new_svcs[f'client{cid}'] = svc
 
+            # aggiorniamo il compose con i servizi nuovi
             compose['services'] = new_svcs
+
+            # scriviamo il docker-compose dinamico
             with open(dc_out, 'w') as f:
                 yaml.safe_dump(compose, f)
 
+            # avvia docker compose sul file dinamico
             cmd  = '/opt/homebrew/bin/docker'
             args = ['compose', '-f', dc_out, 'up']
 
@@ -408,9 +406,11 @@ class SimulationPage(QWidget):
             self.process.readyReadStandardOutput.connect(self.handle_stdout)
             self.process.readyReadStandardError.connect(self.handle_stdout)
             self.process.setWorkingDirectory(work_dir)
+
             env = QProcessEnvironment.systemEnvironment()
             env.insert("COMPOSE_BAKE", "true")
             self.process.setProcessEnvironment(env)
+
             self.process.start(cmd, args)
 
             if not self.process.waitForStarted():
@@ -419,7 +419,7 @@ class SimulationPage(QWidget):
                 return
 
         else:
-            # ** Ramo locale: working dir = progetto/Local **
+            # ramo Local (non Docker)
             work_dir = os.path.join(base_dir, 'Local')
             cmd      = 'flower-simulation'
             args     = [
@@ -432,7 +432,7 @@ class SimulationPage(QWidget):
             self.process.setProcessChannelMode(QProcess.MergedChannels)
             self.process.readyReadStandardOutput.connect(self.handle_stdout)
             self.process.readyReadStandardError.connect(self.handle_stdout)
-            self.process.setWorkingDirectory(work_dir)   # <— qui
+            self.process.setWorkingDirectory(work_dir)
             self.process.start(cmd, args)
 
             if not self.process.waitForStarted():

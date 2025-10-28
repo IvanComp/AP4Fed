@@ -89,8 +89,6 @@ class AdaptationManager:
             self.cached_config = {
                 "patterns": {p: {"enabled": False} for p in PATTERNS}
             }
-
-            # Allineo cache e file con la config iniziale
             self.update_config(default_config)
             self.update_json(default_config)
 
@@ -110,7 +108,6 @@ class AdaptationManager:
     def update_config(self, new_config: Dict):
         for pattern in new_config["patterns"]:
             if pattern in self.cached_config["patterns"]:
-                # aggiorno enabled
                 if 'enabled' in self.cached_config["patterns"][pattern]:
                     self.cached_config["patterns"][pattern]['enabled'] = new_config["patterns"][pattern]['enabled']
                 else:

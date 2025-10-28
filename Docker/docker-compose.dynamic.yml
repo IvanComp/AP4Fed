@@ -2,6 +2,28 @@ networks:
   flwr_network:
     driver: bridge
 services:
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    command: sh -c "sleep 5 && python agent.py"
+    container_name: ai_agents
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+    environment:
+      DOCKER_HOST_IP: host.docker.internal
+      NUM_ROUNDS: ${NUM_ROUNDS}
+    networks:
+    - flwr_network
+    volumes:
+    - ./data:/app/data
+    - ./performance:/app/performance
+    - ./configuration:/app/configuration
+    - ./model_weights:/app/model_weights
+    - .:/app
+    - /var/run/docker.sock:/var/run/docker.sock
   client1:
     build:
       context: .

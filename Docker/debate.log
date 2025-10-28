@@ -1,0 +1,145 @@
+=== DEBATE LOG ===
+Task: a
+Starting debate with models -> Coordinator: qwen3-vl:235b-cloud | Astra: qwen3-vl:235b-cloud | Marvin: qwen3-vl:235b-cloud | Talos: qwen3-vl:235b-cloud
+
+=== Round 1 ===
+[PROMPT → Astra]
+### [MULTI-AGENT • Astra • Debate]
+You are Astra.
+Task: a
+
+Debate rules:
+- OUTPUT MUST BE ONLY one fenced JSON code block. No text outside JSON.
+- JSON must have exactly: rationale, answer, confidence.
+- 'answer' must be short and final. If the task asks for a color, 'answer' MUST be a single word.
+- confidence in [0,1].
+- Use the same language as the task.
+- If uncertain, give your best guess. Do not say you are ready.
+
+Previous round context (use it to update your position, do not copy into JSON):
+(none)
+Return ONLY the final JSON, for example:
+
+```json
+{ "rationale": "short explanation", "answer": "one-word", "confidence": 0.9 }
+```
+[RAW ← Astra]
+```json
+{ "rationale": "The task is simply 'a', which is a single character and likely the answer itself.", "answer": "a", "confidence": 0.95 }
+```
+[PARSED ← Astra] answer=a confidence=0.95
+[PROMPT → Marvin]
+### [MULTI-AGENT • Marvin • Debate]
+You are Marvin.
+Task: a
+
+Debate rules:
+- OUTPUT MUST BE ONLY one fenced JSON code block. No text outside JSON.
+- JSON must have exactly: rationale, answer, confidence.
+- 'answer' must be short and final. If the task asks for a color, 'answer' MUST be a single word.
+- confidence in [0,1].
+- Use the same language as the task.
+- If uncertain, give your best guess. Do not say you are ready.
+
+Previous round context (use it to update your position, do not copy into JSON):
+(none)
+Return ONLY the final JSON, for example:
+
+```json
+{ "rationale": "short explanation", "answer": "one-word", "confidence": 0.9 }
+```
+[RAW ← Marvin]
+```json
+{ "rationale": "Task 'a' is ambiguous without further context, but as a default response, I provide a placeholder answer.", "answer": "a", "confidence": 0.5 }
+```
+[PARSED ← Marvin] answer=a confidence=0.5
+[PROMPT → Talos]
+### [MULTI-AGENT • Talos • Debate]
+You are Talos.
+Task: a
+
+Debate rules:
+- OUTPUT MUST BE ONLY one fenced JSON code block. No text outside JSON.
+- JSON must have exactly: rationale, answer, confidence.
+- 'answer' must be short and final. If the task asks for a color, 'answer' MUST be a single word.
+- confidence in [0,1].
+- Use the same language as the task.
+- If uncertain, give your best guess. Do not say you are ready.
+
+Previous round context (use it to update your position, do not copy into JSON):
+(none)
+Return ONLY the final JSON, for example:
+
+```json
+{ "rationale": "short explanation", "answer": "one-word", "confidence": 0.9 }
+```
+[RAW ← Talos]
+```json
+{ "rationale": "Task 'a' is ambiguous without further context, but as per instructions, I must provide a best guess. Defaulting to a neutral, common placeholder.", "answer": "a", "confidence": 0.8 }
+```
+[PARSED ← Talos] answer=a confidence=0.8
+[VOTES] {'a': 3}
+[EARLY CONSENSUS] 2/3 valid. Sending to coordinator.
+[COORDINATOR PROMPT]
+### [COORDINATOR • Decision]
+
+You are the coordinator of a team of AI assistants.
+
+Task: a
+
+You receive candidate answers from 3 agents. Each item has:
+- agent: the agent name
+- answer: the agent's proposed final answer
+- confidence: self-reported confidence [0,1]
+- rationale: short justification
+
+Your job:
+1. If at least two agents clearly agree on the same 'answer', prefer that answer.
+2. Otherwise, choose the single answer you consider best supported by evidence and with the highest confidence.
+3. Output ONLY a JSON object with the following keys:
+   - decision: "consensus" / "tie-break" / "fallback-majority"
+   - final_answer: your recommended answer
+   - confidence: float in [0,1] (YOUR confidence)
+   - justification: one short sentence.
+
+Here are the candidates:
+[
+  {
+    "agent": "Astra",
+    "answer": "a",
+    "confidence": 0.95,
+    "rationale": "The task is simply 'a', which is a single character and likely the answer itself."
+  },
+  {
+    "agent": "Marvin",
+    "answer": "a",
+    "confidence": 0.5,
+    "rationale": "Task 'a' is ambiguous without further context, but as a default response, I provide a placeholder answer."
+  },
+  {
+    "agent": "Talos",
+    "answer": "a",
+    "confidence": 0.8,
+    "rationale": "Task 'a' is ambiguous without further context, but as per instructions, I must provide a best guess. Defaulting to a neutral, common placeholder."
+  }
+]
+
+Return ONLY one JSON object. No extra text.
+
+Format:
+```json
+{ "decision":"consensus|tie-break",
+  "final_answer":"...",
+  "confidence": 0.0,
+  "justification":"..." }
+```
+[COORDINATOR RAW]
+```json
+{
+  "decision": "consensus",
+  "final_answer": "a",
+  "confidence": 0.9,
+  "justification": "All three agents agree on 'a', with high collective confidence."
+}
+```
+[DECISION] {"decision": "consensus", "final_answer": "a", "confidence": 0.9, "justification": "All three agents agree on 'a', with high collective confidence."}

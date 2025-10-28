@@ -3,6 +3,8 @@ import os
 from logging import INFO
 from typing import Dict, List
 from flwr.common.logger import log
+from agent import suggest_next_patterns
+
 current_dir = os.getcwd().replace('/adaptation', '')
 config_dir = os.path.join(current_dir, 'configuration')
 config_file = os.path.join(config_dir, 'config.json')
@@ -145,10 +147,13 @@ class AdaptationManager:
         log(INFO, f"{self.name}: Configuring next round (static policy)...")
         log(INFO, self.default_config["patterns"])
         log(INFO, self.cached_config["patterns"])
+
+        # Copia dello stato corrente dei pattern
         new_config = self.cached_config.copy()
 
+        # 1) Logica base/stattica: per ogni pattern che è previsto nel config
         for pattern in self.patterns:
-            if self.default_config["patterns"][pattern]['enabled'] and pattern in self.adaptation_criteria:
+            if self.default_config["patterns"][pattern]["enabled"] and pattern in self.adaptation_criteria:
                 args = {
                     "model_type": self.model_type,
                     "metrics": new_aggregated_metrics,
@@ -157,14 +162,53 @@ class AdaptationManager:
 
                 activate, params, expl = self.adaptation_criteria[pattern].activate_pattern(args)
 
-                new_config["patterns"][pattern]['enabled'] = activate
+                new_config["patterns"][pattern]["enabled"] = activate
                 if params is not None:
-                    new_config["patterns"][pattern]['params'] = params
+                    new_config["patterns"][pattern]["params"] = params
                 log(INFO, expl)
             else:
+                # pattern non gestito dalla politica statica
                 pass
 
+        # 2) LIVELLO AGENTI (AI-Agents)
+        #    Qui entra in gioco l'intelligenza multi-agente. Per ora è rule-based,
+        #    ma l'entry point è già "suggest_next_patterns" dal file agent.py.
+        try:
+            perf_csv_path = os.path.join(
+                current_dir,
+                "performance",
+                "FLwithAP_performance_metrics.csv",
+            )
+
+            agent_proposal = suggest_next_patterns(
+                metrics_history=new_aggregated_metrics,        # è metrics_history nel server
+                current_patterns=new_config["patterns"],       # stato attuale dei pattern
+                csv_path=perf_csv_path,                        # log round-by-round
+                cooperation_mode="debate",                     # "debate" / "voting" / "role"
+                round_time=last_round_time,                    # durata ultimo round
+            )
+
+            if agent_proposal:
+                log(INFO, f"{self.name}: AI-Agents proposal {agent_proposal}")
+
+                # merge delle proposte degli agenti nel nostro new_config
+                for patt, patt_cfg in agent_proposal.items():
+                    if patt not in new_config["patterns"]:
+                        new_config["patterns"][patt] = {}
+                    if "enabled" in patt_cfg:
+                        new_config["patterns"][patt]["enabled"] = patt_cfg["enabled"]
+                    if "params" in patt_cfg:
+                        new_config["patterns"][patt].setdefault("params", {})
+                        new_config["patterns"][patt]["params"].update(
+                            patt_cfg.get("params", {})
+                        )
+        except Exception as e:
+            log(INFO, f"{self.name}: agent layer error -> {e}")
+
+        # 3) Aggiorno cache interna e scrivo la config aggiornata su disco
         self.update_metrics(new_aggregated_metrics)
         self.update_config(new_config)
         self.update_json(new_config)
+
+        # Ritorno solo la sezione patterns, perché è quello che server.config_patterns() si aspetta
         return new_config["patterns"]
