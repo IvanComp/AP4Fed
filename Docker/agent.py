@@ -1,9 +1,8 @@
-import tkinter as tk, subprocess, threading, time, os, platform, shutil, sys, tkinter.messagebox as msg
-import json, re
+import tkinter as tk, tkinter.messagebox as msg
+import subprocess, platform, shutil, time, sys, os, json, re, threading
 from pathlib import Path
 
 APP_TITLE = "Multi-LLM Debate • 3 Agents + Coordinator"
-DEFAULT_ROUNDS = 3
 DEFAULT_MODEL = "llama3"
 
 AGENTS = [
@@ -12,9 +11,7 @@ AGENTS = [
     {"id":"A3", "name":"Talos",  "title":"### [MULTI-AGENT • Talos • Debate]"},
 ]
 
-# -----------------------------------------------------------------------------
-# OLLAMA MANAGEMENT
-# -----------------------------------------------------------------------------
+# -------------------- Ollama bootstrap --------------------
 
 def install_ollama():
     s = platform.system()
@@ -23,10 +20,10 @@ def install_ollama():
     elif s == "Linux":
         subprocess.run("curl -fsSL https://ollama.com/install.sh | sh", shell=True)
     elif s == "Windows":
-        u = "https://ollama.com/download/OllamaSetup.exe"
-        p = os.path.join(os.getenv("TEMP"),"OllamaSetup.exe")
-        subprocess.run(["curl","-L",u,"-o",p], shell=True)
-        subprocess.run([p], shell=True)
+        url = "https://ollama.com/download/OllamaSetup.exe"
+        tmp = os.path.join(os.getenv("TEMP"),"OllamaSetup.exe")
+        subprocess.run(["curl","-L",url,"-o",tmp], shell=True)
+        subprocess.run([tmp], shell=True)
     else:
         sys.exit(1)
 
@@ -42,22 +39,19 @@ def ensure_ollama():
             sys.exit(0)
 
 def start_server():
-    f={"stdout":subprocess.DEVNULL,"stderr":subprocess.DEVNULL}
+    flags = {"stdout":subprocess.DEVNULL,"stderr":subprocess.DEVNULL}
     if platform.system()=="Windows":
-        f["creationflags"]=subprocess.CREATE_NO_WINDOW
-    subprocess.Popen(["ollama","serve"],**f)
+        flags["creationflags"]=subprocess.CREATE_NO_WINDOW
+    subprocess.Popen(["ollama","serve"],**flags)
     time.sleep(1)
 
 def list_models():
     try:
-        out = subprocess.run(["ollama","list"], capture_output=True, text=True, timeout=10)
+        out = subprocess.run(["ollama","list"], capture_output=True, text=True, timeout=5)
         lines = [l.split()[0] for l in out.stdout.strip().splitlines()[1:] if l.strip()]
-        return lines or ["llama3"]
+        return lines or [DEFAULT_MODEL]
     except Exception:
-        return ["llama3"]
-
-def pick_default(models, desired):
-    return desired if desired in models else (models[0] if models else "llama3")
+        return [DEFAULT_MODEL]
 
 def query(model, prompt):
     try:
@@ -66,67 +60,56 @@ def query(model, prompt):
             input=prompt,
             text=True,
             capture_output=True,
-            timeout=120
+            timeout=60
         )
         return (r.stdout or r.stderr or "").strip()
     except Exception as e:
         return f"ERROR: {e}"
 
-# -----------------------------------------------------------------------------
-# TEXT NORMALIZATION / JSON EXTRACTION HELPERS
-# -----------------------------------------------------------------------------
+# -------------------- Parsing helpers --------------------
 
 NON_ANSWERS = {
-    "",
-    "ok",
-    "okay",
-    "okay im ready lets begin",
-    "im ready",
-    "lets begin",
-    "```",
-    "ready",
-    "sure",
+    "", "ok", "okay", "ready", "sure", "```",
+    "i am ready", "im ready", "lets begin",
+    "okay im ready lets begin"
 }
 
 def norm_answer(s):
-    s = (s or "").strip().lower()
-    s = re.sub(r"\s+"," ", s)
-    s = re.sub(r"[.,;:!\?\-\(\)\[\]\\/\"\'`]", "", s)
+    s=(s or "").strip().lower()
+    s=re.sub(r"\s+"," ",s)
+    s=re.sub(r"[.,;:!\?\-\(\)\[\]\\/\"\'`]", "", s)
     return s
 
 def is_non_answer(s):
-    ns = norm_answer(s)
+    ns=norm_answer(s)
     return (
         ns in NON_ANSWERS
         or ns.startswith("this is a")
         or ns.startswith("i am")
-        or len(ns) < 1
+        or len(ns)<1
     )
 
-def extract_json(text):
+def extract_json_block(text):
     if not text:
         return {}
-    m = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", text)
-    blob = m.group(1) if m else None
+    m=re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", text)
+    blob=m.group(1) if m else None
     if not blob:
-        m = re.search(r"(\{[\s\S]*\})", text)
-        blob = m.group(1) if m else None
+        m=re.search(r"(\{[\s\S]*\})", text)
+        blob=m.group(1) if m else None
     if blob:
         try:
             return json.loads(blob)
         except Exception:
             pass
-    plain = (text or "").strip()
+    plain=text.strip()
     if re.fullmatch(r"[0-9]+(\.[0-9]+)?", plain) or re.fullmatch(r"[A-Za-z\-]+", plain):
-        return {"Rationale": "", "Answer": plain, "Confidence": 0.5}
+        return {"rationale":"","answer":plain,"confidence":0.5}
     return {}
 
-# -----------------------------------------------------------------------------
-# PROMPT BUILDERS
-# -----------------------------------------------------------------------------
-
-def client_prompt(agent_name, title, task, history):
-    base = f"""{title}
+def build_agent_prompt(agent_name, agent_title, task, history):
+    return (
+f"""{agent_title}
 You are {agent_name}.
 Task: {task}
 
@@ -139,32 +122,18 @@ Debate rules:
 - If uncertain, give your best guess. Do not say you are ready.
 
 Previous round context (use it to update your position, do not copy into JSON):
-{history if history.strip() else "(none)"}"""
-    end = """
+{history if history.strip() else "(none)"}
+
 Return ONLY the final JSON, for example:
 
 ```json
-{ "rationale": "short explanation", "answer": "one-word", "confidence": 0.9 }
+{{ "rationale": "short explanation", "answer": "one-word", "confidence": 0.9 }}
 ```"""
-    return base+end
+    )
 
-def coordinator_prompt(task, triples):
-    j = json.dumps(triples, ensure_ascii=False, indent=2)
-    return f"""### [COORDINATOR • Decision]
-Task: {task}
-You receive three candidate answers (JSON). Decide the final answer by MAJORITY on normalized 'answer'. Ignore non-answers. If there is a tie, choose the one with the highest average confidence and justify.
-Return ONLY a JSON with: decision, final_answer, confidence, justification.
-
-Candidates:
-{j}
-
-Format:
-```json
-{{ "decision":"consensus|tie-break", "final_answer":"...", "confidence": 0.0, "justification":"..." }}
-```"""
-
-def format_enforcer_prompt(task, previous_raw, title):
-    return f"""{title}
+def build_fix_prompt(agent_title, task, previous_raw):
+    return (
+f"""{agent_title}
 Previous output invalid. Fix it now.
 Task: {task}
 Rules:
@@ -175,220 +144,71 @@ Rules:
 Previous attempt:
 {previous_raw}
 """
+    )
 
-# -----------------------------------------------------------------------------
-# AGENT / COORDINATOR CLASSES
-# -----------------------------------------------------------------------------
+class ClientAgent:
+    def __init__(self,name,title,model):
+        self.name=name
+        self.title=title
+        self.model=model
 
-class Client:
-    def __init__(self, name, title, model):
-        self.name = name
-        self.title = title
-        self.model = model
-
-    def speak(self, task, history, log_fn=None):
-        prompt = client_prompt(self.name, self.title, task, history)
-        if log_fn:
-            log_fn(f"[PROMPT → {self.name}]\n{prompt}")
-        out = query(self.model, prompt)
-        if log_fn:
-            log_fn(f"[RAW ← {self.name}]\n{out}")
-
-        js = extract_json(out)
-
-        ans  = js.get("answer") if isinstance(js,dict) else None
-        conf = float(js.get("confidence",0)) if isinstance(js,dict) else 0.0
-        rat  = js.get("rationale") if isinstance(js,dict) else ""
+    def speak(self,task,history=""):
+        prompt=build_agent_prompt(self.name,self.title,task,history)
+        raw=query(self.model,prompt)
+        js=extract_json_block(raw)
+        ans = js.get("answer","") if isinstance(js,dict) else ""
+        conf= float(js.get("confidence",0)) if isinstance(js,dict) else 0.0
+        rat = js.get("rationale","") if isinstance(js,dict) else ""
 
         if not ans or is_non_answer(ans):
-            enforcer = format_enforcer_prompt(task, out, self.title)
-            if log_fn:
-                log_fn(f"[ENFORCER PROMPT → {self.name}]\n{enforcer}")
-            out2 = query(self.model, enforcer)
-            if log_fn:
-                log_fn(f"[ENFORCER RAW ← {self.name}]\n{out2}")
-            js2 = extract_json(out2)
-            ans  = js2.get("answer") or ans or ""
+            fixp=build_fix_prompt(self.title,task,raw)
+            raw2=query(self.model,fixp)
+            js2=extract_json_block(raw2)
+            ans  = js2.get("answer",ans)
             conf = float(js2.get("confidence",conf)) if isinstance(js2,dict) else conf
             rat  = js2.get("rationale",rat) if isinstance(js2,dict) else rat
 
-        t = task.lower()
-        if is_non_answer(ans) and ("horse" in t and "napoleon" in t and "color" in t):
-            ans, conf, rat = "white", 0.99, "Explicit riddle in the question."
+        # Easter egg: riddle fallback
+        if is_non_answer(ans) and ("horse" in task.lower() and "napoleon" in task.lower() and "color" in task.lower()):
+            ans,conf,rat="white",0.99,"explicit riddle"
 
-        parsed = {
-            "agent": self.name,
-            "model": self.model,
-            "rationale": rat,
-            "answer": ans or "",
-            "confidence": conf,
-            "raw": out,
-            "prompt": prompt
+        return {
+            "agent":self.name,
+            "answer":ans or "",
+            "confidence":conf,
+            "rationale":rat
         }
 
-        if log_fn:
-            log_fn(f"[PARSED ← {self.name}] answer={parsed['answer']} confidence={parsed['confidence']}")
-        return parsed
+# -------------------- Config reader --------------------
 
-class Coordinator:
-    def __init__(self, model):
-        self.model = model
-
-    def decide(self, task, candidates, log_fn=None):
-        filtered = [c for c in candidates if not is_non_answer(c.get("answer",""))] or candidates[:]
-        triples = [
-            {
-                "agent": c["agent"],
-                "answer": c["answer"],
-                "confidence": c["confidence"],
-                "rationale": c["rationale"]
-            } for c in filtered
-        ]
-
-        prompt = coordinator_prompt(task, triples)
-        if log_fn:
-            log_fn("[COORDINATOR PROMPT]\n"+prompt)
-        out = query(self.model, prompt)
-        if log_fn:
-            log_fn("[COORDINATOR RAW]\n"+out)
-
-        try:
-            js = json.loads(re.search(r"(\{[\s\S]*\})", out).group(1))
-        except Exception:
-            js = {}
-
-        if (
-            not isinstance(js,dict)
-            or "final_answer" not in js
-            or is_non_answer(js.get("final_answer",""))
-        ):
-            votes = {}
-            for c in filtered:
-                k = norm_answer(c.get("answer",""))
-                if not is_non_answer(k):
-                    votes[k] = votes.get(k,0)+1
-            if votes:
-                best = sorted(votes.items(), key=lambda x:(-x[1], -len(x[0])))[0][0]
-            else:
-                best = ""
-            final = next(
-                (c["answer"] for c in filtered if norm_answer(c["answer"])==best),
-                filtered[0]["answer"] if filtered else ""
-            )
-            js = {
-                "decision":"fallback-majority",
-                "final_answer":final,
-                "confidence":0.7,
-                "justification":"Local majority after filtering non-answers"
-            }
-
-        js["raw"] = out
-        js["prompt"] = prompt
-        return js
-
-# -----------------------------------------------------------------------------
-# DEBATE ORCHESTRATOR
-# -----------------------------------------------------------------------------
-
-class Debate:
-    def __init__(self, clients, coordinator, rounds=DEFAULT_ROUNDS, per_agent_hooks=None, on_agent_start=None):
-        self.clients = clients
-        self.coordinator = coordinator
-        self.rounds = rounds
-        self.per_agent_hooks = per_agent_hooks or {}
-        self.on_agent_start = on_agent_start
-
-    def run(self, task, log_fn=None):
-        history = ""
-        last_round_statements = []
-
-        for r in range(1, self.rounds+1):
-            if log_fn:
-                log_fn(f"\n=== Round {r} ===")
-
-            statements = []
-            for c in self.clients:
-                if self.on_agent_start:
-                    self.on_agent_start(c.name)
-                s = c.speak(task, history, log_fn=log_fn)
-                statements.append(s)
-
-                hook = self.per_agent_hooks.get(c.name)
-                if hook:
-                    hook(s)
-
-            last_round_statements = statements[:]
-
-            history = "\n".join([
-                f"{s['agent']}: answer={s['answer']} confidence={s['confidence']}"
-                for s in statements
-            ])
-
-            votes = {}
-            for s in statements:
-                k = norm_answer(s.get("answer",""))
-                if not is_non_answer(k):
-                    votes[k] = votes.get(k,0)+1
-            if log_fn:
-                log_fn(f"[VOTES] {votes}")
-
-            if votes and max(votes.values())>=2:
-                if log_fn:
-                    log_fn("[EARLY CONSENSUS] 2/3 valid. Sending to coordinator.")
-                break
-
-        final = self.coordinator.decide(task, last_round_statements, log_fn=log_fn)
-        if log_fn:
-            log_fn("[DECISION] " + json.dumps(
-                {k:v for k,v in final.items() if k not in ('raw','prompt')},
-                ensure_ascii=False
-            ))
-        return final, last_round_statements
-
-# -----------------------------------------------------------------------------
-# CONFIG READER
-# -----------------------------------------------------------------------------
-
-def read_coordination_mode_from_config():
+def read_coordination_mode():
     """
-    Legge configuration/config.json rispetto a questo file.
-    Guarda "adaptation" e decide la modalità.
-
-    Ritorna (mode, raw_adaptation)
-    mode ∈ {"voting", "role", "debate", "none"}
+    Legge configuration/config.json e ritorna (mode, raw_strategy)
+    mode ∈ {"voting","role","debate","none"}
+    raw_strategy è la stringa originale dal config (es. "AI-Agents (Voting-Based)").
     """
-    cfg_mode = "none"
-    raw_adapt = "None"
+    base=Path(__file__).resolve().parent
+    cfg_path=base/"configuration"/"config.json"
     try:
-        base_dir = Path(__file__).resolve().parent
-        cfg_path = base_dir / "configuration" / "config.json"
-        with open(cfg_path, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
-        raw_adapt = cfg.get("adaptation", "None")
-        low = str(raw_adapt).lower()
-        if "voting" in low:
-            cfg_mode = "voting"
-        elif "role" in low:
-            cfg_mode = "role"
-        elif "debate" in low:
-            cfg_mode = "debate"
-        else:
-            cfg_mode = "none"
+        cfg=json.loads(cfg_path.read_text(encoding="utf-8"))
+        raw=cfg.get("adaptation","None")
     except Exception:
-        cfg_mode = "none"
-        raw_adapt = "None"
+        return "none","None"
 
-    return cfg_mode, raw_adapt
+    low=str(raw).lower()
+    if "voting" in low:  return "voting", raw
+    if "role"   in low:  return "role",   raw
+    if "debate" in low:  return "debate", raw
+    return "none", raw
 
-# -----------------------------------------------------------------------------
-# UI BUILDER
-# -----------------------------------------------------------------------------
+# -------------------- UI builder --------------------
 
 def build_ui():
+    # bootstrap ollama backend
     ensure_ollama()
     start_server()
 
-    root = tk.Tk()
+    root=tk.Tk()
     root.title(APP_TITLE)
     root.geometry("1150x700")
     root.configure(bg="white")
@@ -396,12 +216,13 @@ def build_ui():
     fl=("Courier",16,"bold")
     ft=("Courier",16)
 
-    top = tk.Frame(root,bg="white")
+    # --- TOP BAR: input + controls ---
+    top=tk.Frame(root,bg="white")
     top.pack(fill="x",padx=15,pady=10)
     top.columnconfigure(0,weight=1)
     top.columnconfigure(1,weight=0)
 
-    input_box = tk.Text(
+    input_box=tk.Text(
         top,
         height=5,
         wrap="word",
@@ -416,10 +237,10 @@ def build_ui():
     )
     input_box.grid(row=0,column=0,sticky="nsew",padx=(0,10))
 
-    right = tk.Frame(top,bg="white")
+    right=tk.Frame(top,bg="white")
     right.grid(row=0,column=1,sticky="ne")
 
-    send_btn = tk.Button(
+    send_btn=tk.Button(
         right,
         text="➤ Send",
         font=("Courier",14),
@@ -434,7 +255,7 @@ def build_ui():
     )
     send_btn.pack(pady=(0,10))
 
-    mf = tk.Frame(right,bg="white")
+    mf=tk.Frame(right,bg="white")
     mf.pack(pady=(10,0))
 
     tk.Label(mf,text="Coordinator:",font=ft,bg="white",fg="black").grid(row=0,column=0,sticky="w",padx=(0,8))
@@ -442,53 +263,54 @@ def build_ui():
     tk.Label(mf,text=AGENTS[1]['name']+":",font=ft,bg="white",fg="black").grid(row=2,column=0,sticky="w",padx=(0,8))
     tk.Label(mf,text=AGENTS[2]['name']+":",font=ft,bg="white",fg="black").grid(row=3,column=0,sticky="w",padx=(0,8))
 
-    models = list_models()
-    coord_var = tk.StringVar(value=pick_default(models, DEFAULT_MODEL))
-    c1_var    = tk.StringVar(value=pick_default(models, DEFAULT_MODEL))
-    c2_var    = tk.StringVar(value=pick_default(models, DEFAULT_MODEL))
-    c3_var    = tk.StringVar(value=pick_default(models, DEFAULT_MODEL))
+    models=list_models()
+    coord_var=tk.StringVar(value=models[0] if models else DEFAULT_MODEL)
+    a1_var=tk.StringVar(value=models[0] if models else DEFAULT_MODEL)
+    a2_var=tk.StringVar(value=models[0] if models else DEFAULT_MODEL)
+    a3_var=tk.StringVar(value=models[0] if models else DEFAULT_MODEL)
 
-    def dd(parent, var, row):
-        w = tk.OptionMenu(parent,var,*models)
+    def make_dd(parent, var, row):
+        w=tk.OptionMenu(parent,var,*models)
         w.config(font=ft,bg="white",fg="black",highlightthickness=0)
         w.grid(row=row,column=1,sticky="w")
-    dd(mf, coord_var, 0)
-    dd(mf, c1_var,    1)
-    dd(mf, c2_var,    2)
-    dd(mf, c3_var,    3)
 
-    icon_img = None
+    make_dd(mf, coord_var, 0)
+    make_dd(mf, a1_var,    1)
+    make_dd(mf, a2_var,    2)
+    make_dd(mf, a3_var,    3)
+
+    # --- ICONS (if present on disk) ---
+    icon_img=None
+    coord_icon=None
     try:
         from PIL import Image, ImageTk
         _icon_path = Path(__file__).with_name("aiagentlogo.png")
         if _icon_path.exists():
-            _img = _icon_path.open("rb")
-            from PIL import Image as PIL_Image
-            _pil = PIL_Image.open(_img)
+            _pil = Image.open(_icon_path)
             _pil = _pil.resize((18,18))
             icon_img = ImageTk.PhotoImage(_pil)
     except Exception:
-        try:
-            _icon_path = Path(__file__).with_name("aiagentlogo.png")
-            if _icon_path.exists():
-                icon_img = tk.PhotoImage(file=str(_icon_path))
-                try:
-                    w_img,h_img = icon_img.width(), icon_img.height()
-                    fx = max(1, w_img//18)
-                    fy = max(1, h_img//18)
-                    icon_img = icon_img.subsample(fx, fy)
-                except Exception:
-                    pass
-        except Exception:
-            icon_img = None
+        pass
 
-    of = tk.Frame(root,bg="white")
+    try:
+        from PIL import Image, ImageTk
+        _cpath = Path(__file__).with_name("coordinator.png")
+        if _cpath.exists():
+            _pilc = Image.open(_cpath)
+            _pilc = _pilc.resize((18,18))
+            coord_icon = ImageTk.PhotoImage(_pilc)
+    except Exception:
+        pass
+
+    # --- OUTPUT AREA ---
+    of=tk.Frame(root,bg="white")
     of.pack(padx=15,pady=(0,15),fill="both",expand=True)
 
-    agents_row = tk.Frame(of, bg="white")
-    agents_row.pack(fill="both", expand=False)
+    # Row with the 3 agents
+    agents_row=tk.Frame(of,bg="white")
+    agents_row.pack(fill="both",expand=False)
     for col in range(3):
-        agents_row.columnconfigure(col, weight=1, uniform="agcols")
+        agents_row.columnconfigure(col,weight=1,uniform="agcols")
 
     def make_agent_panel(parent, idx, name, model_var, icon_img_local):
         f = tk.Frame(parent, bg="white", bd=0, highlightthickness=0)
@@ -511,6 +333,7 @@ def build_ui():
         )
         hdr.pack(side="left")
 
+        # live update header if model changes
         def _upd(*_):
             try:
                 hdr.config(text=f"Agent {idx+1} - {name} - {model_var.get()}")
@@ -543,40 +366,16 @@ def build_ui():
         return t
 
     out_boxes = {}
-    out_boxes[AGENTS[0]["name"]] = make_agent_panel(agents_row, 0, AGENTS[0]["name"], c1_var, icon_img)
-    out_boxes[AGENTS[1]["name"]] = make_agent_panel(agents_row, 1, AGENTS[1]["name"], c2_var, icon_img)
-    out_boxes[AGENTS[2]["name"]] = make_agent_panel(agents_row, 2, AGENTS[2]["name"], c3_var, icon_img)
+    out_boxes[AGENTS[0]["name"]] = make_agent_panel(agents_row, 0, AGENTS[0]["name"], a1_var, icon_img)
+    out_boxes[AGENTS[1]["name"]] = make_agent_panel(agents_row, 1, AGENTS[1]["name"], a2_var, icon_img)
+    out_boxes[AGENTS[2]["name"]] = make_agent_panel(agents_row, 2, AGENTS[2]["name"], a3_var, icon_img)
 
+    # Coordinator panel (bottom)
     coord_frame = tk.Frame(of, bg="white")
     coord_frame.pack(fill="both", expand=True, pady=(10,0))
 
     coord_header_frame = tk.Frame(coord_frame, bg="white")
     coord_header_frame.pack(anchor="w", fill="x")
-
-    coord_icon = None
-    try:
-        from PIL import Image, ImageTk
-        _cpath = Path(__file__).with_name("coordinator.png")
-        if _cpath.exists():
-            _cimg = _cpath.open("rb")
-            from PIL import Image as PIL_Image
-            _pilc = PIL_Image.open(_cimg)
-            _pilc = _pilc.resize((18,18))
-            coord_icon = ImageTk.PhotoImage(_pilc)
-    except Exception:
-        try:
-            _cpath = Path(__file__).with_name("coordinator.png")
-            if _cpath.exists():
-                coord_icon = tk.PhotoImage(file=str(_cpath))
-                try:
-                    cw,ch = coord_icon.width(), coord_icon.height()
-                    fx = max(1, cw//18)
-                    fy = max(1, ch//18)
-                    coord_icon = coord_icon.subsample(fx, fy)
-                except Exception:
-                    pass
-        except Exception:
-            coord_icon = None
 
     if coord_icon is not None:
         _il = tk.Label(coord_header_frame, image=coord_icon, bg="white")
@@ -622,9 +421,7 @@ def build_ui():
     coord_text.pack(fill="both", expand=True)
     coord_text.config(state=tk.DISABLED)
 
-    # -----------------------------------------------------------------------------
-    # SMALL UI HELPERS
-    # -----------------------------------------------------------------------------
+    # --- Helpers: thread-safe text update + spinner ---
 
     def ui_set(widget, text):
         def _set():
@@ -635,13 +432,6 @@ def build_ui():
             widget.config(state=tk.DISABLED)
         widget.after(0, _set)
 
-    def write_log(path, line):
-        try:
-            with open(path, "a", encoding="utf-8") as f:
-                f.write(line+"\n")
-        except Exception:
-            pass
-
     busy = {
         AGENTS[0]["name"]: False,
         AGENTS[1]["name"]: False,
@@ -649,389 +439,173 @@ def build_ui():
     }
 
     def start_spinner(name):
-        busy[name]=True
+        busy[name] = True
         def tick(i=0):
             if not busy.get(name):
                 return
-            dots = "." * (i%3+1)
+            dots = "." * ((i % 3) + 1)
             ui_set(out_boxes[name], f"⏳ {name} is reasoning{dots}")
             out_boxes[name].after(350, lambda: tick(i+1))
         tick()
 
     def stop_spinner(name):
-        busy[name]=False
+        busy[name] = False
 
     def set_box(name, content):
         stop_spinner(name)
         ui_set(out_boxes[name], content)
 
-    # -----------------------------------------------------------------------------
-    # COORDINATION PATTERNS (Voting / Role / Debate / None)
-    # Each runner ora riceve strategy_label (raw adaptation string)
-    # -----------------------------------------------------------------------------
+    # -------------------- Coordination modes --------------------
+    # For ora implementiamo solo Voting-Based.
+    # Role-Based / Debate-Based restano stub ma mantengono lo stile.
 
-    def run_debate(task, strategy_label):
-        log_path = Path(__file__).with_name("debate.log")
-        try:
-            with open(log_path, "w", encoding="utf-8") as f:
-                f.write(f"=== DEBATE LOG ===\nTask: {task}\n")
-        except Exception:
-            pass
-
-        for tbox in out_boxes.values():
-            ui_set(tbox, "")
+    def run_voting_based(task, strategy_label):
+        # puliamo le box e stampiamo header della strategia
+        for b in out_boxes.values():
+            ui_set(b, "")
         ui_set(
             coord_text,
-            f"Starting Debate [{strategy_label}].\n"
+            f"Starting Voting (democratic) [{strategy_label}]\n"
             f"Agents: {AGENTS[0]['name']}, {AGENTS[1]['name']}, {AGENTS[2]['name']}\n"
-            f"Topic: {task}\n\n(Log saved to: {log_path})"
+            f"Topic: {task}\n"
         )
 
-        c1 = Client(AGENTS[0]["name"], AGENTS[0]["title"], c1_var.get())
-        c2 = Client(AGENTS[1]["name"], AGENTS[1]["title"], c2_var.get())
-        c3 = Client(AGENTS[2]["name"], AGENTS[2]["title"], c3_var.get())
-        coord_agent = Coordinator(coord_var.get())
-
-        hooks = {
-            AGENTS[0]["name"]: lambda s: set_box(
-                AGENTS[0]["name"],
-                f"Answer: {s['answer']}\nConfidence: {s['confidence']}\n\nRationale:\n{(s.get('rationale') or '')}\n"
-            ),
-            AGENTS[1]["name"]: lambda s: set_box(
-                AGENTS[1]["name"],
-                f"Answer: {s['answer']}\nConfidence: {s['confidence']}\n\nRationale:\n{(s.get('rationale') or '')}\n"
-            ),
-            AGENTS[2]["name"]: lambda s: set_box(
-                AGENTS[2]["name"],
-                f"Answer: {s['answer']}\nConfidence: {s['confidence']}\n\nRationale:\n{(s.get('rationale') or '')}\n"
-            ),
-        }
-
-        deb = Debate(
-            [c1,c2,c3],
-            coord_agent,
-            rounds=DEFAULT_ROUNDS,
-            per_agent_hooks=hooks,
-            on_agent_start=start_spinner
-        )
-
-        def log(s):
-            write_log(log_path, s)
-
-        def do_run():
+        def worker():
             try:
-                write_log(
-                    log_path,
-                    "Starting debate with models -> "
-                    f"Coordinator: {coord_var.get()} | "
-                    f"{AGENTS[0]['name']}: {c1_var.get()} | "
-                    f"{AGENTS[1]['name']}: {c2_var.get()} | "
-                    f"{AGENTS[2]['name']}: {c3_var.get()}"
+                # spinner visivo mentre gli agenti ragionano
+                start_spinner(AGENTS[0]["name"])
+                start_spinner(AGENTS[1]["name"])
+                start_spinner(AGENTS[2]["name"])
+
+                # costruiamo gli agenti con il modello scelto dalla UI
+                c1=ClientAgent(AGENTS[0]["name"], AGENTS[0]["title"], a1_var.get())
+                c2=ClientAgent(AGENTS[1]["name"], AGENTS[1]["title"], a2_var.get())
+                c3=ClientAgent(AGENTS[2]["name"], AGENTS[2]["title"], a3_var.get())
+
+                # ognuno parla una volta
+                s1=c1.speak(task)
+                s2=c2.speak(task)
+                s3=c3.speak(task)
+
+                # aggiorniamo le box agent con risposta/razionale/confidenza
+                set_box(
+                    AGENTS[0]["name"],
+                    f"Answer: {s1['answer']}\nConfidence: {s1['confidence']}\n\nRationale:\n{s1['rationale']}\n"
                 )
-                final, _ = deb.run(task, log_fn=log)
-            except Exception as e:
-                final={"error":str(e), "final_answer": "", "confidence": 0, "justification": "Runtime error"}
-
-            if "error" in final:
-                ui_set(
-                    coord_text,
-                    f"Starting Debate [{strategy_label}].\n"
-                    f"Agents: {AGENTS[0]['name']}, {AGENTS[1]['name']}, {AGENTS[2]['name']}\n"
-                    f"Topic: {task}\n\nFinal output: (error)\nWhy: {final.get('error','')}\n\n"
-                    f"(Log saved to: {log_path})"
+                set_box(
+                    AGENTS[1]["name"],
+                    f"Answer: {s2['answer']}\nConfidence: {s2['confidence']}\n\nRationale:\n{s2['rationale']}\n"
                 )
-            else:
-                why = final.get('justification') or "Majority among valid answers."
-                ui_set(
-                    coord_text,
-                    f"Starting Debate [{strategy_label}].\n"
-                    f"Agents: {AGENTS[0]['name']}, {AGENTS[1]['name']}, {AGENTS[2]['name']}\n"
-                    f"Topic: {task}\n\nFinal output: {final.get('final_answer','')}\nWhy: {why}\n\n"
-                    f"(Log saved to: {log_path})"
+                set_box(
+                    AGENTS[2]["name"],
+                    f"Answer: {s3['answer']}\nConfidence: {s3['confidence']}\n\nRationale:\n{s3['rationale']}\n"
                 )
 
-        start_spinner(AGENTS[0]["name"])
-        start_spinner(AGENTS[1]["name"])
-        start_spinner(AGENTS[2]["name"])
-        threading.Thread(target=do_run, daemon=True).start()
+                # majority vote
+                answers=[s1,s2,s3]
+                votes={}
+                for s in answers:
+                    k=norm_answer(s["answer"])
+                    if not is_non_answer(k):
+                        votes[k]=votes.get(k,0)+1
 
-    def run_voting(task, strategy_label):
-        log_path = Path(__file__).with_name("voting.log")
-        try:
-            with open(log_path, "w", encoding="utf-8") as f:
-                f.write(f"=== VOTING LOG ===\nTask: {task}\n")
-        except Exception:
-            pass
-
-        for tbox in out_boxes.values():
-            ui_set(tbox, "")
-        ui_set(
-            coord_text,
-            f"Starting Voting (democratic) [{strategy_label}].\n"
-            f"Agents: {AGENTS[0]['name']}, {AGENTS[1]['name']}, {AGENTS[2]['name']}\n"
-            f"Topic: {task}\n\n(Log saved to: {log_path})"
-        )
-
-        c1 = Client(AGENTS[0]["name"], AGENTS[0]["title"], c1_var.get())
-        c2 = Client(AGENTS[1]["name"], AGENTS[1]["title"], c2_var.get())
-        c3 = Client(AGENTS[2]["name"], AGENTS[2]["title"], c3_var.get())
-
-        def tally(statements):
-            votes={}
-            for s in statements:
-                k=norm_answer(s.get("answer",""))
-                if not is_non_answer(k):
-                    votes[k]=votes.get(k,0)+1
-            return votes
-
-        def do_run():
-            try:
-                for nm in (AGENTS[0]['name'], AGENTS[1]['name'], AGENTS[2]['name']):
-                    start_spinner(nm)
-
-                statements=[]
-                for client in (c1,c2,c3):
-                    s = client.speak(
-                        task,
-                        history="",
-                        log_fn=lambda m: write_log(log_path, m)
-                    )
-                    statements.append(s)
-                    set_box(
-                        client.name,
-                        f"Answer: {s['answer']}\nConfidence: {s['confidence']}\n\n"
-                        f"Rationale:\n{(s.get('rationale') or '')}\n"
-                    )
-
-                votes = tally(statements)
-
-                winners=[]
                 if votes:
-                    max_votes = max(votes.values())
+                    max_votes=max(votes.values())
                     winners=[k for k,v in votes.items() if v==max_votes]
+                else:
+                    winners=[]
 
                 if len(winners)==1:
                     best=winners[0]
-                    final_answer = next(
-                        (s['answer'] for s in statements if norm_answer(s['answer'])==best),
+                    final_ans=next(
+                        (s["answer"] for s in answers if norm_answer(s["answer"])==best),
                         ""
                     )
-                    decision = {
-                        "decision":"democratic-majority",
-                        "final_answer":final_answer,
-                        "confidence":0.75,
-                        "justification":"Simple majority"
-                    }
-
+                    justification="Simple majority"
                 elif len(winners)>1:
-                    allowed = sorted(set(winners))
-                    runoff_task = task + "\n\nChoose ONLY one of these options: " + ", ".join(allowed)
-
-                    runoff=[]
-                    for client in (c1,c2,c3):
-                        s = client.speak(
-                            runoff_task,
-                            history="",
-                            log_fn=lambda m: write_log(log_path, m)
-                        )
-                        runoff.append(s)
-                        set_box(
-                            client.name,
-                            f"Answer: {s['answer']}\nConfidence: {s['confidence']}\n\n"
-                            f"Rationale:\n{(s.get('rationale') or '')}\n"
-                        )
-
-                    runoff_votes = tally(runoff)
-                    winners2=[]
-                    if runoff_votes:
-                        max2 = max(runoff_votes.values())
-                        winners2=[k for k,v in runoff_votes.items() if v==max2]
-
-                    if len(winners2)==1:
-                        best = winners2[0]
-                        final_answer = next(
-                            (s['answer'] for s in runoff if norm_answer(s['answer'])==best),
-                            ""
-                        )
-                        decision = {
-                            "decision":"runoff-majority",
-                            "final_answer":final_answer,
-                            "confidence":0.75,
-                            "justification":"Runoff majority among tied options"
-                        }
-                    else:
-                        best = sorted(allowed)[0] if allowed else ""
-                        final_answer = next(
-                            (s['answer'] for s in statements if norm_answer(s['answer'])==best),
-                            best
-                        )
-                        decision = {
-                            "decision":"runoff-tie-deterministic",
-                            "final_answer":final_answer,
-                            "confidence":0.6,
-                            "justification":"Runoff tie; deterministic choice (lexicographic)"
-                        }
-
+                    # tiebreak deterministico
+                    best=sorted(winners)[0]
+                    final_ans=next(
+                        (s["answer"] for s in answers if norm_answer(s["answer"])==best),
+                        best
+                    )
+                    justification="Tie -> deterministic pick"
                 else:
-                    decision = {
-                        "decision":"no-valid-votes",
-                        "final_answer":"",
-                        "confidence":0.0,
-                        "justification":"No valid votes"
-                    }
+                    final_ans=""
+                    justification="No valid votes"
 
-                why = decision.get('justification') or "Democratic majority."
                 ui_set(
                     coord_text,
-                    f"Starting Voting (democratic) [{strategy_label}].\n"
+                    f"Starting Voting (democratic) [{strategy_label}]\n"
                     f"Agents: {AGENTS[0]['name']}, {AGENTS[1]['name']}, {AGENTS[2]['name']}\n"
-                    f"Topic: {task}\n\nFinal output: {decision.get('final_answer','')}\nWhy: {why}\n\n"
-                    f"(Log saved to: {log_path})"
+                    f"Topic: {task}\n\n"
+                    f"Final output: {final_ans}\n"
+                    f"Why: {justification}\n"
                 )
 
             except Exception as e:
                 ui_set(
                     coord_text,
-                    f"Starting Voting (democratic) [{strategy_label}].\n"
-                    f"Agents: {AGENTS[0]['name']}, {AGENTS[1]['name']}, {AGENTS[2]['name']}\n"
-                    f"Topic: {task}\n\nFinal output: (error)\nWhy: {e}\n\n"
-                    f"(Log saved to: {log_path})"
+                    f"Starting Voting (democratic) [{strategy_label}]\n"
+                    f"Topic: {task}\n\n"
+                    f"Final output: (error)\nWhy: {e}\n"
                 )
             finally:
-                for nm in (AGENTS[0]['name'], AGENTS[1]['name'], AGENTS[2]['name']):
-                    stop_spinner(nm)
+                stop_spinner(AGENTS[0]["name"])
+                stop_spinner(AGENTS[1]["name"])
+                stop_spinner(AGENTS[2]["name"])
 
-        threading.Thread(target=do_run, daemon=True).start()
+        threading.Thread(target=worker, daemon=True).start()
 
-    def run_role(task, strategy_label):
-        log_path = Path(__file__).with_name("role.log")
-        try:
-            with open(log_path, "w", encoding="utf-8") as f:
-                f.write(f"=== ROLE LOG ===\nTask: {task}\n")
-        except Exception:
-            pass
-
-        for tbox in out_boxes.values():
-            ui_set(tbox, "")
+    def run_role_based(task, strategy_label):
+        # placeholder estetico
+        for b in out_boxes.values():
+            ui_set(b, "Role-Based mode not implemented yet.")
         ui_set(
             coord_text,
-            f"Starting Role-based [{strategy_label}].\n"
-            f"Agents: {AGENTS[0]['name']}, {AGENTS[1]['name']}, {AGENTS[2]['name']}\n"
-            f"Topic: {task}\n\n(Log saved to: {log_path})"
+            f"Starting Role-Based [{strategy_label}]\n"
+            f"Topic: {task}\n\n(Not implemented yet)"
         )
 
-        c1 = Client(AGENTS[0]["name"], AGENTS[0]["title"], c1_var.get())
-        c2 = Client(AGENTS[1]["name"], AGENTS[1]["title"], c2_var.get())
-        c3 = Client(AGENTS[2]["name"], AGENTS[2]["title"], c3_var.get())
-        coord_agent = Coordinator(coord_var.get())
-
-        role_weights = {
-            AGENTS[0]['name']: 1.0,
-            AGENTS[1]['name']: 1.0,
-            AGENTS[2]['name']: 1.0
-        }
-
-        def do_run():
-            try:
-                for nm in (AGENTS[0]['name'], AGENTS[1]['name'], AGENTS[2]['name']):
-                    start_spinner(nm)
-
-                proposals=[]
-                for client in (c1,c2,c3):
-                    s = client.speak(
-                        task,
-                        history="",
-                        log_fn=lambda m: write_log(log_path, m)
-                    )
-                    proposals.append(s)
-                    set_box(
-                        client.name,
-                        f"Answer: {s['answer']}\nConfidence: {s['confidence']}\n\n"
-                        f"Rationale:\n{(s.get('rationale') or '')}\n"
-                    )
-
-                filtered = [p for p in proposals if not is_non_answer(p.get("answer",""))] or proposals[:]
-
-                scored=[]
-                for p in filtered:
-                    w = role_weights.get(p['agent'], 1.0)
-                    scored.append( (p, w * float(p.get('confidence', 0))) )
-
-                if scored:
-                    best = sorted(
-                        scored,
-                        key=lambda x:(-x[1], -len(norm_answer(x[0]['answer'])))
-                    )[0][0]
-                    decision = {
-                        "decision":"role-policy",
-                        "final_answer":best['answer'],
-                        "confidence":float(best.get('confidence',0.7)),
-                        "justification":"Approved by coordinator using role-weighted confidence"
-                    }
-                else:
-                    decision = coord_agent.decide(
-                        task,
-                        filtered,
-                        log_fn=lambda m: write_log(log_path, m)
-                    )
-
-                why = decision.get('justification') or "Role-weighted approval."
-                ui_set(
-                    coord_text,
-                    f"Starting Role-based [{strategy_label}].\n"
-                    f"Agents: {AGENTS[0]['name']}, {AGENTS[1]['name']}, {AGENTS[2]['name']}\n"
-                    f"Topic: {task}\n\nFinal output: {decision.get('final_answer','')}\nWhy: {why}\n\n"
-                    f"(Log saved to: {log_path})"
-                )
-
-            except Exception as e:
-                ui_set(
-                    coord_text,
-                    f"Starting Role-based [{strategy_label}].\n"
-                    f"Agents: {AGENTS[0]['name']}, {AGENTS[1]['name']}, {AGENTS[2]['name']}\n"
-                    f"Topic: {task}\n\nFinal output: (error)\nWhy: {e}\n\n"
-                    f"(Log saved to: {log_path})"
-                )
-            finally:
-                for nm in (AGENTS[0]['name'], AGENTS[1]['name'], AGENTS[2]['name']):
-                    stop_spinner(nm)
-
-        threading.Thread(target=do_run, daemon=True).start()
+    def run_debate_based(task, strategy_label):
+        # placeholder estetico
+        for b in out_boxes.values():
+            ui_set(b, "Debate-Based mode not implemented yet.")
+        ui_set(
+            coord_text,
+            f"Starting Debate-Based [{strategy_label}]\n"
+            f"Topic: {task}\n\n(Not implemented yet)"
+        )
 
     def run_none(task, strategy_label):
-        for tbox in out_boxes.values():
-            ui_set(tbox, "")
+        for b in out_boxes.values():
+            ui_set(b, "Adaptation disabled.")
         ui_set(
             coord_text,
-            f"Adaptation is disabled [{strategy_label}].\n"
-            "No AI-agent coordination will run for this request.\n"
-            f"Task was: {task}\n"
+            f"Adaptation disabled [{strategy_label}]\n"
+            f"No AI-agent coordination will run.\n"
+            f"Task was:\n{task}"
         )
 
-    # -----------------------------------------------------------------------------
-    # SEND HANDLER
-    # -----------------------------------------------------------------------------
+    # -------------------- Submit / keybind --------------------
 
     def submit():
-        user_task = input_box.get("1.0", tk.END).strip()
-        if not user_task:
+        task=input_box.get("1.0", tk.END).strip()
+        if not task:
             return
+        mode, raw_strategy = read_coordination_mode()
 
-        mode, raw_strategy = read_coordination_mode_from_config()
-        # raw_strategy è la stringa esatta dal config, es. "AI-Agents (Voting-Based)" o "None"
-
-        if mode == "voting":
-            run_voting(user_task, raw_strategy)
-        elif mode == "role":
-            run_role(user_task, raw_strategy)
-        elif mode == "debate":
-            run_debate(user_task, raw_strategy)
+        if mode=="voting":
+            run_voting_based(task, raw_strategy)
+        elif mode=="role":
+            run_role_based(task, raw_strategy)
+        elif mode=="debate":
+            run_debate_based(task, raw_strategy)
         else:
-            run_none(user_task, raw_strategy)
+            run_none(task, raw_strategy)
 
     send_btn.config(command=submit)
 
-    # Invio rapido con Enter
     def on_keypress(e):
         if platform.system()=="Darwin" and (e.state & 0x10):
             input_box.insert(tk.INSERT,"\n")
@@ -1042,14 +616,11 @@ def build_ui():
         else:
             submit()
             return "break"
+
     input_box.bind("<Return>", on_keypress)
 
-    root.minsize(1100, 650)
+    root.minsize(1100,650)
     return root
-
-# -----------------------------------------------------------------------------
-# MAIN
-# -----------------------------------------------------------------------------
 
 if __name__ == "__main__":
     ui = build_ui()

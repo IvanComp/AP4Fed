@@ -1,66 +1,28 @@
 # Dockerfile.agent
 FROM python:3.12-slim
 
+# Set the environment variable to avoid buffering issues
 ENV PYTHONUNBUFFERED=1
-ENV DEBIAN_FRONTEND=noninteractive
 
-# 1. Pacchetti di sistema minimi:
-#    - tkinter e dipendenze grafiche base (tk/tcl + librerie X11)
-#    - libGL/libglib2.0 ecc. per torchvision
-#    - curl per installare ollama
-#    - build-essential nel caso torch/scikit-learn vogliano buildare roba
+# Installation of the libraries
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-tk \
-    tk \
-    tcl \
-    tk-dev \
-    tcl-dev \
-    libx11-6 \
-    libxext6 \
-    libxrender1 \
-    libxft2 \
-    libxss1 \
-    libxcursor1 \
-    libxinerama1 \
-    libxi6 \
-    libgl1 \
-    libglib2.0-0 \
-    build-essential \
-    curl \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/*
 
-# 2. Installa Ollama dentro il container
-RUN curl -fsSL https://ollama.com/install.sh | sh
-
-# (opzionale: esponi la porta di ollama se vuoi parlarci da fuori)
-EXPOSE 11434
-
-# 3. Librerie Python richieste da agent.py
-RUN pip install --no-cache-dir \
-    flwr[simulations] \
-    torch==2.2.1 \
-    torchvision==0.17.1 \
-    grpcio==1.66.1 \
-    numpy==1.26.2 \
-    psutil \
-    torchgan \
-    scikit-learn \
-    pillow
-
-# 4. Directory di lavoro
+# Create the working directory
 WORKDIR /app
 
-# 5. Copia del progetto
+# Copy the client code
 COPY client.py /app/client.py
 COPY server.py /app/server.py
 COPY taskA.py /app/taskA.py
+COPY adaptation.py /app/adaptation.py
+COPY agent.py /app/agent.py
 COPY configuration/ /app/configuration/
 COPY performance/ /app/performance/
-COPY agent.py /app/agent.py
 
-# 6. Cartella dati
-RUN mkdir -p /app/data
+# Create the folder for data
+RUN mkdir -p data
 
-# 7. Avvia direttamente agent.py
+# Execution command
 CMD ["python", "agent.py"]
