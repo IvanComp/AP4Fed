@@ -2,7 +2,7 @@
     "simulation_type": "Docker",
     "rounds": 2,
     "clients": 2,
-    "adaptation": "Random",
+    "adaptation": "AI-Agents (Voting-Based)",
     "patterns": {
         "client_registry": {
             "enabled": true,

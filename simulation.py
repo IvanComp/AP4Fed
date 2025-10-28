@@ -18,7 +18,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from PyQt5.QtCore import Qt, QProcess, QProcessEnvironment, QTimer
+from PyQt5.QtCore import Qt, QProcess, QProcessEnvironment, QTimer, QCoreApplication
 from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -1616,7 +1616,25 @@ class SimulationPage(QWidget):
         self.stop_button.clicked.connect(self.close_application)
 
     def close_application(self):
-        sys.exit(0)
+        # Chiudi eventuale processo principale della simulazione
+        try:
+            if hasattr(self, "process") and self.process is not None:
+                self.process.terminate()
+                self.process.waitForFinished()
+        except Exception:
+            pass
+
+        # Chiudi eventuale processo degli agenti AI (tk UI)
+        try:
+            if hasattr(self, "agent_proc") and self.agent_proc is not None:
+                self.agent_proc.terminate()
+                self.agent_proc.waitForFinished()
+        except Exception:
+            pass
+
+        # Chiudi l'app Qt in modo pulito (exit code 0, niente crash report)
+        QCoreApplication.quit()
+
 
     def is_command_available(self, command):
         from shutil import which
