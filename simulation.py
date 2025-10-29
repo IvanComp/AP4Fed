@@ -33,6 +33,7 @@ from PyQt5.QtWidgets import (
     QHeaderView,
     QAbstractItemView,
     QPlainTextEdit,
+    QFrame
 )
 
 import tkinter as tk
@@ -1028,17 +1029,12 @@ class DashboardWindow(QWidget):
         )
 
         metrics_panel_layout.addWidget(self.metrics_table)
-
         top_row_layout.addWidget(self.metrics_panel)
-
-        # ---------- BOX DESTRO: Grafici 2x2 ----------
-                # --- box destro grafici + label simulazione ---
         self.plots_panel = QWidget()
         self.plots_panel_layout = QVBoxLayout(self.plots_panel)
         self.plots_panel_layout.setContentsMargins(0, 0, 0, 0)
         self.plots_panel_layout.setSpacing(8)
 
-        # Label con info simulazione sopra i grafici
         self.sim_info_label = QLabel(
             f"Model: <b>{model_name}</b> - "
             f"Dataset: <b>{dataset_name}</b> - "
@@ -1047,9 +1043,16 @@ class DashboardWindow(QWidget):
         )
         self.sim_info_label.setWordWrap(True)
         self.sim_info_label.setAlignment(Qt.AlignCenter)
+
+        big_font = QFont()
+        big_font.setPointSize(18)  
+        big_font.setWeight(QFont.Normal)
+        self.sim_info_label.setFont(big_font)
+
         self.sim_info_label.setStyleSheet(
-            "font-size:13px; color:black; background-color: transparent; border:none;"
+            "color:black; background-color: transparent; border:none;"
         )
+
         self.plots_panel_layout.addWidget(self.sim_info_label)
 
         # Contenitore dei 4 grafici in griglia 2x2
@@ -1093,16 +1096,22 @@ class DashboardWindow(QWidget):
         top_row_layout.addWidget(self.plots_panel)
 
         # ---------- SEZIONE PATTERNS SOTTO ----------
-        self.patterns_panel = QWidget()
+        self.patterns_panel = QFrame()
+        self.patterns_panel.setFrameShape(QFrame.NoFrame)
+        self.patterns_panel.setFrameShadow(QFrame.Plain)
         self.patterns_panel.setStyleSheet(
-            "background-color:#f9f9f9; border:1px solid #ddd; border-radius:6px;"
+            "background-color:#f9f9f9;"
+            "border:none;"
+            "border-radius:6px;"
         )
+
+        # fa in modo che il box si allarghi in orizzontale su tutta la finestra
+        self.patterns_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         patterns_layout = QVBoxLayout(self.patterns_panel)
         patterns_layout.setContentsMargins(8, 8, 8, 8)
         patterns_layout.setSpacing(6)
 
-        # Titolo della sezione pattern (senza sfondo bianco dietro)
         patterns_title = QLabel("Architectural Patterns Activation per Round")
         patterns_title.setStyleSheet(
             "font-weight:bold; font-size:13px; color:black; "
@@ -1110,20 +1119,19 @@ class DashboardWindow(QWidget):
         )
         patterns_layout.addWidget(patterns_title)
 
-        # 1. CREA il contenitore della griglia qui
+        # griglia pattern/round
         self.pattern_grid = QWidget()
         self.pattern_grid_layout = QGridLayout(self.pattern_grid)
         self.pattern_grid_layout.setContentsMargins(0, 0, 0, 0)
         self.pattern_grid_layout.setHorizontalSpacing(8)
         self.pattern_grid_layout.setVerticalSpacing(4)
 
-        # 2. SOLO DOPO che esiste self.pattern_grid lo aggiungiamo al layout
-        #    e lo allineiamo a sinistra così non si estende a tutta larghezza
+        # importantissimo: la griglia NON deve stirarsi a tutta larghezza,
+        # altrimenti i round vanno a destra. La teniamo align left.
         patterns_layout.addWidget(self.pattern_grid, alignment=Qt.AlignLeft)
 
-        # 3. infine aggiungiamo tutto il pannello patterns al layout principale
+        # aggiungi il pannello intero in fondo al layout principale
         main_layout.addWidget(self.patterns_panel)
-
         # ---------- TIMER ----------
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_data)
@@ -1197,7 +1205,7 @@ class DashboardWindow(QWidget):
         for col_idx, rnd in enumerate(rounds_list, start=1):
             rnd_lbl = QLabel(str(rnd))
             rnd_lbl.setStyleSheet(
-                "font-weight:bold; font-size:12px; color:black; background-color: transparent; border: none;"
+                "font-size:12px; color:black;background-color: transparent; border: none;"
             )
             rnd_lbl.setAlignment(Qt.AlignCenter)
             self.pattern_grid_layout.addWidget(rnd_lbl, 0, col_idx, alignment=Qt.AlignCenter)
@@ -1368,6 +1376,46 @@ class DashboardWindow(QWidget):
                 item = QTableWidgetItem(str(cellval))
                 item.setTextAlignment(Qt.AlignCenter)
                 self.metrics_table.setItem(r_idx, c_idx, item)
+
+        # Ora facciamo il merge delle colonne che sono globali per round
+        # Colonna 2 = F1
+        # Colonna 3 = Total Time (s)
+
+        current_row = 0
+        total_rows = len(table_rows)
+
+        while current_row < total_rows:
+            # round corrente
+            this_round = table_rows[current_row][0]
+
+            # calcola quante righe consecutive appartengono allo stesso round
+            span_len = 1
+            i = current_row + 1
+            while i < total_rows and table_rows[i][0] == this_round:
+                span_len += 1
+                i += 1
+
+            # se ci sono più righe dello stesso round (es. Client1, Client2, ...)
+            if span_len > 1:
+                # unisci F1 (col 2) verticalmente
+                self.metrics_table.setSpan(current_row, 2, span_len, 1)
+                # unisci Total Time (col 3) verticalmente
+                self.metrics_table.setSpan(current_row, 3, span_len, 1)
+
+                # svuota le celle duplicate sotto per non vedere testo doppio
+                for r in range(current_row + 1, current_row + span_len):
+                    # colonna 2 (F1)
+                    empty_f1 = QTableWidgetItem("")
+                    empty_f1.setTextAlignment(Qt.AlignCenter)
+                    self.metrics_table.setItem(r, 2, empty_f1)
+
+                    # colonna 3 (Total Time)
+                    empty_tt = QTableWidgetItem("")
+                    empty_tt.setTextAlignment(Qt.AlignCenter)
+                    self.metrics_table.setItem(r, 3, empty_tt)
+
+            # passa al prossimo blocco di round
+            current_row += span_len
 
         # ===== Aggiorna la griglia ON/OFF dei pattern =====
         self.update_pattern_grid(pattern_matrix_data)
