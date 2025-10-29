@@ -933,15 +933,55 @@ class DashboardWindow(QWidget):
             ["Round", "Client", "F1", "Total Time (s)", "Training (s)", "Comm (s)"]
         )
 
-        # Niente header verticale a sinistra
+        # niente header verticale
         self.metrics_table.verticalHeader().setVisible(False)
 
-        # Sola lettura, no selezione interattiva
+        # sola lettura
         self.metrics_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.metrics_table.setSelectionMode(QAbstractItemView.NoSelection)
 
-        # Colonne che si ridimensionano automaticamente
-        self.metrics_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        # righe alternate per leggibilità
+        self.metrics_table.setAlternatingRowColors(True)
+
+        # stile tabella (resta quello "dashboard" elegante)
+        self.metrics_table.setStyleSheet(
+            """
+            QTableWidget {
+                background-color: white;
+                alternate-background-color: #f4f4f4;
+                gridline-color: #c0c0c0;
+                font-size: 12px;
+                color: black;
+                border: 1px solid #bbbbbb;
+            }
+
+            QHeaderView::section {
+                background-color: #dcdcdc;
+                color: black;
+                font-weight: bold;
+                font-size: 12px;
+                border: 1px solid #aaaaaa;
+                padding: 2px 4px;
+            }
+
+            QTableWidget::item {
+                padding: 2px 4px;
+            }
+            """
+        )
+
+        # controlliamo il ridimensionamento delle singole colonne
+        header = self.metrics_table.horizontalHeader()
+
+        # colonne "piccole"
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # Round
+        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)  # Client
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # F1
+
+        # colonne "grandi" che devono respirare
+        header.setSectionResizeMode(3, QHeaderView.Stretch)  # Total Time (s)
+        header.setSectionResizeMode(4, QHeaderView.Stretch)  # Training (s)
+        header.setSectionResizeMode(5, QHeaderView.Stretch)  # Comm (s)
 
         # Alterna colore righe per leggibilità
         self.metrics_table.setAlternatingRowColors(True)
@@ -978,13 +1018,34 @@ class DashboardWindow(QWidget):
         top_row_layout.addWidget(self.metrics_panel)
 
         # ---------- BOX DESTRO: Grafici 2x2 ----------
+                # --- box destro grafici + label simulazione ---
+        self.plots_panel = QWidget()
+        self.plots_panel_layout = QVBoxLayout(self.plots_panel)
+        self.plots_panel_layout.setContentsMargins(0, 0, 0, 0)
+        self.plots_panel_layout.setSpacing(8)
+
+        # Label con info simulazione sopra i grafici
+        self.sim_info_label = QLabel(
+            f"Model: <b>{model_name}</b> - "
+            f"Dataset: <b>{dataset_name}</b> - "
+            f"Number of Clients: <b>{number_of_clients}</b> - "
+            f"Number of Rounds: <b>{number_of_rounds}</b>"
+        )
+        self.sim_info_label.setWordWrap(True)
+        self.sim_info_label.setAlignment(Qt.AlignCenter)
+        self.sim_info_label.setStyleSheet(
+            "font-size:13px; color:black; background-color: transparent; border:none;"
+        )
+        self.plots_panel_layout.addWidget(self.sim_info_label)
+
+        # Contenitore dei 4 grafici in griglia 2x2
         plots_container = QWidget()
         plots_grid = QGridLayout(plots_container)
         plots_grid.setContentsMargins(0, 0, 0, 0)
         plots_grid.setHorizontalSpacing(16)
         plots_grid.setVerticalSpacing(16)
 
-        # Helper per creare canvas piccoli e non espandibili
+        # helper per creare i canvas piccoli
         def make_plot_canvas(fig_width_px, fig_height_px):
             fig, ax = plt.subplots()
             fig.set_size_inches(fig_width_px / 100.0, fig_height_px / 100.0)
@@ -995,23 +1056,27 @@ class DashboardWindow(QWidget):
             canvas.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
             return fig, ax, canvas
 
-        # Grafico: Global Model Accuracy (in alto a sinistra)
+        # Grafico: Global Model Accuracy (alto sx)
         self.fig_f1, self.ax_f1, self.canvas_f1 = make_plot_canvas(360, 220)
         plots_grid.addWidget(self.canvas_f1, 0, 0)
 
-        # Grafico: Total Round Time (in alto a destra)
+        # Grafico: Total Round Time (alto dx)
         self.fig_tot, self.ax_tot, self.canvas_tot = make_plot_canvas(360, 220)
         plots_grid.addWidget(self.canvas_tot, 0, 1)
 
-        # Grafico: Training Time (in basso a sinistra)
+        # Grafico: Training Time (basso sx)
         self.fig_train, self.ax_train, self.canvas_train = make_plot_canvas(360, 220)
         plots_grid.addWidget(self.canvas_train, 1, 0)
 
-        # Grafico: Communication Time (in basso a destra)
+        # Grafico: Communication Time (basso dx)
         self.fig_comm, self.ax_comm, self.canvas_comm = make_plot_canvas(360, 220)
         plots_grid.addWidget(self.canvas_comm, 1, 1)
 
-        top_row_layout.addWidget(plots_container)
+        # aggiungiamo la griglia alla colonna destra
+        self.plots_panel_layout.addWidget(plots_container)
+
+        # e infine la colonna destra (label + griglia grafici) al layout principale in alto
+        top_row_layout.addWidget(self.plots_panel)
 
         # ---------- SEZIONE PATTERNS SOTTO ----------
         self.patterns_panel = QWidget()
