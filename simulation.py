@@ -24,11 +24,16 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QLabel,
-    QPlainTextEdit,
     QPushButton,
     QSizePolicy,
     QGridLayout,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
+    QAbstractItemView,
+    QPlainTextEdit,
 )
+
 import tkinter as tk
 import tkinter.messagebox as msg
 from pathlib import Path
@@ -905,101 +910,149 @@ class DashboardWindow(QWidget):
             "font-weight: normal; font-size: 16px; color: black;"
         )
         lbl_mod.setTextFormat(Qt.RichText)
-        main_layout.addWidget(lbl_mod)
-        global_row = QHBoxLayout()
-        main_layout.addLayout(global_row)
+        top_row_layout = QHBoxLayout()
+        main_layout.addLayout(top_row_layout)
 
-        # --- pannello laterale globale (metriche + pattern matrix)
-        self.global_side_panel = QWidget()
-        self.global_side_panel.setStyleSheet(
+        # ---------- BOX SINISTRO: Tabella metriche ----------
+        self.metrics_panel = QWidget()
+        self.metrics_panel.setStyleSheet(
             "background-color:#f9f9f9; border:1px solid #ddd; border-radius:6px;"
         )
-        self.global_side_panel.setFixedWidth(280)
 
-        gsp_layout = QVBoxLayout(self.global_side_panel)
-        gsp_layout.setContentsMargins(8, 8, 8, 8)
-        gsp_layout.setSpacing(10)
+        # allarga il box per leggere bene le colonne
+        self.metrics_panel.setFixedWidth(420)
 
-        # testo con metriche round-by-round globali
-        gsp_label_metrics = QLabel("Global Metrics")
-        gsp_label_metrics.setStyleSheet(
-            "font-weight:bold; font-size:13px; color:black;"
+        metrics_panel_layout = QVBoxLayout(self.metrics_panel)
+        metrics_panel_layout.setContentsMargins(8, 8, 8, 8)
+        metrics_panel_layout.setSpacing(8)
+
+        # Tabella unica (Round | Client | F1 | Total Time (s) | Training (s) | Comm (s))
+        self.metrics_table = QTableWidget()
+        self.metrics_table.setColumnCount(6)
+        self.metrics_table.setHorizontalHeaderLabels(
+            ["Round", "Client", "F1", "Total Time (s)", "Training (s)", "Comm (s)"]
         )
-        gsp_layout.addWidget(gsp_label_metrics)
 
-        self.global_stats_area = QPlainTextEdit()
-        self.global_stats_area.setReadOnly(True)
-        self.global_stats_area.setStyleSheet(
-            "background-color: #ffffff; color: black; font-size:12px;"
-        )
-        gsp_layout.addWidget(self.global_stats_area)
-        gsp_label_patterns = QLabel("Active Architectural Patterns")
-        gsp_label_patterns.setStyleSheet(
-            "font-weight:bold; font-size:13px; color:black;"
-        )
-        gsp_layout.addWidget(gsp_label_patterns)
+        # Niente header verticale a sinistra
+        self.metrics_table.verticalHeader().setVisible(False)
 
+        # Sola lettura, no selezione interattiva
+        self.metrics_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.metrics_table.setSelectionMode(QAbstractItemView.NoSelection)
+
+        # Colonne che si ridimensionano automaticamente
+        self.metrics_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
+        # Alterna colore righe per leggibilità
+        self.metrics_table.setAlternatingRowColors(True)
+
+        # Stile tabella "diverso": header grigio, bordino leggero, righe alternate
+        self.metrics_table.setStyleSheet(
+            """
+            QTableWidget {
+                background-color: white;
+                alternate-background-color: #f4f4f4;
+                gridline-color: #c0c0c0;
+                font-size: 12px;
+                color: black;
+                border: 1px solid #bbbbbb;
+            }
+
+            QHeaderView::section {
+                background-color: #dcdcdc;
+                color: black;
+                font-weight: bold;
+                font-size: 12px;
+                border: 1px solid #aaaaaa;
+                padding: 2px 4px;
+            }
+
+            QTableWidget::item {
+                padding: 2px 4px;
+            }
+            """
+        )
+
+        metrics_panel_layout.addWidget(self.metrics_table)
+
+        top_row_layout.addWidget(self.metrics_panel)
+
+        # ---------- BOX DESTRO: Grafici 2x2 ----------
+        plots_container = QWidget()
+        plots_grid = QGridLayout(plots_container)
+        plots_grid.setContentsMargins(0, 0, 0, 0)
+        plots_grid.setHorizontalSpacing(16)
+        plots_grid.setVerticalSpacing(16)
+
+        # Helper per creare canvas piccoli e non espandibili
+        def make_plot_canvas(fig_width_px, fig_height_px):
+            fig, ax = plt.subplots()
+            fig.set_size_inches(fig_width_px / 100.0, fig_height_px / 100.0)
+            fig.patch.set_facecolor("white")
+
+            canvas = FigureCanvas(fig)
+            canvas.setFixedSize(fig_width_px, fig_height_px)
+            canvas.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            return fig, ax, canvas
+
+        # Grafico: Global Model Accuracy (in alto a sinistra)
+        self.fig_f1, self.ax_f1, self.canvas_f1 = make_plot_canvas(360, 220)
+        plots_grid.addWidget(self.canvas_f1, 0, 0)
+
+        # Grafico: Total Round Time (in alto a destra)
+        self.fig_tot, self.ax_tot, self.canvas_tot = make_plot_canvas(360, 220)
+        plots_grid.addWidget(self.canvas_tot, 0, 1)
+
+        # Grafico: Training Time (in basso a sinistra)
+        self.fig_train, self.ax_train, self.canvas_train = make_plot_canvas(360, 220)
+        plots_grid.addWidget(self.canvas_train, 1, 0)
+
+        # Grafico: Communication Time (in basso a destra)
+        self.fig_comm, self.ax_comm, self.canvas_comm = make_plot_canvas(360, 220)
+        plots_grid.addWidget(self.canvas_comm, 1, 1)
+
+        top_row_layout.addWidget(plots_container)
+
+        # ---------- SEZIONE PATTERNS SOTTO ----------
+        self.patterns_panel = QWidget()
+        self.patterns_panel.setStyleSheet(
+            "background-color:#f9f9f9; border:1px solid #ddd; border-radius:6px;"
+        )
+        patterns_layout = QVBoxLayout(self.patterns_panel)
+        patterns_layout.setContentsMargins(8, 8, 8, 8)
+        patterns_layout.setSpacing(6)
+
+        patterns_label = QLabel("Architectral Patterns Activation per Round")
+        patterns_label.setStyleSheet(
+            "font-weight:bold; font-size:13px; color:black; background-color: transparent; border: none;"
+        )
+        patterns_layout.addWidget(patterns_label)
+
+        # griglia dei pattern in orizzontale
         self.pattern_grid = QWidget()
         self.pattern_grid_layout = QGridLayout(self.pattern_grid)
         self.pattern_grid_layout.setContentsMargins(0, 0, 0, 0)
-        self.pattern_grid_layout.setSpacing(4)
-        gsp_layout.addWidget(self.pattern_grid)
-        global_row.addWidget(self.global_side_panel)
-        self.fig_f1, self.ax_f1 = plt.subplots()
-        self.fig_f1.patch.set_facecolor("white")
-        self.canvas_f1 = FigureCanvas(self.fig_f1)
-        global_row.addWidget(self.canvas_f1)
-        self.fig_tot, self.ax_tot = plt.subplots()
-        self.fig_tot.patch.set_facecolor("white")
-        self.canvas_tot = FigureCanvas(self.fig_tot)
-        global_row.addWidget(self.canvas_tot)
-        clients_row = QHBoxLayout()
-        main_layout.addLayout(clients_row)
-        self.client_side_panel = QWidget()
-        self.client_side_panel.setStyleSheet(
-            "background-color:#f9f9f9; border:1px solid #ddd; border-radius:6px;"
-        )
-        self.client_side_panel.setFixedWidth(280)
+        self.pattern_grid_layout.setHorizontalSpacing(8)
+        self.pattern_grid_layout.setVerticalSpacing(4)
+        patterns_layout.addWidget(self.pattern_grid)
 
-        csp_layout = QVBoxLayout(self.client_side_panel)
-        csp_layout.setContentsMargins(8, 8, 8, 8)
-        csp_layout.setSpacing(10)
+        # aggiungi la barra dei pattern sotto tutto
+        main_layout.addWidget(self.patterns_panel)
 
-        csp_label = QLabel("Client Times")
-        csp_label.setStyleSheet(
-            "font-weight:bold; font-size:13px; color:black;"
-        )
-        csp_layout.addWidget(csp_label)
-
-        self.client_stats_area = QPlainTextEdit()
-        self.client_stats_area.setReadOnly(True)
-        self.client_stats_area.setStyleSheet(
-            "background-color: #ffffff; color: black; font-size:12px;"
-        )
-        csp_layout.addWidget(self.client_stats_area)
-
-        clients_row.addWidget(self.client_side_panel)
-
-        # --- grafico training time
-        self.fig_train, self.ax_train = plt.subplots()
-        self.fig_train.patch.set_facecolor("white")
-        self.canvas_train = FigureCanvas(self.fig_train)
-        clients_row.addWidget(self.canvas_train)
-
-        # --- grafico communication time
-        self.fig_comm, self.ax_comm = plt.subplots()
-        self.fig_comm.patch.set_facecolor("white")
-        self.canvas_comm = FigureCanvas(self.fig_comm)
-        clients_row.addWidget(self.canvas_comm)
-
-        # timer aggiornamento
+        # ---------- TIMER ----------
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_data)
         self.timer.start(1000)
-
+    
     # -----------------------------
     # Helper: parse pattern string
     # -----------------------------
+    def _pretty_pattern_name(self, raw_name: str) -> str:
+        # esempio: "client_selector" -> "Client Selector"
+        parts = raw_name.replace("_", " ").split()
+        parts = [p.capitalize() for p in parts]
+        return " ".join(parts)
+    
     def parse_ap_list(self, ap_str: str) -> Dict[str, bool]:
         """
         ap_str es: "{OFF,OFF,ON,OFF,OFF,OFF}"
@@ -1031,39 +1084,66 @@ class DashboardWindow(QWidget):
             active_map[pname] = (status == "ON")
         return active_map
 
-    def update_pattern_grid(self, pattern_matrix_data: List[Dict[str, object]]):
-        lay = self.pattern_grid_layout
-        while lay.count():
-            item = lay.takeAt(0)
+    def update_pattern_grid(self, pattern_matrix_data):
+        # pattern_matrix_data è una lista di dict:
+        # { "round": 1, "client_selector": True/False, ... }
+
+        # Svuota layout precedente
+        while self.pattern_grid_layout.count():
+            item = self.pattern_grid_layout.takeAt(0)
             w = item.widget()
             if w is not None:
                 w.deleteLater()
 
-        hdr_round = QLabel("Federated Learning Round")
-        hdr_round.setStyleSheet("font-weight:bold; font-size:11px; color:black;")
-        lay.addWidget(hdr_round, 0, 0)
+        hdr_round = QLabel("Round")
+        hdr_round.setStyleSheet(
+            "font-weight:bold; font-size:12px; color:black; background-color: transparent; border: none;"
+        )
+        hdr_round.setAlignment(Qt.AlignCenter)
+        self.pattern_grid_layout.addWidget(hdr_round, 0, 0, alignment=Qt.AlignCenter)
+        for col_idx, pname in enumerate(self.pattern_names, start=1):
+            pretty = self._pretty_pattern_name(pname)
+            lbl = QLabel(pretty)
+            lbl.setStyleSheet(
+                "font-weight:bold; font-size:12px; color:black; background-color: transparent; border: none;"
+            )
+            lbl.setAlignment(Qt.AlignCenter)
+            self.pattern_grid_layout.addWidget(lbl, 0, col_idx, alignment=Qt.AlignCenter)
 
-        for j, pname in enumerate(self.pattern_names):
-            lbl = QLabel(pname)
-            lbl.setStyleSheet("font-size:10px; color:#333;")
-            lay.addWidget(lbl, 0, j + 1)
+        # Righe successive: 1 riga per round
+        for row_idx, rowdata in enumerate(pattern_matrix_data, start=1):
+            # Prima colonna: numero round
+            rnd_lbl = QLabel(str(rowdata["round"]))
+            rnd_lbl.setStyleSheet(
+                "font-size:12px; color:black; background-color: transparent; border: none;"
+            )
+            rnd_lbl.setAlignment(Qt.AlignCenter)
+            self.pattern_grid_layout.addWidget(rnd_lbl, row_idx, 0, alignment=Qt.AlignCenter)
 
-        # Righe dei round
-        for i, row in enumerate(pattern_matrix_data):
-            r_lbl = QLabel(str(row["round"]))
-            r_lbl.setStyleSheet("font-weight:bold; font-size:11px; color:black;")
-            lay.addWidget(r_lbl, i + 1, 0)
-
-            for j, pname in enumerate(self.pattern_names):
-                active = bool(row.get(pname, False))
-                cell = QLabel("")
-                cell.setFixedSize(18, 18)
-                bg = "#4caf50" if active else "#f44336"  # verde / rosso
-                cell.setStyleSheet(
-                    f"background-color: {bg}; "
-                    "border:1px solid #222; border-radius:3px;"
+            for col_idx, pname in enumerate(self.pattern_names, start=1):
+                active = rowdata.get(pname, False)
+                color = "#4CAF50" if active else "#D32F2F"  
+                square = QWidget()
+                square.setFixedSize(18, 18)
+                square.setStyleSheet(
+                    f"background-color:{color};"
+                    "border:1px solid #333;"
+                    "border-radius:2px;"
                 )
-                lay.addWidget(cell, i + 1, j + 1)
+
+                # Aggiungo il quadratino centrato nella cella
+                self.pattern_grid_layout.addWidget(
+                    square,
+                    row_idx,
+                    col_idx,
+                    alignment=Qt.AlignCenter
+                )
+
+        # Stretch: colonna 0 piccola, le altre più larghe
+        self.pattern_grid_layout.setColumnStretch(0, 1)
+        for col_idx in range(1, len(self.pattern_names) + 1):
+            self.pattern_grid_layout.setColumnStretch(col_idx, 3)
+
 
     # -----------------------------
     # Helper: ricava AP List dal df
@@ -1106,16 +1186,18 @@ class DashboardWindow(QWidget):
             if m:
                 rnd = int(m.group(1))
                 files_info.append((rnd, f))
+
         if not files_info:
             return
+
+        # ordina per round crescente
         files_info.sort(key=lambda x: x[0])
 
-        # inizializzo clients e colori la prima volta
+        # inizializza lista clienti e colori solo la prima volta
         if not self.clients:
             first_round, first_file = files_info[0]
             df0 = pd.read_csv(first_file)
 
-            # preserva l'ordine di apparizione senza duplicati
             cids_seen = []
             for cid in df0["Client ID"].dropna().tolist():
                 if cid not in cids_seen:
@@ -1125,18 +1207,23 @@ class DashboardWindow(QWidget):
             for cid in self.clients:
                 self.client_colors[cid] = random_pastel()
 
-        global_lines = []
-        client_lines = []
-        pattern_matrix_data = []
+        # dati per grafici
         rounds_list = []
         f1_list = []
         total_times_list = []
 
-        # Calcolo per ogni round
+        # righe per la tabella unica
+        # ogni riga: (round, client_lbl, f1_val, total_round_time, train_time, comm_time)
+        table_rows = []
+
+        # dati pattern per griglia
+        pattern_matrix_data = []
+
+        # estrai metriche da ogni CSV
         for rnd, fpath in files_info:
             df = pd.read_csv(fpath)
 
-            # prendo righe con Train Loss non NaN per estrarre le metriche globali
+            # metriche globali del round
             df_nonan = df.dropna(subset=["Train Loss"])
             if df_nonan.empty:
                 continue
@@ -1149,24 +1236,26 @@ class DashboardWindow(QWidget):
             f1_list.append(f1_val)
             total_times_list.append(total_time_val)
 
-            global_lines.append(
-                f"Round {rnd}: F1={f1_val:.2f}, Total Round Time={total_time_val:.0f}s"
-            )
-
-            # tempi client per questo round
-            client_lines.append(f"Round {rnd}:")
+            # per ciascun client, aggiungo una riga con anche F1 e total_time globali
             for cid in self.clients:
-                row = df[(df["Client ID"] == cid) & (df["FL Round"] == rnd)]
-                if row.empty:
+                row_c = df[(df["Client ID"] == cid) & (df["FL Round"] == rnd)]
+                if row_c.empty:
                     continue
-                row0 = row.iloc[0]
-                ttime = row0.get("Training Time", float("nan"))
-                ctime = row0.get("Communication Time", float("nan"))
-                client_lines.append(
-                    f" - {self._client_label(cid)}: "
-                    f"Training={ttime:.2f}s, Communication={ctime:.2f}s"
+                row0 = row_c.iloc[0]
+
+                train_t = row0.get("Training Time", float("nan"))
+                comm_t = row0.get("Communication Time", float("nan"))
+
+                table_rows.append(
+                    (
+                        rnd,
+                        self._client_label(cid),
+                        f"{f1_val:.2f}",
+                        f"{total_time_val:.0f}",
+                        f"{train_t:.2f}",
+                        f"{comm_t:.2f}",
+                    )
                 )
-            client_lines.append("")  # riga vuota separatrice
 
             # pattern ON/OFF per questo round
             active_map = self._extract_ap_map_for_round(df)
@@ -1175,16 +1264,18 @@ class DashboardWindow(QWidget):
                 pat_row[pname] = active_map.get(pname, False)
             pattern_matrix_data.append(pat_row)
 
-        # Pannello laterale globale
-        self.global_stats_area.setPlainText("\n".join(global_lines))
+        # ===== Aggiorna tabella unica =====
+        self.metrics_table.setRowCount(len(table_rows))
+        for r_idx, rowvals in enumerate(table_rows):
+            for c_idx, cellval in enumerate(rowvals):
+                item = QTableWidgetItem(str(cellval))
+                item.setTextAlignment(Qt.AlignCenter)
+                self.metrics_table.setItem(r_idx, c_idx, item)
 
-        # Pannello laterale client
-        self.client_stats_area.setPlainText("\n".join(client_lines))
-
-        # Aggiorna la griglia pattern
+        # ===== Aggiorna la griglia ON/OFF dei pattern =====
         self.update_pattern_grid(pattern_matrix_data)
 
-        # === Aggiorna i grafici ===
+        # ===== Aggiorna i grafici (come prima) =====
 
         # Grafico F1
         self.ax_f1.clear()
@@ -1218,6 +1309,8 @@ class DashboardWindow(QWidget):
         self.ax_tot.set_xlabel("Federated Learning Round")
         self.ax_tot.set_ylabel("Total Round Time (sec)")
         self.canvas_tot.draw()
+
+        # Grafici Training / Communication per client
         self.ax_train.clear()
         self.ax_comm.clear()
         for cid in self.clients:
@@ -1226,12 +1319,12 @@ class DashboardWindow(QWidget):
             cv = []
             for rnd, fpath in files_info:
                 df = pd.read_csv(fpath)
-                row = df[(df["Client ID"] == cid) & (df["FL Round"] == rnd)]
-                if row.empty:
+                row_c = df[(df["Client ID"] == cid) & (df["FL Round"] == rnd)]
+                if row_c.empty:
                     continue
                 rds.append(rnd)
-                tv.append(row["Training Time"].values[0])
-                cv.append(row["Communication Time"].values[0])
+                tv.append(row_c["Training Time"].values[0])
+                cv.append(row_c["Communication Time"].values[0])
 
             color_for_client = self.client_colors.get(cid, random_pastel())
 
