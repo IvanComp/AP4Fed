@@ -18,6 +18,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt, QProcess, QProcessEnvironment, QTimer, QCoreApplication
 from PyQt5.QtWidgets import (
     QWidget,
@@ -906,10 +907,18 @@ class DashboardWindow(QWidget):
             f'Number of Clients: <b>{number_of_clients}</b> • '
             f'Number of Rounds: <b>{number_of_rounds}</b>'
         )
-        lbl_mod.setStyleSheet(
-            "font-weight: normal; font-size: 16px; color: black;"
-        )
+
+        # setti il font direttamente sull'etichetta
+        big_font = QFont()
+        big_font.setPointSize(16)  # aumenta qui (16, 18, 20...)
+        big_font.setWeight(QFont.Normal)
+
+        lbl_mod.setFont(big_font)
+
+        lbl_mod.setStyleSheet("color: black;")  # colore sì, ma niente font-size qui
+
         lbl_mod.setTextFormat(Qt.RichText)
+
         top_row_layout = QHBoxLayout()
         main_layout.addLayout(top_row_layout)
 
@@ -974,8 +983,13 @@ class DashboardWindow(QWidget):
         header = self.metrics_table.horizontalHeader()
 
         # colonne "piccole"
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # Round
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)  # Client
+        # Round (colonna 0) stretta
+        header.setSectionResizeMode(0, QHeaderView.Fixed)
+        self.metrics_table.setColumnWidth(0, 45)   # puoi anche provare 40 se vuoi più estrema
+
+        # Client (colonna 1) stretta
+        header.setSectionResizeMode(1, QHeaderView.Fixed)
+        self.metrics_table.setColumnWidth(1, 70)   # abbassa tipo 60 se vuoi ancora meno
         header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # F1
 
         # colonne "grandi" che devono respirare
@@ -1083,25 +1097,31 @@ class DashboardWindow(QWidget):
         self.patterns_panel.setStyleSheet(
             "background-color:#f9f9f9; border:1px solid #ddd; border-radius:6px;"
         )
+
         patterns_layout = QVBoxLayout(self.patterns_panel)
         patterns_layout.setContentsMargins(8, 8, 8, 8)
         patterns_layout.setSpacing(6)
 
-        patterns_label = QLabel("Architectral Patterns Activation per Round")
-        patterns_label.setStyleSheet(
-            "font-weight:bold; font-size:13px; color:black; background-color: transparent; border: none;"
+        # Titolo della sezione pattern (senza sfondo bianco dietro)
+        patterns_title = QLabel("Architectural Patterns Activation per Round")
+        patterns_title.setStyleSheet(
+            "font-weight:bold; font-size:13px; color:black; "
+            "background-color: transparent; border:none;"
         )
-        patterns_layout.addWidget(patterns_label)
+        patterns_layout.addWidget(patterns_title)
 
-        # griglia dei pattern in orizzontale
+        # 1. CREA il contenitore della griglia qui
         self.pattern_grid = QWidget()
         self.pattern_grid_layout = QGridLayout(self.pattern_grid)
         self.pattern_grid_layout.setContentsMargins(0, 0, 0, 0)
         self.pattern_grid_layout.setHorizontalSpacing(8)
         self.pattern_grid_layout.setVerticalSpacing(4)
-        patterns_layout.addWidget(self.pattern_grid)
 
-        # aggiungi la barra dei pattern sotto tutto
+        # 2. SOLO DOPO che esiste self.pattern_grid lo aggiungiamo al layout
+        #    e lo allineiamo a sinistra così non si estende a tutta larghezza
+        patterns_layout.addWidget(self.pattern_grid, alignment=Qt.AlignLeft)
+
+        # 3. infine aggiungiamo tutto il pannello patterns al layout principale
         main_layout.addWidget(self.patterns_panel)
 
         # ---------- TIMER ----------
@@ -1150,43 +1170,55 @@ class DashboardWindow(QWidget):
         return active_map
 
     def update_pattern_grid(self, pattern_matrix_data):
-        # pattern_matrix_data è una lista di dict:
-        # { "round": 1, "client_selector": True/False, ... }
-
-        # Svuota layout precedente
         while self.pattern_grid_layout.count():
             item = self.pattern_grid_layout.takeAt(0)
             w = item.widget()
             if w is not None:
                 w.deleteLater()
 
-        hdr_round = QLabel("Round")
-        hdr_round.setStyleSheet(
-            "font-weight:bold; font-size:12px; color:black; background-color: transparent; border: none;"
-        )
-        hdr_round.setAlignment(Qt.AlignCenter)
-        self.pattern_grid_layout.addWidget(hdr_round, 0, 0, alignment=Qt.AlignCenter)
-        for col_idx, pname in enumerate(self.pattern_names, start=1):
-            pretty = self._pretty_pattern_name(pname)
-            lbl = QLabel(pretty)
-            lbl.setStyleSheet(
+        if not pattern_matrix_data:
+            return
+
+        # 2. Estrai lista round ordinata crescente
+        rounds_list = [row["round"] for row in pattern_matrix_data]
+        rounds_list = sorted(list(dict.fromkeys(rounds_list)))  # uniq + ord
+
+        # 3. Creiamo una lookup veloce:
+        # round_lookup[round_num][pattern_name] = bool
+        round_lookup = {}
+        for row in pattern_matrix_data:
+            rnd = row["round"]
+            round_lookup[rnd] = {}
+            for pname in self.pattern_names:
+                round_lookup[rnd][pname] = row.get(pname, False)
+
+        # ============ HEADER RIGA 0 ============
+
+        for col_idx, rnd in enumerate(rounds_list, start=1):
+            rnd_lbl = QLabel(str(rnd))
+            rnd_lbl.setStyleSheet(
                 "font-weight:bold; font-size:12px; color:black; background-color: transparent; border: none;"
             )
-            lbl.setAlignment(Qt.AlignCenter)
-            self.pattern_grid_layout.addWidget(lbl, 0, col_idx, alignment=Qt.AlignCenter)
+            rnd_lbl.setAlignment(Qt.AlignCenter)
+            self.pattern_grid_layout.addWidget(rnd_lbl, 0, col_idx, alignment=Qt.AlignCenter)
 
-        # Righe successive: 1 riga per round
-        for row_idx, rowdata in enumerate(pattern_matrix_data, start=1):
-            # Prima colonna: numero round
-            rnd_lbl = QLabel(str(rowdata["round"]))
-            rnd_lbl.setStyleSheet(
+        # ============ RIGHE SUCCESSIVE: 1 PER PATTERN ============
+
+        for row_idx, pname in enumerate(self.pattern_names, start=1):
+            # prima colonna: nome pattern, formattato bene
+            pretty = self._pretty_pattern_name(pname)
+            pat_lbl = QLabel(pretty)
+            pat_lbl.setStyleSheet(
                 "font-size:12px; color:black; background-color: transparent; border: none;"
             )
-            rnd_lbl.setAlignment(Qt.AlignCenter)
-            self.pattern_grid_layout.addWidget(rnd_lbl, row_idx, 0, alignment=Qt.AlignCenter)
+            pat_lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            self.pattern_grid_layout.addWidget(
+                pat_lbl, row_idx, 0, alignment=Qt.AlignVCenter
+            )
 
-            for col_idx, pname in enumerate(self.pattern_names, start=1):
-                active = rowdata.get(pname, False)
+            for col_idx, rnd in enumerate(rounds_list, start=1):
+                active = round_lookup.get(rnd, {}).get(pname, False)
+
                 color = "#4CAF50" if active else "#D32F2F"  
                 square = QWidget()
                 square.setFixedSize(18, 18)
@@ -1196,7 +1228,6 @@ class DashboardWindow(QWidget):
                     "border-radius:2px;"
                 )
 
-                # Aggiungo il quadratino centrato nella cella
                 self.pattern_grid_layout.addWidget(
                     square,
                     row_idx,
@@ -1204,11 +1235,12 @@ class DashboardWindow(QWidget):
                     alignment=Qt.AlignCenter
                 )
 
-        # Stretch: colonna 0 piccola, le altre più larghe
-        self.pattern_grid_layout.setColumnStretch(0, 1)
-        for col_idx in range(1, len(self.pattern_names) + 1):
-            self.pattern_grid_layout.setColumnStretch(col_idx, 3)
-
+        # 4. Stretch delle colonne: 
+        # - prima colonna (Pattern) più larga per testi lunghi
+        # - ogni colonna round stretta e uguale
+        self.pattern_grid_layout.setColumnStretch(0, 0)
+        for col_idx in range(1, len(rounds_list) + 1):
+            self.pattern_grid_layout.setColumnStretch(col_idx, 0)
 
     # -----------------------------
     # Helper: ricava AP List dal df
