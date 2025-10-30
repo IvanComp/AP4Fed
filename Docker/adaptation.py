@@ -6,13 +6,11 @@ from logging import INFO
 from typing import Dict, List, Tuple
 from flwr.common.logger import log
 
-# Directory e file di configurazione
 current_dir = os.getcwd().replace('/adaptation', '')
 config_dir = os.path.join(current_dir, 'configuration')
 config_file = os.path.join(config_dir, 'config.json')
 adaptation_config_file = os.path.join(config_dir, 'config.json')
 
-# Pattern gestiti dall'adaptation e mostrati nei log
 PATTERNS = [
     "client_selector",
     "message_compressor",
@@ -74,51 +72,29 @@ class AdaptationManager:
     def __init__(self, enabled: bool, default_config: Dict):
         self.name = "AdaptationManager"
 
-        # Salviamo il config iniziale
         self.default_config = default_config
-
-        # Policy richiesta dal config.json
-        # Può essere: "None", "Random", "Voting-Based", "Role-Based", "Debate-Based"
         self.policy = str(default_config.get("adaptation", "None")).strip()
-
-        # Numero totale di round dichiarato nel config.json
         self.total_rounds = int(default_config.get("rounds", 1))
-
-        # Abilitiamo l'adaptation solo se:
-        #   - il server ci ha passato enabled=True
-        #   - la policy non è "None"
         self.enabled = enabled and (self.policy.lower() != "none")
 
         if self.enabled:
             adaptation_config = json.load(open(adaptation_config_file, "r"))
-
-            # Tutti i pattern noti (potrebbero essere più dei nostri 3 base)
             self.patterns = get_patterns(adaptation_config)
-
-            # Criteri statici iniziali (placeholder per le policy intelligenti future)
             pattern_act_criteria = get_activation_criteria(adaptation_config, default_config)
             self.adaptation_criteria: Dict[str, ActivationCriterion] = {
                 c.pattern: c for c in pattern_act_criteria
             }
 
-            # Modello sotto training
             self.model_type = get_model_type(default_config)
-
-            # Cache interna dello stato corrente.
-            # Inizializziamo con i 3 pattern di interesse, poi la popoliamo
-            # con tutti i valori del default tramite update_config(...)
             self.cached_config = {
                 "patterns": {p: {"enabled": False} for p in PATTERNS}
             }
 
-            # Allineiamo cache e file con la config iniziale
             self.update_config(default_config)
             self.update_json(default_config)
 
-            # Ultime metriche viste
             self.cached_aggregated_metrics = None
         else:
-            # Se non è abilitata, prepariamo comunque cache minimale
             self.patterns = PATTERNS[:]
             self.adaptation_criteria = {}
             self.model_type = get_model_type(default_config)
@@ -131,26 +107,15 @@ class AdaptationManager:
             }
             self.cached_aggregated_metrics = None
 
-    # ------------------------
-    # Helpers di logging
-    # ------------------------
-
     def _icon(self, enabled: bool) -> str:
         return "✅" if enabled else "❌"
 
     def _format_state_array(self, cfg_patterns: Dict[str, Dict]) -> str:
-        """
-        Ritorna una stringa tipo:
-        [client_selector=✅, message_compressor=❌, heterogeneous_data_handler=✅]
-        Solo per i 3 pattern che gestiamo.
-        """
         parts = []
         for p in PATTERNS:
             state = cfg_patterns.get(p, {}).get("enabled", False)
             parts.append(f"{p}={self._icon(state)}")
         return "[" + ", ".join(parts) + "]"
-
-    # ------------------------
 
     def describe(self):
         policy_line = f"Adaptation Policy: {self.policy}"
@@ -160,15 +125,8 @@ class AdaptationManager:
         self.cached_aggregated_metrics = new_aggregated_metrics
 
     def update_config(self, new_config: Dict):
-        """
-        Aggiorna la cache interna (self.cached_config) con i valori nuovi.
-        Dopo la prima chiamata questo fa sì che cached_config contenga
-        anche gli eventuali altri pattern caricati da default_config,
-        ma noi continuiamo a usare/stampare solo PATTERNS.
-        """
         for pattern in new_config["patterns"]:
             if pattern in self.cached_config["patterns"]:
-                # aggiorna enabled
                 if "enabled" in self.cached_config["patterns"][pattern]:
                     self.cached_config["patterns"][pattern]["enabled"] = new_config["patterns"][pattern]["enabled"]
                 else:
@@ -177,13 +135,11 @@ class AdaptationManager:
                         "params": new_config["patterns"][pattern].get("params", {}),
                     }
 
-                # aggiorna params
                 if "params" in self.cached_config["patterns"][pattern]:
                     self.cached_config["patterns"][pattern]["params"] = new_config["patterns"][pattern].get(
                         "params", {}
                     )
             else:
-                # pattern non ancora visto in cache
                 self.cached_config["patterns"][pattern] = {
                     "enabled": new_config["patterns"][pattern]["enabled"],
                     "params": new_config["patterns"][pattern].get("params", {}),
@@ -272,11 +228,10 @@ class AdaptationManager:
         return copy.deepcopy(base_config), logs
 
     def _decide_next_config(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
-        """
-        Sceglie quale strategia usare in base alla policy richiesta nel config.
-        """
         pol = self.policy.lower()
 
+        if pol == "random":
+            return self._decide_random(base_config, current_round)
         if pol == "random":
             return self._decide_random(base_config, current_round)
         if pol == "voting-based":
@@ -286,7 +241,6 @@ class AdaptationManager:
         if pol == "debate-based" or pol == "debatebased":
             return self._decide_debate(base_config, current_round)
 
-        # fallback: nessun cambiamento
         fallback_logs = [
             f"[ROUND {current_round}] Policy '{self.policy}' not recognized or inactive (no changes)"
         ]
@@ -297,21 +251,7 @@ class AdaptationManager:
     # ------------------------
 
     def config_next_round(self, metrics_history: Dict, last_round_time: float):
-        """
-        Decide la configurazione del prossimo round.
 
-        Flusso:
-        - Calcola current_round
-        - Se adaptation disabilitata o policy 'None': ritorna config iniziale
-        - Logga lo stato attuale (solo i 3 pattern)
-        - Se siamo all'ultimo round: logga che è l'ultimo e NON decide nuovi ON/OFF
-        - Altrimenti invoca la policy:
-            - Random: attiva/disattiva a caso
-            - Voting-Based / Role-Based / Debate-Based: placeholder, nessun cambio (per ora)
-        - Aggiorna cache e scrive su config.json solo se non è l'ultimo round
-        """
-
-        # Se adaptation è disabilitata o policy == None
         if not self.enabled:
             return self.default_config["patterns"]
 
@@ -321,8 +261,7 @@ class AdaptationManager:
 
         is_last_round = current_round >= self.total_rounds
 
-        # Stato corrente prima della decisione
-        log(INFO, f"[ROUND {current_round}] {self.name}: Configuring next round (policy={self.policy})...")
+        log(INFO, f"[ROUND {current_round}] {self.name}: Configuring next round")
         log(
             INFO,
             f"[ROUND {current_round}] Active Architectural Patterns: "
@@ -330,8 +269,6 @@ class AdaptationManager:
         )
 
         if is_last_round:
-            # Ultimo round: non si decide nulla per un round successivo che non esiste
-            # e NON si aggiorna il file di config.
             log(
                 INFO,
                 f"[ROUND {current_round}] Final round reached "
@@ -340,7 +277,7 @@ class AdaptationManager:
             )
             return self.cached_config["patterns"]
 
-        # Non è l'ultimo round → chiediamo alla policy cosa fare
+
         base_config = copy.deepcopy(self.cached_config)
         next_config, decision_logs = self._decide_next_config(base_config, current_round)
 

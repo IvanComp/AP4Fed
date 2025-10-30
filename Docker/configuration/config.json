@@ -2,7 +2,7 @@
     "simulation_type": "Docker",
     "rounds": 2,
     "clients": 2,
-    "adaptation": "Random",
+    "adaptation": "Single AI-Agent",
     "patterns": {
         "client_registry": {
             "enabled": true,
@@ -29,7 +29,7 @@
             "params": {}
         },
         "heterogeneous_data_handler": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         }
     },
