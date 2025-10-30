@@ -207,12 +207,10 @@ def _sa_call_ollama(model, prompt, base_urls):
 class AdaptationManager:
     def __init__(self, enabled: bool, default_config: Dict):
         self.name = "AdaptationManager"
-        self.debug_prompts = bool(self.full_config.get("debug_prompts", False))
-
         self.default_config = default_config
         self.policy = str(default_config.get("adaptation", "None")).strip()
         self.full_config = copy.deepcopy(default_config)
-        self.sa_model = default_config.get("ollama_model") or "llama3.2:1b"
+        self.sa_model = default_config.get("LLM", "llama3.2:1b")
         self.sa_ollama_urls = [
             default_config.get("ollama_base_url") or "http://host.docker.internal:11434",
             "http://localhost:11434",

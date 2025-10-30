@@ -2,14 +2,14 @@
     "simulation_type": "Docker",
     "rounds": 2,
     "clients": 2,
-    "adaptation": "Single AI-Agent",
+    "adaptation": "None",
     "patterns": {
         "client_registry": {
             "enabled": true,
             "params": {}
         },
         "client_selector": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         },
         "client_cluster": {
@@ -17,7 +17,7 @@
             "params": {}
         },
         "message_compressor": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         },
         "model_co-versioning_registry": {
@@ -39,8 +39,8 @@
             "cpu": 5,
             "ram": 2,
             "dataset": "FashionMNIST",
-            "data_distribution_type": "IID",
-            "data_persistence_type": "Same Data",
+            "data_distribution_type": "non-IID",
+            "data_persistence_type": "New Data",
             "delay_combobox": "No",
             "model": "CNN 16k",
             "epochs": 1
@@ -51,8 +51,8 @@
             "ram": 2,
             "dataset": "FashionMNIST",
             "data_distribution_type": "IID",
-            "data_persistence_type": "Same Data",
-            "delay_combobox": "No",
+            "data_persistence_type": "New Data",
+            "delay_combobox": "Yes",
             "model": "CNN 16k",
             "epochs": 1
         }
