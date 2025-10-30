@@ -9,7 +9,7 @@
             "params": {}
         },
         "client_selector": {
-            "enabled": false,
+            "enabled": true,
             "params": {}
         },
         "client_cluster": {
@@ -17,7 +17,7 @@
             "params": {}
         },
         "message_compressor": {
-            "enabled": false,
+            "enabled": true,
             "params": {}
         },
         "model_co-versioning_registry": {

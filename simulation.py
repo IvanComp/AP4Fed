@@ -157,6 +157,154 @@ def list_models():
 def pick_default(models, desired):
     return desired if desired in models else (models[0] if models else "llama3")
 
+SINGLE_PATTERNS = ["client_selector", "message_compressor", "heterogeneous_data_handler"]
+
+def _latest_round_csv(simulation_type: str):
+    """Ritorna (round_index, csv_path) dell'ultimo CSV trovato, altrimenti (None, None)."""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    subdir = "Docker" if str(simulation_type).strip().lower() == "docker" else "Local"
+    perf_dir = os.path.join(base_dir, subdir, "performance")
+    raw_files = glob.glob(os.path.join(perf_dir, "FLwithAP_performance_metrics_round*.csv"))
+    if not raw_files:
+        return None, None
+    def _rnum(p):
+        m = re.search(r"round(\d+)", os.path.basename(p))
+        return int(m.group(1)) if m else -1
+    lastf = max(raw_files, key=_rnum)
+    return _rnum(lastf), lastf
+
+def _extract_ap_prev(df: pd.DataFrame) -> dict:
+    """Prova a ricavare lo stato AP precedente dall'ultima riga disponibile."""
+    ap_map = {p: False for p in [
+        "client_selector","client_cluster","message_compressor",
+        "model_co-versioning_registry","multi-task_model_trainer","heterogeneous_data_handler"
+    ]}
+    col = None
+    for c in df.columns:
+        if "AP List" in c or c.strip().lower() == "ap list":
+            col = c
+            break
+    if col is None or df.empty:
+        return ap_map
+    val = str(df[col].dropna().iloc[-1]).strip()
+    val = val.strip("{}[]() ")
+    parts = [x.strip().upper() for x in val.split(",") if x.strip()]
+    order = list(ap_map.keys())
+    for i, name in enumerate(order):
+        ap_map[name] = (parts[i] == "ON") if i < len(parts) else False
+    return ap_map
+
+def _aggregate_round(df: pd.DataFrame) -> dict:
+    """Calcola medie semplici delle metriche principali se presenti."""
+    safe = lambda name: df[name].astype(float).mean() if name in df.columns else None
+    return {
+        "mean_f1": safe("F1"),
+        "mean_total_time": safe("Total Time (s)") or safe("TotalTime") or safe("Total Time"),
+        "mean_training_time": safe("Training (s)") or safe("TrainingTime") or safe("Training Time (s)"),
+        "mean_comm_time": safe("Comm (s)") or safe("Communication (s)") or safe("CommTime"),
+    }
+
+def _few_shot_block() -> str:
+    # Esempi piccolissimi e “banali” solo per dare formato al modello
+    return """### FEW-SHOT
+
+Input:
+{"round": 4, "clients": 4, "dataset": "CIFAR10", "mean_f1": 0.56, "mean_total_time": 95.2, "mean_training_time": 28.1, "mean_comm_time": 60.0, "active_patterns_prev": {"client_selector": "OFF", "message_compressor": "OFF", "heterogeneous_data_handler": "OFF"}}
+Output:
+{"client_selector": "OFF", "message_compressor": "ON", "heterogeneous_data_handler": "OFF"}
+
+Input:
+{"round": 7, "clients": 8, "dataset": "FashionMNIST", "mean_f1": 0.61, "mean_total_time": 120.0, "mean_training_time": 85.0, "mean_comm_time": 25.0, "active_patterns_prev": {"client_selector": "OFF", "message_compressor": "ON", "heterogeneous_data_handler": "OFF"}}
+Output:
+{"client_selector": "ON", "message_compressor": "OFF", "heterogeneous_data_handler": "OFF"}
+
+"""
+
+def build_single_agent_prompt_simple(config: dict, round_idx: int | None, agg: dict | None, ap_prev: dict | None) -> str:
+    """Costruisce un prompt semplicissimo per il Single-Agent."""
+    sim_type = config.get("simulation_type", "Local")
+    clients = int(config.get("clients") or config.get("number_of_clients") or 0)
+    dataset = ""
+    model = ""
+    if isinstance(config.get("client_details"), list) and config["client_details"]:
+        first = dict(config["client_details"][0])
+        dataset = first.get("dataset", "")
+        model = first.get("model", "")
+
+    agg = agg or {}
+    ap_prev = ap_prev or {}
+    ap_prev_small = {
+        "client_selector": "ON" if ap_prev.get("client_selector") else "OFF",
+        "message_compressor": "ON" if ap_prev.get("message_compressor") else "OFF",
+        "heterogeneous_data_handler": "ON" if ap_prev.get("heterogeneous_data_handler") else "OFF",
+    }
+
+    system_block = (
+        "You are a runtime advisor for a Federated Learning system. "
+        "Given the latest performance snapshot, pick ON/OFF for exactly three architectural patterns:\n"
+        f"{SINGLE_PATTERNS}.\n"
+        "Rules:\n"
+        "- Output MUST be ONLY one JSON object, no markdown fences, no extra text.\n"
+        '- Keys: "client_selector", "message_compressor", "heterogeneous_data_handler".\n'
+        '- Values: "ON" or "OFF".\n'
+        "Prefer turning ON message_compressor when communication time dominates; "
+        "turn ON client_selector when training time dominates; "
+        "consider heterogeneous_data_handler when F1 is low/unstable.\n\n"
+    )
+
+    few_shot = _few_shot_block()
+
+    current_input = {
+        "round": round_idx,
+        "clients": clients,
+        "dataset": dataset,
+        "model": model,
+        "simulation_type": sim_type,
+        "mean_f1": agg.get("mean_f1"),
+        "mean_total_time": agg.get("mean_total_time"),
+        "mean_training_time": agg.get("mean_training_time"),
+        "mean_comm_time": agg.get("mean_comm_time"),
+        "active_patterns_prev": ap_prev_small
+    }
+
+    return (
+        "### TASK\n"
+        + system_block
+        + few_shot
+        + "### NOW SOLVE THIS CASE\n"
+        + "Input:\n"
+        + json.dumps(current_input, ensure_ascii=False)
+        + "\nOutput:\n"
+    )
+
+def parse_single_agent_output(text: str) -> dict:
+    """Estrae e valida il JSON con i tre pattern. Fallback robusto se il modello 'sborda'."""
+    if not text:
+        return {}
+    # prova ad estrarre il primo JSON plausibile
+    m = re.search(r"\{[\s\S]*\}", text)
+    raw = m.group(0) if m else text.strip()
+    try:
+        obj = json.loads(raw)
+    except Exception:
+        # fallback minimalista: ON se parola presente nel testo
+        t = text.lower()
+        obj = {
+            "client_selector": "on" if "client_selector" in t and "on" in t else "off",
+            "message_compressor": "on" if "message_compressor" in t and "on" in t else "off",
+            "heterogeneous_data_handler": "off",
+        }
+    out = {}
+    for k in ["client_selector", "message_compressor", "heterogeneous_data_handler"]:
+        v = str(obj.get(k, "OFF")).strip().upper()
+        out[k] = "ON" if v == "ON" else "OFF"
+    return out
+
+def pretty_patterns_line(decisions: dict) -> str:
+    icon = lambda v: "✅" if str(v).upper() == "ON" else "❌"
+    ordered = [(k, decisions.get(k, "OFF")) for k in SINGLE_PATTERNS]
+    return " • ".join([f"{k}: {icon(v)}" for k, v in ordered])
+
 def query(model, prompt):
     try:
         r = subprocess.run(
@@ -1629,8 +1777,6 @@ class SimulationPage(QWidget):
         )
         self.stop_button.clicked.connect(self.stop_simulation)
         layout.addWidget(self.stop_button)
-
-        # processi runtime
         self.process = QProcess(self)
         self.process.setProcessChannelMode(QProcess.MergedChannels)
         self.process.readyReadStandardOutput.connect(self.handle_stdout)
@@ -1645,7 +1791,6 @@ class SimulationPage(QWidget):
         self.db.show()
 
     def open_agents(self):
-        # lancia la UI multi-LLM agent (tkinter) in un nuovo processo Python
         base_dir = os.path.dirname(os.path.abspath(__file__))
         python_exe = sys.executable
         sim_type = self.config["simulation_type"]
@@ -1872,6 +2017,56 @@ class SimulationPage(QWidget):
 
         # Chiudi l'app Qt in modo pulito (exit code 0, niente crash report)
         QCoreApplication.quit()
+
+    def run_single_agent_adaptation(self):
+        """Esegue una raccomandazione istantanea con Ollama e stampa l'output in questa finestra."""
+        try:
+            self.output_area.appendPlainText("\n[Single-Agent] Checking Ollama availability…")
+            ensure_ollama()
+            start_server()
+        except SystemExit:
+            self.output_area.appendPlainText("❌ Ollama non disponibile.")
+            return
+        except Exception as e:
+            self.output_area.appendPlainText(f"❌ Errore Ollama: {e}")
+            return
+
+        # Scelta modello
+        models = list_models()
+        desired = (self.config.get("ollama_model") or "llama3")
+        model = pick_default(models, desired)
+
+        # Carica ultimo CSV, calcola aggregati e AP precedenti
+        sim_type = self.config.get("simulation_type", "Local")
+        last_round, last_csv = _latest_round_csv(sim_type)
+        agg, ap_prev = None, None
+        if last_csv:
+            try:
+                df = pd.read_csv(last_csv)
+                agg = _aggregate_round(df)
+                ap_prev = _extract_ap_prev(df)
+                self.output_area.appendPlainText(f"[Single-Agent] Using last metrics: round {last_round} • {os.path.basename(last_csv)}")
+            except Exception as e:
+                self.output_area.appendPlainText(f"[Single-Agent] Warning: non riesco a leggere il CSV: {e}")
+
+        # Costruisci prompt e interroga il modello
+        prompt = build_single_agent_prompt_simple(self.config, last_round, agg, ap_prev)
+        self.output_area.appendPlainText(f"[PROMPT → {model}]\n{prompt}")
+
+        raw = query(model, prompt)
+        self.output_area.appendPlainText(f"[RAW ← {model}]\n{raw}")
+
+        # Parsing e stampa risultato sintetico
+        decisions = parse_single_agent_output(raw)
+        line = pretty_patterns_line(decisions)
+        self.output_area.appendPlainText("[Single-Agent] Decisione:\n" + line)
+
+        # Bonus: stampa anche il JSON “pulito”
+        try:
+            cleaned = json.dumps(decisions, ensure_ascii=False)
+        except Exception:
+            cleaned = str(decisions)
+        self.output_area.appendPlainText("[Single-Agent] JSON:\n" + cleaned)
 
 
     def is_command_available(self, command):
