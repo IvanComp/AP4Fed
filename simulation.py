@@ -34,11 +34,13 @@ from PyQt5.QtWidgets import (
     QAbstractItemView,
     QPlainTextEdit,
     QFrame,
-    QDialog
 )
 
 from typing import Dict
 
+# ------------------------------------------------------------
+# Keep system awake during simulation
+# ------------------------------------------------------------
 def keep_awake():
     if sys.platform == "darwin":
         subprocess.Popen(["caffeinate", "-dimsu"])
@@ -63,6 +65,9 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 if BASE not in sys.path:
     sys.path.insert(0, BASE)
 
+# ------------------------------------------------------------
+# Utilities
+# ------------------------------------------------------------
 def random_pastel():
     return (
         random.random() * 0.5 + 0.5,
@@ -124,61 +129,74 @@ def _aggregate_round(df: pd.DataFrame) -> dict:
         "mean_comm_time": safe("Communication Time") or safe("Comm (s)") or safe("server_comm_time"),
     }
 
-class AIAgentsLogViewer(QDialog):
-    def __init__(self, parent, adaptation_policy: str, log_path: str):
-        super().__init__(parent)
-        self.setWindowTitle("AI-Agents Adaptation")
-        self.setStyleSheet("background-color: black;")
-        self.log_path = log_path
-
-        self.title = QLabel(adaptation_policy)
-        self.title.setTextFormat(Qt.RichText)
-        self.title.setStyleSheet("color: white; font-weight: bold; font-size: 16px; margin-bottom: 6px;")
-
-        self.out = QPlainTextEdit()
-        self.out.setReadOnly(True)
-        self.out.setStyleSheet(
-            "QPlainTextEdit { background-color: black; color: white; font-family: Courier; font-size: 12px; border: 1px solid #333; }"
-        )
-
-        lay = QVBoxLayout()
-        lay.setContentsMargins(10, 10, 10, 10)
-        lay.setSpacing(8)
-        lay.addWidget(self.title)
-        lay.addWidget(self.out)
-        self.setLayout(lay)
-
-        self.timer = QTimer(self)
-        self.timer.setInterval(800)
-        self.timer.timeout.connect(self.refresh)
-        self.refresh()
-        self.timer.start()
-
-    def refresh(self):
-        try:
-            with open(self.log_path, "r", encoding="utf-8") as f:
-                txt = f.read()
-        except Exception:
-            txt = "No logs yet."
-        self.out.setPlainText(txt)
-        self.out.moveCursor(self.out.textCursor().End)
-
 def agent_log_path():
     base = os.path.dirname(os.path.abspath(__file__))
-    p = os.path.join(base, "Docker", "logs", "ai_agent_decisions.txt")
+    p = os.path.join(base,"Docker", "logs", "ai_agent_decisions.txt")
     os.makedirs(os.path.dirname(p), exist_ok=True)
     if not os.path.exists(p):
         open(p, "w", encoding="utf-8").close()
     return p
 
+class AIAgentsLogViewer(QWidget):
+    def __init__(self, adaptation_title: str, log_path: str, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("AI-Agents Adaptation")
+        self.setStyleSheet("background-color:black;")
+        self.resize(820, 520)
+        layout = QVBoxLayout(self)
+        self.title = QLabel(adaptation_title)
+        self.title.setAlignment(Qt.AlignCenter)
+        self.title.setStyleSheet("color:white; font-weight:bold; font-size:16px;")
+        layout.addWidget(self.title)
+
+        self.view = QPlainTextEdit()
+        self.view.setReadOnly(True)
+        self.view.setStyleSheet("background-color:black; color:white; font-family:Courier; font-size:12px;")
+        layout.addWidget(self.view)
+
+        self.log_path = log_path
+        os.makedirs(os.path.dirname(self.log_path), exist_ok=True)
+        if not os.path.exists(self.log_path):
+            with open(self.log_path, "w", encoding="utf-8") as f:
+                f.write("")
+        self._last_size = 0
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self._poll)
+        self.timer.start(400)
+        self._poll()
+
+    def _poll(self):
+        try:
+            size = os.path.getsize(self.log_path)
+        except Exception:
+            return
+        if size < self._last_size:
+            self.view.setPlainText("")
+            self._last_size = 0
+        if size > self._last_size:
+            with open(self.log_path, "r", encoding="utf-8", errors="ignore") as f:
+                f.seek(self._last_size)
+                chunk = f.read()
+            if chunk:
+                self.view.moveCursor(self.view.textCursor().End)
+                self.view.insertPlainText(chunk)
+                self.view.verticalScrollBar().setValue(self.view.verticalScrollBar().maximum())
+            self._last_size = size
+
+# ------------------------------------------------------------
+# Dashboard Window (PyQt)
+# ------------------------------------------------------------
 class DashboardWindow(QWidget):
     def __init__(self, simulation_type):
         super().__init__()
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
         self.simulation_type = simulation_type
+
         self.setWindowTitle("Live Dashboard")
         self.setStyleSheet("background-color: white;")
         self.resize(1200, 800)
+
         self.pattern_names = [
             "client_selector",
             "client_cluster",
@@ -187,22 +205,27 @@ class DashboardWindow(QWidget):
             "multi-task_model_trainer",
             "heterogeneous_data_handler",
         ]
+
         cfg = load_config(self.simulation_type)
         self.client_configs = {int(d["client_id"]): d for d in cfg.get("client_details", [])}
+
+        number_of_rounds = cfg.get("rounds", 0)
+        number_of_clients = cfg.get("clients", 0)
         model_name = ""
         dataset_name = ""
         if cfg.get("client_details"):
-            number_of_rounds = cfg.get("rounds")
-            number_of_clients = cfg.get("clients")
             first = cfg["client_details"][0]
             model_name = first.get("model", "")
             dataset_name = first.get("dataset", "")
+
         self.color_f1 = random_pastel()
         self.color_tot = random_pastel()
         self.client_colors = {}
         self.clients = []
+
         main_layout = QVBoxLayout(self)
         main_layout.setAlignment(Qt.AlignTop)
+
         lbl_mod = QLabel(
             f'Model: <b>{model_name}</b> • '
             f'Dataset: <b>{dataset_name}</b> • '
@@ -215,14 +238,18 @@ class DashboardWindow(QWidget):
         lbl_mod.setFont(big_font)
         lbl_mod.setStyleSheet("color: black;")
         lbl_mod.setTextFormat(Qt.RichText)
+
         top_row_layout = QHBoxLayout()
         main_layout.addLayout(top_row_layout)
+
+        # Left: Metrics table panel
         self.metrics_panel = QWidget()
         self.metrics_panel.setStyleSheet("background-color:#f9f9f9; border:1px solid #ddd; border-radius:6px;")
         self.metrics_panel.setFixedWidth(420)
         metrics_panel_layout = QVBoxLayout(self.metrics_panel)
         metrics_panel_layout.setContentsMargins(8, 8, 8, 8)
         metrics_panel_layout.setSpacing(8)
+
         self.metrics_table = QTableWidget()
         self.metrics_table.setColumnCount(6)
         self.metrics_table.setHorizontalHeaderLabels(["Round", "Client", "F1", "Total Time (s)", "Training (s)", "Comm (s)"])
@@ -246,12 +273,16 @@ class DashboardWindow(QWidget):
         header.setSectionResizeMode(3, QHeaderView.Stretch)
         header.setSectionResizeMode(4, QHeaderView.Stretch)
         header.setSectionResizeMode(5, QHeaderView.Stretch)
+
         metrics_panel_layout.addWidget(self.metrics_table)
         top_row_layout.addWidget(self.metrics_panel)
+
+        # Right: Plots panel
         self.plots_panel = QWidget()
         self.plots_panel_layout = QVBoxLayout(self.plots_panel)
         self.plots_panel_layout.setContentsMargins(0, 0, 0, 0)
         self.plots_panel_layout.setSpacing(8)
+
         self.sim_info_label = QLabel(
             f"Model: <b>{model_name}</b> - "
             f"Dataset: <b>{dataset_name}</b> - "
@@ -266,11 +297,13 @@ class DashboardWindow(QWidget):
         self.sim_info_label.setFont(big_font)
         self.sim_info_label.setStyleSheet("color:black; background-color: transparent; border:none;")
         self.plots_panel_layout.addWidget(self.sim_info_label)
+
         plots_container = QWidget()
         plots_grid = QGridLayout(plots_container)
         plots_grid.setContentsMargins(0, 0, 0, 0)
         plots_grid.setHorizontalSpacing(16)
         plots_grid.setVerticalSpacing(16)
+
         def make_plot_canvas(fig_width_px, fig_height_px):
             fig, ax = plt.subplots()
             fig.set_size_inches(fig_width_px / 100.0, fig_height_px / 100.0)
@@ -279,34 +312,46 @@ class DashboardWindow(QWidget):
             canvas.setFixedSize(fig_width_px, fig_height_px)
             canvas.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
             return fig, ax, canvas
+
         self.fig_f1, self.ax_f1, self.canvas_f1 = make_plot_canvas(360, 220)
         plots_grid.addWidget(self.canvas_f1, 0, 0)
+
         self.fig_tot, self.ax_tot, self.canvas_tot = make_plot_canvas(360, 220)
         plots_grid.addWidget(self.canvas_tot, 0, 1)
+
         self.fig_train, self.ax_train, self.canvas_train = make_plot_canvas(360, 220)
         plots_grid.addWidget(self.canvas_train, 1, 0)
+
         self.fig_comm, self.ax_comm, self.canvas_comm = make_plot_canvas(360, 220)
         plots_grid.addWidget(self.canvas_comm, 1, 1)
+
         self.plots_panel_layout.addWidget(plots_container)
         top_row_layout.addWidget(self.plots_panel)
+
+        # Patterns grid
         self.patterns_panel = QFrame()
         self.patterns_panel.setFrameShape(QFrame.NoFrame)
         self.patterns_panel.setFrameShadow(QFrame.Plain)
         self.patterns_panel.setStyleSheet("background-color:#f9f9f9; border:none; border-radius:6px;")
         self.patterns_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
         patterns_layout = QVBoxLayout(self.patterns_panel)
         patterns_layout.setContentsMargins(8, 8, 8, 8)
         patterns_layout.setSpacing(6)
+
         patterns_title = QLabel("Architectural Patterns Activation per Round")
         patterns_title.setStyleSheet("font-weight:bold; font-size:13px; color:black; background-color: transparent; border:none;")
         patterns_layout.addWidget(patterns_title)
+
         self.pattern_grid = QWidget()
         self.pattern_grid_layout = QGridLayout(self.pattern_grid)
         self.pattern_grid_layout.setContentsMargins(0, 0, 0, 0)
         self.pattern_grid_layout.setHorizontalSpacing(8)
         self.pattern_grid_layout.setVerticalSpacing(4)
         patterns_layout.addWidget(self.pattern_grid, alignment=Qt.AlignLeft)
+
         main_layout.addWidget(self.patterns_panel)
+
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_data)
         self.timer.start(1000)
@@ -391,6 +436,7 @@ class DashboardWindow(QWidget):
         subdir = "Docker" if self.simulation_type == "Docker" else "Local"
         perf_dir = os.path.join(base_dir, subdir, "performance")
         raw_files = glob.glob(os.path.join(perf_dir, "FLwithAP_performance_metrics_round*.csv"))
+
         files_info = []
         for f in raw_files:
             m = re.search(r"round(\d+)", f)
@@ -400,6 +446,7 @@ class DashboardWindow(QWidget):
         if not files_info:
             return
         files_info.sort(key=lambda x: x[0])
+
         if not self.clients:
             first_round, first_file = files_info[0]
             df0 = pd.read_csv(first_file)
@@ -410,11 +457,13 @@ class DashboardWindow(QWidget):
             self.clients = cids_seen
             for cid in self.clients:
                 self.client_colors[cid] = random_pastel()
+
         rounds_list = []
         f1_list = []
         total_times_list = []
         table_rows = []
         pattern_matrix_data = []
+
         for rnd, fpath in files_info:
             df = pd.read_csv(fpath)
             df_nonan = df.dropna(subset=["Train Loss"])
@@ -426,6 +475,7 @@ class DashboardWindow(QWidget):
             rounds_list.append(rnd)
             f1_list.append(f1_val)
             total_times_list.append(total_time_val)
+
             for cid in self.clients:
                 row_c = df[(df["Client ID"] == cid) & (df["FL Round"] == rnd)]
                 if row_c.empty:
@@ -443,17 +493,20 @@ class DashboardWindow(QWidget):
                         f"{comm_t:.2f}",
                     )
                 )
+
             active_map = self._extract_ap_map_for_round(df)
             pat_row = {"round": rnd}
             for pname in self.pattern_names:
                 pat_row[pname] = active_map.get(pname, False)
             pattern_matrix_data.append(pat_row)
+
         self.metrics_table.setRowCount(len(table_rows))
         for r_idx, rowvals in enumerate(table_rows):
             for c_idx, cellval in enumerate(rowvals):
                 item = QTableWidgetItem(str(cellval))
                 item.setTextAlignment(Qt.AlignCenter)
                 self.metrics_table.setItem(r_idx, c_idx, item)
+
         current_row = 0
         total_rows = len(table_rows)
         while current_row < total_rows:
@@ -474,7 +527,10 @@ class DashboardWindow(QWidget):
                     empty_tt.setTextAlignment(Qt.AlignCenter)
                     self.metrics_table.setItem(r, 3, empty_tt)
             current_row += span_len
+
         self.update_pattern_grid(pattern_matrix_data)
+
+        # Plot Global F1
         self.ax_f1.clear()
         sns.lineplot(x=rounds_list, y=f1_list, marker="o", ax=self.ax_f1, color=self.color_f1)
         self.ax_f1.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -482,6 +538,8 @@ class DashboardWindow(QWidget):
         self.ax_f1.set_xlabel("Federated Learning Round")
         self.ax_f1.set_ylabel("F1 Score")
         self.canvas_f1.draw()
+
+        # Plot Total Round Time
         self.ax_tot.clear()
         sns.lineplot(x=rounds_list, y=total_times_list, marker="o", ax=self.ax_tot, color=self.color_tot)
         self.ax_tot.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -489,6 +547,8 @@ class DashboardWindow(QWidget):
         self.ax_tot.set_xlabel("Federated Learning Round")
         self.ax_tot.set_ylabel("Total Round Time (sec)")
         self.canvas_tot.draw()
+
+        # Plot per-client Training and Communication
         self.ax_train.clear()
         self.ax_comm.clear()
         for cid in self.clients:
@@ -506,6 +566,7 @@ class DashboardWindow(QWidget):
             color_for_client = self.client_colors.get(cid, random_pastel())
             sns.lineplot(x=rds, y=tv, marker="o", ax=self.ax_train, label=self._client_label(cid), color=color_for_client)
             sns.lineplot(x=rds, y=cv, marker="o", ax=self.ax_comm, label=self._client_label(cid), color=color_for_client)
+
         self.ax_train.xaxis.set_major_locator(MaxNLocator(integer=True))
         self.ax_comm.xaxis.set_major_locator(MaxNLocator(integer=True))
         for ax, title in [(self.ax_train, "Training Time"), (self.ax_comm, "Communication Time")]:
@@ -513,19 +574,26 @@ class DashboardWindow(QWidget):
             ax.set_xlabel("Round")
             ax.set_ylabel("Training Time (sec)" if title == "Training Time" else "Communication Time (sec)")
             ax.legend()
+
         self.canvas_train.draw()
         self.canvas_comm.draw()
 
+# ------------------------------------------------------------
+# Simulation Page (PyQt)
+# ------------------------------------------------------------
 class SimulationPage(QWidget):
     def __init__(self, config, num_supernodes=None):
         super().__init__()
         self.config = config
+
         self.setWindowTitle("Simulation Output")
         self.resize(800, 600)
         self.setStyleSheet("background-color: white;")
+
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignTop)
         self.setLayout(layout)
+
         self.output_area = QPlainTextEdit()
         self.output_area.setReadOnly(True)
         self.output_area.setStyleSheet(
@@ -539,9 +607,11 @@ class SimulationPage(QWidget):
             """
         )
         layout.addWidget(self.output_area)
+
         buttons_row = QHBoxLayout()
         buttons_row.setSpacing(20)
         buttons_row.setContentsMargins(0, 0, 0, 0)
+
         self.dashboard_button = QPushButton("📈 Real-Time Performance Analysis")
         self.dashboard_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.dashboard_button.setCursor(Qt.PointingHandCursor)
@@ -559,6 +629,7 @@ class SimulationPage(QWidget):
             """
         )
         self.dashboard_button.clicked.connect(self.open_dashboard)
+
         self.XAI_button = QPushButton("🤖 AI-Agents Reasoning")
         self.XAI_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.XAI_button.setCursor(Qt.PointingHandCursor)
@@ -576,8 +647,10 @@ class SimulationPage(QWidget):
             """
         )
         self.XAI_button.clicked.connect(self.open_agents_viewer)
-        adaptation_mode = self.config.get("adaptation", "None")
-        if str(adaptation_mode).strip().lower() == "none":
+
+        # Enable/disable the Agents button based on policy
+        adaptation_mode = str(self.config.get("adaptation", "None")).strip().lower()
+        if adaptation_mode in {"none", "random"}:
             self.XAI_button.setEnabled(False)
             self.XAI_button.setStyleSheet(
                 """
@@ -590,9 +663,11 @@ class SimulationPage(QWidget):
                 }
                 """
             )
+
         buttons_row.addWidget(self.dashboard_button, 1)
         buttons_row.addWidget(self.XAI_button, 1)
         layout.addLayout(buttons_row)
+
         self.stop_button = QPushButton("Stop Simulation")
         self.stop_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.stop_button.setCursor(Qt.PointingHandCursor)
@@ -611,11 +686,13 @@ class SimulationPage(QWidget):
         )
         self.stop_button.clicked.connect(self.stop_simulation)
         layout.addWidget(self.stop_button)
+
         self.process = QProcess(self)
         self.process.setProcessChannelMode(QProcess.MergedChannels)
         self.process.readyReadStandardOutput.connect(self.handle_stdout)
         self.process.readyReadStandardError.connect(self.handle_stdout)
         self.process.finished.connect(self.process_finished)
+
         self.agent_viewer = None
         self.start_simulation(num_supernodes)
 
@@ -624,74 +701,94 @@ class SimulationPage(QWidget):
         self.db.show()
 
     def open_agents_viewer(self):
-        policy = str(self.config.get("adaptation", "AI-Agents")).strip()
-        dlg = AIAgentsLogViewer(self, policy, agent_log_path())
-        dlg.resize(900, 600)
-        dlg.show()
-        self.agent_viewer = dlg
-
+        policy_title = str(self.config.get("adaptation", "AI-Agents Adaptation")).strip()
+        log_file = agent_log_path()
+        if self.agent_viewer is None:
+            self.agent_viewer = AIAgentsLogViewer(policy_title, log_file)
+        else:
+            self.agent_viewer.title.setText(policy_title)
+        self.agent_viewer.show()
+        self.agent_viewer.raise_()
+        self.agent_viewer.activateWindow()
 
     def start_simulation(self, num_supernodes):
         base_dir = os.path.dirname(os.path.abspath(__file__))
         sim_type = self.config["simulation_type"]
         rounds = self.config["rounds"]
+
         if sim_type == "Docker":
             work_dir = os.path.join(base_dir, "Docker")
             dc_in = os.path.join(work_dir, "docker-compose.yml")
             dc_out = os.path.join(work_dir, "docker-compose.dynamic.yml")
+
             self.output_area.appendPlainText("Launching Docker Compose...")
+
             with open(dc_in, "r") as f:
                 compose = yaml.safe_load(f)
+
             server_svc = compose["services"].get("server")
             client_tpl = compose["services"].get("client")
             if not server_svc or not client_tpl:
                 self.output_area.appendPlainText("Error: Missing server or client service in docker-compose.yml")
                 return
+
             new_svcs = {"server": server_svc}
             for detail in self.config["client_details"]:
                 cid = detail["client_id"]
                 cpu = detail["cpu"]
                 ram = detail["ram"]
+
                 svc = copy.deepcopy(client_tpl)
                 svc.pop("image", None)
                 svc.pop("deploy", None)
+
                 svc["container_name"] = f"Client{cid}"
                 svc["cpus"] = cpu
                 svc["mem_limit"] = f"{ram}g"
+
                 env = svc.setdefault("environment", {})
                 env["NUM_ROUNDS"] = str(rounds)
                 env["NUM_CPUS"] = str(cpu)
                 env["NUM_RAM"] = str(ram)
                 env["CLIENT_ID"] = str(cid)
+
                 new_svcs[f"client{cid}"] = svc
+
             compose["services"] = new_svcs
             with open(dc_out, "w") as f:
                 yaml.safe_dump(compose, f)
+
             cmd = "/opt/homebrew/bin/docker"
             args = ["compose", "-f", dc_out, "up"]
+
             self.process = QProcess(self)
             self.process.setProcessChannelMode(QProcess.MergedChannels)
             self.process.readyReadStandardOutput.connect(self.handle_stdout)
             self.process.readyReadStandardError.connect(self.handle_stdout)
             self.process.setWorkingDirectory(work_dir)
+
             env = QProcessEnvironment.systemEnvironment()
             env.insert("COMPOSE_BAKE", "true")
             self.process.setProcessEnvironment(env)
+
             self.process.start(cmd, args)
             if not self.process.waitForStarted():
                 self.output_area.appendPlainText("Error: Docker Compose failed to start")
                 self.output_area.appendPlainText(self.process.errorString())
                 return
+
         else:
             work_dir = os.path.join(base_dir, "Local")
             cmd = "flower-simulation"
             args = ["--server-app", "server:app", "--client-app", "client:app", "--num-supernodes", str(num_supernodes)]
+
             self.process = QProcess(self)
             self.process.setProcessChannelMode(QProcess.MergedChannels)
             self.process.readyReadStandardOutput.connect(self.handle_stdout)
             self.process.readyReadStandardError.connect(self.handle_stdout)
             self.process.setWorkingDirectory(work_dir)
             self.process.start(cmd, args)
+
             if not self.process.waitForStarted():
                 self.output_area.appendPlainText("Local simulation failed to start")
 
@@ -699,17 +796,21 @@ class SimulationPage(QWidget):
         sender = self.sender()
         if sender is None:
             return
+
         data = sender.readAllStandardOutput()
         if not data:
             data = sender.readAllStandardError()
+
         try:
             encoding = locale.getpreferredencoding(False)
             stdout = bytes(data).decode(encoding)
         except UnicodeDecodeError:
             stdout = bytes(data).decode("utf-8", errors="replace")
+
         for line in stdout.splitlines():
             cleaned = self.remove_ansi_sequences(line)
             stripped = cleaned.lstrip()
+
             if not stripped:
                 continue
             if stripped.startswith("#"):
@@ -722,6 +823,7 @@ class SimulationPage(QWidget):
                 continue
             if "flower-super" in stripped:
                 continue
+
             lower = stripped.lower()
             if any(
                 key in lower
@@ -736,16 +838,22 @@ class SimulationPage(QWidget):
                 ]
             ):
                 continue
+
             if re.match(r"^[^|]+\|\s*$", cleaned):
                 continue
+
             if "client" in lower:
                 html = f"<span style='color:#4caf50;'>{cleaned}</span>"
             elif "server" in lower:
                 html = f"<span style='color:#2196f3;'>{cleaned}</span>"
             else:
                 html = f"<span style='color:white;'>{cleaned}</span>"
+
             self.output_area.appendHtml(html)
-        self.output_area.verticalScrollBar().setValue(self.output_area.verticalScrollBar().maximum())
+
+        self.output_area.verticalScrollBar().setValue(
+            self.output_area.verticalScrollBar().maximum()
+        )
 
     def remove_ansi_sequences(self, text):
         ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
@@ -753,8 +861,6 @@ class SimulationPage(QWidget):
 
     def process_finished(self):
         self.output_area.appendPlainText("Simulation finished.")
-        if hasattr(self, "title_label") and self.title_label:
-            self.title_label.setText("Simulation Results")
         self.stop_button.setText("Close")
         try:
             self.stop_button.clicked.disconnect()
@@ -768,8 +874,6 @@ class SimulationPage(QWidget):
             self.process.terminate()
             self.process.waitForFinished()
             self.output_area.appendPlainText("Simulation terminated by the user.")
-        if hasattr(self, "title_label") and self.title_label:
-            self.title_label.setText("Simulation Terminated")
         self.stop_button.setText("Close")
         try:
             self.stop_button.clicked.disconnect()

@@ -166,7 +166,6 @@ class HomePage(QWidget):
                 if self.validate_configuration(loaded_config):
                     global user_choices
                     user_choices = [loaded_config]
-
                     self.recap_simulation_page = RecapSimulationPage(user_choices, home_page_callback=self.show)
                     self.recap_simulation_page.show()
 

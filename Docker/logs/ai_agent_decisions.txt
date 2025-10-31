@@ -1,5 +1,2 @@
-== ROUND 1 ==
-
-[Single-Agent] Decision (gemma3:270m): CS: ❌→❌ • MC: ❌→❌ • HDH: ❌→❌
-[Single-Agent] Rationale (gemma3:270m): N/A
-
+[Adaptation] PolicyTime: 1.29s (policy=Single AI-Agent (Zero-Shot))
+[Adaptation] Overhead: 1.29s
