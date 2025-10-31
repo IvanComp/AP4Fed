@@ -1,6 +1,6 @@
 {
     "simulation_type": "Docker",
-    "rounds": 5,
+    "rounds": 2,
     "clients": 2,
     "adaptation": "Single AI-Agent (Zero-Shot)",
     "LLM": "deepseek-r1:1.5b",
@@ -10,7 +10,7 @@
             "params": {}
         },
         "client_selector": {
-            "enabled": false,
+            "enabled": true,
             "params": {}
         },
         "client_cluster": {
@@ -18,7 +18,7 @@
             "params": {}
         },
         "message_compressor": {
-            "enabled": false,
+            "enabled": true,
             "params": {}
         },
         "model_co-versioning_registry": {
@@ -30,7 +30,7 @@
             "params": {}
         },
         "heterogeneous_data_handler": {
-            "enabled": false,
+            "enabled": true,
             "params": {}
         }
     },

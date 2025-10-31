@@ -481,7 +481,7 @@ class PreSimulationPage(QWidget):
 
         self.llm_label = QLabel("LLM")
         self.llm_combo = QComboBox()
-        self.llm_combo.addItems(["gemma3:270m","llama3.2:1b","deepseek-r1:1.5b"])
+        self.llm_combo.addItems(["gemma3:270m","llama3.2:1b","deepseek-r1:1.5b","gpt-oss:latest"])
         self.llm_label.hide()
         self.llm_combo.hide()
 
