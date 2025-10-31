@@ -21,17 +21,14 @@ PATTERNS = [
     "heterogeneous_data_handler",
 ]
 
-LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                        "logs", "ai_agent_decisions.txt")
+AGENT_LOG_FILE = os.environ.get("AGENT_LOG_FILE", os.path.join(os.getcwd(), "logs", "ai_agent_decisions.txt"))
 
 def _append_agent_log(lines):
-    try:
-        os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
-        with open(LOG_PATH, "a", encoding="utf-8") as f:
-            for line in lines:
-                f.write(line.rstrip("\n") + "\n")
-    except Exception:
-        pass
+    p = AGENT_LOG_FILE
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p, "a", encoding="utf-8") as f:
+        for line in lines:
+            f.write(line.rstrip("\n") + "\n")
 
 class ActivationCriterion:
     def __init__(self, pattern: str, default_enabled: bool, default_params: Dict):
@@ -387,7 +384,7 @@ class AdaptationManager:
         new_hdh = "✅" if decisions.get("heterogeneous_data_handler") == "ON" else "❌"
         delta = " • ".join([f"CS: {prev_cs}→{new_cs}", f"MC: {prev_mc}→{new_mc}", f"HDH: {prev_hdh}→{new_hdh}"])
         logs.append(f"[Single-Agent] Decision ({self.sa_model}): {delta}")
-        logs.append(f"[Single-Agent] Rationale ({self.sa_model}): {rationale if rationale else 'N/A'}")
+        logs.append(f"[Single-Agent] Rationale ({self.sa_model}): {rationale if rationale else 'This model does not support rationale generation.'}")
         new_config = copy.deepcopy(base_config)
         for p in PATTERNS:
             if p in new_config.get("patterns", {}):
@@ -410,38 +407,41 @@ class AdaptationManager:
         return copy.deepcopy(base_config), fallback_logs
 
     def config_next_round(self, metrics_history: Dict, last_round_time: float):
+        
+        t_agents_start = time.perf_counter()
         if not self.enabled:
             return self.default_config["patterns"]
-
         current_round = self._infer_current_round(metrics_history)
         if current_round <= 0:
             current_round = 1
         is_last_round = current_round >= self.total_rounds
-
         if is_last_round:
             log(INFO, f"[ROUND {current_round}] Final round reached ({current_round}/{self.total_rounds}). No adaptation for next round.")
             return self.cached_config["patterns"]
 
         base_config = copy.deepcopy(self.cached_config)
 
-        t_all_start = time.perf_counter()
+
         next_config, decision_logs = self._decide_next_config(base_config, current_round)
+        t_agents_finish = time.perf_counter()
+        t_agent =  t_agents_finish - t_agents_start
 
         for line in decision_logs:
             log(INFO, line)
 
+        _append_agent_log([
+            f"\n== ROUND {current_round} ==",
+            *decision_logs,
+            f"[{self.policy}] PolicyTime: {t_agent:.2f}s",
+            ""
+        ])
+
         self.update_metrics(metrics_history)
         self.update_config(next_config)
         self.update_json(next_config)
-
-        t_all = time.perf_counter() - t_all_start
-        log(INFO, f"[Adaptation] Overhead: {t_all:.2f}s")
-
-        _append_agent_log([
-            f"[Adaptation] Overhead: {t_all:.2f}s",
-        ])
-
         return next_config["patterns"]
+
+
 
 
 

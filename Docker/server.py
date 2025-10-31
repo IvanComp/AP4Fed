@@ -42,7 +42,7 @@ from pytorch_grad_cam.utils.image import show_cam_on_image, preprocess_image
 from adaptation import AdaptationManager
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-folders_to_delete = ["performance", "model_weights","logs"]
+folders_to_delete = ["performance", "model_weights", "logs"]
 
 for folder in folders_to_delete:
     folder_path = os.path.join(current_dir, folder)

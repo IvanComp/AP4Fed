@@ -38,9 +38,6 @@ from PyQt5.QtWidgets import (
 
 from typing import Dict
 
-# ------------------------------------------------------------
-# Keep system awake during simulation
-# ------------------------------------------------------------
 def keep_awake():
     if sys.platform == "darwin":
         subprocess.Popen(["caffeinate", "-dimsu"])
@@ -65,9 +62,6 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 if BASE not in sys.path:
     sys.path.insert(0, BASE)
 
-# ------------------------------------------------------------
-# Utilities
-# ------------------------------------------------------------
 def random_pastel():
     return (
         random.random() * 0.5 + 0.5,
@@ -88,82 +82,41 @@ def load_adaptation(simulation_type):
     except Exception:
         return "None"
 
-def _latest_round_csv(simulation_type: str):
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    subdir = "Docker" if str(simulation_type).strip().lower() == "docker" else "Local"
-    perf_dir = os.path.join(base_dir, subdir, "performance")
-    raw_files = glob.glob(os.path.join(perf_dir, "FLwithAP_performance_metrics_round*.csv"))
-    if not raw_files:
-        return None, None
-    def _rnum(p):
-        m = re.search(r"round(\d+)", os.path.basename(p))
-        return int(m.group(1)) if m else -1
-    lastf = max(raw_files, key=_rnum)
-    return _rnum(lastf), lastf
-
-def _extract_ap_prev(df: pd.DataFrame) -> dict:
-    ap_map = {p: False for p in [
-        "client_selector","client_cluster","message_compressor",
-        "model_co-versioning_registry","multi-task_model_trainer","heterogeneous_data_handler"
-    ]}
-    col = None
-    for c in df.columns:
-        if "AP List" in c or (isinstance(c, str) and c.strip().lower() == "ap list"):
-            col = c
-            break
-    if col is None or df.empty:
-        return ap_map
-    val = str(df[col].dropna().iloc[-1]).strip().strip("{}[]() ")
-    parts = [x.strip().upper() for x in val.split(",") if x.strip()]
-    order = list(ap_map.keys())
-    for i, name in enumerate(order):
-        ap_map[name] = (parts[i] == "ON") if i < len(parts) else False
-    return ap_map
-
-def _aggregate_round(df: pd.DataFrame) -> dict:
-    safe = lambda name: df[name].astype(float).mean() if name in df.columns else None
-    return {
-        "mean_f1": safe("Val F1") or safe("F1"),
-        "mean_total_time": safe("Total Time of FL Round") or safe("Total Time (s)") or safe("TotalTime"),
-        "mean_training_time": safe("Training Time") or safe("Training (s)") or safe("Training Time (s)"),
-        "mean_comm_time": safe("Communication Time") or safe("Comm (s)") or safe("server_comm_time"),
-    }
-
 def agent_log_path():
     base = os.path.dirname(os.path.abspath(__file__))
-    p = os.path.join(base,"Docker", "logs", "ai_agent_decisions.txt")
-    os.makedirs(os.path.dirname(p), exist_ok=True)
-    if not os.path.exists(p):
-        open(p, "w", encoding="utf-8").close()
-    return p
+    return os.path.join(base, "Docker", "logs", "ai_agent_decisions.txt")
 
 class AIAgentsLogViewer(QWidget):
     def __init__(self, adaptation_title: str, log_path: str, parent=None):
         super().__init__(parent)
         self.setWindowTitle("AI-Agents Adaptation")
         self.setStyleSheet("background-color:black;")
-        self.resize(820, 520)
-        layout = QVBoxLayout(self)
+        FIXED_W = 580
+        self.setFixedWidth(FIXED_W)
+        self.setMinimumHeight(650)
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+
+        v = QVBoxLayout(self)
+
         self.title = QLabel(adaptation_title)
         self.title.setAlignment(Qt.AlignCenter)
         self.title.setStyleSheet("color:white; font-weight:bold; font-size:16px;")
-        layout.addWidget(self.title)
+        v.addWidget(self.title)
 
         self.view = QPlainTextEdit()
         self.view.setReadOnly(True)
         self.view.setStyleSheet("background-color:black; color:white; font-family:Courier; font-size:12px;")
-        layout.addWidget(self.view)
+        v.addWidget(self.view)
 
         self.log_path = log_path
         os.makedirs(os.path.dirname(self.log_path), exist_ok=True)
         if not os.path.exists(self.log_path):
-            with open(self.log_path, "w", encoding="utf-8") as f:
-                f.write("")
+            open(self.log_path, "w", encoding="utf-8").close()
         self._last_size = 0
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._poll)
-        self.timer.start(400)
+        self.timer.start(350)
         self._poll()
 
     def _poll(self):
@@ -178,10 +131,19 @@ class AIAgentsLogViewer(QWidget):
             with open(self.log_path, "r", encoding="utf-8", errors="ignore") as f:
                 f.seek(self._last_size)
                 chunk = f.read()
+
             if chunk:
+                chunk = re.sub(r'\[Single-Agent\]\s*Decision\s*\([^)]+\):', '[Final Decision] ', chunk)
+                chunk = re.sub(r'\[Single-Agent\]\s*Decision\s*:', '[Final Decision] ', chunk)
+                chunk = re.sub(r'\[Single-Agent\]\s*Rationale\s*\([^)]+\):', '[Rationale] ', chunk)
+                chunk = re.sub(r'\[Single-Agent\]\s*Rationale\s*:', '[Rationale] ', chunk)
+                chunk = re.sub(r'\[\s*Single AI-Agent[^\]]*\]\s*PolicyTime\s*:', '[Agent(s) Time Overhead] ', chunk)
+                chunk = re.sub(r'\n\[Rationale\]', r'\n\n[Rationale]', chunk)
+                chunk = re.sub(r'\n\[Agent\(s\) Time Overhead\]', r'\n\n[Agent(s) Time Overhead]', chunk)
                 self.view.moveCursor(self.view.textCursor().End)
                 self.view.insertPlainText(chunk)
                 self.view.verticalScrollBar().setValue(self.view.verticalScrollBar().maximum())
+
             self._last_size = size
 
 # ------------------------------------------------------------
@@ -241,8 +203,6 @@ class DashboardWindow(QWidget):
 
         top_row_layout = QHBoxLayout()
         main_layout.addLayout(top_row_layout)
-
-        # Left: Metrics table panel
         self.metrics_panel = QWidget()
         self.metrics_panel.setStyleSheet("background-color:#f9f9f9; border:1px solid #ddd; border-radius:6px;")
         self.metrics_panel.setFixedWidth(420)
@@ -647,10 +607,9 @@ class SimulationPage(QWidget):
             """
         )
         self.XAI_button.clicked.connect(self.open_agents_viewer)
-
-        # Enable/disable the Agents button based on policy
-        adaptation_mode = str(self.config.get("adaptation", "None")).strip().lower()
-        if adaptation_mode in {"none", "random"}:
+        adaptation_mode = self.config.get("adaptation", "None")
+        mode_l = str(adaptation_mode).strip().lower()
+        if mode_l in ("none", "random"):
             self.XAI_button.setEnabled(False)
             self.XAI_button.setStyleSheet(
                 """
@@ -663,7 +622,6 @@ class SimulationPage(QWidget):
                 }
                 """
             )
-
         buttons_row.addWidget(self.dashboard_button, 1)
         buttons_row.addWidget(self.XAI_button, 1)
         layout.addLayout(buttons_row)
@@ -702,6 +660,9 @@ class SimulationPage(QWidget):
 
     def open_agents_viewer(self):
         policy_title = str(self.config.get("adaptation", "AI-Agents Adaptation")).strip()
+        model_name = self.config.get("LLM") or self.config.get("ollama_model") or ""
+        if model_name:
+            policy_title = f"{policy_title} • LLM: {model_name}"
         log_file = agent_log_path()
         if self.agent_viewer is None:
             self.agent_viewer = AIAgentsLogViewer(policy_title, log_file)
