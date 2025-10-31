@@ -3,7 +3,7 @@
     "rounds": 2,
     "clients": 2,
     "adaptation": "Single AI-Agent (Zero-Shot)",
-    "LLM": "deepseek-r1:1.5b",
+    "LLM": "llama3.2:1b",
     "patterns": {
         "client_registry": {
             "enabled": true,
@@ -18,7 +18,7 @@
             "params": {}
         },
         "message_compressor": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         },
         "model_co-versioning_registry": {
@@ -30,7 +30,7 @@
             "params": {}
         },
         "heterogeneous_data_handler": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         }
     },

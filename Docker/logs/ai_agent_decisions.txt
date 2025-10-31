@@ -1,4 +1,6 @@
 
 == ROUND 1 ==
-[Single AI-Agent (Zero-Shot)] PolicyTime: 2.20s
+[Single-Agent] Decision (llama3.2:1b): CS: ❌→✅ • MC: ❌→❌ • HDH: ❌→❌
+[Single-Agent] Rationale (llama3.2:1b): Previous AP was insufficient and contradictory, maintaining previous choices.
+[Single AI-Agent (Zero-Shot)] PolicyTime: 2.18s
 

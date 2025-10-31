@@ -104,89 +104,112 @@ def _sa_extract_ap_prev(df):
                 ap_prev[name] = (parts[i] == "ON")
     return ap_prev
 
-def _sa_few_shot_block():
-    return """### FEW-SHOT
-
-Input:
-{"round": 4, "clients": 4, "dataset": "CIFAR10", "mean_f1": 0.56, "mean_total_time": 95.2, "mean_training_time": 28.1, "mean_comm_time": 60.0, "active_patterns_prev": {"client_selector": "OFF", "message_compressor": "OFF", "heterogeneous_data_handler": "OFF"}}
-Output:
-{"client_selector": "OFF", "message_compressor": "ON", "heterogeneous_data_handler": "OFF", "rationale": "Communication dominates, enable compression. Others OFF."}
-
-Input:
-{"round": 7, "clients": 8, "dataset": "FashionMNIST", "mean_f1": 0.61, "mean_total_time": 120.0, "mean_training_time": 85.0, "mean_comm_time": 25.0, "active_patterns_prev": {"client_selector": "OFF", "message_compressor": "ON", "heterogeneous_data_handler": "OFF"}}
-Output:
-{"client_selector": "ON", "message_compressor": "OFF", "heterogeneous_data_handler": "OFF", "rationale": "Training dominates the round time, enable client selection and disable compression."}
-
-"""
-
 def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
-    dataset, model = "", ""
+    def _fmt(x, nd=3):
+        try:
+            return f"{float(x):.{nd}f}"
+        except Exception:
+            return "?"
+
     try:
-        first = dict(config.get("client_details", [{}])[0] or {})
-        dataset = first.get("dataset", "")
-        model = first.get("model", "")
+        first = dict((config.get("client_details") or [{}])[0] or {})
     except Exception:
-        pass
+        first = {}
+    dataset = first.get("dataset", "") or ""
+    model = first.get("model", "") or ""
+    clients = int(config.get("clients", 0) or 0)
+
+    mean_f1   = agg.get("mean_f1")
+    mean_tt   = agg.get("mean_total_time")
+    mean_tr   = agg.get("mean_training_time")
+    mean_comm = agg.get("mean_comm_time")
+    comm_share = (float(mean_comm) / max(1e-9, float(mean_tt))) if (mean_comm is not None and mean_tt is not None) else None
+    comm_share_txt = "?" if comm_share is None else _fmt(comm_share, 2)
+
     ap_prev_small = {
         "client_selector": "ON" if ap_prev.get("client_selector") else "OFF",
         "message_compressor": "ON" if ap_prev.get("message_compressor") else "OFF",
         "heterogeneous_data_handler": "ON" if ap_prev.get("heterogeneous_data_handler") else "OFF",
     }
-    rules = (
-        "You are a runtime advisor for a Federated Learning system. "
-        "Return ONE JSON object with exactly four keys: "
-        "\"client_selector\",\"message_compressor\",\"heterogeneous_data_handler\" (each \"ON\" or \"OFF\"), and \"rationale\" (one short English sentence). "
-        "Output JSON only, no extra text. "
-        "Guidelines: if communication time dominates versus total, prefer message_compressor=ON; "
-        "if training time dominates, prefer client_selector=ON; "
-        "if F1 is low or unstable, consider heterogeneous_data_handler=ON.\n\n"
+
+    instructions = (
+        "Architectural Pattern Decision Record\n\n"
+        "<INSTRUCTIONS>\n"
+        "Role: You are an expert software architect advising a Federated Learning (FL) system.\n"
+        "Task: Given the ## Context, produce ## Decision only.\n"
+        "Output: return exactly one JSON object with the following keys and values:\n"
+        '- "client_selector": "ON" or "OFF"\n'
+        '- "message_compressor": "ON" or "OFF"\n'
+        '- "heterogeneous_data_handler": "ON" or "OFF"\n'
+        '- "rationale": a short string (<= 60 words)\n\n'
+        "Rules:\n"
+        "- Output only the JSON object. Do not add prose before or after.\n"
+        "- Prefer stability when validation F1 is improving or stable.\n"
+        '- If communication time is a large share of total time (> 0.35), consider "message_compressor":"ON".\n'
+        '- If training time dominates or clients look unstable, consider "client_selector":"ON".\n'
+        '- If data appears heterogeneous (non-IID) or unstable, consider "heterogeneous_data_handler":"ON".\n'
+        '- If evidence is insufficient or contradictory, keep previous choices and explain briefly in "rationale".\n'
+        "</INSTRUCTIONS>\n\n"
     )
-    current_input = {
-        "round": round_idx,
-        "clients": int(config.get("clients", 0)),
-        "dataset": dataset,
-        "model": model,
-        "mean_f1": (agg or {}).get("mean_f1"),
-        "mean_total_time": (agg or {}).get("mean_total_time"),
-        "mean_training_time": (agg or {}).get("mean_training_time"),
-        "mean_comm_time": (agg or {}).get("mean_comm_time"),
-        "active_patterns_prev": ap_prev_small,
-    }
-    core = "### TASK\n" + rules + "### NOW SOLVE THIS CASE\nInput:\n" + json.dumps(current_input, ensure_ascii=False) + "\nOutput:\n"
-    if mode == "few":
-        return "### TASK\n" + rules + _sa_few_shot_block() + "### NOW SOLVE THIS CASE\nInput:\n" + json.dumps(current_input, ensure_ascii=False) + "\nOutput:\n"
-    return core
+
+    current_ctx = (
+        "## Context\n"
+        f"- Dataset: {dataset}\n"
+        f"- Global Model: {model}\n"
+        f"- Clients: {clients}\n"
+        f"- Round: {round_idx}\n"
+        f"- Mean Val F1: {_fmt(mean_f1)}\n"
+        f"- Mean Training Time: {_fmt(mean_tr)} s\n"
+        f"- Mean Communication Time: {_fmt(mean_comm)} s  (share of total: {comm_share_txt})\n"
+        f"- Mean Total Time: {_fmt(mean_tt)} s\n"
+        f"- Previous AP: {{\"client_selector\":\"{ap_prev_small['client_selector']}\","
+        f"\"message_compressor\":\"{ap_prev_small['message_compressor']}\","
+        f"\"heterogeneous_data_handler\":\"{ap_prev_small['heterogeneous_data_handler']}\"}}\n\n"
+        "## Decision\n"
+    )
+
+    if mode == "zero":
+        return instructions + current_ctx
+
+    ex1_ctx = (
+        "## Context\n"
+        f"- Dataset: {dataset or 'CIFAR10'}\n"
+        f"- Global Model: {model or 'SmallCNN'}\n"
+        f"- Clients: {max(clients, 4) or 4}\n"
+        f"- Round: {max(int(round_idx or 1) - 1, 1)}\n"
+        f"- Mean Val F1: 0.56\n"
+        f"- Mean Training Time: 10.0 s\n"
+        f"- Mean Communication Time: 22.0 s  (share of total: 0.69)\n"
+        f"- Mean Total Time: 32.0 s\n"
+        '- Previous AP: {"client_selector":"OFF","message_compressor":"OFF","heterogeneous_data_handler":"OFF"}\n\n'
+        "## Decision\n"
+        '{"client_selector":"OFF","message_compressor":"ON","heterogeneous_data_handler":"OFF",'
+        '"rationale":"Communication dominates; enable compression. Keep others OFF."}\n'
+    )
+
+    ex2_ctx = (
+        "## Context\n"
+        f"- Dataset: {dataset or 'FashionMNIST'}\n"
+        f"- Global Model: {model or 'CNN-16k'}\n"
+        f"- Clients: {max(clients, 4) or 4}\n"
+        f"- Round: {int(round_idx or 2)}\n"
+        f"- Mean Val F1: 0.72\n"
+        f"- Mean Training Time: 18.0 s\n"
+        f"- Mean Communication Time: 10.0 s  (share of total: 0.36)\n"
+        f"- Mean Total Time: 28.0 s\n"
+        '- Previous AP: {"client_selector":"OFF","message_compressor":"ON","heterogeneous_data_handler":"OFF"}\n\n'
+        "## Decision\n"
+        '{"client_selector":"OFF","message_compressor":"ON","heterogeneous_data_handler":"ON",'
+        '"rationale":"Signs of heterogeneity; keep compression and enable HDH."}\n'
+    )
+
+    header_few = "Architectural Pattern Decision Records — Few-Shot\n\n"
+    return header_few + instructions + ex1_ctx + "\n" + ex2_ctx + "\n" + current_ctx
+
 
 def _sa_build_prompt_strict(config, round_idx, agg, ap_prev):
-    schema = {
-        "client_selector": "ON|OFF",
-        "message_compressor": "ON|OFF",
-        "heterogeneous_data_handler": "ON|OFF",
-        "rationale": "string"
-    }
-    payload = {
-        "round": round_idx,
-        "clients": int(config.get("clients", 0)),
-        "dataset": (config.get("client_details",[{}])[0] or {}).get("dataset",""),
-        "model":   (config.get("client_details",[{}])[0] or {}).get("model",""),
-        "mean_f1": (agg or {}).get("mean_f1"),
-        "mean_total_time": (agg or {}).get("mean_total_time"),
-        "mean_training_time": (agg or {}).get("mean_training_time"),
-        "mean_comm_time": (agg or {}).get("mean_comm_time"),
-        "active_patterns_prev": {
-            "client_selector": "ON" if (ap_prev or {}).get("client_selector") else "OFF",
-            "message_compressor": "ON" if (ap_prev or {}).get("message_compressor") else "OFF",
-            "heterogeneous_data_handler": "ON" if (ap_prev or {}).get("heterogeneous_data_handler") else "OFF",
-        },
-    }
-    return (
-        "Return a single compact JSON object on one line matching this schema and nothing else. "
-        "Fields: client_selector,message_compressor,heterogeneous_data_handler,rationale. "
-        "Values for the first three must be \"ON\" or \"OFF\". rationale must be a short English sentence.\n"
-        "Input:\n" + json.dumps(payload, ensure_ascii=False) + "\n"
-        "Schema:\n" + json.dumps(schema, ensure_ascii=False) + "\n"
-        "Output:\n"
-    )
+    core = _sa_build_prompt("zero", config, round_idx, agg, ap_prev)
+    return core + "\nReturn only one JSON object. If unsure, try to guess."
 
 def _sa_generate_with_retry(model_name: str, mode: str, config, last_round, agg, ap_prev, base_urls: List[str]):
     p1 = _sa_build_prompt(mode, config, last_round, agg, ap_prev)
