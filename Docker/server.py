@@ -42,7 +42,7 @@ from pytorch_grad_cam.utils.image import show_cam_on_image, preprocess_image
 from adaptation import AdaptationManager
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-folders_to_delete = ["performance", "model_weights"]
+folders_to_delete = ["performance", "model_weights","logs"]
 
 for folder in folders_to_delete:
     folder_path = os.path.join(current_dir, folder)
@@ -450,14 +450,15 @@ class FedAvg(Strategy):
         else:
             if "Voting" in ADAPTATION:
                 ADAPTATION = "Voting-Based"
+            elif "Voting" in ADAPTATION:
+                ADAPTATION = "Voting-Based"
             elif "Role" in ADAPTATION:
                 ADAPTATION = "Role-Based"
             elif "Debate" in ADAPTATION:
                 ADAPTATION = "Debate-Based"
 
             self.adapt_mgr = AdaptationManager(True, config)
-            self.adapt_mgr.describe()
-            log(INFO, f"AI-Agents Adaptation Enabled ✅ - Coordination Mechanism: {ADAPTATION}")
+            log(INFO, f"Adaptation Enabled ✅ - {ADAPTATION}")
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
         return None

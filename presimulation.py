@@ -475,9 +475,24 @@ class PreSimulationPage(QWidget):
         font.setBold(True)
         label.setFont(font)
         self.adaptation_combo = QComboBox()
-        self.adaptation_combo.addItems(["Single AI-Agent","Random","AI-Agents (Voting-Based)","AI-Agents (Role-Based)","AI-Agents (Debate-Based)","None"])
+        self.adaptation_combo.addItems(["Single AI-Agent (Zero-Shot)","Single AI-Agent (Few-Shot)","Single AI-Agent (Fine-Tuning)","Random","Multiple AI-Agents (Voting-Based)","Multiple AI-Agents (Role-Based)","Multiple AI-Agents (Debate-Based)","None"])
         self.adaptation_combo.setFixedWidth(90)
         g_layout.addRow(label, self.adaptation_combo)
+
+        self.llm_label = QLabel("LLM")
+        self.llm_combo = QComboBox()
+        self.llm_combo.addItems(["gemma3:270m","llama3.2:1b","deepseek-r1:1.5b"])
+        self.llm_label.hide()
+        self.llm_combo.hide()
+
+        def _toggle_llm_selector(text):
+            vis = "single" in str(text).lower()
+            self.llm_label.setVisible(vis)
+            self.llm_combo.setVisible(vis)
+
+        g_layout.addRow(self.llm_label, self.llm_combo)
+        self.adaptation_combo.currentTextChanged.connect(_toggle_llm_selector)
+        _toggle_llm_selector(self.adaptation_combo.currentText())
 
         docker_status_label = QLabel("Docker Status:")
         font = docker_status_label.font()
@@ -929,6 +944,7 @@ class PreSimulationPage(QWidget):
             "rounds": self.rounds_input.value(),
             "clients": self.clients_input.value(),
             "adaptation": self.adaptation_combo.currentText(),
+            "LLM": self.llm_combo.currentText(),
             "patterns": patterns_data,
             "client_details": []
         }

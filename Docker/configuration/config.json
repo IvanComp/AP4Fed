@@ -2,7 +2,8 @@
     "simulation_type": "Docker",
     "rounds": 2,
     "clients": 2,
-    "adaptation": "None",
+    "adaptation": "Single AI-Agent (Zero-Shot)",
+    "LLM": "gemma3:270m",
     "patterns": {
         "client_registry": {
             "enabled": true,
@@ -39,8 +40,8 @@
             "cpu": 5,
             "ram": 2,
             "dataset": "FashionMNIST",
-            "data_distribution_type": "non-IID",
-            "data_persistence_type": "New Data",
+            "data_distribution_type": "IID",
+            "data_persistence_type": "Same Data",
             "delay_combobox": "No",
             "model": "CNN 16k",
             "epochs": 1
@@ -51,8 +52,8 @@
             "ram": 2,
             "dataset": "FashionMNIST",
             "data_distribution_type": "IID",
-            "data_persistence_type": "New Data",
-            "delay_combobox": "Yes",
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
             "model": "CNN 16k",
             "epochs": 1
         }

@@ -253,7 +253,7 @@ class FlowerClient(NumPyClient):
         train_end_ts = taskA.TRAIN_COMPLETED_TS or time.time()
         if self.delay_enabled:
             random_delay = random.randint(0, self.delay_injection)
-            log(INFO, f"client {self.cid} injecting delay of {random_delay} seconds")
+            log(INFO, f"{self.cid} injecting delay of {random_delay} seconds")
             time.sleep(random_delay)
         send_ready_ts = time.time()
         communication_time = send_ready_ts - train_end_ts

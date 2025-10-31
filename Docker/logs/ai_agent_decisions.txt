@@ -1,0 +1,5 @@
+== ROUND 1 ==
+
+[Single-Agent] Decision (gemma3:270m): CS: ❌→❌ • MC: ❌→❌ • HDH: ❌→❌
+[Single-Agent] Rationale (gemma3:270m): N/A
+
