@@ -35,6 +35,10 @@ An initial version of <tt>AP4FED</tt> was developed and tested in the research p
 <img src="img/readme/Poster.png" width="440px" height="610px"/>
 </p>
 
+<p align="center">
+<img src="img/readme/gif/test1.gif" width="440px" height="610px"/>
+</p>
+
 # Table of contents
 <!--ts-->
    * [Prerequisites](#prerequisites)

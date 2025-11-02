@@ -1,8 +1,8 @@
 {
     "simulation_type": "Docker",
-    "rounds": 2,
-    "clients": 3,
-    "adaptation": "Single AI-Agent (Zero-Shot)",
+    "rounds": 20,
+    "clients": 4,
+    "adaptation": "Random",
     "LLM": "llama3.2:3b",
     "patterns": {
         "client_registry": {
@@ -10,19 +10,15 @@
             "params": {}
         },
         "client_selector": {
-            "enabled": true,
-            "params": {
-                "selection_strategy": "Resource-Based",
-                "selection_criteria": "CPU",
-                "selection_value": 4
-            }
+            "enabled": false,
+            "params": {}
         },
         "client_cluster": {
             "enabled": false,
             "params": {}
         },
         "message_compressor": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         },
         "model_co-versioning_registry": {
@@ -34,7 +30,7 @@
             "params": {}
         },
         "heterogeneous_data_handler": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         }
     },
@@ -63,7 +59,18 @@
         },
         {
             "client_id": 3,
-            "cpu": 2,
+            "cpu": 3,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "non-IID",
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 4,
+            "cpu": 3,
             "ram": 2,
             "dataset": "FashionMNIST",
             "data_distribution_type": "IID",

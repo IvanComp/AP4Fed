@@ -6,6 +6,7 @@ import pickle
 import shutil
 import time
 import re
+import warnings
 import zlib
 import glob
 import numpy as np
@@ -254,7 +255,20 @@ def preprocess_csv():
             subdf.loc[subdf["Client Number"] != last, col] = pd.NA
         return subdf
 
-    df = df.groupby("FL Round", group_keys=False).apply(fix_round_values)
+    gb = df.groupby("FL Round", group_keys=False)
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=r".*GroupBy\.apply.*", category=FutureWarning)
+        warnings.filterwarnings("ignore", message=r".*DataFrameGroupBy\.apply.*", category=FutureWarning)
+        try:
+            df = gb.apply(fix_round_values, include_groups=True)
+        except TypeError:
+            df = gb.apply(fix_round_values)
+            if "FL Round" not in df.columns:
+                if getattr(df.index, "name", None) == "FL Round":
+                    df = df.reset_index()
+                elif "FL Round" in getattr(df.index, "names", []):
+                    df = df.reset_index(level="FL Round")
     df.drop(columns=["Client Number"], inplace=True)
     df.to_csv(csv_file, index=False)
 
