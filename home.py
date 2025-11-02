@@ -4,8 +4,7 @@ import json
 import shutil
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QMessageBox, QFileDialog
 from PyQt5.QtGui import QPixmap, QIcon, QDesktopServices
-from PyQt5.QtWidgets import QStyle
-from PyQt5.QtCore import Qt, QUrl, QSize
+from PyQt5.QtCore import Qt, QUrl
 from presimulation import PreSimulationPage 
 from recap_simulation import RecapSimulationPage 
 

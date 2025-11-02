@@ -204,9 +204,9 @@ class FlowerClient(NumPyClient):
 
         if CLIENT_SELECTOR:
             selector_params = configJSON["patterns"]["client_selector"]["params"]
-            selection_strategy = selector_params.get("selection_strategy", "")
-            selection_criteria = selector_params.get("selection_criteria", "")
-            selection_value = selector_params.get("selection_value", "")
+            selection_strategy = selector_params.get("selection_strategy", "Resource-Based")
+            selection_criteria = selector_params.get("selection_criteria", "CPU")
+            selection_value = selector_params.get("selection_value", 3)
             if selection_strategy == "Resource-Based":
                 if selection_criteria == "CPU" and self.n_cpu < selection_value:
                     log(INFO,

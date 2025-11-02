@@ -46,7 +46,7 @@ class ClientSelectorDialog(QDialog):
         self.value_label = QLabel("Minimum Value:")
         self.value_spinbox = QSpinBox()
         self.value_spinbox.setRange(1, 128)  
-        self.value_spinbox.setValue(1) 
+        self.value_spinbox.setValue(4) 
         layout.addWidget(self.value_label)
         layout.addWidget(self.value_spinbox)
         self.explanation_label = QLabel("The client should have at least a minimum value CPU or RAM based on the selected criteria.")
@@ -481,7 +481,7 @@ class PreSimulationPage(QWidget):
 
         self.llm_label = QLabel("LLM")
         self.llm_combo = QComboBox()
-        self.llm_combo.addItems(["llama3.2:1b","deepseek-r1:1.5b","qwen3:4b"])
+        self.llm_combo.addItems(["llama3.2:3b","deepseek-r1:8b","gpt-oss:20b"])
         self.llm_label.hide()
         self.llm_combo.hide()
 

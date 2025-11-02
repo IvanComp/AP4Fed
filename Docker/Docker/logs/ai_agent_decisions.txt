@@ -1,6 +1,0 @@
-[Adaptation] PolicyTime: 2.44s (policy=Single AI-Agent (Zero-Shot))
-[Adaptation] Overhead: 2.44s
-[Adaptation] PolicyTime: 2.07s (policy=Single AI-Agent (Zero-Shot))
-[Adaptation] Overhead: 2.08s
-[Adaptation] PolicyTime: 2.09s (policy=Single AI-Agent (Zero-Shot))
-[Adaptation] Overhead: 2.09s

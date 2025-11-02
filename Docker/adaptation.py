@@ -138,17 +138,28 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         "Role: You are an expert software architect advising a Federated Learning (FL) system.\n"
         "Task: Given the ## Context, produce ## Decision only.\n"
         "Output: return exactly one JSON object with the following keys and values:\n"
-        '- "client_selector": "ON" or "OFF"\n'
-        '- "message_compressor": "ON" or "OFF"\n'
-        '- "heterogeneous_data_handler": "ON" or "OFF"\n'
-        '- "rationale": a short string (<= 60 words)\n\n'
+        '- \"client_selector\": \"ON\" or \"OFF\"\n'
+        '- \"message_compressor\": \"ON\" or \"OFF\"\n'
+        '- \"heterogeneous_data_handler\": \"ON\" or \"OFF\"\n'
+        '- \"rationale\": a short string (>= 100 words)\n'
+        '- \"selection_value\": <int>  # required only if \"client_selector\"==\"ON\"\n'
+        "\n"
+        "Guidance for selection_value:\n"
+        "- Hard and mandatory constraint: pick selection_value so that at least two clients remain (i.e., selection_value < second-highest CPU). Otherwise the process will crash.\n"
+        "- selection_value is a CPU threshold used by the Client Selector. Only clients with CPU > selection_value participate; others are excluded.\n"
+        "- Purpose: remove stragglers (low-spec clients) that slow down the round and keep others idle. This helps reduce round time and variance.\n"
+        "- How to choose: prefer a value that keeps the higher-CPU majority while excluding the clear low-CPU group. Example: CPUs [5,5,5,5,2] -> selection_value=3 keeps the four 5-CPU clients and drops the 2-CPU straggler.\n"
+        "- Trade-off: try to reduce total round time without significantly hurting validation F1. If F1 is deteriorating, pick a lower threshold.\n"
+        "- Bounds: use an integer in [0, max_cpu-1]. Never set selection_value >= max_cpu.\n"
+        "- If evidence is insufficient or CPUs look equal, keep CS OFF or keep everyone by using selection_value near (cpu-1) so that CPU > selection_value holds for all.\n"
+        "\n"
         "Rules:\n"
         "- Output only the JSON object. Do not add prose before or after.\n"
         "- Prefer stability when validation F1 is improving or stable.\n"
-        '- If communication time is a large share of total time (> 0.35), consider "message_compressor":"ON".\n'
-        '- If training time dominates or clients look unstable, consider "client_selector":"ON".\n'
-        '- If data appears heterogeneous (non-IID) or unstable, consider "heterogeneous_data_handler":"ON".\n'
-        '- If evidence is insufficient or contradictory, keep previous choices and explain briefly in "rationale".\n'
+        "- If communication time is a large share of total time (> 0.35), consider \"message_compressor\":\"ON\".\n"
+        "- If training time dominates or clients look unstable, consider \"client_selector\":\"ON\".\n"
+        "- If data appears heterogeneous (non-IID) or unstable, consider \"heterogeneous_data_handler\":\"ON\".\n"
+        "- If evidence is insufficient or contradictory, keep previous choices and explain briefly in \"rationale\".\n"
         "</INSTRUCTIONS>\n\n"
     )
 
@@ -209,7 +220,7 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
 
 def _sa_build_prompt_strict(config, round_idx, agg, ap_prev):
     core = _sa_build_prompt("zero", config, round_idx, agg, ap_prev)
-    return core + "\nReturn only one JSON object. If unsure, try to guess."
+    return core + ' \nReturn only one JSON object. If you turn on "client_selector", include a top-level integer "selection_value". It is the CPU threshold to filter out stragglers (only clients with CPU > selection_value participate). Choose it to keep the higher-CPU majority and reduce round time without harming validation F1. If unsure, keep previous choices.'
 
 def _sa_generate_with_retry(model_name: str, mode: str, config, last_round, agg, ap_prev, base_urls: List[str]):
     p1 = _sa_build_prompt(mode, config, last_round, agg, ap_prev)
@@ -244,6 +255,13 @@ def _sa_parse_output(text: str):
                 for k in ("client_selector","message_compressor","heterogeneous_data_handler"):
                     v = str(obj.get(k, "OFF")).strip().upper()
                     decisions[k] = "ON" if v == "ON" else "OFF"
+
+                if "selection_value" in obj:
+                    try:
+                        decisions["selection_value"] = int(obj["selection_value"])
+                    except Exception:
+                        pass
+
                 rationale = str(obj.get("rationale", "")).strip()
                 return decisions, rationale, bool(rationale)
         except Exception:
@@ -251,19 +269,46 @@ def _sa_parse_output(text: str):
     return {"client_selector":"OFF","message_compressor":"OFF","heterogeneous_data_handler":"OFF"}, "", False
 
 def _sa_call_ollama(model: str, prompt: str, base_urls: List[str], force_json: bool = True, options: dict = None) -> str:
-    payload = {"model": model, "prompt": prompt, "stream": False}
-    if force_json:
-        payload["format"] = "json"
-    if options:
-        payload["options"] = options
-    data = json.dumps(payload).encode("utf-8")
-    headers = {"Content-Type": "application/json"}
+    def _is_gpt_oss(name: str) -> bool:
+        n = (name or "").lower()
+        return n.startswith("gpt-oss") or (":" in n and n.split(":", 1)[0] == "gpt-oss")
+
     last_err = None
     for base in base_urls:
         try:
-            req = urllib.request.Request(url=f"{base}/api/generate", data=data, headers=headers, method="POST")
-            with urllib.request.urlopen(req, timeout=60) as resp:
-                out = json.loads(resp.read().decode("utf-8"))
+            if _is_gpt_oss(model):
+                payload = {"model": model, "messages": [{"role": "user", "content": prompt}], "stream": False, "think": "low"}
+                if force_json:
+                    payload["format"] = "json"
+                if options:
+                    payload["options"] = options
+                data = json.dumps(payload).encode("utf-8")
+                req = urllib.request.Request(url=f"{base}/api/chat", data=data, headers={"Content-Type": "application/json"}, method="POST")
+                with urllib.request.urlopen(req, timeout=60) as resp:
+                    out = json.loads(resp.read().decode("utf-8"))
+                msg = out.get("message", {}) or {}
+                content = msg.get("content", "") or ""
+                thinking = msg.get("thinking") or msg.get("reasoning") or ""
+                if force_json:
+                    try:
+                        obj = json.loads(content)
+                        if isinstance(obj, dict) and any(k in obj for k in ("client_selector","message_compressor","heterogeneous_data_handler")):
+                            if "rationale" not in obj and thinking:
+                                obj["rationale"] = str(thinking)[:800]
+                            return json.dumps(obj, ensure_ascii=False)
+                    except Exception:
+                        pass
+                return content
+            else:
+                payload = {"model": model, "prompt": prompt, "stream": False}
+                if force_json:
+                    payload["format"] = "json"
+                if options:
+                    payload["options"] = options
+                data = json.dumps(payload).encode("utf-8")
+                req = urllib.request.Request(url=f"{base}/api/generate", data=data, headers={"Content-Type": "application/json"}, method="POST")
+                with urllib.request.urlopen(req, timeout=60) as resp:
+                    out = json.loads(resp.read().decode("utf-8"))
                 if "error" in out:
                     raise RuntimeError(str(out["error"]))
                 return out.get("response", "")
@@ -412,6 +457,26 @@ class AdaptationManager:
         for p in PATTERNS:
             if p in new_config.get("patterns", {}):
                 new_config["patterns"][p]["enabled"] = (decisions.get(p, "OFF") == "ON")
+        cs_enabled = bool(new_config.get("patterns", {}).get("client_selector", {}).get("enabled"))
+        if cs_enabled:
+            # prova a prendere il valore deciso dal modello (top-level)
+            existing = new_config["patterns"]["client_selector"].get("params", {}).get("selection_value")
+            sel_val = None
+            try:
+                sel_val = int(decisions.get("selection_value")) if "selection_value" in decisions else None
+            except Exception:
+                sel_val = None
+            if sel_val is None:
+                try:
+                    sel_val = int(existing) if existing is not None else 0
+                except Exception:
+                    sel_val = 0
+
+            new_config["patterns"]["client_selector"]["params"] = {
+                "selection_strategy": "Resource-Based",
+                "selection_criteria": "CPU",
+                "selection_value": sel_val
+            }
         return new_config, logs
 
     def _decide_next_config(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
@@ -463,7 +528,6 @@ class AdaptationManager:
         self.update_config(next_config)
         self.update_json(next_config)
         return next_config["patterns"]
-
 
 
 

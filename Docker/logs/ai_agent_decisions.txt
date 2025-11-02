@@ -1,6 +1,6 @@
 
 == ROUND 1 ==
-[Single-Agent] Decision (llama3.2:1b): CS: ❌→✅ • MC: ❌→❌ • HDH: ❌→❌
-[Single-Agent] Rationale (llama3.2:1b): Previous AP was insufficient and contradictory, maintaining previous choices.
-[Single AI-Agent (Zero-Shot)] PolicyTime: 2.18s
+[Single-Agent] Decision (llama3.2:3b): CS: ❌→✅ • MC: ❌→✅ • HDH: ❌→✅
+[Single-Agent] Rationale (llama3.2:3b): Given the FashionMNIST dataset and high training time (200.237 s), it is recommended to enable Client Selector to remove stragglers and reduce round time. Additionally, enabling Message Compressor can help reduce communication time, which accounts for 0.13 of total time. Heterogeneous Data Handler is also enabled due to the non-IID nature of the dataset.
+[Single AI-Agent (Zero-Shot)] PolicyTime: 16.38s
 
