@@ -20,7 +20,7 @@ PATTERNS = [
     "message_compressor",
     "heterogeneous_data_handler",
 ]
-
+USE_RAG = True
 AGENT_LOG_FILE = os.environ.get("AGENT_LOG_FILE", os.path.join(os.getcwd(), "logs", "ai_agent_decisions.txt"))
 
 def _append_agent_log(lines):
@@ -318,8 +318,9 @@ def _sa_call_ollama(model: str, prompt: str, base_urls: List[str], force_json: b
     raise RuntimeError(f"Ollama unreachable: {last_err}")
 
 class AdaptationManager:
-    def __init__(self, enabled: bool, default_config: Dict):
+    def __init__(self, enabled: bool, default_config: Dict, use_rag=USE_RAG):
         self.name = "AdaptationManager"
+        self.use_rag = use_rag
         self.default_config = default_config
         self.policy = str(default_config.get("adaptation", "None")).strip()
         self.total_rounds = int(default_config.get("rounds", 1))
