@@ -111,6 +111,7 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         except Exception:
             return "?"
 
+    # Basic context pulled from config/agg
     try:
         first = dict((config.get("client_details") or [{}])[0] or {})
     except Exception:
@@ -119,52 +120,41 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
     model = first.get("model", "") or ""
     clients = int(config.get("clients", 0) or 0)
 
-    mean_f1   = agg.get("mean_f1")
-    mean_tt   = agg.get("mean_total_time")
-    mean_tr   = agg.get("mean_training_time")
-    mean_comm = agg.get("mean_comm_time")
+    mean_f1   = (agg or {}).get("mean_f1")
+    mean_tt   = (agg or {}).get("mean_total_time")
+    mean_tr   = (agg or {}).get("mean_training_time")
+    mean_comm = (agg or {}).get("mean_comm_time")
     comm_share = (float(mean_comm) / max(1e-9, float(mean_tt))) if (mean_comm is not None and mean_tt is not None) else None
     comm_share_txt = "?" if comm_share is None else _fmt(comm_share, 2)
 
     ap_prev_small = {
-        "client_selector": "ON" if ap_prev.get("client_selector") else "OFF",
-        "message_compressor": "ON" if ap_prev.get("message_compressor") else "OFF",
-        "heterogeneous_data_handler": "ON" if ap_prev.get("heterogeneous_data_handler") else "OFF",
+        "client_selector": "ON" if (ap_prev or {}).get("client_selector") else "OFF",
+        "message_compressor": "ON" if (ap_prev or {}).get("message_compressor") else "OFF",
+        "heterogeneous_data_handler": "ON" if (ap_prev or {}).get("heterogeneous_data_handler") else "OFF",
     }
 
+    # 1) Static Context: Role, Task, Output, Guardrails (keep minimal)
     instructions = (
-        "Architectural Pattern Decision Record\n\n"
-        "<INSTRUCTIONS>\n"
+        "Architectural Pattern Decision: Prompt\n\n"
+        "## Context\n"
         "Role: You are an expert software architect advising a Federated Learning (FL) system.\n"
-        "Task: Given the ## Context, produce ## Decision only.\n"
-        "Output: return exactly one JSON object with the following keys and values:\n"
-        '- \"client_selector\": \"ON\" or \"OFF\"\n'
-        '- \"message_compressor\": \"ON\" or \"OFF\"\n'
-        '- \"heterogeneous_data_handler\": \"ON\" or \"OFF\"\n'
-        '- \"rationale\": a short string (>= 100 words)\n'
-        '- \"selection_value\": <int>  # required only if \"client_selector\"==\"ON\"\n'
-        "\n"
-        "Guidance for selection_value:\n"
-        "- Hard and mandatory constraint: pick selection_value so that at least two clients remain (i.e., selection_value < second-highest CPU). Otherwise the process will crash.\n"
-        "- selection_value is a CPU threshold used by the Client Selector. Only clients with CPU > selection_value participate; others are excluded.\n"
-        "- Purpose: remove stragglers (low-spec clients) that slow down the round and keep others idle. This helps reduce round time and variance.\n"
-        "- How to choose: prefer a value that keeps the higher-CPU majority while excluding the clear low-CPU group. Example: CPUs [5,5,5,5,2] -> selection_value=3 keeps the four 5-CPU clients and drops the 2-CPU straggler.\n"
-        "- Trade-off: try to reduce total round time without significantly hurting validation F1. If F1 is deteriorating, pick a lower threshold.\n"
-        "- Bounds: use an integer in [0, max_cpu-1]. Never set selection_value >= max_cpu.\n"
-        "- If evidence is insufficient or CPUs look equal, keep CS OFF or keep everyone by using selection_value near (cpu-1) so that CPU > selection_value holds for all.\n"
-        "\n"
-        "Rules:\n"
-        "- Output only the JSON object. Do not add prose before or after.\n"
-        "- Prefer stability when validation F1 is improving or stable.\n"
-        "- If communication time is a large share of total time (> 0.35), consider \"message_compressor\":\"ON\".\n"
-        "- If training time dominates or clients look unstable, consider \"client_selector\":\"ON\".\n"
-        "- If data appears heterogeneous (non-IID) or unstable, consider \"heterogeneous_data_handler\":\"ON\".\n"
-        "- If evidence is insufficient or contradictory, keep previous choices and explain briefly in \"rationale\".\n"
-        "</INSTRUCTIONS>\n\n"
+        "Task: Read the Context (and, if present, the RAG section) and decide which patterns to enable for the next round.\n"
+        "Output: return exactly one JSON object with keys:\n"
+        '- "client_selector": "ON" or "OFF"\n'
+        '- "message_compressor": "ON" or "OFF"\n'
+        '- "heterogeneous_data_handler": "ON" or "OFF"\n'
+        '- "selection_value": <int>  # required only if "client_selector"=="ON"\n'
+        '- "rationale": short explanation (≈2–3 sentences)\n'
+        "Guardrails:\n"
+        "- Output only the JSON object, no extra text.\n"
+        "- selection_value is a CPU threshold: only clients with CPU > selection_value participate.\n"
+        "- Use an integer in [0, max_cpu-1], strictly less than the second-highest CPU value.\n"
+        "- If evidence is insufficient, keep previous choices and say why in rationale.\n\n"
     )
 
+    # Runtime context always present
     current_ctx = (
-        "## Context\n"
+        "### Runtime Context\n"
         f"- Dataset: {dataset}\n"
         f"- Global Model: {model}\n"
         f"- Clients: {clients}\n"
@@ -173,65 +163,121 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         f"- Mean Training Time: {_fmt(mean_tr)} s\n"
         f"- Mean Communication Time: {_fmt(mean_comm)} s  (share of total: {comm_share_txt})\n"
         f"- Mean Total Time: {_fmt(mean_tt)} s\n"
-        f"- Previous AP: {{\"client_selector\":\"{ap_prev_small['client_selector']}\","
-        f"\"message_compressor\":\"{ap_prev_small['message_compressor']}\","
-        f"\"heterogeneous_data_handler\":\"{ap_prev_small['heterogeneous_data_handler']}\"}}\n\n"
-        "## Decision\n"
+        f"- Previous AP: {{\"client_selector\":\"{ap_prev_small['client_selector']}\",\"message_compressor\":\"{ap_prev_small['message_compressor']}\",\"heterogeneous_data_handler\":\"{ap_prev_small['heterogeneous_data_handler']}\"}}\n\n"
     )
 
-    if mode == "zero":
-        return instructions + current_ctx
+    # 2) Optional RAG section: include snapshots from config.json and performance CSV
+    rag = ""
+    try:
+        use_rag = bool(USE_RAG)
+    except Exception:
+        use_rag = True
+    if use_rag:
+        # Build a compact snapshot of config.json
+        cfg_summary = {}
+        try:
+            cfg = {}
+            try:
+                if os.path.exists(config_file):
+                    with open(config_file, "r") as f:
+                        cfg = json.load(f)
+            except Exception:
+                cfg = {}
+            if not cfg and isinstance(config, dict):
+                cfg = config
+            cds = cfg.get("client_details") or []
+            cpus = [int(c.get("cpu", 0) or 0) for c in cds if isinstance(c, dict)]
+            dist = [str((c.get("data_distribution_type") or "")).upper() for c in cds if isinstance(c, dict)]
+            counts = {k: sum(1 for d in dist if d == k) for k in set(dist or [])}
+            non_iid_ids = [c.get("client_id") for c in cds if str(c.get("data_distribution_type", "")).upper() != "IID"]
+            models = sorted({str(c.get("model", "")) for c in cds if isinstance(c, dict)} - {""})
+            cfg_summary = {
+                "dataset": (cds[0].get("dataset") if cds else cfg.get("dataset", "")) or dataset,
+                "clients": int(cfg.get("clients", len(cds) or clients) or clients),
+                "cpu_per_client": cpus,
+                "data_distribution_counts": counts,
+                "non_iid_clients": non_iid_ids,
+                "models": models,
+            }
+        except Exception:
+            cfg_summary = {}
 
-    ex1_ctx = (
-        "## Context\n"
-        f"- Dataset: {dataset or 'CIFAR10'}\n"
-        f"- Global Model: {model or 'SmallCNN'}\n"
-        f"- Clients: {max(clients, 4) or 4}\n"
-        f"- Round: {max(int(round_idx or 1) - 1, 1)}\n"
-        f"- Mean Val F1: 0.56\n"
-        f"- Mean Training Time: 10.0 s\n"
-        f"- Mean Communication Time: 22.0 s  (share of total: 0.69)\n"
-        f"- Mean Total Time: 32.0 s\n"
-        '- Previous AP: {"client_selector":"OFF","message_compressor":"OFF","heterogeneous_data_handler":"OFF"}\n\n'
-        "## Decision\n"
-        '{"client_selector":"OFF","message_compressor":"ON","heterogeneous_data_handler":"OFF",'
-        '"rationale":"Communication dominates; enable compression. Keep others OFF."}\n'
-    )
+        # Get last performance row from CSV
+        last_file = None
+        try:
+            files = glob.glob("**/FLwithAP_performance_metrics_round*.csv", recursive=True)
+            if not files:
+                files = glob.glob("**/FLwithAP_performance_metrics*.csv", recursive=True)
+            def rnum(p):
+                m = re.search(r"round(\d+)", os.path.basename(p))
+                return int(m.group(1)) if m else -1
+            if files:
+                last_file = max(files, key=rnum)
+                try:
+                    import pandas as pd  # lazy import
+                    df = pd.read_csv(last_file)
+                    last_row = df.tail(1).to_dict(orient="records")[0]
+                except Exception:
+                    last_row = {}
+            else:
+                last_row = {}
+        except Exception:
+            last_row = {}
 
-    ex2_ctx = (
-        "## Context\n"
-        f"- Dataset: {dataset or 'FashionMNIST'}\n"
-        f"- Global Model: {model or 'CNN-16k'}\n"
-        f"- Clients: {max(clients, 4) or 4}\n"
-        f"- Round: {int(round_idx or 2)}\n"
-        f"- Mean Val F1: 0.72\n"
-        f"- Mean Training Time: 18.0 s\n"
-        f"- Mean Communication Time: 10.0 s  (share of total: 0.36)\n"
-        f"- Mean Total Time: 28.0 s\n"
-        '- Previous AP: {"client_selector":"OFF","message_compressor":"ON","heterogeneous_data_handler":"OFF"}\n\n'
-        "## Decision\n"
-        '{"client_selector":"OFF","message_compressor":"ON","heterogeneous_data_handler":"ON",'
-        '"rationale":"Signs of heterogeneity; keep compression and enable HDH."}\n'
-    )
+        def pick(row, keys_list):
+            for k in keys_list:
+                if k in row:
+                    return row[k]
+            return None
 
-    header_few = "Architectural Pattern Decision Records — Few-Shot\n\n"
-    return header_few + instructions + ex1_ctx + "\n" + ex2_ctx + "\n" + current_ctx
+        f1_last = pick(last_row, ["F1","Val F1","val_f1","val_f1_mean"])
+        tr_last = pick(last_row, ["Training Time","Training (s)","Training Time (s)"])
+        cm_last = pick(last_row, ["Communication Time","Comm (s)","server_comm_time"])
+        tt_last = pick(last_row, ["Total Time of FL Round","Total Time (s)","TotalTime"])
 
+        rag = (
+            "## RAG\n"
+            "### System Configuration (config.json)\n"
+            + json.dumps(cfg_summary, ensure_ascii=False) + "\n\n"
+            "### Performance Report (last row of CSV)\n"
+            + json.dumps({ "file": last_file, "F1": f1_last, "Training Time (s)": tr_last, "Communication Time (s)": cm_last, "Total Time (s)": tt_last }, ensure_ascii=False)
+            + "\n\n"
+        )
 
-def _sa_build_prompt_strict(config, round_idx, agg, ap_prev):
-    core = _sa_build_prompt("zero", config, round_idx, agg, ap_prev)
-    return core + ' \nReturn only one JSON object. If you turn on "client_selector", include a top-level integer "selection_value". It is the CPU threshold to filter out stragglers (only clients with CPU > selection_value participate). Choose it to keep the higher-CPU majority and reduce round time without harming validation F1. If unsure, keep previous choices.'
+    # 3) Few-shot examples appended only for few-shot/fine-tuning modes
+    if mode != "zero":
+        ex1_ctx = (
+            "## Example 1\n"
+            "### Context\n"
+            "- CPUs: [5,5,5,5,5,5,5,5,5,5,2]\n"
+            "- Data: all IID\n"
+            "- Comm share: 0.30\n"
+            "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
+            "### Decision\n"
+            "{\"client_selector\":\"ON\",\"selection_value\":2,\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\","
+            "\"rationale\":\"One low-spec client (CPU=2) stalls the round; threshold >2 excludes it. All data IID; no HDH. Comm not dominant.\"}\n"
+        )
+        ex2_ctx = (
+            "## Example 2\n"
+            "### Context\n"
+            "- CPUs: [5,5,5,5]\n"
+            "- Data: all IID\n"
+            "- Comm share: 0.62\n"
+            "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
+            "### Decision\n"
+            "{\"client_selector\":\"OFF\",\"message_compressor\":\"ON\",\"heterogeneous_data_handler\":\"OFF\","
+            "\"rationale\":\"Communication dominates; enable compression. Balanced CPUs, keep selector OFF. No non-IID, HDH OFF.\"}\n"
+        )
+        header_few = "### Few-Shot Examples\n\n"
+        return header_few + instructions + (rag or "") + ex1_ctx + "\n" + ex2_ctx + "\n" + current_ctx + "## Decision\n"
+
+    return instructions + (rag or "") + current_ctx + "## Decision\n"
 
 def _sa_generate_with_retry(model_name: str, mode: str, config, last_round, agg, ap_prev, base_urls: List[str]):
-    p1 = _sa_build_prompt(mode, config, last_round, agg, ap_prev)
-    raw1 = _sa_call_ollama(model_name, p1, base_urls, force_json=True, options={"temperature": 0.2, "top_p": 0.9})
-    d1, r1, ok1 = _sa_parse_output(raw1)
-    if ok1:
-        return d1, r1
-    p2 = _sa_build_prompt_strict(config, last_round, agg, ap_prev)
-    raw2 = _sa_call_ollama(model_name, p2, base_urls, force_json=True, options={"temperature": 0.2, "top_p": 0.9})
-    d2, r2, ok2 = _sa_parse_output(raw2)
-    return d2, r2
+    p = _sa_build_prompt(mode, config, last_round, agg, ap_prev)
+    raw = _sa_call_ollama(model_name, p, base_urls, force_json=True, options={"temperature": 0.2, "top_p": 0.9})
+    d1, r1, _ = _sa_parse_output(raw)
+    return d1, r1
 
 def _sa_mode_from_policy(policy: str) -> str:
     pol = (policy or "").lower()
@@ -325,7 +371,7 @@ class AdaptationManager:
         self.policy = str(default_config.get("adaptation", "None")).strip()
         self.total_rounds = int(default_config.get("rounds", 1))
         self.enabled = enabled and (self.policy.lower() != "none")
-        self.sa_model = default_config.get("LLM") or default_config.get("ollama_model") or "llama3.2:1b"
+        self.sa_model = default_config.get("LLM") or "llama3.2:1b"
         self.sa_ollama_urls = [
             default_config.get("ollama_base_url") or "http://host.docker.internal:11434",
             "http://localhost:11434",
@@ -368,9 +414,6 @@ class AdaptationManager:
             state = cfg_patterns.get(p, {}).get("enabled", False)
             parts.append(f"{p}={self._icon(state)}")
         return "[" + ", ".join(parts) + "]"
-
-    def describe(self):
-        return f"AdaptationManager(policy={self.policy}, total_rounds={self.total_rounds})"
 
     def update_metrics(self, new_aggregated_metrics: Dict):
         self.cached_aggregated_metrics = new_aggregated_metrics
@@ -460,7 +503,6 @@ class AdaptationManager:
                 new_config["patterns"][p]["enabled"] = (decisions.get(p, "OFF") == "ON")
         cs_enabled = bool(new_config.get("patterns", {}).get("client_selector", {}).get("enabled"))
         if cs_enabled:
-            # prova a prendere il valore deciso dal modello (top-level)
             existing = new_config["patterns"]["client_selector"].get("params", {}).get("selection_value")
             sel_val = None
             try:
@@ -529,7 +571,3 @@ class AdaptationManager:
         self.update_config(next_config)
         self.update_json(next_config)
         return next_config["patterns"]
-
-
-
-

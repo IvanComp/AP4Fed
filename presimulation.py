@@ -475,7 +475,7 @@ class PreSimulationPage(QWidget):
         font.setBold(True)
         label.setFont(font)
         self.adaptation_combo = QComboBox()
-        self.adaptation_combo.addItems(["Single AI-Agent (Zero-Shot)","Single AI-Agent (Few-Shot)","Single AI-Agent (Fine-Tuning)","Random","Multiple AI-Agents (Voting-Based)","Multiple AI-Agents (Role-Based)","Multiple AI-Agents (Debate-Based)","None"])
+        self.adaptation_combo.addItems(["Single AI-Agent (Zero-Shot)","Single AI-Agent (Few-Shot)","Random","Multiple AI-Agents (Voting-Based)","Multiple AI-Agents (Role-Based)","Multiple AI-Agents (Debate-Based)","None"])
         self.adaptation_combo.setFixedWidth(90)
         g_layout.addRow(label, self.adaptation_combo)
 

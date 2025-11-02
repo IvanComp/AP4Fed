@@ -1,6 +1,0 @@
-
-== ROUND 1 ==
-[Single-Agent] Decision (llama3.2:3b): CS: ❌→✅ • MC: ❌→✅ • HDH: ❌→✅
-[Single-Agent] Rationale (llama3.2:3b): Considering the high share of communication time (0.41) and unstable clients, activating Client Selector to remove stragglers will help reduce round time and variance. Activating Message Compressor to compress messages will further decrease total time. Heterogeneous data handler is necessary due to non-IID nature of FashionMNIST dataset.
-[Single AI-Agent (Zero-Shot)] PolicyTime: 9.63s
-
