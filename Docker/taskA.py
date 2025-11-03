@@ -2,6 +2,7 @@ import json
 import os
 import random
 import time
+import math
 from collections import Counter
 from collections import OrderedDict
 from logging import INFO
@@ -162,29 +163,98 @@ if os.path.exists(config_file):
 
 
 class CNN_Dynamic(nn.Module):
-    def __init__(
-            self, num_classes: int, input_size: int, in_ch: int,
-            conv1_out: int, conv2_out: int, fc1_out: int, fc2_out: int
-    ) -> None:
-        super(CNN_Dynamic, self).__init__()
-        self.conv1 = nn.Conv2d(in_ch, conv1_out, kernel_size=5)
-        self.conv2 = nn.Conv2d(conv1_out, conv2_out, kernel_size=5)
-        self.pool = nn.MaxPool2d(2, 2)
-        dummy = torch.zeros(1, in_ch, input_size, input_size)
-        dummy = self.pool(F.relu(self.conv1(dummy)))
-        dummy = self.pool(F.relu(self.conv2(dummy)))
-        flat_size = dummy.view(1, -1).size(1)
-        self.fc1 = nn.Linear(flat_size, fc1_out)
-        self.fc2 = nn.Linear(fc1_out, fc2_out)
-        self.fc3 = nn.Linear(fc2_out, num_classes)
+    def __init__(self, num_classes, input_size, in_ch,
+                 conv1_out, conv2_out, fc1_out, fc2_out, **kwargs):
+        super().__init__()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.pool(F.relu(self.conv1(x)))
-        x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(x.size(0), -1)
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        return self.fc3(x)
+        # Riconosci automaticamente la variante "cnn16k"
+        self._is_cnn16k = (conv1_out == 3 and conv2_out == 8 and
+                           fc1_out == 60 and fc2_out == 42)
+
+        # BN "stabile": running stats ON; momentum basso per non-IID
+        def BN(c):
+            bn = nn.BatchNorm2d(c, affine=True, track_running_stats=True)
+            # momentum basso = aggiornamenti più cauti delle running stats
+            bn.momentum = 0.01
+            return bn
+
+        # Blocchi feature: Conv -> BN -> ReLU -> Pool
+        # Per cnn16k: conv senza bias quando seguita da BN
+        self.features = nn.Sequential(
+            nn.Conv2d(in_ch, conv1_out, kernel_size=3, stride=1, padding=1,
+                      bias=(not self._is_cnn16k)),
+            BN(conv1_out),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),  # es. 32->16 su CIFAR-10
+
+            nn.Conv2d(conv1_out, conv2_out, kernel_size=3, stride=1, padding=1,
+                      bias=(not self._is_cnn16k)),
+            BN(conv2_out),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),  # es. 16->8
+        )
+
+        # Dimensione dopo due pool (//4 per lato)
+        h = int(input_size) // 4
+        feat_dim = conv2_out * h * h
+
+        # Classifier
+        self.classifier = nn.Sequential(
+            nn.Linear(feat_dim, fc1_out),
+            nn.ReLU(inplace=True),
+            nn.Linear(fc1_out, fc2_out),
+            nn.ReLU(inplace=True),
+            nn.Linear(fc2_out, num_classes),
+        )
+
+        # Inizializzazione robusta (senza zero-gamma finale)
+        self._init_weights()
+
+    def forward(self, x):
+        x = self.features(x)
+        x = torch.flatten(x, 1)
+        x = self.classifier(x)
+        return x
+
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_uniform_(m.weight, a=math.sqrt(5))
+                if m.bias is not None:
+                    fan_in, _ = nn.init._calculate_fan_in_and_fan_out(m.weight)
+                    bound = 1 / math.sqrt(fan_in)
+                    nn.init.uniform_(m.bias, -bound, bound)
+
+    def _init_weights_zero_gamma_last_bn(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.Linear):
+                nn.init.kaiming_uniform_(m.weight, a=math.sqrt(5))
+                if m.bias is not None:
+                    fan_in, _ = nn.init._calculate_fan_in_and_fan_out(m.weight)
+                    bound = 1 / math.sqrt(fan_in)
+                    nn.init.uniform_(m.bias, -bound, bound)
+
+        last_bn = None
+        for m in self.features.modules():
+            if isinstance(m, nn.BatchNorm2d):
+                last_bn = m
+        if last_bn is not None:
+            with torch.no_grad():
+                last_bn.weight.fill_(0.0)
 
 
 def get_weight_class_dynamic(model_name: str):

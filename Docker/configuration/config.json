@@ -1,9 +1,9 @@
 {
     "simulation_type": "Docker",
-    "rounds": 2,
+    "rounds": 9,
     "clients": 2,
-    "adaptation": "Single AI-Agent (Zero-Shot)",
-    "LLM": "gpt-oss:20b",
+    "adaptation": "None",
+    "LLM": "llama3.2:3b",
     "patterns": {
         "client_registry": {
             "enabled": true,
@@ -39,7 +39,7 @@
             "client_id": 1,
             "cpu": 5,
             "ram": 2,
-            "dataset": "FashionMNIST",
+            "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
             "data_persistence_type": "Same Data",
             "delay_combobox": "No",
@@ -50,7 +50,7 @@
             "client_id": 2,
             "cpu": 5,
             "ram": 2,
-            "dataset": "FashionMNIST",
+            "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
             "data_persistence_type": "Same Data",
             "delay_combobox": "No",

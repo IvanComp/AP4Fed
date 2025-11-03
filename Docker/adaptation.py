@@ -110,8 +110,6 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
             return f"{float(x):.{nd}f}"
         except Exception:
             return "?"
-
-    # Basic context pulled from config/agg
     try:
         first = dict((config.get("client_details") or [{}])[0] or {})
     except Exception:
@@ -138,7 +136,7 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         "Architectural Pattern Decision: Prompt\n\n"
         "## Context\n"
         "Role: You are an expert software architect advising a Federated Learning (FL) system.\n"
-        "Task: Read the Context (and, if present, the RAG section) and decide which patterns to enable for the next round.\n"
+        "Task: Read the Context (and, if present, the RAG section) and decide which Architectural Patterns to enable for the next round.\n"
         "Output: return exactly one JSON object with keys:\n"
         '- "client_selector": "ON" or "OFF"\n'
         '- "message_compressor": "ON" or "OFF"\n'
@@ -202,7 +200,6 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         except Exception:
             cfg_summary = {}
 
-        # Get last performance row from CSV
         last_file = None
         try:
             files = glob.glob("**/FLwithAP_performance_metrics_round*.csv", recursive=True)
@@ -315,6 +312,11 @@ def _sa_parse_output(text: str):
     return {"client_selector":"OFF","message_compressor":"OFF","heterogeneous_data_handler":"OFF"}, "", False
 
 def _sa_call_ollama(model: str, prompt: str, base_urls: List[str], force_json: bool = True, options: dict = None) -> str:
+    """
+    Supporta sia /api/generate (prompt) sia /api/chat (messages).
+    Per i modelli 'gpt-oss:*' usa /api/chat e, se disponibile, integra 'message.reasoning'
+    come 'rationale' quando l'output è JSON ma senza rationale.
+    """
     def _is_gpt_oss(name: str) -> bool:
         n = (name or "").lower()
         return n.startswith("gpt-oss") or (":" in n and n.split(":", 1)[0] == "gpt-oss")
@@ -323,44 +325,75 @@ def _sa_call_ollama(model: str, prompt: str, base_urls: List[str], force_json: b
     for base in base_urls:
         try:
             if _is_gpt_oss(model):
-                payload = {"model": model, "messages": [{"role": "user", "content": prompt}], "stream": False, "think": "low"}
+                # Chat endpoint (richiede messages)
+                payload = {
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "stream": False,
+                    # per i modelli 'thinking' abilita reasoning leggero
+                    "think": "low"
+                }
                 if force_json:
                     payload["format"] = "json"
                 if options:
                     payload["options"] = options
+
                 data = json.dumps(payload).encode("utf-8")
-                req = urllib.request.Request(url=f"{base}/api/chat", data=data, headers={"Content-Type": "application/json"}, method="POST")
-                with urllib.request.urlopen(req, timeout=60) as resp:
+                req = urllib.request.Request(
+                    url=f"{base}/api/chat",
+                    data=data,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=180) as resp:
                     out = json.loads(resp.read().decode("utf-8"))
-                msg = out.get("message", {}) or {}
-                content = msg.get("content", "") or ""
-                thinking = msg.get("thinking") or msg.get("reasoning") or ""
-                if force_json:
+
+                if "error" in out:
+                    raise RuntimeError(str(out["error"]))
+
+                msg = out.get("message") or {}
+                content = (msg.get("content") or out.get("response") or "").strip()
+                thinking = (msg.get("reasoning") or msg.get("thinking") or out.get("reasoning") or "").strip()
+                if force_json and content:
                     try:
                         obj = json.loads(content)
                         if isinstance(obj, dict) and any(k in obj for k in ("client_selector","message_compressor","heterogeneous_data_handler")):
                             if "rationale" not in obj and thinking:
-                                obj["rationale"] = str(thinking)[:800]
+                                obj["rationale"] = thinking[:800]
                             return json.dumps(obj, ensure_ascii=False)
                     except Exception:
                         pass
                 return content
+
             else:
-                payload = {"model": model, "prompt": prompt, "stream": False}
+                payload = {
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False
+                }
                 if force_json:
                     payload["format"] = "json"
                 if options:
                     payload["options"] = options
+
                 data = json.dumps(payload).encode("utf-8")
-                req = urllib.request.Request(url=f"{base}/api/generate", data=data, headers={"Content-Type": "application/json"}, method="POST")
-                with urllib.request.urlopen(req, timeout=60) as resp:
+                req = urllib.request.Request(
+                    url=f"{base}/api/generate",
+                    data=data,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=180) as resp:
                     out = json.loads(resp.read().decode("utf-8"))
+
                 if "error" in out:
                     raise RuntimeError(str(out["error"]))
-                return out.get("response", "")
+                return (out.get("response") or "").strip()
+
         except Exception as e:
             last_err = e
             continue
+
     raise RuntimeError(f"Ollama unreachable: {last_err}")
 
 class AdaptationManager:
