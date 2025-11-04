@@ -403,12 +403,16 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         )
         header_few = "### Few-Shot Examples\n\n"
         return header_few + instructions + (rag or "") + ex1_ctx + "\n" + ex2_ctx + "\n" + ex3_ctx + "\n" + ex4_ctx + "\n" + ex5_ctx + "\n" + ex6_ctx + "\n" + "## Decision\n"
-
     return instructions + (rag or "") + "## Decision\n"
 
 def _sa_generate_with_retry(model_name: str, mode: str, config, last_round, agg, ap_prev, base_urls: List[str]):
     p = _sa_build_prompt(mode, config, last_round, agg, ap_prev)
-    raw = _sa_call_ollama(model_name, p, base_urls, force_json=True, options={"temperature": 0.2, "top_p": 0.9})
+    raw = _sa_call_ollama(
+    model_name, p, base_urls,
+    force_json=True,
+    options={"temperature": 0.2, "top_p": 0.9, "num_ctx": 8192}
+)
+
     d1, r1, _ = _sa_parse_output(raw)
     return d1, r1
 
@@ -426,29 +430,12 @@ def _sa_parse_output(text: str):
     if not text:
         return {"client_selector":"OFF","message_compressor":"OFF","heterogeneous_data_handler":"OFF"}, "", False
 
-    # rimuove code-fence
-    text = re.sub(r"```(?:json)?", "", text)
-    text = text.replace("```", "")
+    s = text.strip()
+    # rimuovi code-fence tipo ``` o ```json
+    s = re.sub(r"^```[\w-]*\s*|\s*```$", "", s, flags=re.M).strip()
 
-    # prova 1: oggetto completo
-    try:
-        obj = json.loads(text)
-        if isinstance(obj, dict) and any(k in obj for k in ("client_selector","message_compressor","heterogeneous_data_handler")):
-            decisions = {}
-            for k in ("client_selector","message_compressor","heterogeneous_data_handler"):
-                v = str(obj.get(k, "OFF")).strip().upper()
-                decisions[k] = "ON" if v == "ON" else "OFF"
-            if "selection_value" in obj:
-                try:
-                    decisions["selection_value"] = int(obj["selection_value"])
-                except Exception:
-                    pass
-            rationale = str(obj.get("rationale", "")).strip()
-            return decisions, rationale, bool(rationale)
-    except Exception:
-        pass
-
-    for m in re.finditer(r"\{.*?\}", text, flags=re.S):
+    # 1) prova a leggere un JSON valido (come nel tuo codice originale)
+    for m in re.finditer(r"\{.*?\}", s, flags=re.S):
         chunk = m.group(0).strip()
         try:
             obj = json.loads(chunk)
@@ -467,79 +454,127 @@ def _sa_parse_output(text: str):
         except Exception:
             continue
 
-    return {"client_selector":"OFF","message_compressor":"OFF","heterogeneous_data_handler":"OFF"}, "", False
+    # 2) niente JSON: estrai ON/OFF e selection_value dalla prosa della rationale
+    #    (così il caso che hai incollato viene interpretato correttamente)
+    def said_enable(pattern_regex):
+        return re.search(rf"\b(enable|turn\s*on|activate)\b.*?\b{pattern_regex}\b", s, flags=re.I) is not None
+    def said_disable(pattern_regex):
+        return re.search(rf"\b(disable|turn\s*off|deactivate)\b.*?\b{pattern_regex}\b", s, flags=re.I) is not None
+
+    # alias dei pattern in testo libero
+    cs_rx  = r"(client\s*selector|client\-?selector|cs)"
+    mc_rx  = r"(message\s*compress(or|ion)|message\-?compress(or|ion)|mc)"
+    hdh_rx = r"((heterogeneous|non\-?iid)\s*data\s*handler|hdh)"
+
+    decisions = {
+        "client_selector": "ON" if said_enable(cs_rx) else ("OFF" if said_disable(cs_rx) else "OFF"),
+        "message_compressor": "ON" if said_enable(mc_rx) else ("OFF" if said_disable(mc_rx) else "OFF"),
+        "heterogeneous_data_handler": "ON" if said_enable(hdh_rx) else ("OFF" if said_disable(hdh_rx) else "OFF"),
+    }
+
+    # selection_value / threshold nella rationale (es. "selection value of 4", "threshold: 3")
+    m_sel = re.search(r"(selection\s*value|threshold)\s*(of|=|:)?\s*([0-9]+)", s, flags=re.I)
+    if m_sel:
+        try:
+            decisions["selection_value"] = int(m_sel.group(3))
+        except Exception:
+            pass
+
+    # rationale è l'intero testo "s" ripulito
+    rationale = s
+    return decisions, rationale, bool(rationale)
 
 def _sa_call_ollama(model: str, prompt: str, base_urls: List[str], force_json: bool = True, options: dict = None) -> str:
     def _is_gpt_oss(name: str) -> bool:
         n = (name or "").lower()
         return n.startswith("gpt-oss") or (":" in n and n.split(":", 1)[0] == "gpt-oss")
 
-    def _attempt(base: str, use_json: bool):
-        if _is_gpt_oss(model):
-            payload = {
-                "model": model,
-                "messages": [{"role": "user", "content": prompt}],
-                "stream": False,
-            }
-            if use_json:
-                payload["format"] = "json"
-            if options:
-                payload["options"] = options
-            data = json.dumps(payload).encode("utf-8")
-            req = urllib.request.Request(
-                url=f"{base}/api/chat",
-                data=data,
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=180) as resp:
-                out = json.loads(resp.read().decode("utf-8"))
-            if "error" in out:
-                raise RuntimeError(str(out["error"]))
-            msg = out.get("message") or {}
-            content = (msg.get("content") or out.get("response") or "").strip()
-            reasoning = (msg.get("reasoning") or msg.get("thinking") or out.get("reasoning") or "").strip()
-            if use_json:
-                try:
-                    obj = json.loads(content)
-                    if isinstance(obj, dict) and any(k in obj for k in ("client_selector","message_compressor","heterogeneous_data_handler")):
-                        if "rationale" not in obj and reasoning:
-                            obj["rationale"] = reasoning[:800]
-                        return json.dumps(obj, ensure_ascii=False)
-                except Exception:
-                    pass
-            return content
-        else:
-            payload = {"model": model, "prompt": prompt, "stream": False}
-            if use_json:
-                payload["format"] = "json"
-            if options:
-                payload["options"] = options
-            data = json.dumps(payload).encode("utf-8")
-            req = urllib.request.Request(
-                url=f"{base}/api/generate",
-                data=data,
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=180) as resp:
-                out = json.loads(resp.read().decode("utf-8"))
-            if "error" in out:
-                raise RuntimeError(str(out["error"]))
-            return (out.get("response") or "").strip()
+    def _is_llama(name: str) -> bool:
+        return (name or "").lower().startswith("llama")
+
+    def _is_json_friendly(name: str) -> bool:
+        # DeepSeek regge bene il JSON mode; gli altri due no con prompt lunghi
+        return (name or "").lower().startswith("deepseek")
 
     last_err = None
     for base in base_urls:
         try:
-            return _attempt(base, use_json=(True if force_json else False))
-        except Exception as e1:
-            last_err = e1
-            try:
-                return _attempt(base, use_json=False)
-            except Exception as e2:
-                last_err = e2
-                continue
-    raise RuntimeError(f"Ollama unreachable or model failed: {last_err}")
+            if _is_gpt_oss(model):
+                # Usa /api/chat per gpt-oss, con reasoning e JSON mode abilitabile
+                body = {
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "stream": False,
+                    "think": "low"
+                }
+                if force_json:
+                    body["format"] = "json"
+                if options:
+                    body["options"] = options
+
+                data = json.dumps(body).encode("utf-8")
+                req = urllib.request.Request(
+                    f"{base}/api/chat",
+                    data=data,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=180) as resp:
+                    out = json.loads(resp.read().decode("utf-8"))
+
+                if "error" in out:
+                    raise RuntimeError(str(out["error"]))
+
+                msg = out.get("message") or {}
+                content = (msg.get("content") or out.get("response") or "").strip()
+                reasoning = (msg.get("reasoning") or msg.get("thinking") or out.get("reasoning") or "").strip()
+
+                # Se siamo in JSON mode e il contenuto è un JSON con le chiavi attese,
+                # inserisci il reasoning come "rationale" se manca.
+                if force_json and content:
+                    try:
+                        obj = json.loads(content)
+                        if isinstance(obj, dict) and any(k in obj for k in ("client_selector", "message_compressor", "heterogeneous_data_handler")):
+                            if "rationale" not in obj and reasoning:
+                                obj["rationale"] = reasoning[:800]
+                            return json.dumps(obj, ensure_ascii=False)
+                    except Exception:
+                        pass
+
+                return content
+
+            else:
+                # Usa /api/generate per gli altri modelli
+                payload = {
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False
+                }
+                # JSON mode solo per modelli "amici" (DeepSeek). MAI per LLaMA.
+                if force_json and _is_json_friendly(model) and not _is_llama(model):
+                    payload["format"] = "json"
+                if options:
+                    payload["options"] = options
+
+                data = json.dumps(payload).encode("utf-8")
+                req = urllib.request.Request(
+                    f"{base}/api/generate",
+                    data=data,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=180) as resp:
+                    out = json.loads(resp.read().decode("utf-8"))
+
+                if "error" in out:
+                    raise RuntimeError(str(out["error"]))
+                return (out.get("response") or "").strip()
+
+        except Exception as e:
+            last_err = e
+            continue
+
+    raise RuntimeError(f"Ollama unreachable: {last_err}")
 
 
 class AdaptationManager:
@@ -675,7 +710,17 @@ class AdaptationManager:
         new_hdh = "✅" if decisions.get("heterogeneous_data_handler") == "ON" else "❌"
         delta = " • ".join([f"CS: {prev_cs}→{new_cs}", f"MC: {prev_mc}→{new_mc}", f"HDH: {prev_hdh}→{new_hdh}"])
         logs.append(f"[Single-Agent] Decision ({self.sa_model}): {delta}")
-        logs.append(f"[Single-Agent] Rationale ({self.sa_model}): {rationale if rationale else 'This model does not support rationale generation.'}")
+        r_print = (rationale or "").strip()
+        if r_print:
+            try:
+                obj = json.loads(r_print)
+                if isinstance(obj, dict) and isinstance(obj.get("rationale"), str):
+                    r_print = obj["rationale"].strip()
+            except Exception:
+                m = re.search(r'"rationale"\s*:\s*"(?P<r>.*?)"', r_print, flags=re.S)
+                if m: r_print = m.group("r").strip()
+
+        logs.append(f"[Rationale] {r_print if r_print else 'This model does not support rationale generation.'}")
         new_config = copy.deepcopy(base_config)
         for p in PATTERNS:
             if p in new_config.get("patterns", {}):
