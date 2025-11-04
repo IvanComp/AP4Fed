@@ -122,8 +122,6 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
     mean_tt   = (agg or {}).get("mean_total_time")
     mean_tr   = (agg or {}).get("mean_training_time")
     mean_comm = (agg or {}).get("mean_comm_time")
-    comm_share = (float(mean_comm) / max(1e-9, float(mean_tt))) if (mean_comm is not None and mean_tt is not None) else None
-    comm_share_txt = "?" if comm_share is None else _fmt(comm_share, 2)
 
     ap_prev_small = {
         "client_selector": "ON" if (ap_prev or {}).get("client_selector") else "OFF",
@@ -131,7 +129,7 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         "heterogeneous_data_handler": "ON" if (ap_prev or {}).get("heterogeneous_data_handler") else "OFF",
     }
 
-    # 1) Static Context: Role, Task, Output, Guardrails
+    # 1) Static Context: Role, Task, Output, Guardrails  (UNCHANGED)
     instructions = (
         "Architectural Pattern Decision: Prompt\n\n"
         "#Context\n"
@@ -176,25 +174,15 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         '- "rationale": Provide a detailed explanation (at least 100 words) that includes: (i) concrete evidence and data derived from the actual system context or relevant factual knowledge (RAG); (ii) theoretical evidence from the performance analysis of architectural patterns, and how these motivate the decision to enable or disable each architectural pattern.'
     )
 
-    current_ctx = (
-        "### Runtime Context\n"
-        f"- Dataset: {dataset}\n"
-        f"- Global Model: {model}\n"
-        f"- Clients: {clients}\n"
-        f"- Round: {round_idx}\n"
-        f"- Mean Val F1: {_fmt(mean_f1)}\n"
-        f"- Mean Training Time: {_fmt(mean_tr)} s\n"
-        f"- Mean Communication Time: {_fmt(mean_comm)} s  (share of total: {comm_share_txt})\n"
-        f"- Mean Total Time: {_fmt(mean_tt)} s\n"
-        f"- Previous AP: {{\"client_selector\":\"{ap_prev_small['client_selector']}\",\"message_compressor\":\"{ap_prev_small['message_compressor']}\",\"heterogeneous_data_handler\":\"{ap_prev_small['heterogeneous_data_handler']}\"}}\n\n"
-    )
-
+    # 2) RAG: full system config + full metrics history 
     rag = ""
     try:
         use_rag = bool(USE_RAG)
     except Exception:
         use_rag = True
+
     if use_rag:
+        import os, json, glob, re
         cfg_summary = {}
         try:
             cfg = {}
@@ -206,92 +194,217 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
                 cfg = {}
             if not cfg and isinstance(config, dict):
                 cfg = config
+
             cds = cfg.get("client_details") or []
-            cpus = [int(c.get("cpu", 0) or 0) for c in cds if isinstance(c, dict)]
-            dist = [str((c.get("data_distribution_type") or "")).upper() for c in cds if isinstance(c, dict)]
-            counts = {k: sum(1 for d in dist if d == k) for k in set(dist or [])}
-            non_iid_ids = [c.get("client_id") for c in cds if str(c.get("data_distribution_type", "")).upper() != "IID"]
-            models = sorted({str(c.get("model", "")) for c in cds if isinstance(c, dict)} - {""})
+            cpus = [int((c or {}).get("cpu", 0) or 0) for c in cds if isinstance(c, dict)]
+            rams = [int((c or {}).get("ram", 0) or 0) for c in cds if isinstance(c, dict)]
+            dtypes = [str((c or {}).get("data_distribution_type", "")).upper() for c in cds if isinstance(c, dict)]
+            delays = [str((c or {}).get("delay_combobox", "")).strip().lower() for c in cds if isinstance(c, dict)]
+            non_iid_ids = [int((c or {}).get("client_id")) for c in cds if str((c or {}).get("data_distribution_type", "")).upper() != "IID"]
+            models = sorted({str((c or {}).get("model", "")).strip() for c in cds if isinstance(c, dict)} - {""})
+            dataset_name = (cds[0].get("dataset") if cds else cfg.get("dataset", "")) or dataset
+            n_clients = int(cfg.get("clients", len(cds) or clients) or clients)
+            max_cpu = max(cpus) if cpus else 0
+            sorted_cpus = sorted(cpus, reverse=True)
+            second_highest_cpu = sorted_cpus[1] if len(sorted_cpus) >= 2 else max_cpu
+
             cfg_summary = {
-                "dataset": (cds[0].get("dataset") if cds else cfg.get("dataset", "")) or dataset,
-                "clients": int(cfg.get("clients", len(cds) or clients) or clients),
+                "dataset": dataset_name,
+                "clients": n_clients,
                 "cpu_per_client": cpus,
-                "data_distribution_counts": counts,
+                "ram_per_client": rams,
+                "max_cpu": max_cpu,
+                "second_highest_cpu": second_highest_cpu,
+                "data_distribution_counts": {k: sum(1 for d in dtypes if d == k) for k in set(dtypes or [])},
                 "non_iid_clients": non_iid_ids,
+                "has_delay_clients": any((d or "") == "yes" for d in delays),
                 "models": models,
+                "previous_ap": ap_prev_small
             }
         except Exception:
             cfg_summary = {}
 
+        metrics_digest = {}
         last_file = None
         try:
             files = glob.glob("**/FLwithAP_performance_metrics_round*.csv", recursive=True)
             if not files:
                 files = glob.glob("**/FLwithAP_performance_metrics*.csv", recursive=True)
+
             def rnum(p):
                 m = re.search(r"round(\d+)", os.path.basename(p))
                 return int(m.group(1)) if m else -1
+
             if files:
                 last_file = max(files, key=rnum)
                 try:
-                    import pandas as pd  # lazy import
+                    import pandas as pd
                     df = pd.read_csv(last_file)
-                    last_row = df.tail(1).to_dict(orient="records")[0]
+
+                    def find_col(cands):
+                        for c in df.columns:
+                            lc = c.strip().lower()
+                            for pat in cands:
+                                if isinstance(pat, str):
+                                    if pat in lc:
+                                        return c
+                                else:
+                                    if pat(lc):
+                                        return c
+                        return None
+
+                    col_f1 = find_col(["f1"])
+                    col_tr = find_col([lambda s: ("training" in s and "time" in s), "training (s)", "training time (s)"])
+                    col_cm = find_col([lambda s: ("comm" in s and "time" in s) or ("communication" in s)])
+                    col_tt = find_col([lambda s: ("total" in s and "time" in s) or ("total time of fl round" in s) or ("round time" in s)])
+
+                    def to_series(col):
+                        if not col or col not in df.columns:
+                            return []
+                        vals = []
+                        for x in df[col].tolist():
+                            try:
+                                vals.append(float(x))
+                            except Exception:
+                                pass
+                        return vals
+
+                    s_f1 = to_series(col_f1)
+                    s_tr = to_series(col_tr)
+                    s_cm = to_series(col_cm)
+                    s_tt = to_series(col_tt)
+                    s_share = []
+                    for c, t in zip(s_cm, s_tt):
+                        try:
+                            s_share.append(c / max(1e-9, t))
+                        except Exception:
+                            s_share.append(None)
+
+                    def stats(seq):
+                        if not seq:
+                            return {"count": 0}
+                        n = len(seq)
+                        mean = sum(seq) / n
+                        mn = min(seq)
+                        mx = max(seq)
+                        last = seq[-1]
+                        last3_mean = sum(seq[-3:]) / min(3, n)
+                        last5_mean = sum(seq[-5:]) / min(5, n)
+                        slope = (seq[-1] - seq[0]) / (n - 1) if n >= 2 else 0.0
+                        tail = seq[-25:] if n > 25 else seq
+                        return {
+                            "count": n, "mean": mean, "min": mn, "max": mx, "last": last,
+                            "last3_mean": last3_mean, "last5_mean": last5_mean,
+                            "trend_slope": slope, "tail": tail
+                        }
+
+                    metrics_digest = {
+                        "file": last_file,
+                        "columns": {"F1": col_f1, "TrainingTime": col_tr, "CommTime": col_cm, "TotalTime": col_tt},
+                        "F1": stats(s_f1),
+                        "TrainingTime_s": stats(s_tr),
+                        "CommunicationTime_s": stats(s_cm),
+                        "TotalRoundTime_s": stats(s_tt),
+                        "CommShare_of_Total": stats([x for x in s_share if x is not None])
+                    }
                 except Exception:
-                    last_row = {}
+                    metrics_digest = {"file": last_file, "error": "failed_to_parse_csv"}
             else:
-                last_row = {}
+                metrics_digest = {"file": None, "error": "no_metrics_csv_found"}
         except Exception:
-            last_row = {}
-
-        def pick(row, keys_list):
-            for k in keys_list:
-                if k in row:
-                    return row[k]
-            return None
-
-        f1_last = pick(last_row, ["F1","Val F1","val_f1","val_f1_mean"])
-        tr_last = pick(last_row, ["Training Time","Training (s)","Training Time (s)"])
-        cm_last = pick(last_row, ["Communication Time","Comm (s)","server_comm_time"])
-        tt_last = pick(last_row, ["Total Time of FL Round","Total Time (s)","TotalTime"])
+            metrics_digest = {"file": None, "error": "metrics_digest_failed"}
 
         rag = (
             "## RAG\n"
             "### System Configuration (config.json)\n"
             + json.dumps(cfg_summary, ensure_ascii=False) + "\n\n"
-            "### Performance Report (last row of CSV)\n"
-            + json.dumps({ "file": last_file, "F1": f1_last, "Training Time (s)": tr_last, "Communication Time (s)": cm_last, "Total Time (s)": tt_last }, ensure_ascii=False)
-            + "\n\n"
+            "### Performance Report (full history from CSV)\n"
+            + json.dumps(metrics_digest, ensure_ascii=False) + "\n\n"
+        )
+    else:
+        rag = (
+            "## RAG\n"
+            "### System Configuration (runtime snapshot)\n"
+            + json.dumps({
+                "dataset": dataset,
+                "clients": clients,
+                "model": model,
+                "previous_ap": ap_prev_small
+            }, ensure_ascii=False) + "\n\n"
+            "### Performance (aggregates)\n"
+            + json.dumps({
+                "mean_f1": mean_f1, "mean_training_time_s": mean_tr,
+                "mean_comm_time_s": mean_comm, "mean_total_time_s": mean_tt
+            }, ensure_ascii=False) + "\n\n"
         )
 
     # 3) Few-shot examples appended only for few-shot modes
     if mode != "zero":
         ex1_ctx = (
-            "## Example 1\n"
+            "## Example 1 — Client Selector (edge-case)\n"
             "### Context\n"
-            "- CPUs: [5,5,5,5,5,5,5,5,5,5,2]\n"
+            "- CPUs: [2,2,2,2,1]\n"
             "- Data: all IID\n"
             "- Comm share: 0.30\n"
             "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
             "### Decision\n"
-            "{\"client_selector\":\"ON\",\"selection_value\":2,\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\","
-            "\"rationale\":\"One low-spec client (CPU=2) stalls the round; threshold >2 excludes it. All data IID; no HDH. Comm not dominant.\"}\n"
+            "{\"client_selector\":\"ON\",\"selection_value\":1,\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\","
+            "\"rationale\":\"A single low-spec client (CPU=1) throttles synchronization. Set threshold >1 to exclude it; keep MC OFF (comm not dominant) and HDH OFF (no non-IID).\"}\n"
         )
         ex2_ctx = (
-            "## Example 2\n"
+            "## Example 2 — Client Selector (numeric)\n"
             "### Context\n"
-            "- CPUs: [5,5,5,5]\n"
-            "- Data: all IID\n"
-            "- Comm share: 0.62\n"
+            "- 4 clients: 3 High-Spec (CPU=2) + 1 Low-Spec (CPU=1)\n"
+            "- Data: IID\n"
+            "- Observed: with CS=OFF, Total Round Time ≈ 9× slower than with CS=ON; F1 ≈ 0.57–0.59 in both cases\n"
+            "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
+            "### Decision\n"
+            "{\"client_selector\":\"ON\",\"selection_value\":1,\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\","
+            "\"rationale\":\"Exclude the CPU=1 client to remove the bottleneck (≈9× Total Round Time reduction reported with same F1).\"}\n"
+        )
+        ex3_ctx = (
+            "## Example 3 — Message Compressor (edge-case)\n"
+            "### Context\n"
+            "- Model: large (parameters doubled); Comm share: 0.65\n"
+            "- CPUs balanced; Data: IID\n"
             "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
             "### Decision\n"
             "{\"client_selector\":\"OFF\",\"message_compressor\":\"ON\",\"heterogeneous_data_handler\":\"OFF\","
-            "\"rationale\":\"Communication dominates; enable compression. Balanced CPUs, keep selector OFF. No non-IID, HDH OFF.\"}\n"
+            "\"rationale\":\"High communication proportion with a large model favors compression benefits; enable MC to cut comm time; keep CS OFF (no stragglers) and HDH OFF (no non-IID).\"}\n"
+        )
+        ex4_ctx = (
+            "## Example 4 — Message Compressor (numeric)\n"
+            "### Context\n"
+            "- Model sizes: n/2, n, n×2\n"
+            "- Observed: n/2 → MC worsens comm time; n → MC improves after round 4; n×2 → MC reduces comm time in all rounds\n"
+            "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
+            "### Decision\n"
+            "{\"client_selector\":\"OFF\",\"message_compressor\":\"ON\",\"heterogeneous_data_handler\":\"OFF\","
+            "\"rationale\":\"For larger models (n×2) compression consistently reduces communication time across rounds; apply MC in this regime and avoid it for very small models (n/2).\"}\n"
+        )
+        ex5_ctx = (
+            "## Example 5 — Heterogeneous Data Handler (edge-case)\n"
+            "### Context\n"
+            "- Clients: mix of IID and non-IID; clear class imbalance on non-IID subset\n"
+            "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
+            "### Decision\n"
+            "{\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"ON\","
+            "\"rationale\":\"Activate HDH to mitigate non-IID with augmentation/distillation; improves generalization with acceptable local overhead.\"}\n"
+        )
+        ex6_ctx = (
+            "## Example 6 — Heterogeneous Data Handler (numeric)\n"
+            "### Context\n"
+            "- 8 clients: 4 IID + 4 non-IID → apply GAN-based augmentation to non-IID\n"
+            "- Observed: F1 rises (e.g., ≈0.24→≈0.26 by rounds 9–10) and round times stabilize vs non-IID baseline (which shows 700–800 s and higher variance)\n"
+            "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
+            "### Decision\n"
+            "{\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"ON\","
+            "\"rationale\":\"Enable HDH to rebalance classes on non-IID clients, improving F1 while keeping round-time variability under control; CS OFF (no resource skew), MC OFF (comm not dominant).\"}\n"
         )
         header_few = "### Few-Shot Examples\n\n"
-        return header_few + instructions + (rag or "") + ex1_ctx + "\n" + ex2_ctx + "\n" + current_ctx + "## Decision\n"
+        return header_few + instructions + (rag or "") + ex1_ctx + "\n" + ex2_ctx + "\n" + ex3_ctx + "\n" + ex4_ctx + "\n" + ex5_ctx + "\n" + ex6_ctx + "\n" + "## Decision\n"
 
-    return instructions + (rag or "") + current_ctx + "## Decision\n"
+    return instructions + (rag or "") + "## Decision\n"
 
 def _sa_generate_with_retry(model_name: str, mode: str, config, last_round, agg, ap_prev, base_urls: List[str]):
     p = _sa_build_prompt(mode, config, last_round, agg, ap_prev)
