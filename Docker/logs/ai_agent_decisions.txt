@@ -1,0 +1,12 @@
+
+== ROUND 1 ==
+[Single-Agent] Decision (gpt-oss:20b): CS: ❌→❌ • MC: ❌→❌ • HDH: ❌→❌
+[Rationale] The current system configuration consists of only two clients, each with 5 CPUs and identical RAM. The dataset is fully IID, and there are no non‑IID clients or delay clients. Enabling the Client Selector would require setting a CPU threshold below the second‑highest CPU (5) to keep at least two clients active. However, since both clients already have the maximum CPU, any threshold would either exclude one client (violating the minimum‑two‑client requirement) or include both, providing no benefit. The Client Selector’s primary advantage is mitigating stragglers, but with only two equally powerful clients, straggler effects are negligible. Therefore, keeping it OFF avoids unnecessary selection logic overhead.
+
+The model size is a small CNN (~16k parameters). The Message Compressor’s compression overhead (CPU cycles for encoding/decoding) would likely outweigh the modest communication savings for such a lightweight model, especially given the already low communication times (~16 s per round). Thus, the compressor is turned OFF to avoid extra computation.
+
+Data heterogeneity is not an issue: the data distribution is IID across both clients, and the non_iid_clients list is empty. Enabling the Heterogeneous Data Handler would add synthetic data generation and augmentation steps, increasing local training time without any accuracy benefit. Consequently, it remains OFF.
+
+In summary, all architectural patterns are kept OFF for the next round because the current system’s small scale, balanced client resources, and IID data distribution render their benefits negligible while incurring unnecessary overhead.
+[Single AI-Agent (Zero-Shot)] PolicyTime: 180.18s
+

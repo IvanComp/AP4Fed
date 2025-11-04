@@ -431,15 +431,14 @@ def _sa_parse_output(text: str):
         return {"client_selector":"OFF","message_compressor":"OFF","heterogeneous_data_handler":"OFF"}, "", False
 
     s = text.strip()
-    # rimuovi code-fence tipo ``` o ```json
     s = re.sub(r"^```[\w-]*\s*|\s*```$", "", s, flags=re.M).strip()
 
-    # 1) prova a leggere un JSON valido (come nel tuo codice originale)
+    # 1) prova: qualsiasi oggetto JSON { ... } con le tre chiavi
     for m in re.finditer(r"\{.*?\}", s, flags=re.S):
         chunk = m.group(0).strip()
         try:
             obj = json.loads(chunk)
-            if any(k in obj for k in ("client_selector","message_compressor","heterogeneous_data_handler")):
+            if isinstance(obj, dict) and any(k in obj for k in ("client_selector","message_compressor","heterogeneous_data_handler")):
                 decisions = {}
                 for k in ("client_selector","message_compressor","heterogeneous_data_handler"):
                     v = str(obj.get(k, "OFF")).strip().upper()
@@ -454,25 +453,94 @@ def _sa_parse_output(text: str):
         except Exception:
             continue
 
-    # 2) niente JSON: estrai ON/OFF e selection_value dalla prosa della rationale
-    #    (così il caso che hai incollato viene interpretato correttamente)
-    def said_enable(pattern_regex):
-        return re.search(rf"\b(enable|turn\s*on|activate)\b.*?\b{pattern_regex}\b", s, flags=re.I) is not None
-    def said_disable(pattern_regex):
-        return re.search(rf"\b(disable|turn\s*off|deactivate)\b.*?\b{pattern_regex}\b", s, flags=re.I) is not None
+    # 1bis) prova: ARRAY JSON con decisioni (lista di stringhe o oggetti)
+    def _apply_item_to_decisions(item, decisions):
+        try:
+            if isinstance(item, dict):
+                # possibili forme: {"client_selector":"ON"} oppure {"pattern":"client_selector","state":"ON"}
+                for k in ("client_selector","message_compressor","heterogeneous_data_handler"):
+                    if k in item:
+                        v = str(item[k]).strip().upper()
+                        decisions[k] = "ON" if v in ("ON","TRUE","YES","1") else "OFF"
+                if "pattern" in item and ("state" in item or "value" in item):
+                    name = str(item.get("pattern","")).lower().replace("-","_").replace(" ","")
+                    state = str(item.get("state", item.get("value","OFF"))).strip().upper()
+                    if "clientselector" in name: decisions["client_selector"] = "ON" if state in ("ON","TRUE","YES","1") else "OFF"
+                    if "messagecompress" in name: decisions["message_compressor"] = "ON" if state in ("ON","TRUE","YES","1") else "OFF"
+                    if "heterogeneousdatahandler" in name or "hdh" in name: decisions["heterogeneous_data_handler"] = "ON" if state in ("ON","TRUE","YES","1") else "OFF"
+                if "selection_value" in item:
+                    try:
+                        decisions["selection_value"] = int(item["selection_value"])
+                    except Exception:
+                        pass
+            elif isinstance(item, str):
+                t = item.lower().replace(" ","").replace("-","")
+                if "clientselector" in t:
+                    decisions["client_selector"] = "ON" if ("on" in t or ":on" in t or "=on" in t) else "OFF"
+                if "messagecompress" in t:
+                    decisions["message_compressor"] = "ON" if ("on" in t or ":on" in t or "=on" in t) else "OFF"
+                if "heterogeneousdatahandler" in t or "hdh" in t:
+                    decisions["heterogeneous_data_handler"] = "ON" if ("on" in t or ":on" in t or "=on" in t) else "OFF"
+                msv = re.search(r"(selection[_\s-]*value|threshold)[:=]?(\d+)", item, flags=re.I)
+                if msv:
+                    try:
+                        decisions["selection_value"] = int(msv.group(2))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
 
-    # alias dei pattern in testo libero
-    cs_rx  = r"(client\s*selector|client\-?selector|cs)"
-    mc_rx  = r"(message\s*compress(or|ion)|message\-?compress(or|ion)|mc)"
-    hdh_rx = r"((heterogeneous|non\-?iid)\s*data\s*handler|hdh)"
+    # 1bis-a) tutto il testo come JSON array
+    try:
+        maybe_arr = json.loads(s)
+        if isinstance(maybe_arr, list):
+            decisions = {"client_selector":"OFF","message_compressor":"OFF","heterogeneous_data_handler":"OFF"}
+            for it in maybe_arr:
+                _apply_item_to_decisions(it, decisions)
+            # rationale, se presente separata
+            rat = ""
+            return decisions, rat, bool(rat)
+    except Exception:
+        pass
+
+    # 1bis-b) primo blocco [ ... ] nel testo come array
+    for m in re.finditer(r"\[.*?\]", s, flags=re.S):
+        chunk = m.group(0).strip()
+        try:
+            arr = json.loads(chunk)
+            if isinstance(arr, list):
+                decisions = {"client_selector":"OFF","message_compressor":"OFF","heterogeneous_data_handler":"OFF"}
+                for it in arr:
+                    _apply_item_to_decisions(it, decisions)
+                rat = ""
+                return decisions, rat, bool(rat)
+        except Exception:
+            continue
+
+    # 2) fallback: leggi ON/OFF dalla rationale (prosa)
+    cs_rx  = r"(client\s*selector|client-?selector|cs)"
+    mc_rx  = r"(message\s*compress(?:or|ion)|message-?compress(?:or|ion)|mc)"
+    hdh_rx = r"(heterogene\w+\s*data\s*handl\w+|heterogeneous\s*data\s*handler|hdh)"
+
+    cs_en  = list(re.finditer(rf"(?:\b(enable|turn\s*on|activate|set)\b.*?\b{cs_rx}\b)|(?:\b{cs_rx}\b.*?\b(?:is\s*)?enabled\b)|(?:\b{cs_rx}\b.*?\bset\s*to\s*ON\b)", s, flags=re.I))
+    cs_dis = list(re.finditer(rf"(?:\b(disable|turn\s*off|deactivate|unset)\b.*?\b{cs_rx}\b)|(?:\b{cs_rx}\b.*?\b(?:is\s*)?disabled\b)|(?:\b{cs_rx}\b.*?\bset\s*to\s*OFF\b)", s, flags=re.I))
+    mc_en  = list(re.finditer(rf"(?:\b(enable|turn\s*on|activate|set)\b.*?\b{mc_rx}\b)|(?:\b{mc_rx}\b.*?\b(?:is\s*)?enabled\b)|(?:\b{mc_rx}\b.*?\bset\s*to\s*ON\b)", s, flags=re.I))
+    mc_dis = list(re.finditer(rf"(?:\b(disable|turn\s*off|deactivate|unset)\b.*?\b{mc_rx}\b)|(?:\b{mc_rx}\b.*?\b(?:is\s*)?disabled\b)|(?:\b{mc_rx}\b.*?\bset\s*to\s*OFF\b)", s, flags=re.I))
+    hdh_en = list(re.finditer(rf"(?:\b(enable|turn\s*on|activate|set)\b.*?\b{hdh_rx}\b)|(?:\b{hdh_rx}\b.*?\b(?:is\s*)?enabled\b)|(?:\b{hdh_rx}\b.*?\bset\s*to\s*ON\b)", s, flags=re.I))
+    hdh_dis= list(re.finditer(rf"(?:\b(disable|turn\s*off|deactivate|unset)\b.*?\b{hdh_rx}\b)|(?:\b{hdh_rx}\b.*?\b(?:is\s*)?disabled\b)|(?:\b{hdh_rx}\b.*?\bset\s*to\s*OFF\b)", s, flags=re.I))
+
+    def _state(en_list, dis_list):
+        if en_list and not dis_list: return "ON"
+        if dis_list and not en_list: return "OFF"
+        if en_list and dis_list: return "ON" if en_list[-1].start() > dis_list[-1].start() else "OFF"
+        return "OFF"
 
     decisions = {
-        "client_selector": "ON" if said_enable(cs_rx) else ("OFF" if said_disable(cs_rx) else "OFF"),
-        "message_compressor": "ON" if said_enable(mc_rx) else ("OFF" if said_disable(mc_rx) else "OFF"),
-        "heterogeneous_data_handler": "ON" if said_enable(hdh_rx) else ("OFF" if said_disable(hdh_rx) else "OFF"),
+        "client_selector": _state(cs_en, cs_dis),
+        "message_compressor": _state(mc_en, mc_dis),
+        "heterogeneous_data_handler": _state(hdh_en, hdh_dis),
     }
 
-    # selection_value / threshold nella rationale (es. "selection value of 4", "threshold: 3")
     m_sel = re.search(r"(selection\s*value|threshold)\s*(of|=|:)?\s*([0-9]+)", s, flags=re.I)
     if m_sel:
         try:
@@ -480,9 +548,9 @@ def _sa_parse_output(text: str):
         except Exception:
             pass
 
-    # rationale è l'intero testo "s" ripulito
     rationale = s
     return decisions, rationale, bool(rationale)
+
 
 def _sa_call_ollama(model: str, prompt: str, base_urls: List[str], force_json: bool = True, options: dict = None) -> str:
     def _is_gpt_oss(name: str) -> bool:
@@ -493,7 +561,6 @@ def _sa_call_ollama(model: str, prompt: str, base_urls: List[str], force_json: b
         return (name or "").lower().startswith("llama")
 
     def _is_json_friendly(name: str) -> bool:
-        # DeepSeek regge bene il JSON mode; gli altri due no con prompt lunghi
         return (name or "").lower().startswith("deepseek")
 
     last_err = None

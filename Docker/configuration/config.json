@@ -2,7 +2,7 @@
     "simulation_type": "Docker",
     "rounds": 2,
     "clients": 2,
-    "adaptation": "Single AI-Agent (Few-Shot)",
+    "adaptation": "Single AI-Agent (Zero-Shot)",
     "LLM": "gpt-oss:20b",
     "patterns": {
         "client_registry": {
