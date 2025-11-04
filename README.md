@@ -287,12 +287,15 @@ Accepted for the 22nd IEEE International Conference on Software Architecture. IC
 Accepted in The Journal of Systems & Software. 2025. (_In Press_)
 
 ```
-@article{CompagnucciFLJSS,
-  author       = {Compagnucci, Ivan and Pinciroli, Riccardo and Trubiani, Catia},
-  title        = {{Experimenting Architectural Patterns in Federated Learning Systems}},
-  journal      = {J. Syst. Softw.},
-  pages        = {},
-  doi          = {},
-  year         = {2025},
+@article{COMPAGNUCCI2026112655,
+title = {Experimenting Architectural Patterns in Federated Learning Systems},
+journal = {Journal of Systems and Software},
+volume = {232},
+pages = {112655},
+year = {2026},
+issn = {0164-1212},
+doi = {https://doi.org/10.1016/j.jss.2025.112655},
+url = {https://www.sciencedirect.com/science/article/pii/S0164121225003243},
+author = {Ivan Compagnucci and Riccardo Pinciroli and Catia Trubiani},
 }
 ```

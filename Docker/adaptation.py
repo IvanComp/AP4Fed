@@ -425,6 +425,29 @@ def _sa_mode_from_policy(policy: str) -> str:
 def _sa_parse_output(text: str):
     if not text:
         return {"client_selector":"OFF","message_compressor":"OFF","heterogeneous_data_handler":"OFF"}, "", False
+
+    # rimuove code-fence
+    text = re.sub(r"```(?:json)?", "", text)
+    text = text.replace("```", "")
+
+    # prova 1: oggetto completo
+    try:
+        obj = json.loads(text)
+        if isinstance(obj, dict) and any(k in obj for k in ("client_selector","message_compressor","heterogeneous_data_handler")):
+            decisions = {}
+            for k in ("client_selector","message_compressor","heterogeneous_data_handler"):
+                v = str(obj.get(k, "OFF")).strip().upper()
+                decisions[k] = "ON" if v == "ON" else "OFF"
+            if "selection_value" in obj:
+                try:
+                    decisions["selection_value"] = int(obj["selection_value"])
+                except Exception:
+                    pass
+            rationale = str(obj.get("rationale", "")).strip()
+            return decisions, rationale, bool(rationale)
+    except Exception:
+        pass
+
     for m in re.finditer(r"\{.*?\}", text, flags=re.S):
         chunk = m.group(0).strip()
         try:
@@ -434,17 +457,16 @@ def _sa_parse_output(text: str):
                 for k in ("client_selector","message_compressor","heterogeneous_data_handler"):
                     v = str(obj.get(k, "OFF")).strip().upper()
                     decisions[k] = "ON" if v == "ON" else "OFF"
-
                 if "selection_value" in obj:
                     try:
                         decisions["selection_value"] = int(obj["selection_value"])
                     except Exception:
                         pass
-
                 rationale = str(obj.get("rationale", "")).strip()
                 return decisions, rationale, bool(rationale)
         except Exception:
             continue
+
     return {"client_selector":"OFF","message_compressor":"OFF","heterogeneous_data_handler":"OFF"}, "", False
 
 def _sa_call_ollama(model: str, prompt: str, base_urls: List[str], force_json: bool = True, options: dict = None) -> str:
@@ -452,78 +474,73 @@ def _sa_call_ollama(model: str, prompt: str, base_urls: List[str], force_json: b
         n = (name or "").lower()
         return n.startswith("gpt-oss") or (":" in n and n.split(":", 1)[0] == "gpt-oss")
 
+    def _attempt(base: str, use_json: bool):
+        if _is_gpt_oss(model):
+            payload = {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": False,
+            }
+            if use_json:
+                payload["format"] = "json"
+            if options:
+                payload["options"] = options
+            data = json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(
+                url=f"{base}/api/chat",
+                data=data,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=180) as resp:
+                out = json.loads(resp.read().decode("utf-8"))
+            if "error" in out:
+                raise RuntimeError(str(out["error"]))
+            msg = out.get("message") or {}
+            content = (msg.get("content") or out.get("response") or "").strip()
+            reasoning = (msg.get("reasoning") or msg.get("thinking") or out.get("reasoning") or "").strip()
+            if use_json:
+                try:
+                    obj = json.loads(content)
+                    if isinstance(obj, dict) and any(k in obj for k in ("client_selector","message_compressor","heterogeneous_data_handler")):
+                        if "rationale" not in obj and reasoning:
+                            obj["rationale"] = reasoning[:800]
+                        return json.dumps(obj, ensure_ascii=False)
+                except Exception:
+                    pass
+            return content
+        else:
+            payload = {"model": model, "prompt": prompt, "stream": False}
+            if use_json:
+                payload["format"] = "json"
+            if options:
+                payload["options"] = options
+            data = json.dumps(payload).encode("utf-8")
+            req = urllib.request.Request(
+                url=f"{base}/api/generate",
+                data=data,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=180) as resp:
+                out = json.loads(resp.read().decode("utf-8"))
+            if "error" in out:
+                raise RuntimeError(str(out["error"]))
+            return (out.get("response") or "").strip()
+
     last_err = None
     for base in base_urls:
         try:
-            if _is_gpt_oss(model):
-                payload = {
-                    "model": model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "stream": False,
-                    "think": "low"
-                }
-                if force_json:
-                    payload["format"] = "json"
-                if options:
-                    payload["options"] = options
+            return _attempt(base, use_json=(True if force_json else False))
+        except Exception as e1:
+            last_err = e1
+            try:
+                return _attempt(base, use_json=False)
+            except Exception as e2:
+                last_err = e2
+                continue
+    raise RuntimeError(f"Ollama unreachable or model failed: {last_err}")
 
-                data = json.dumps(payload).encode("utf-8")
-                req = urllib.request.Request(
-                    url=f"{base}/api/chat",
-                    data=data,
-                    headers={"Content-Type": "application/json"},
-                    method="POST",
-                )
-                with urllib.request.urlopen(req, timeout=180) as resp:
-                    out = json.loads(resp.read().decode("utf-8"))
-
-                if "error" in out:
-                    raise RuntimeError(str(out["error"]))
-
-                msg = out.get("message") or {}
-                content = (msg.get("content") or out.get("response") or "").strip()
-                thinking = (msg.get("reasoning") or msg.get("thinking") or out.get("reasoning") or "").strip()
-                if force_json and content:
-                    try:
-                        obj = json.loads(content)
-                        if isinstance(obj, dict) and any(k in obj for k in ("client_selector","message_compressor","heterogeneous_data_handler")):
-                            if "rationale" not in obj and thinking:
-                                obj["rationale"] = thinking[:800]
-                            return json.dumps(obj, ensure_ascii=False)
-                    except Exception:
-                        pass
-                return content
-
-            else:
-                payload = {
-                    "model": model,
-                    "prompt": prompt,
-                    "stream": False
-                }
-                if force_json:
-                    payload["format"] = "json"
-                if options:
-                    payload["options"] = options
-
-                data = json.dumps(payload).encode("utf-8")
-                req = urllib.request.Request(
-                    url=f"{base}/api/generate",
-                    data=data,
-                    headers={"Content-Type": "application/json"},
-                    method="POST",
-                )
-                with urllib.request.urlopen(req, timeout=180) as resp:
-                    out = json.loads(resp.read().decode("utf-8"))
-
-                if "error" in out:
-                    raise RuntimeError(str(out["error"]))
-                return (out.get("response") or "").strip()
-
-        except Exception as e:
-            last_err = e
-            continue
-
-    raise RuntimeError(f"Ollama unreachable: {last_err}")
 
 class AdaptationManager:
     def __init__(self, enabled: bool, default_config: Dict, use_rag=USE_RAG):

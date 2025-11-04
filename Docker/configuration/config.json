@@ -2,7 +2,7 @@
     "simulation_type": "Docker",
     "rounds": 2,
     "clients": 2,
-    "adaptation": "None",
+    "adaptation": "Single AI-Agent (Zero-Shot)",
     "LLM": "llama3.2:3b",
     "patterns": {
         "client_registry": {
@@ -37,7 +37,7 @@
     "client_details": [
         {
             "client_id": 1,
-            "cpu": 6,
+            "cpu": 5,
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
@@ -48,7 +48,7 @@
         },
         {
             "client_id": 2,
-            "cpu": 7,
+            "cpu": 5,
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
