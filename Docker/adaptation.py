@@ -131,26 +131,51 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         "heterogeneous_data_handler": "ON" if (ap_prev or {}).get("heterogeneous_data_handler") else "OFF",
     }
 
-    # 1) Static Context: Role, Task, Output, Guardrails (keep minimal)
+    # 1) Static Context: Role, Task, Output, Guardrails
     instructions = (
         "Architectural Pattern Decision: Prompt\n\n"
-        "## Context\n"
-        "Role: You are an expert software architect advising a Federated Learning (FL) system.\n"
-        "Task: Read the Context (and, if present, the RAG section) and decide which Architectural Patterns to enable for the next round.\n"
-        "Output: return exactly one JSON object with keys:\n"
+        "#Context\n"
+
+        "\n"
+        "## Role: You are an AI agent and expert software architect for Federated Learning systems.\n"
+        "At the end of each training round, analyze the current SYSTEM CONFIGURATION and actual system EVALUATION METRICS, then recommend which architectural patterns to turn ON or OFF for the next round to optimize system EVALUATION METRICS.\n"        
+        
+        "\n"
+        "##Task: Your task is to activate or deactive one or a combination of architectural patterns for the next round of training. The objective is to optimize the system EVALUATION METRICS as much as possible.\n"
+        "Here are the three ARCHITECTURAL PATTERNS that you can consider to (de)activate:\n"
+        "1) Client Selector: selects clients that will partecipate to the next round of Federated Learning. The selection is driven by the number of CPUs available by the clients. When active, you must specify 'selection_value': <int>, which is the CPU threshold. Only the clients with CPU > selection_value will be included for the next training round.\n"
+        "2) Message Compressor: compresses messages exchanged between the clients and the server.\n"
+        "3) Heterogeneous Data Handler: mitigates non-IID effects using class reweighting, augmentation, or distillation.\n"  
+        "\n"
+        "Ideally, we aim to optimize the following EVALUATION METRICS:\n"
+        "1) Maximize Global Model Accuracy, which measures the overall predictive performance of the aggregated model across all clients.\n"
+        "2) Minimize Total Round Time, defined as the elapsed time to complete a full federated learning round.\n"
+        "3) Minimize Communication Time, representing the duration spent exchanging data between the server and clients during each round.\n"
+        "4) Minimize Training Time, referring to the computational time each client requires to perform local model training.\n"
+        "\n"
+        "Enabling or disabling each architectural pattern has both advantages and disadvantages in terms of performance. Here are the architectural patterns’ performance trade-offs to consider:\n"
+        "- Client Selector: Selects clients with higher computational power to reduce slowdowns caused by weaker devices (the Straggler effect). This reduces total round time, training time, and communication time. However, persistently excluding lower-capacity clients may decrease model diversity, harming overall accuracy due to less varied data.\n"
+        "- Message Compressor: Compresses model updates exchanged between the server and clients to reduce communication time, which is especially beneficial for large models or bandwidth-constrained networks. The downside is the additional computational overhead from compression and decompression, which may outweigh the benefits when dealing with small model sizes.\n"
+        "- Heterogeneous Data Handler: Employs techniques such as data augmentation to address data heterogeneity among clients, improving global model accuracy and accelerating convergence on non-IID data. The trade-off is an increase in local computation required to generate synthetic data for balancing class distributions, which can add significant overhead.\n"
+        "\n"
+        "## Guardrails\n"
+        "- Use only the Context and the RAG section (if present: config snapshot + recent metrics). Do not invent values.\n"
+        "- Output only the JSON object, no extra text otherwise the system fails.\n"
+        "- selection_value is a CPU threshold for the Client Selector pattern: only clients with CPU > selection_value participate in each training round. Therefore, use an integer within [0, max_cpu-1], and ensure it is strictly less than the second-highest CPU value to avoid excluding more clients than necessary. It is crucial to guarantee that at least two clients remain active and are not excluded, since the federated learning process will fail if fewer than two clients participate in a round.\n"
+        "- If evidence is insufficient or conflicting, keep the previous choices and say why in the rationale.\n"
+        "- Activating a pattern always introduces overhead. Carefully consider whether it is really necessary. This does not mean that they should never be activated.\n"
+        "- Never rely on unstated assumptions; prefer measurable values (CPU list, non_iid_clients, last metrics).\n"
+
+        "\n"
+        "## Output\n"
+        "Return exactly one JSON object with keys:\n"
         '- "client_selector": "ON" or "OFF"\n'
         '- "message_compressor": "ON" or "OFF"\n'
         '- "heterogeneous_data_handler": "ON" or "OFF"\n'
         '- "selection_value": <int>  # required only if "client_selector"=="ON"\n'
-        '- "rationale": short explanation (≈2–3 sentences)\n'
-        "Guardrails:\n"
-        "- Output only the JSON object, no extra text.\n"
-        "- selection_value is a CPU threshold: only clients with CPU > selection_value participate.\n"
-        "- Use an integer in [0, max_cpu-1], strictly less than the second-highest CPU value.\n"
-        "- If evidence is insufficient, keep previous choices and say why in rationale.\n\n"
+        '- "rationale": Provide a detailed explanation (at least 100 words) that includes: (i) concrete evidence and data derived from the actual system context or relevant factual knowledge (RAG); (ii) theoretical evidence from the performance analysis of architectural patterns, and how these motivate the decision to enable or disable each architectural pattern.'
     )
 
-    # Runtime context always present
     current_ctx = (
         "### Runtime Context\n"
         f"- Dataset: {dataset}\n"
@@ -164,14 +189,12 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         f"- Previous AP: {{\"client_selector\":\"{ap_prev_small['client_selector']}\",\"message_compressor\":\"{ap_prev_small['message_compressor']}\",\"heterogeneous_data_handler\":\"{ap_prev_small['heterogeneous_data_handler']}\"}}\n\n"
     )
 
-    # 2) Optional RAG section: include snapshots from config.json and performance CSV
     rag = ""
     try:
         use_rag = bool(USE_RAG)
     except Exception:
         use_rag = True
     if use_rag:
-        # Build a compact snapshot of config.json
         cfg_summary = {}
         try:
             cfg = {}
@@ -241,7 +264,7 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
             + "\n\n"
         )
 
-    # 3) Few-shot examples appended only for few-shot/fine-tuning modes
+    # 3) Few-shot examples appended only for few-shot modes
     if mode != "zero":
         ex1_ctx = (
             "## Example 1\n"
@@ -312,11 +335,6 @@ def _sa_parse_output(text: str):
     return {"client_selector":"OFF","message_compressor":"OFF","heterogeneous_data_handler":"OFF"}, "", False
 
 def _sa_call_ollama(model: str, prompt: str, base_urls: List[str], force_json: bool = True, options: dict = None) -> str:
-    """
-    Supporta sia /api/generate (prompt) sia /api/chat (messages).
-    Per i modelli 'gpt-oss:*' usa /api/chat e, se disponibile, integra 'message.reasoning'
-    come 'rationale' quando l'output è JSON ma senza rationale.
-    """
     def _is_gpt_oss(name: str) -> bool:
         n = (name or "").lower()
         return n.startswith("gpt-oss") or (":" in n and n.split(":", 1)[0] == "gpt-oss")
@@ -325,12 +343,10 @@ def _sa_call_ollama(model: str, prompt: str, base_urls: List[str], force_json: b
     for base in base_urls:
         try:
             if _is_gpt_oss(model):
-                # Chat endpoint (richiede messages)
                 payload = {
                     "model": model,
                     "messages": [{"role": "user", "content": prompt}],
                     "stream": False,
-                    # per i modelli 'thinking' abilita reasoning leggero
                     "think": "low"
                 }
                 if force_json:

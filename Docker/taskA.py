@@ -167,38 +167,30 @@ class CNN_Dynamic(nn.Module):
                  conv1_out, conv2_out, fc1_out, fc2_out, **kwargs):
         super().__init__()
 
-        # Riconosci automaticamente la variante "cnn16k"
         self._is_cnn16k = (conv1_out == 3 and conv2_out == 8 and
                            fc1_out == 60 and fc2_out == 42)
 
-        # BN "stabile": running stats ON; momentum basso per non-IID
         def BN(c):
             bn = nn.BatchNorm2d(c, affine=True, track_running_stats=True)
-            # momentum basso = aggiornamenti più cauti delle running stats
             bn.momentum = 0.01
             return bn
 
-        # Blocchi feature: Conv -> BN -> ReLU -> Pool
-        # Per cnn16k: conv senza bias quando seguita da BN
         self.features = nn.Sequential(
             nn.Conv2d(in_ch, conv1_out, kernel_size=3, stride=1, padding=1,
                       bias=(not self._is_cnn16k)),
             BN(conv1_out),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),  # es. 32->16 su CIFAR-10
+            nn.MaxPool2d(kernel_size=2, stride=2),  
 
             nn.Conv2d(conv1_out, conv2_out, kernel_size=3, stride=1, padding=1,
                       bias=(not self._is_cnn16k)),
             BN(conv2_out),
             nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2, stride=2),  # es. 16->8
+            nn.MaxPool2d(kernel_size=2, stride=2), 
         )
 
-        # Dimensione dopo due pool (//4 per lato)
         h = int(input_size) // 4
         feat_dim = conv2_out * h * h
-
-        # Classifier
         self.classifier = nn.Sequential(
             nn.Linear(feat_dim, fc1_out),
             nn.ReLU(inplace=True),
@@ -206,8 +198,6 @@ class CNN_Dynamic(nn.Module):
             nn.ReLU(inplace=True),
             nn.Linear(fc2_out, num_classes),
         )
-
-        # Inizializzazione robusta (senza zero-gamma finale)
         self._init_weights()
 
     def forward(self, x):
@@ -569,7 +559,6 @@ def load_data(client_config, GLOBAL_ROUND_COUNTER, dataset_name_override=None):
     with open(config_path, 'r') as f:
         total_rounds = json.load(f).get("rounds")
 
-    # carica tutto (default)
     if DATASET_PERSISTENCE == "Same Data":
         pass
     else:

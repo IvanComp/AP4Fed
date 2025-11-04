@@ -30,7 +30,7 @@
             "params": {}
         },
         "heterogeneous_data_handler": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         }
     },
@@ -70,7 +70,7 @@
         },
         {
             "client_id": 4,
-            "cpu": 1,
+            "cpu": 5,
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "non-IID",
@@ -81,7 +81,7 @@
         },
         {
             "client_id": 5,
-            "cpu": 3,
+            "cpu": 5,
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
