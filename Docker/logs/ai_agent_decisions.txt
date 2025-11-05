@@ -1,10 +1,15 @@
 
 == ROUND 1 ==
-[Single-Agent] Decision (llama3.2:3b): CS: ❌→✅ • MC: ❌→❌ • HDH: ❌→✅
-[Rationale] The Client Selector pattern is enabled to reduce slowdowns caused by weaker devices, which reduces total round time, training time, and communication time. This decision is supported by the fact that the system has two clients with similar CPU values (5), and enabling this pattern will not exclude any client. The selection_value of 4 ensures that only clients with higher computational power participate in each training round.
+[ROUND 1] Policy 'Multiple AI-Agents (Debate-Based)' not recognized or inactive (no changes)
+[Multiple AI-Agents (Debate-Based)] PolicyTime: 0.00s
 
-    The Message Compressor pattern is disabled because its benefits are outweighed by the additional computational overhead from compression and decompression, especially when dealing with small model sizes. This decision is supported by the fact that the system has a relatively small dataset (CIFAR-10) and the communication time is not significantly affected without compression.
 
-    The Heterogeneous Data Handler pattern is enabled to address data heterogeneity among clients, improving global model accuracy and accelerating convergence on non-IID data. This decision is supported by the fact that the system has non-IID clients (2 IID clients), and enabling this pattern will help balance class distributions and improve overall model performance. The increase in local computation required to generate synthetic data for balancing class distributions may add significant overhead, but it is a necessary step to mitigate the negative effects of non-IID data.
-[Single AI-Agent (Zero-Shot)] PolicyTime: 20.58s
+== ROUND 2 ==
+[ROUND 2] Policy 'Multiple AI-Agents (Debate-Based)' not recognized or inactive (no changes)
+[Multiple AI-Agents (Debate-Based)] PolicyTime: 0.00s
+
+
+== ROUND 3 ==
+[ROUND 3] Policy 'Multiple AI-Agents (Debate-Based)' not recognized or inactive (no changes)
+[Multiple AI-Agents (Debate-Based)] PolicyTime: 0.00s
 
