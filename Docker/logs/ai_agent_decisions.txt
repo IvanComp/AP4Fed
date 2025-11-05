@@ -1,0 +1,6 @@
+
+== ROUND 1 ==
+[Single-Agent] Decision (llama3.2:3b): CS: ·→✅ • MC: ·→❌ • HDH: ·→✅
+[Rationale] This model does not support rationale generation.
+[Single AI-Agent (Zero-Shot)] PolicyTime: 19.46s
+

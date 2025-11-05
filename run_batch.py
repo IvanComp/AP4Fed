@@ -70,35 +70,61 @@ def generate_compose_from_cfg(cfg: Dict[str, Any], template_path: Path, out_path
 def run_one(cfg_path: Path, compose_template: Path, repeat_idx: int, tag: str, keep: bool) -> Path:
     cfg = load_json(cfg_path)
     work_dir = compose_template.parent.resolve()
-    # put config where simulation.py expects it: Docker/configuration/config.json
+
+    # Metti il config dove lo legge simulation.py (Docker/configuration/config.json)
     (work_dir / "configuration").mkdir(parents=True, exist_ok=True)
     shutil.copy2(cfg_path, work_dir / "configuration" / "config.json")
-    base = f"{stamp()}_{exp_label(cfg_path)}_r{repeat_idx:02d}"
-    if tag: base = f"{stamp()}_{tag}_{exp_label(cfg_path)}_r{repeat_idx:02d}"
-    out_dir = cfg_path.parent / base
-    out_dir.mkdir(parents=True, exist_ok=True)
-    # clean output dirs
-    clean(work_dir / "performance"); clean(work_dir / "model_weights"); (work_dir / "logs").mkdir(exist_ok=True)
-    # generate per-run compose with N clients from config
+
+    # Pulisci output precedenti
+    for d in ("performance", "model_weights", "logs"):
+        clean(work_dir / d)
+    (work_dir / "logs").mkdir(exist_ok=True)
+
+    # Genera compose dinamico per questa run (N client da client_details)
     dyn_compose = work_dir / f"docker-compose.dynamic.{exp_label(cfg_path)}.yml"
     generate_compose_from_cfg(cfg, compose_template, dyn_compose)
-    # write .env for NUM_ROUNDS like simulation.py environment style
+
+    # Env in stile simulation.py (NUM_ROUNDS ecc), project name safe per evitare conflitti
     env = os.environ.copy()
     env.update(derive_env_from_cfg(cfg))
     env["COMPOSE_PROJECT_NAME"] = sanitize_project(tag or exp_label(cfg_path))
-    (work_dir / ".env").write_text("\n".join([f"{k}={v}" for k,v in env.items() if k in ("NUM_ROUNDS","NUM_CPUS","NUM_RAM")])+"\n", encoding="utf-8")
-    # always down before up to avoid /flwr_server conflicts
+
+    # Sempre down prima di up per evitare il conflitto /flwr_server
     subprocess.run(["docker","compose","-f",str(dyn_compose),"down","-v","--remove-orphans"], cwd=str(work_dir))
-    print(f"[{base}] compose={dyn_compose.name}", flush=True)
-    proc = subprocess.run(["docker","compose","-f",str(dyn_compose),"up","--build","--remove-orphans","--abort-on-container-exit"], cwd=str(work_dir), env=env)
-    print(f"[{base}] exit={proc.returncode}", flush=True)
-    # always down after to free names
+
+    run_label = f"{stamp()}_{tag+'_' if tag else ''}{exp_label(cfg_path)}_r{repeat_idx:02d}"
+    print(f"[{run_label}] compose={dyn_compose.name}", flush=True)
+
+    proc = subprocess.run(
+        ["docker","compose","-f",str(dyn_compose),"up","--build","--remove-orphans","--abort-on-container-exit"],
+        cwd=str(work_dir), env=env
+    )
+    print(f"[{run_label}] exit={proc.returncode}", flush=True)
+
+    # Down dopo la run per liberare i nomi container
     subprocess.run(["docker","compose","-f",str(dyn_compose),"down","-v"], cwd=str(work_dir))
-    copy_dir(work_dir / "performance", out_dir); copy_dir(work_dir / "model_weights", out_dir)
-    if (work_dir / "logs").exists():
-        shutil.copytree(work_dir / "logs", out_dir / "logs", dirs_exist_ok=True)
-    (out_dir / "manifest.json").write_text(json.dumps({"run_id": base,"config_src": str(cfg_path),"compose_used": str(dyn_compose)}, indent=2), encoding="utf-8")
-    return out_dir
+
+    # === SOLO CSV: prendi il file performance e rinominalo r{N}.csv nella cartella del config ===
+    src_csv = work_dir / "performance" / "FLwithAP_performance_metrics.csv"
+    if not src_csv.exists():
+        # fallback robusto: primo CSV che combacia il pattern
+        matches = sorted((work_dir / "performance").glob("FLwithAP_performance_metrics*.csv"))
+        if matches:
+            src_csv = matches[0]
+    dest_csv = cfg_path.parent / f"r{repeat_idx}.csv"
+    dest_csv.parent.mkdir(parents=True, exist_ok=True)
+
+    if src_csv.exists():
+        shutil.copy2(src_csv, dest_csv)
+        print(f"[{run_label}] saved -> {dest_csv}")
+    else:
+        print(f"[{run_label}] WARNING: performance CSV non trovato in {work_dir/'performance'}")
+
+    # Pulisci tutto il resto per non lasciare residui
+    for d in ("performance", "model_weights", "logs"):
+        clean(work_dir / d)
+
+    return dest_csv.parent
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("configs", nargs="+", help="Paths/globs to Experiments/*/config.json")

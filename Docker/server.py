@@ -217,9 +217,12 @@ def log_round_time(
         ])
 
 
-def preprocess_csv():
+def preprocess_csv(agent_time=None):
     import pandas as pd
     df = pd.read_csv(csv_file)
+
+    if 'Agent Time (s)' not in df.columns:
+        df['Agent Time (s)'] = np.nan
 
     df["Client Number"] = (
         df["Client ID"]
@@ -269,6 +272,13 @@ def preprocess_csv():
                     df = df.reset_index()
                 elif "FL Round" in getattr(df.index, "names", []):
                     df = df.reset_index(level="FL Round")
+    
+    if agent_time is not None and 'Agent Time (s)' in df.columns:
+        current_round = df['FL Round'].max()
+        mask = df['FL Round'] == current_round
+        last_idx = df[mask].index[-1]
+        df.loc[last_idx, 'Agent Time (s)'] = f"{float(agent_time):.2f}"
+
     df.drop(columns=["Client Number"], inplace=True)
     df.to_csv(csv_file, index=False)
 
@@ -796,13 +806,11 @@ class FedAvg(Strategy):
                 for key in global_metrics[model_type]
             }
 
-        preprocess_csv()
-        round_csv = os.path.join(
-            performance_dir,
-            f"FLwithAP_performance_metrics_round{currentRnd}.csv"
-        )
-        shutil.copy(csv_file, round_csv)
         next_round_config = self.adapt_mgr.config_next_round(metrics_history, round_total_time)
+        agent_time = getattr(self.adapt_mgr, 'adaptation_time', None)
+        preprocess_csv(agent_time)
+        round_csv = os.path.join(performance_dir, f"FLwithAP_performance_metrics_round{currentRnd}.csv")
+        shutil.copy(csv_file, round_csv)
         config_patterns(next_round_config)
 
         return self.parameters_a, metrics_aggregated

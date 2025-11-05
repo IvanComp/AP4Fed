@@ -649,6 +649,7 @@ class AdaptationManager:
     def __init__(self, enabled: bool, default_config: Dict, use_rag=USE_RAG):
         self.name = "AdaptationManager"
         self.use_rag = use_rag
+        self.adaptation_time = None
         self.default_config = default_config
         self.policy = str(default_config.get("adaptation", "None")).strip()
         self.total_rounds = int(default_config.get("rounds", 1))
@@ -848,7 +849,8 @@ class AdaptationManager:
         next_config, decision_logs = self._decide_next_config(base_config, current_round)
         t_agents_finish = time.perf_counter()
         t_agent =  t_agents_finish - t_agents_start
-
+        self.adaptation_time = t_agent
+        
         for line in decision_logs:
             log(INFO, line)
 
