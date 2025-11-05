@@ -75,7 +75,7 @@ def run_one(cfg_path: Path, compose_template: Path, repeat_idx: int, tag: str, k
     shutil.copy2(cfg_path, work_dir / "configuration" / "config.json")
     base = f"{stamp()}_{exp_label(cfg_path)}_r{repeat_idx:02d}"
     if tag: base = f"{stamp()}_{tag}_{exp_label(cfg_path)}_r{repeat_idx:02d}"
-    out_dir = Path("experiments") / base
+    out_dir = cfg_path.parent / base
     out_dir.mkdir(parents=True, exist_ok=True)
     # clean output dirs
     clean(work_dir / "performance"); clean(work_dir / "model_weights"); (work_dir / "logs").mkdir(exist_ok=True)

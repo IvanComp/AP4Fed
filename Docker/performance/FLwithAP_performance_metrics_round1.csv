@@ -1,6 +1,0 @@
-Client ID,FL Round,Training Time,JSD,HDH Time,Communication Time,Total Time of FL Round,# of CPU,CPU Usage (%),RAM Usage (%),Model Type,Data Distr. Type,Dataset,Train Loss,Train Accuracy,Train F1,Train MAE,Val Loss,Val Accuracy,Val F1,Val MAE,"AP List (client_selector,client_cluster,message_compressor,model_co-versioning_registry,multi-task_model_trainer,heterogeneous_data_handler)"
-Client 1,1,57.44,0.0,0.0,18.3,,5,321,31,CNN 16k,non-IID,CIFAR-10,,,,,,,,,
-Client 2,1,14.02,0.0,0.0,21.69,,5,196,30,CNN 16k,non-IID,CIFAR-10,,,,,,,,,
-Client 3,1,10.45,0.0,0.0,33.34,,5,212,29,CNN 16k,IID,CIFAR-10,,,,,,,,,
-Client 4,1,11.4,0.0,0.0,64.51,,5,105,30,CNN 16k,non-IID,CIFAR-10,,,,,,,,,
-Client 5,1,70.37,0.0,0.0,17.61,97.17,5,363,31,CNN 16k,IID,CIFAR-10,1.0,0.6627,0.3725,1.3048,2.44,0.3569,0.289,2.331,"{OFF,OFF,OFF,OFF,OFF,OFF}"
