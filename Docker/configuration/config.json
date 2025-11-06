@@ -2,8 +2,8 @@
     "simulation_type": "Docker",
     "rounds": 20,
     "clients": 5,
-    "adaptation": "Single AI-Agent (Few-Shot)",
-    "LLM": "deepseek-r1:8b",
+    "adaptation": "Random",
+    "LLM": "llama3.2:3b",
     "patterns": {
         "client_registry": {
             "enabled": true,

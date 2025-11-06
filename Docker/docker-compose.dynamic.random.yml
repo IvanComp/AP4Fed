@@ -32,12 +32,12 @@ services:
       dockerfile: Dockerfile.client
     command: sh -c "sleep 5 && python client.py"
     container_name: Client1
-    cpus: 6.0
+    cpus: 5.0
     depends_on:
     - server
     environment:
       CLIENT_ID: '1'
-      NUM_CPUS: '6'
+      NUM_CPUS: '5'
       NUM_RAM: 2g
       NUM_ROUNDS: '2'
       SERVER_ADDRESS: server:8080
@@ -57,12 +57,87 @@ services:
       dockerfile: Dockerfile.client
     command: sh -c "sleep 5 && python client.py"
     container_name: Client2
-    cpus: 6.0
+    cpus: 5.0
     depends_on:
     - server
     environment:
       CLIENT_ID: '2'
-      NUM_CPUS: '6'
+      NUM_CPUS: '5'
+      NUM_RAM: 2g
+      NUM_ROUNDS: '2'
+      SERVER_ADDRESS: server:8080
+    labels:
+    - type=client
+    mem_limit: 2g
+    networks:
+    - flwr_network
+    volumes:
+    - ./data:/app/data
+    - ./performance:/app/performance
+    - ./configuration:/app/configuration
+    - ./model_weights:/app/model_weights
+  client3:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    command: sh -c "sleep 5 && python client.py"
+    container_name: Client3
+    cpus: 5.0
+    depends_on:
+    - server
+    environment:
+      CLIENT_ID: '3'
+      NUM_CPUS: '5'
+      NUM_RAM: 2g
+      NUM_ROUNDS: '2'
+      SERVER_ADDRESS: server:8080
+    labels:
+    - type=client
+    mem_limit: 2g
+    networks:
+    - flwr_network
+    volumes:
+    - ./data:/app/data
+    - ./performance:/app/performance
+    - ./configuration:/app/configuration
+    - ./model_weights:/app/model_weights
+  client4:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    command: sh -c "sleep 5 && python client.py"
+    container_name: Client4
+    cpus: 5.0
+    depends_on:
+    - server
+    environment:
+      CLIENT_ID: '4'
+      NUM_CPUS: '5'
+      NUM_RAM: 2g
+      NUM_ROUNDS: '2'
+      SERVER_ADDRESS: server:8080
+    labels:
+    - type=client
+    mem_limit: 2g
+    networks:
+    - flwr_network
+    volumes:
+    - ./data:/app/data
+    - ./performance:/app/performance
+    - ./configuration:/app/configuration
+    - ./model_weights:/app/model_weights
+  client5:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    command: sh -c "sleep 5 && python client.py"
+    container_name: Client5
+    cpus: 5.0
+    depends_on:
+    - server
+    environment:
+      CLIENT_ID: '5'
+      NUM_CPUS: '5'
       NUM_RAM: 2g
       NUM_ROUNDS: '2'
       SERVER_ADDRESS: server:8080
