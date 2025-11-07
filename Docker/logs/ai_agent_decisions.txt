@@ -1,12 +1,6 @@
 
 == ROUND 1 ==
-[Single-Agent] Decision (llama3.2:3b): CS: ·→✅ • MC: ·→❌ • HDH: ·→❌
-[Rationale] We activate the Client Selector pattern with a selection value of 3 to reduce slowdowns caused by weaker devices and minimize Total Round Time, Training Time, and Communication Time. This is supported by the fact that our system has two clients with similar CPU values (5), which would be excluded if we didn't use the Client Selector.
-
-    The performance report shows that the Global Model Accuracy has been relatively stable over the last few rounds, with a mean F1 score of 0.4896. This suggests that the model is performing well despite the potential for decreased diversity due to client selection.
-
-    We keep the Heterogeneous Data Handler pattern active as it has shown benefits in improving global model accuracy and accelerating convergence on non-IID data. The additional computational overhead from generating synthetic data is a trade-off we are willing to make given the current system configuration and performance metrics.
-
-    Finally, we deactivate the Message Compressor pattern as our system's communication time is not significantly impacted by message compression, and the additional computational overhead may outweigh the benefits in this case.
-[Single AI-Agent (Zero-Shot)] PolicyTime: 13.52s
+[Single-Agent] Decision (deepseek-r1:8b): CS: ·→❌ • MC: ·→❌ • HDH: ·→❌
+[Rationale] The system configuration shows all clients have similar CPU capabilities (all 5 or 3), but the previous round had a stable F1 score of 0.7737 and the training time was 45.27 seconds. The communication time was high (59.35 seconds) but the trend slope is positive, indicating improvement. Since the data distribution is mixed (IID and non-IID), but the F1 score is already high, there is no immediate need to activate any pattern. The Client Selector might harm diversity, the Message Compressor could be ineffective for small models, and the Heterogeneous Data Handler is not necessary as the F1 score is stable. Therefore, keep all patterns OFF. CS=OFF; MC=OFF; HDH=OFF
+[Single AI-Agent (Few-Shot)] PolicyTime: 25.90s
 

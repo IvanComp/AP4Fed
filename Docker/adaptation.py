@@ -72,20 +72,20 @@ def _sa_latest_round_csv():
     return rnum(lastf), lastf
 
 def _sa_aggregate_round(df):
-    def mean(colnames):
-        for c in colnames:
-            if c in df.columns:
-                try:
-                    return df[c].astype(float).mean()
-                except Exception:
-                    pass
-        return None
-    return {
-        "mean_f1": mean(["F1", "Val F1", "val_f1", "val_f1_mean"]),
-        "mean_total_time": mean(["Total Time of FL Round", "Total Time (s)", "TotalTime"]),
-        "mean_training_time": mean(["Training Time", "Training (s)", "Training Time (s)"]),
-        "mean_comm_time": mean(["Communication Time", "Comm (s)", "server_comm_time"])
-    }
+
+    val_f1_mean = df["Val F1"].astype(float).mean()
+    tr_col = next(c for c in ["Training Time (s)", "Training Time", "Training (s)"] if c in df.columns)
+    co_col = next(c for c in ["Communication Time (s)", "Communication Time", "Comm (s)"] if c in df.columns)
+    col_f1 = "Val F1"
+    val_f1_mean = df[col_f1].astype(float).mean()
+    tr = df[tr_col].astype(float)
+    co = df[co_col].astype(float)
+
+    metrics_digest = (
+        f"Global Model Val F1: mean={val_f1_mean:.4f}\n"
+        f"Training Time per client: mean={tr.mean():.2f}s, range=[{tr.min():.2f},{tr.max():.2f}]s\n"
+        f"Communication Time per client: mean={co.mean():.2f}s, range=[{co.min():.2f},{co.max():.2f}]s"
+    )
 
 def _sa_extract_ap_prev(df):
     ap_prev = {"client_selector": None, "message_compressor": None, "heterogeneous_data_handler": None}
@@ -159,12 +159,16 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         "## Guardrails\n"
         "- Use only the Context and the RAG section (if present: config snapshot + recent metrics). Do not invent values.\n"
         "- Output only the JSON object, no extra text otherwise the system fails.\n"
+        "- The last line of the 'rationale' must be exactly the signature: CS=<ON|OFF>; MC=<ON|OFF>; HDH=<ON|OFF>. These values must copy the JSON decisions above, in the same order and casing.\n"
         "- selection_value is a CPU threshold for the Client Selector pattern: only clients with CPU > selection_value participate in each training round. Therefore, use an integer within [0, max_cpu-1], and ensure it is strictly less than the second-highest CPU value to avoid excluding more clients than necessary. It is crucial to guarantee that at least two clients remain active and are not excluded, since the federated learning process will fail if fewer than two clients participate in a round.\n"
         "- If evidence is insufficient or conflicting, keep the previous choices and say why in the rationale.\n"
         "- Activating a pattern always introduces overhead. Carefully consider whether it is really necessary. This does not mean that they should never be activated.\n"
-        "- If you aggregate metrics over multiple rounds (mean/median/rolling), explicitly say which statistic and window you used; otherwise state 'last-round only'.\n"
-        "- If a pattern is already active from the previous round and you decide to keep it active, specify that “it is kept active” and not, for example, “we activate the pattern.\n"
+        "- If you aggregate metrics over multiple rounds (mean/median), explicitly say which statistic and window you used; otherwise state 'last-round only'.\n"
+        "- If a pattern is already active from the previous round and you decide to keep it active, specify that 'it is kept active' and not, for example, 'we activate the pattern'.\n"
         "- Never rely on unstated assumptions; prefer measurable values (CPU list, non_iid_clients, last metrics).\n"
+        "- F1 always means the GLOBAL MODEL validation F1 (use the column 'Val F1')\n"
+        "- When citing Training/Communication Time, always use client-level aggregates (mean and range min–max for the round). Do not quote a single client's time.\n"
+
         "\n"
         "## Output\n"
         "Return exactly one JSON object with keys:\n"
@@ -172,7 +176,7 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         '- "message_compressor": "ON" or "OFF"\n'
         '- "heterogeneous_data_handler": "ON" or "OFF"\n'
         '- "selection_value": <int>  # required only if "client_selector"=="ON"\n'
-        '- "rationale": Provide a detailed explanation (at least 100 words) that includes: (i) concrete evidence and data derived from the actual system context or relevant factual knowledge (RAG); (ii) theoretical evidence from the performance analysis of architectural patterns, and how these motivate the decision to enable or disable each architectural pattern.'
+        '- "rationale": A detailed explanation (at least 50 words). The rationale MUST end with the exact signature line: CS=<ON|OFF>; MC=<ON|OFF>; HDH=<ON|OFF>, where ON/OFF equals the JSON decisions above.'
     )
 
     # 2) RAG: full system config + full metrics history 
@@ -325,8 +329,11 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
     else:
         rag = (
             "## RAG\n"
+            "### System Configuration & Metrics Digest\n"
+            "The CSV file contains per-client metrics (Training Time and Communication Time) for each client in each round. You can consider these metrics individually per client or as an average.\n"
+            "Note that 'Val F1' is the global model accuracy for the entire round, and 'Total Round Time' is the total duration of the round. These two metrics are global, not per-client.\n"
             "### System Configuration (runtime snapshot)\n"
-            + json.dumps({
+             + json.dumps({
                 "dataset": dataset,
                 "clients": clients,
                 "model": model,
@@ -344,24 +351,24 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         ex1_ctx = (
             "## Example 1 — Client Selector (edge-case)\n"
             "### Context\n"
-            "- CPUs: [2,2,2,2,1]\n"
+            "- CPUs: [5,5,5,3,3]\n"
             "- Data: all IID\n"
             "- Comm share: 0.30\n"
             "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
             "### Decision\n"
             "{\"client_selector\":\"ON\",\"selection_value\":1,\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\","
-            "\"rationale\":\"A single low-spec client (CPU=1) throttles synchronization. Set threshold >1 to exclude it; keep MC OFF (comm not dominant) and HDH OFF (no non-IID).\"}\n"
+            "\"rationale\":\"A single low-spec client (CPU=3) throttles synchronization. Set threshold >3 to exclude it; CS=ON; MC=OFF; HDH=OFF\"}\n"
         )
         ex2_ctx = (
             "## Example 2 — Client Selector (numeric)\n"
             "### Context\n"
-            "- 4 clients: 3 High-Spec (CPU=2) + 1 Low-Spec (CPU=1)\n"
+            "- 4 clients: 3 High-Spec (CPU=5) + 2 Low-Spec (CPU=3)\n"
             "- Data: IID\n"
             "- Observed: with CS=OFF, Total Round Time ≈ 9× slower than with CS=ON; F1 ≈ 0.57–0.59 in both cases\n"
             "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
             "### Decision\n"
             "{\"client_selector\":\"ON\",\"selection_value\":1,\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\","
-            "\"rationale\":\"Exclude the CPU=1 client to remove the bottleneck (≈9× Total Round Time reduction reported with same F1).\"}\n"
+            "\"rationale\":\"Exclude the lowest CPU clients (2) to remove the bottleneck (≈9× Total Round Time reduction reported with same F1). \"}\n"
         )
         ex3_ctx = (
             "## Example 3 — Message Compressor (edge-case)\n"
@@ -371,7 +378,7 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
             "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
             "### Decision\n"
             "{\"client_selector\":\"OFF\",\"message_compressor\":\"ON\",\"heterogeneous_data_handler\":\"OFF\","
-            "\"rationale\":\"High communication proportion with a large model favors compression benefits; enable MC to cut comm time; keep CS OFF (no stragglers) and HDH OFF (no non-IID).\"}\n"
+            "\"rationale\":\"High communication proportion with a large model favors compression benefits; enable MC to cut comm time.\"}\n"
         )
         ex4_ctx = (
             "## Example 4 — Message Compressor (numeric)\n"
@@ -390,7 +397,7 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
             "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
             "### Decision\n"
             "{\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"ON\","
-            "\"rationale\":\"Activate HDH to mitigate non-IID with augmentation/distillation; improves generalization with acceptable local overhead.\"}\n"
+            "\"rationale\":\"Activate HDH to mitigate non-IID with augmentation; improves generalization with acceptable local overhead.\"}\n"
         )
         ex6_ctx = (
             "## Example 6 — Heterogeneous Data Handler (numeric)\n"
@@ -400,7 +407,7 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
             "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
             "### Decision\n"
             "{\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"ON\","
-            "\"rationale\":\"Enable HDH to rebalance classes on non-IID clients, improving F1 while keeping round-time variability under control; CS OFF (no resource skew), MC OFF (comm not dominant).\"}\n"
+            "\"rationale\":\"Enable HDH to rebalance classes on non-IID clients, improving F1 while keeping round-time variability under control.\"}\n"
         )
         header_few = "### Few-Shot Examples\n\n"
         return header_few + instructions + (rag or "") + ex1_ctx + "\n" + ex2_ctx + "\n" + ex3_ctx + "\n" + ex4_ctx + "\n" + ex5_ctx + "\n" + ex6_ctx + "\n" + "## Decision\n"
@@ -428,130 +435,73 @@ def _sa_mode_from_policy(policy: str) -> str:
     return "few"
 
 def _sa_parse_output(text: str):
-    if not text:
-        return {"client_selector":"OFF","message_compressor":"OFF","heterogeneous_data_handler":"OFF"}, "", False
+    import re, json
 
-    s = text.strip()
-    s = re.sub(r"^```[\w-]*\s*|\s*```$", "", s, flags=re.M).strip()
+    default = {"client_selector":"OFF","message_compressor":"OFF","heterogeneous_data_handler":"OFF"}
 
-    # 1) prova: qualsiasi oggetto JSON { ... } con le tre chiavi
+    s = "" if text is None else str(text).strip()
+    s = re.sub(r"^\s*```(?:json)?\s*|\s*```\s*$", "", s, flags=re.I | re.M).strip()
+
+    obj = None
+    last_json = None
     for m in re.finditer(r"\{.*?\}", s, flags=re.S):
-        chunk = m.group(0).strip()
+        last_json = m.group(0)
+    if last_json is not None:
         try:
-            obj = json.loads(chunk)
-            if isinstance(obj, dict) and any(k in obj for k in ("client_selector","message_compressor","heterogeneous_data_handler")):
-                decisions = {}
-                for k in ("client_selector","message_compressor","heterogeneous_data_handler"):
-                    v = str(obj.get(k, "OFF")).strip().upper()
-                    decisions[k] = "ON" if v == "ON" else "OFF"
-                if "selection_value" in obj:
-                    try:
-                        decisions["selection_value"] = int(obj["selection_value"])
-                    except Exception:
-                        pass
-                rationale = str(obj.get("rationale", "")).strip()
-                return decisions, rationale, bool(rationale)
+            obj = json.loads(last_json)
         except Exception:
-            continue
-
-    # 1bis) prova: ARRAY JSON con decisioni (lista di stringhe o oggetti)
-    def _apply_item_to_decisions(item, decisions):
+            obj = None
+    if obj is None:
         try:
-            if isinstance(item, dict):
-                # possibili forme: {"client_selector":"ON"} oppure {"pattern":"client_selector","state":"ON"}
-                for k in ("client_selector","message_compressor","heterogeneous_data_handler"):
-                    if k in item:
-                        v = str(item[k]).strip().upper()
-                        decisions[k] = "ON" if v in ("ON","TRUE","YES","1") else "OFF"
-                if "pattern" in item and ("state" in item or "value" in item):
-                    name = str(item.get("pattern","")).lower().replace("-","_").replace(" ","")
-                    state = str(item.get("state", item.get("value","OFF"))).strip().upper()
-                    if "clientselector" in name: decisions["client_selector"] = "ON" if state in ("ON","TRUE","YES","1") else "OFF"
-                    if "messagecompress" in name: decisions["message_compressor"] = "ON" if state in ("ON","TRUE","YES","1") else "OFF"
-                    if "heterogeneousdatahandler" in name or "hdh" in name: decisions["heterogeneous_data_handler"] = "ON" if state in ("ON","TRUE","YES","1") else "OFF"
-                if "selection_value" in item:
-                    try:
-                        decisions["selection_value"] = int(item["selection_value"])
-                    except Exception:
-                        pass
-            elif isinstance(item, str):
-                t = item.lower().replace(" ","").replace("-","")
-                if "clientselector" in t:
-                    decisions["client_selector"] = "ON" if ("on" in t or ":on" in t or "=on" in t) else "OFF"
-                if "messagecompress" in t:
-                    decisions["message_compressor"] = "ON" if ("on" in t or ":on" in t or "=on" in t) else "OFF"
-                if "heterogeneousdatahandler" in t or "hdh" in t:
-                    decisions["heterogeneous_data_handler"] = "ON" if ("on" in t or ":on" in t or "=on" in t) else "OFF"
-                msv = re.search(r"(selection[_\s-]*value|threshold)[:=]?(\d+)", item, flags=re.I)
-                if msv:
-                    try:
-                        decisions["selection_value"] = int(msv.group(2))
-                    except Exception:
-                        pass
+            obj = json.loads(s)
         except Exception:
-            pass
+            obj = {}
 
-    # 1bis-a) tutto il testo come JSON array
-    try:
-        maybe_arr = json.loads(s)
-        if isinstance(maybe_arr, list):
-            decisions = {"client_selector":"OFF","message_compressor":"OFF","heterogeneous_data_handler":"OFF"}
-            for it in maybe_arr:
-                _apply_item_to_decisions(it, decisions)
-            # rationale, se presente separata
-            rat = ""
-            return decisions, rat, bool(rat)
-    except Exception:
-        pass
+    km = {str(k).lower(): v for k, v in obj.items()} if isinstance(obj, dict) else {}
 
-    # 1bis-b) primo blocco [ ... ] nel testo come array
-    for m in re.finditer(r"\[.*?\]", s, flags=re.S):
-        chunk = m.group(0).strip()
-        try:
-            arr = json.loads(chunk)
-            if isinstance(arr, list):
-                decisions = {"client_selector":"OFF","message_compressor":"OFF","heterogeneous_data_handler":"OFF"}
-                for it in arr:
-                    _apply_item_to_decisions(it, decisions)
-                rat = ""
-                return decisions, rat, bool(rat)
-        except Exception:
-            continue
+    def _onoff(v):
+        if isinstance(v, bool):
+            return "ON" if v else "OFF"
+        vs = str(v).strip().upper()
+        return "ON" if vs in ("ON","ENABLED","TRUE","1") else "OFF"
 
-    # 2) fallback: leggi ON/OFF dalla rationale (prosa)
-    cs_rx  = r"(client\s*selector|client-?selector|cs)"
-    mc_rx  = r"(message\s*compress(?:or|ion)|message-?compress(?:or|ion)|mc)"
-    hdh_rx = r"(heterogene\w+\s*data\s*handl\w+|heterogeneous\s*data\s*handler|hdh)"
-
-    cs_en  = list(re.finditer(rf"(?:\b(enable|turn\s*on|activate|set)\b.*?\b{cs_rx}\b)|(?:\b{cs_rx}\b.*?\b(?:is\s*)?enabled\b)|(?:\b{cs_rx}\b.*?\bset\s*to\s*ON\b)", s, flags=re.I))
-    cs_dis = list(re.finditer(rf"(?:\b(disable|turn\s*off|deactivate|unset)\b.*?\b{cs_rx}\b)|(?:\b{cs_rx}\b.*?\b(?:is\s*)?disabled\b)|(?:\b{cs_rx}\b.*?\bset\s*to\s*OFF\b)", s, flags=re.I))
-    mc_en  = list(re.finditer(rf"(?:\b(enable|turn\s*on|activate|set)\b.*?\b{mc_rx}\b)|(?:\b{mc_rx}\b.*?\b(?:is\s*)?enabled\b)|(?:\b{mc_rx}\b.*?\bset\s*to\s*ON\b)", s, flags=re.I))
-    mc_dis = list(re.finditer(rf"(?:\b(disable|turn\s*off|deactivate|unset)\b.*?\b{mc_rx}\b)|(?:\b{mc_rx}\b.*?\b(?:is\s*)?disabled\b)|(?:\b{mc_rx}\b.*?\bset\s*to\s*OFF\b)", s, flags=re.I))
-    hdh_en = list(re.finditer(rf"(?:\b(enable|turn\s*on|activate|set)\b.*?\b{hdh_rx}\b)|(?:\b{hdh_rx}\b.*?\b(?:is\s*)?enabled\b)|(?:\b{hdh_rx}\b.*?\bset\s*to\s*ON\b)", s, flags=re.I))
-    hdh_dis= list(re.finditer(rf"(?:\b(disable|turn\s*off|deactivate|unset)\b.*?\b{hdh_rx}\b)|(?:\b{hdh_rx}\b.*?\b(?:is\s*)?disabled\b)|(?:\b{hdh_rx}\b.*?\bset\s*to\s*OFF\b)", s, flags=re.I))
-
-    def _state(en_list, dis_list):
-        if en_list and not dis_list: return "ON"
-        if dis_list and not en_list: return "OFF"
-        if en_list and dis_list: return "ON" if en_list[-1].start() > dis_list[-1].start() else "OFF"
-        return "OFF"
-
+    # 1) decisioni iniziali dal JSON (o default se mancanti)
     decisions = {
-        "client_selector": _state(cs_en, cs_dis),
-        "message_compressor": _state(mc_en, mc_dis),
-        "heterogeneous_data_handler": _state(hdh_en, hdh_dis),
+        "client_selector":            _onoff(km.get("client_selector", default["client_selector"])),
+        "message_compressor":         _onoff(km.get("message_compressor", default["message_compressor"])),
+        "heterogeneous_data_handler": _onoff(km.get("heterogeneous_data_handler", default["heterogeneous_data_handler"])),
     }
-
-    m_sel = re.search(r"(selection\s*value|threshold)\s*(of|=|:)?\s*([0-9]+)", s, flags=re.I)
-    if m_sel:
+    if "selection_value" in km:
         try:
-            decisions["selection_value"] = int(m_sel.group(3))
+            decisions["selection_value"] = int(km["selection_value"])
         except Exception:
             pass
 
-    rationale = s
-    return decisions, rationale, bool(rationale)
+    # 2) rationale: prendi dal JSON se c'è, altrimenti prova a ricavarlo dal testo
+    rationale = str(km.get("rationale", "") or "").strip()
+    if not rationale:
+        rationale = (s.replace(last_json, "").strip() if last_json else s) or ""
 
+    # 3) firma: se presente nel rationale o nel testo, diventa la verità che sovrascrive le decisioni
+    sig_re = re.compile(r"\bCS\s*=\s*(ON|OFF)\s*;\s*MC\s*=\s*(ON|OFF)\s*;\s*HDH\s*=\s*(ON|OFF)\b", flags=re.I)
+    m = sig_re.search(rationale) or sig_re.search(s)
+    if m:
+        cs_sig, mc_sig, hdh_sig = (m.group(1).upper(), m.group(2).upper(), m.group(3).upper())
+        decisions["client_selector"]            = cs_sig
+        decisions["message_compressor"]         = mc_sig
+        decisions["heterogeneous_data_handler"] = hdh_sig
+        if decisions["client_selector"] == "ON" and "selection_value" not in decisions:
+            decisions["selection_value"] = 0
+        if not sig_re.search(rationale):
+            rationale = (rationale + ("\n" if rationale else "") + f"CS={cs_sig}; MC={mc_sig}; HDH={hdh_sig}").strip()
+    else:
+        cs_sig, mc_sig, hdh_sig = decisions["client_selector"], decisions["message_compressor"], decisions["heterogeneous_data_handler"]
+        sig_line = f"CS={cs_sig}; MC={mc_sig}; HDH={hdh_sig}"
+        rationale = (rationale + ("\n" if rationale else "") + sig_line).strip()
+        if decisions["client_selector"] == "ON" and "selection_value" not in decisions:
+            decisions["selection_value"] = 0
+
+    return decisions, rationale, True
 
 def _sa_call_ollama(model: str, prompt: str, base_urls: List[str], force_json: bool = True, options: dict = None) -> str:
     def _is_gpt_oss(name: str) -> bool:
@@ -751,6 +701,8 @@ class AdaptationManager:
         return copy.deepcopy(base_config), logs
 
     def _decide_single_agent(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
+        import re, json
+
         logs: List[str] = []
         last_round, last_csv = _sa_latest_round_csv()
         agg, ap_prev = {}, {}
@@ -759,26 +711,49 @@ class AdaptationManager:
                 import pandas as pd
                 df = pd.read_csv(last_csv)
                 agg = _sa_aggregate_round(df)
-                ap_prev = _sa_extract_ap_prev(df)
+
+                # === Estrazione ap_prev direttamente da "AP List (...)" ===
+                ap_col = next((c for c in df.columns if isinstance(c, str) and c.startswith("AP List")), None)
+                if ap_col is not None and len(df) > 0:
+                    cell = str(df.iloc[-1][ap_col])
+
+                    # Chiavi dall'header tra parentesi tonde
+                    m_keys = re.search(r"\((?P<inside>.*?)\)", ap_col)
+                    keys = [k.strip() for k in m_keys.group("inside").split(",")] if m_keys else []
+
+                    # Valori ON/OFF dalla cella tra parentesi graffe
+                    m_vals = re.search(r"\{(?P<inside>.*?)\}", cell)
+                    states = [s.strip().upper() for s in m_vals.group("inside").split(",")] if m_vals else []
+
+                    mapping = dict(zip(keys, states))
+                    ap_prev = {
+                        "client_selector": mapping.get("client_selector", "OFF") == "ON",
+                        "message_compressor": mapping.get("message_compressor", "OFF") == "ON",
+                        "heterogeneous_data_handler": mapping.get("heterogeneous_data_handler", "OFF") == "ON",
+                    }
+                # === fine estrazione ===
             except Exception:
                 pass
+
         mode = _sa_mode_from_policy(self.policy)
-        if mode == "ft":
-            logs.append(f"[Single-Agent] Decision ({self.sa_model}): CS: ·→❌ • MC: ·→❌ • HDH: ·→❌")
-            logs.append(f"[Single-Agent] Rationale ({self.sa_model}): Fine-Tuning mode is not implemented")
-            return copy.deepcopy(base_config), logs
         try:
-            decisions, rationale = _sa_generate_with_retry(self.sa_model, mode, self.default_config, last_round, agg, ap_prev, self.sa_ollama_urls)
+            decisions, rationale = _sa_generate_with_retry(
+                self.sa_model, mode, self.default_config, last_round, agg, ap_prev, self.sa_ollama_urls
+            )
         except Exception:
             return copy.deepcopy(base_config), logs
-        prev_cs = "✅" if ap_prev.get("client_selector") else ("❌" if ap_prev.get("client_selector") is not None else "·")
-        prev_mc = "✅" if ap_prev.get("message_compressor") else ("❌" if ap_prev.get("message_compressor") is not None else "·")
+
+        prev_cs  = "✅" if ap_prev.get("client_selector") else ("❌" if ap_prev.get("client_selector") is not None else "·")
+        prev_mc  = "✅" if ap_prev.get("message_compressor") else ("❌" if ap_prev.get("message_compressor") is not None else "·")
         prev_hdh = "✅" if ap_prev.get("heterogeneous_data_handler") else ("❌" if ap_prev.get("heterogeneous_data_handler") is not None else "·")
+
         new_cs = "✅" if decisions.get("client_selector") == "ON" else "❌"
         new_mc = "✅" if decisions.get("message_compressor") == "ON" else "❌"
         new_hdh = "✅" if decisions.get("heterogeneous_data_handler") == "ON" else "❌"
+
         delta = " • ".join([f"CS: {prev_cs}→{new_cs}", f"MC: {prev_mc}→{new_mc}", f"HDH: {prev_hdh}→{new_hdh}"])
         logs.append(f"[Single-Agent] Decision ({self.sa_model}): {delta}")
+
         r_print = (rationale or "").strip()
         if r_print:
             try:
@@ -787,13 +762,16 @@ class AdaptationManager:
                     r_print = obj["rationale"].strip()
             except Exception:
                 m = re.search(r'"rationale"\s*:\s*"(?P<r>.*?)"', r_print, flags=re.S)
-                if m: r_print = m.group("r").strip()
+                if m:
+                    r_print = m.group("r").strip()
 
         logs.append(f"[Rationale] {r_print if r_print else 'This model does not support rationale generation.'}")
+
         new_config = copy.deepcopy(base_config)
         for p in PATTERNS:
             if p in new_config.get("patterns", {}):
                 new_config["patterns"][p]["enabled"] = (decisions.get(p, "OFF") == "ON")
+
         cs_enabled = bool(new_config.get("patterns", {}).get("client_selector", {}).get("enabled"))
         if cs_enabled:
             existing = new_config["patterns"]["client_selector"].get("params", {}).get("selection_value")
@@ -813,6 +791,7 @@ class AdaptationManager:
                 "selection_criteria": "CPU",
                 "selection_value": sel_val
             }
+
         return new_config, logs
 
     def _decide_next_config(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:

@@ -15,7 +15,7 @@ services:
       CLIENT_ID: '1'
       NUM_CPUS: '5'
       NUM_RAM: '2'
-      NUM_ROUNDS: '2'
+      NUM_ROUNDS: '3'
       SERVER_ADDRESS: server:8080
     labels:
     - type=client
@@ -40,7 +40,7 @@ services:
       CLIENT_ID: '2'
       NUM_CPUS: '5'
       NUM_RAM: '2'
-      NUM_ROUNDS: '2'
+      NUM_ROUNDS: '3'
       SERVER_ADDRESS: server:8080
     labels:
     - type=client
