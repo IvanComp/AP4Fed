@@ -1,60 +1,12 @@
 
 == ROUND 1 ==
-[ROUND 1] Random policy executed
-[Random] PolicyTime: 0.00s
+[Single-Agent] Decision (llama3.2:3b): CS: ·→✅ • MC: ·→❌ • HDH: ·→❌
+[Rationale] We activate the Client Selector pattern with a selection value of 3 to reduce slowdowns caused by weaker devices and minimize Total Round Time, Training Time, and Communication Time. This is supported by the fact that our system has two clients with similar CPU values (5), which would be excluded if we didn't use the Client Selector.
 
+    The performance report shows that the Global Model Accuracy has been relatively stable over the last few rounds, with a mean F1 score of 0.4896. This suggests that the model is performing well despite the potential for decreased diversity due to client selection.
 
-== ROUND 2 ==
-[ROUND 2] Random policy executed
-[Random] PolicyTime: 0.00s
+    We keep the Heterogeneous Data Handler pattern active as it has shown benefits in improving global model accuracy and accelerating convergence on non-IID data. The additional computational overhead from generating synthetic data is a trade-off we are willing to make given the current system configuration and performance metrics.
 
-
-== ROUND 3 ==
-[ROUND 3] Random policy executed
-[Random] PolicyTime: 0.00s
-
-
-== ROUND 4 ==
-[ROUND 4] Random policy executed
-[Random] PolicyTime: 0.00s
-
-
-== ROUND 5 ==
-[ROUND 5] Random policy executed
-[Random] PolicyTime: 0.00s
-
-
-== ROUND 6 ==
-[ROUND 6] Random policy executed
-[Random] PolicyTime: 0.00s
-
-
-== ROUND 7 ==
-[ROUND 7] Random policy executed
-[Random] PolicyTime: 0.00s
-
-
-== ROUND 8 ==
-[ROUND 8] Random policy executed
-[Random] PolicyTime: 0.00s
-
-
-== ROUND 9 ==
-[ROUND 9] Random policy executed
-[Random] PolicyTime: 0.00s
-
-
-== ROUND 10 ==
-[ROUND 10] Random policy executed
-[Random] PolicyTime: 0.00s
-
-
-== ROUND 11 ==
-[ROUND 11] Random policy executed
-[Random] PolicyTime: 0.00s
-
-
-== ROUND 12 ==
-[ROUND 12] Random policy executed
-[Random] PolicyTime: 0.00s
+    Finally, we deactivate the Message Compressor pattern as our system's communication time is not significantly impacted by message compression, and the additional computational overhead may outweigh the benefits in this case.
+[Single AI-Agent (Zero-Shot)] PolicyTime: 13.52s
 

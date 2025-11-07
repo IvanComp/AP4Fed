@@ -82,12 +82,12 @@ services:
       dockerfile: Dockerfile.client
     command: sh -c "sleep 5 && python client.py"
     container_name: Client3
-    cpus: 5.0
+    cpus: 3.0
     depends_on:
     - server
     environment:
       CLIENT_ID: '3'
-      NUM_CPUS: '5'
+      NUM_CPUS: '3'
       NUM_RAM: 2g
       NUM_ROUNDS: '2'
       SERVER_ADDRESS: server:8080

@@ -1,8 +1,8 @@
 {
     "simulation_type": "Docker",
-    "rounds": 20,
-    "clients": 5,
-    "adaptation": "Random",
+    "rounds": 2,
+    "clients": 2,
+    "adaptation": "Single AI-Agent (Zero-Shot)",
     "LLM": "llama3.2:3b",
     "patterns": {
         "client_registry": {
@@ -10,8 +10,12 @@
             "params": {}
         },
         "client_selector": {
-            "enabled": false,
-            "params": {}
+            "enabled": true,
+            "params": {
+                "selection_strategy": "Resource-Based",
+                "selection_criteria": "CPU",
+                "selection_value": 3
+            }
         },
         "client_cluster": {
             "enabled": false,
@@ -40,7 +44,7 @@
             "cpu": 5,
             "ram": 2,
             "dataset": "CIFAR-10",
-            "data_distribution_type": "non-IID",
+            "data_distribution_type": "IID",
             "data_persistence_type": "Same Data",
             "delay_combobox": "No",
             "model": "CNN 16k",
@@ -48,39 +52,6 @@
         },
         {
             "client_id": 2,
-            "cpu": 5,
-            "ram": 2,
-            "dataset": "CIFAR-10",
-            "data_distribution_type": "non-IID",
-            "data_persistence_type": "New Data",
-            "delay_combobox": "No",
-            "model": "CNN 16k",
-            "epochs": 1
-        },
-        {
-            "client_id": 3,
-            "cpu": 5,
-            "ram": 2,
-            "dataset": "CIFAR-10",
-            "data_distribution_type": "IID",
-            "data_persistence_type": "New Data",
-            "delay_combobox": "Yes",
-            "model": "CNN 16k",
-            "epochs": 1
-        },
-        {
-            "client_id": 4,
-            "cpu": 5,
-            "ram": 2,
-            "dataset": "CIFAR-10",
-            "data_distribution_type": "non-IID",
-            "data_persistence_type": "New Data",
-            "delay_combobox": "Yes",
-            "model": "CNN 16k",
-            "epochs": 1
-        },
-        {
-            "client_id": 5,
             "cpu": 5,
             "ram": 2,
             "dataset": "CIFAR-10",

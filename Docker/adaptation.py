@@ -162,9 +162,9 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         "- selection_value is a CPU threshold for the Client Selector pattern: only clients with CPU > selection_value participate in each training round. Therefore, use an integer within [0, max_cpu-1], and ensure it is strictly less than the second-highest CPU value to avoid excluding more clients than necessary. It is crucial to guarantee that at least two clients remain active and are not excluded, since the federated learning process will fail if fewer than two clients participate in a round.\n"
         "- If evidence is insufficient or conflicting, keep the previous choices and say why in the rationale.\n"
         "- Activating a pattern always introduces overhead. Carefully consider whether it is really necessary. This does not mean that they should never be activated.\n"
-        "- If after several round .\n"
+        "- If you aggregate metrics over multiple rounds (mean/median/rolling), explicitly say which statistic and window you used; otherwise state 'last-round only'.\n"
+        "- If a pattern is already active from the previous round and you decide to keep it active, specify that “it is kept active” and not, for example, “we activate the pattern.\n"
         "- Never rely on unstated assumptions; prefer measurable values (CPU list, non_iid_clients, last metrics).\n"
-
         "\n"
         "## Output\n"
         "Return exactly one JSON object with keys:\n"

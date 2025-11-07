@@ -273,12 +273,10 @@ def preprocess_csv(agent_time=None):
                 elif "FL Round" in getattr(df.index, "names", []):
                     df = df.reset_index(level="FL Round")
     
-    if agent_time is not None and 'Agent Time (s)' in df.columns:
-        current_round = df['FL Round'].max()
-        mask = df['FL Round'] == current_round
-        last_idx = df[mask].index[-1]
-        df.loc[last_idx, 'Agent Time (s)'] = f"{float(agent_time):.2f}"
-
+    df['Agent Time (s)'] = pd.to_numeric(df['Agent Time (s)'], errors='coerce')
+    current_round = df['FL Round'].max()
+    mask = df['FL Round'] == current_round
+    df.loc[df[mask].tail(1).index, 'Agent Time (s)'] = round(float(agent_time), 2)
     df.drop(columns=["Client Number"], inplace=True)
     df.to_csv(csv_file, index=False)
 
@@ -593,7 +591,7 @@ class FedAvg(Strategy):
                     log(INFO, f"[Round {currentRnd}] Skipping aggregation of client {client_id}")
                     continue
 
-            if MESSAGE_COMPRESSOR and compressed_parameters_b64:
+            if MESSAGE_COMPRESSOR and (locals().get("compressed_parameters_b64") is not None):
                 compressed = base64.b64decode(compressed_parameters_b64)
                 decompressed = pickle.loads(zlib.decompress(compressed))
                 fit_res.parameters = ndarrays_to_parameters(decompressed)
