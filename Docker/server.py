@@ -221,9 +221,6 @@ def preprocess_csv(agent_time=None):
     import pandas as pd
     df = pd.read_csv(csv_file)
 
-    if 'Agent Time (s)' not in df.columns:
-        df['Agent Time (s)'] = np.nan
-
     df["Client Number"] = (
         df["Client ID"]
         .astype(str)
@@ -273,10 +270,20 @@ def preprocess_csv(agent_time=None):
                 elif "FL Round" in getattr(df.index, "names", []):
                     df = df.reset_index(level="FL Round")
     
-    df['Agent Time (s)'] = pd.to_numeric(df['Agent Time (s)'], errors='coerce')
+    if 'Agent Time (s)' not in df.columns:
+        df['Agent Time (s)'] = 0.0
+    else:
+        df['Agent Time (s)'] = pd.to_numeric(df['Agent Time (s)'], errors='coerce').fillna(0.0)
     current_round = df['FL Round'].max()
     mask = df['FL Round'] == current_round
-    df.loc[df[mask].tail(1).index, 'Agent Time (s)'] = round(float(agent_time), 2)
+    idx = df[mask].tail(1).index
+    if 'Agent Time (s)' not in df.columns:
+        df['Agent Time (s)'] = np.nan
+    try:
+        val = round(float(agent_time), 2)
+    except (TypeError, ValueError):
+        val = np.nan
+    df.loc[idx, 'Agent Time (s)'] = val
     df.drop(columns=["Client Number"], inplace=True)
     df.to_csv(csv_file, index=False)
 

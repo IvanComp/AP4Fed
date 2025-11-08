@@ -175,30 +175,21 @@ class FlowerClient(NumPyClient):
         if os.path.exists(config_file):
             with open(config_file, 'r') as f:
                 configJSON = json.load(f)
-            ADAPTATION_ENABLED = configJSON.get("adaptation", False)
             for name, info in configJSON.get("patterns", {}).items():
                 if info.get("enabled"):
-                    if name == "client_selector":
-                        CLIENT_SELECTOR = True
-                    elif name == "client_cluster":
-                        CLIENT_CLUSTER = True
-                    elif name == "message_compressor":
-                        MESSAGE_COMPRESSOR = True
-                    elif name == "model_co-versioning_registry":
-                        MODEL_COVERSIONING = True
-                    elif name == "multi-task_model_trainer":
-                        MULTI_TASK_MODEL_TRAINER = True
-                    elif name == "heterogeneous_data_handler":
-                        if not ADAPTATION_ENABLED or self.cid in info.get("params", {}).get("enabled_clients", []):
-                            HETEROGENEOUS_DATA_HANDLER = True
+                    if name == "client_selector": CLIENT_SELECTOR = True
+                    elif name == "client_cluster": CLIENT_CLUSTER = True
+                    elif name == "message_compressor": MESSAGE_COMPRESSOR = True
+                    elif name == "model_co-versioning_registry": MODEL_COVERSIONING = True
+                    elif name == "multi-task_model_trainer": MULTI_TASK_MODEL_TRAINER = True
+                    elif name == "heterogeneous_data_handler": HETEROGENEOUS_DATA_HANDLER = True
 
         self.cached_round_loaded = None
         if self.cached_round_loaded != GLOBAL_ROUND_COUNTER:
-            self.trainloader, self.testloader = load_data_A(self.client_config, GLOBAL_ROUND_COUNTER)
-            self.cached_round_loaded = GLOBAL_ROUND_COUNTER
+           self.trainloader, self.testloader = load_data_A(self.client_config, GLOBAL_ROUND_COUNTER)
+           self.cached_round_loaded = GLOBAL_ROUND_COUNTER
 
-
-        if HETEROGENEOUS_DATA_HANDLER and (ADAPTATION_ENABLED or not self.did_hdh):
+        if HETEROGENEOUS_DATA_HANDLER and not self.did_hdh:
             self.trainloader, hdh_ms = rebalance_trainloader_with_gan_A(self.trainloader)
             self.did_hdh = True
 

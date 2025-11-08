@@ -72,20 +72,94 @@ def _sa_latest_round_csv():
     return rnum(lastf), lastf
 
 def _sa_aggregate_round(df):
+    # Trova colonne in modo robusto
+    def _find(colnames):
+        for c in df.columns:
+            lc = str(c).strip().lower()
+            for pat in colnames:
+                if callable(pat):
+                    if pat(lc):
+                        return c
+                else:
+                    if pat in lc:
+                        return c
+        return None
 
-    val_f1_mean = df["Val F1"].astype(float).mean()
-    tr_col = next(c for c in ["Training Time (s)", "Training Time", "Training (s)"] if c in df.columns)
-    co_col = next(c for c in ["Communication Time (s)", "Communication Time", "Comm (s)"] if c in df.columns)
-    col_f1 = "Val F1"
-    val_f1_mean = df[col_f1].astype(float).mean()
-    tr = df[tr_col].astype(float)
-    co = df[co_col].astype(float)
+    col_round = _find([lambda s: "round" in s])
+    col_cid   = _find([lambda s: ("client" in s and "id" in s) or s.strip() == "client id"])
+    col_tr    = _find([lambda s: ("training" in s and "time" in s), "training (s)", "training time (s)", "training time"])
+    col_cm    = _find([lambda s: ("comm" in s and "time" in s) or ("communication" in s)])
+    col_tt    = _find([lambda s: ("total time of fl round" in s) or ("total" in s and "round" in s)])
+    col_f1    = _find([lambda s: "val f1" in s or s == "f1"])
 
-    metrics_digest = (
-        f"Global Model Val F1: mean={val_f1_mean:.4f}\n"
-        f"Training Time per client: mean={tr.mean():.2f}s, range=[{tr.min():.2f},{tr.max():.2f}]s\n"
-        f"Communication Time per client: mean={co.mean():.2f}s, range=[{co.min():.2f},{co.max():.2f}]s"
-    )
+    # Se la CSV ha più round, prendi l'ultimo; altrimenti usa tutto il df
+    dfl = df
+    if col_round and col_round in df.columns:
+        try:
+            last_r = int(df[col_round].dropna().astype(int).max())
+            dfl = df[df[col_round].astype(int) == last_r].copy()
+        except Exception:
+            dfl = df.copy()
+
+    # Righe per-client: dove c'è un Client ID o comunque valori numerici sui tempi
+    per_client = dfl.copy()
+    if col_cid and col_cid in per_client.columns:
+        per_client = per_client[per_client[col_cid].notna()].copy()
+
+    # Serie numeriche pulite
+    def _series(dfx, col):
+        if not col or col not in dfx.columns:
+            return []
+        out = []
+        for v in dfx[col].tolist():
+            try:
+                out.append(float(v))
+            except Exception:
+                pass
+        return out
+
+    tr_seq = _series(per_client, col_tr)
+    cm_seq = _series(per_client, col_cm)
+
+    # F1 e Total Round Time sono GLOBAL: prendi l'ultimo valore non-NaN nel sottoinsieme del round
+    def _last_non_nan(dfx, col):
+        if not col or col not in dfx.columns:
+            return None
+        vals = []
+        for v in dfx[col].tolist():
+            try:
+                vals.append(float(v))
+            except Exception:
+                pass
+        return vals[-1] if vals else None
+
+    f1_last = _last_non_nan(dfl, col_f1)
+    tt_last = _last_non_nan(dfl, col_tt)
+
+    # Statistiche aggregati per-client (round selezionato)
+    def _agg(seq):
+        if not seq:
+            return {"count": 0, "mean": None, "min": None, "max": None}
+        return {
+            "count": len(seq),
+            "mean": sum(seq) / len(seq),
+            "min": min(seq),
+            "max": max(seq),
+        }
+
+    tr_agg = _agg(tr_seq)
+    cm_agg = _agg(cm_seq)
+
+    return {
+        "round": int(dfl[col_round].iloc[0]) if col_round and len(dfl) else None,
+        "mean_f1": f1_last,                  # GLOBAL Val F1 dell'ultimo round
+        "mean_total_time": tt_last,          # GLOBAL Total Time of FL Round dell'ultimo round
+        "mean_training_time": tr_agg["mean"],# media per-client del round
+        "mean_comm_time": cm_agg["mean"],    # media per-client del round
+        "training_time_stats": tr_agg,       # include count/min/max
+        "comm_time_stats": cm_agg
+    }
+
 
 def _sa_extract_ap_prev(df):
     ap_prev = {"client_selector": None, "message_compressor": None, "heterogeneous_data_handler": None}
@@ -258,7 +332,7 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
                                         return c
                         return None
 
-                    col_f1 = find_col(["f1"])
+                    col_f1 = find_col(["Val F1"])
                     col_tr = find_col([lambda s: ("training" in s and "time" in s), "training (s)", "training time (s)"])
                     col_cm = find_col([lambda s: ("comm" in s and "time" in s) or ("communication" in s)])
                     col_tt = find_col([lambda s: ("total" in s and "time" in s) or ("total time of fl round" in s) or ("round time" in s)])
@@ -332,6 +406,7 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
             "### System Configuration & Metrics Digest\n"
             "The CSV file contains per-client metrics (Training Time and Communication Time) for each client in each round. You can consider these metrics individually per client or as an average.\n"
             "Note that 'Val F1' is the global model accuracy for the entire round, and 'Total Round Time' is the total duration of the round. These two metrics are global, not per-client.\n"
+            "Note that column named 'Val F1' refers to the global model accuracy. Do not consider Train F1 column\n."
             "### System Configuration (runtime snapshot)\n"
              + json.dumps({
                 "dataset": dataset,
@@ -547,8 +622,6 @@ def _sa_call_ollama(model: str, prompt: str, base_urls: List[str], force_json: b
                 content = (msg.get("content") or out.get("response") or "").strip()
                 reasoning = (msg.get("reasoning") or msg.get("thinking") or out.get("reasoning") or "").strip()
 
-                # Se siamo in JSON mode e il contenuto è un JSON con le chiavi attese,
-                # inserisci il reasoning come "rationale" se manca.
                 if force_json and content:
                     try:
                         obj = json.loads(content)
@@ -562,21 +635,33 @@ def _sa_call_ollama(model: str, prompt: str, base_urls: List[str], force_json: b
                 return content
 
             else:
-                # Usa /api/generate per gli altri modelli
                 payload = {
                     "model": model,
                     "prompt": prompt,
                     "stream": False
                 }
-                # JSON mode solo per modelli "amici" (DeepSeek). MAI per LLaMA.
-                if force_json and _is_json_friendly(model) and not _is_llama(model):
+                opts = dict(options or {})
+                if _is_llama(model):
+                    opts.setdefault("temperature", 0.5)
+                    opts.setdefault("top_p", 1.0)
+                    opts.setdefault("num_ctx", 4096)  # opzionale ma utile
+                    common_stops = ["}\n", "}\r\n", "\n\n##", "\n###", "\n# ", "```"]
+                    if isinstance(opts.get("stop"), list):
+                        for s in common_stops:
+                            if s not in opts["stop"]:
+                                opts["stop"].append(s)
+                    else:
+                        opts.setdefault("stop", common_stops)
+
+                if force_json and (_is_json_friendly(model) or _is_llama(model)):
                     payload["format"] = "json"
-                if options:
-                    payload["options"] = options
+
+                if opts:
+                    payload["options"] = opts
 
                 data = json.dumps(payload).encode("utf-8")
                 req = urllib.request.Request(
-                    f"{base}/api/generate",
+                    f"{base.rstrip('/')}/api/generate",
                     data=data,
                     headers={"Content-Type": "application/json"},
                     method="POST",
@@ -587,13 +672,12 @@ def _sa_call_ollama(model: str, prompt: str, base_urls: List[str], force_json: b
                 if "error" in out:
                     raise RuntimeError(str(out["error"]))
                 return (out.get("response") or "").strip()
-
+            
         except Exception as e:
             last_err = e
             continue
 
     raise RuntimeError(f"Ollama unreachable: {last_err}")
-
 
 class AdaptationManager:
     def __init__(self, enabled: bool, default_config: Dict, use_rag=USE_RAG):

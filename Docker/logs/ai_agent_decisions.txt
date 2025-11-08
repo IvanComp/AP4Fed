@@ -1,6 +1,10 @@
 
 == ROUND 1 ==
-[Single-Agent] Decision (deepseek-r1:8b): CS: ·→❌ • MC: ·→❌ • HDH: ·→❌
-[Rationale] The system configuration shows all clients have similar CPU capabilities (all 5 or 3), but the previous round had a stable F1 score of 0.7737 and the training time was 45.27 seconds. The communication time was high (59.35 seconds) but the trend slope is positive, indicating improvement. Since the data distribution is mixed (IID and non-IID), but the F1 score is already high, there is no immediate need to activate any pattern. The Client Selector might harm diversity, the Message Compressor could be ineffective for small models, and the Heterogeneous Data Handler is not necessary as the F1 score is stable. Therefore, keep all patterns OFF. CS=OFF; MC=OFF; HDH=OFF
-[Single AI-Agent (Few-Shot)] PolicyTime: 25.90s
+[ROUND 1] Random policy executed
+[Random] PolicyTime: 0.00s
+
+
+== ROUND 2 ==
+[ROUND 2] Random policy executed
+[Random] PolicyTime: 0.00s
 
