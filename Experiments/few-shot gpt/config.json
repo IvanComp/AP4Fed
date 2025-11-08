@@ -3,19 +3,15 @@
     "rounds": 10,
     "clients": 5,
     "adaptation": "Single AI-Agent (Few-Shot)",
-    "LLM": "llama3.2:3b",
+    "LLM": "gpt-oss:20b",
     "patterns": {
         "client_registry": {
             "enabled": true,
             "params": {}
         },
         "client_selector": {
-            "enabled": true,
-            "params": {
-                "selection_strategy": "Resource-Based",
-                "selection_criteria": "CPU",
-                "selection_value": 4
-            }
+            "enabled": false,
+            "params": {}
         },
         "client_cluster": {
             "enabled": false,
@@ -34,7 +30,7 @@
             "params": {}
         },
         "heterogeneous_data_handler": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         }
     },
