@@ -1,8 +1,0 @@
-Configuration,Model Accuracy (mean±std),Total FL Time (mean±std),Agent Overhead (mean±std),n_runs
-few-shot deepseek,0.82±0.00,1814±0 sec.,18±0 sec.,1
-few-shot gpt,0.83±0.00,1842±0 sec.,180±0 sec.,1
-few-shot llama,0.83±0.00,1463±0 sec.,5±0 sec.,1
-random,0.81±0.00,2193±0 sec.,0±0 sec.,1
-zero-shot deepseek,0.82±0.00,2040±0 sec.,16±0 sec.,1
-zero-shot gpt,0.81±0.00,1944±0 sec.,180±0 sec.,1
-zero-shot llama,0.85±0.00,1371±0 sec.,7±0 sec.,1

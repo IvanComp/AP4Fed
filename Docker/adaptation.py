@@ -773,14 +773,116 @@ class AdaptationManager:
         return new_config, logs
 
     def _decide_voting(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
-        logs = [f"[ROUND {current_round}] Voting-based policy not implemented (no changes)"]
-        return copy.deepcopy(base_config), logs
+        import json, re, copy
+        from collections import Counter
+
+        MODEL, MODE = "deepseek-r1:8b", "few-shot"
+
+        logs: List[str] = []
+        last_round, last_csv = _sa_latest_round_csv()
+        agg, ap_prev = {}, {}
+        if last_csv:
+            try:
+                import pandas as pd
+                df = pd.read_csv(last_csv)
+                agg = _sa_aggregate_round(df)
+                ap_col = next((c for c in df.columns if isinstance(c, str) and c.startswith("AP List")), None)
+                if ap_col is not None and len(df) > 0:
+                    cell = str(df.iloc[-1][ap_col])
+                    m_keys = re.search(r"\((?P<inside>.*?)\)", ap_col)
+                    keys = [k.strip() for k in m_keys.group("inside").split(",")] if m_keys else []
+                    m_vals = re.search(r"\{(?P<inside>.*?)\}", cell)
+                    states = [s.strip().upper() for s in m_vals.group("inside").split(",")] if m_vals else []
+                    mapping = dict(zip(keys, states))
+                    ap_prev = {
+                        "client_selector": mapping.get("client_selector", "OFF") == "ON",
+                        "message_compressor": mapping.get("message_compressor", "OFF") == "ON",
+                        "heterogeneous_data_handler": mapping.get("heterogeneous_data_handler", "OFF") == "ON",
+                    }
+            except Exception:
+                pass
+
+        agent_decisions: List[Dict] = []
+        agent_rationales: List[str] = []
+        for _ in range(3):
+            try:
+                d_k, r_k = _sa_generate_with_retry(
+                    MODEL, MODE, self.default_config, last_round, agg, ap_prev, self.sa_ollama_urls
+                )
+                agent_decisions.append(d_k or {})
+                agent_rationales.append((r_k or '').strip())
+            except Exception:
+                agent_decisions.append({})
+                agent_rationales.append('')
+
+        prev_cs  = "✅" if ap_prev.get("client_selector") else ("❌" if ap_prev.get("client_selector") is not None else "·")
+        prev_mc  = "✅" if ap_prev.get("message_compressor") else ("❌" if ap_prev.get("message_compressor") is not None else "·")
+        prev_hdh = "✅" if ap_prev.get("heterogeneous_data_handler") else ("❌" if ap_prev.get("heterogeneous_data_handler") is not None else "·")
+
+        for idx, d in enumerate(agent_decisions, start=1):
+            new_cs  = "✅" if (d.get("client_selector") == "ON") else "❌"
+            new_mc  = "✅" if (d.get("message_compressor") == "ON") else "❌"
+            new_hdh = "✅" if (d.get("heterogeneous_data_handler") == "ON") else "❌"
+            delta = " • ".join([f"CS: {prev_cs}→{new_cs}", f"MC: {prev_mc}→{new_mc}", f"HDH: {prev_hdh}→{new_hdh}"])
+            logs.append(f"[Agent {idx}] Decision ({MODEL}): {delta}")
+
+        votes_cs  = [1 if (d.get("client_selector") == "ON") else 0 for d in agent_decisions]
+        votes_mc  = [1 if (d.get("message_compressor") == "ON") else 0 for d in agent_decisions]
+        votes_hdh = [1 if (d.get("heterogeneous_data_handler") == "ON") else 0 for d in agent_decisions]
+        maj_cs, maj_mc, maj_hdh = (sum(votes_cs) >= 2), (sum(votes_mc) >= 2), (sum(votes_hdh) >= 2)
+
+        sel_vals = []
+        for d in agent_decisions:
+            if d.get("client_selector") == "ON" and "selection_value" in d:
+                try:
+                    sel_vals.append(int(d.get("selection_value")))
+                except Exception:
+                    pass
+        sel_value = Counter(sel_vals).most_common(1)[0][0] if sel_vals else None
+
+        new_config = copy.deepcopy(base_config)
+        for p, on in [("client_selector", maj_cs), ("message_compressor", maj_mc), ("heterogeneous_data_handler", maj_hdh)]:
+            if p in new_config.get("patterns", {}):
+                new_config["patterns"][p]["enabled"] = bool(on)
+
+        if new_config.get("patterns", {}).get("client_selector", {}).get("enabled"):
+            existing = new_config["patterns"]["client_selector"].get("params", {}).get("selection_value")
+            if sel_value is None:
+                try:
+                    sel_value = int(existing) if existing is not None else 0
+                except Exception:
+                    sel_value = 0
+            new_config["patterns"]["client_selector"].setdefault("params", {})
+            new_config["patterns"]["client_selector"]["params"]["selection_value"] = int(sel_value)
+
+        new_cs  = "✅" if maj_cs else "❌"
+        new_mc  = "✅" if maj_mc else "❌"
+        new_hdh = "✅" if maj_hdh else "❌"
+        logs.append(f"[Coordinator] Majority: CS: {prev_cs}→{new_cs} • MC: {prev_mc}→{new_mc} • HDH: {prev_hdh}→{new_hdh}")
+
+        for idx, r in enumerate(agent_rationales, start=1):
+            r_print = r
+            if r_print:
+                try:
+                    obj = json.loads(r_print)
+                    if isinstance(obj, dict) and isinstance(obj.get("rationale"), str):
+                        r_print = obj["rationale"].strip()
+                except Exception:
+                    m = re.search(r'"rationale"\s*:\s*"(?P<r>.*?)"', r_print, flags=re.S)
+                    if m:
+                        r_print = m.group("r").strip()
+            if r_print:
+                logs.append(f"[Rationale A{idx}] {r_print}")
+
+        return new_config, logs
 
     def _decide_role(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
+        MODEL, MODE = "deepseek-r1:8b", "few-shot"
         logs = [f"[ROUND {current_round}] Role-based policy not implemented (no changes)"]
         return copy.deepcopy(base_config), logs
 
     def _decide_debate(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
+        MODEL, MODE = "deepseek-r1:8b", "few-shot"
         logs = [f"[ROUND {current_round}] Debate-based policy not implemented (no changes)"]
         return copy.deepcopy(base_config), logs
 
@@ -879,22 +981,23 @@ class AdaptationManager:
         return new_config, logs
 
     def _decide_next_config(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
-        pol = self.policy.lower().strip()
-        if pol in ["single ai-agent", "single ai agent"] or "single" in pol:
+        pol = (self.policy or "").lower().strip()
+        if not pol or "none" in pol or "off" in pol:
+            return copy.deepcopy(base_config), [f"[ROUND {current_round}] Adaptation disabled ('{self.policy}')"]
+        if "single" in pol:
             return self._decide_single_agent(base_config, current_round)
-        if pol == "random":
+        if "random" in pol:
             return self._decide_random(base_config, current_round)
-        if pol == "voting-based":
+        if "voting" in pol:
             return self._decide_voting(base_config, current_round)
-        if pol == "role-based":
+        if "role" in pol:
             return self._decide_role(base_config, current_round)
-        if pol in ["debate-based","debatebased"]:
+        if "debate" in pol:
             return self._decide_debate(base_config, current_round)
         fallback_logs = [f"[ROUND {current_round}] Policy '{self.policy}' not recognized or inactive (no changes)"]
         return copy.deepcopy(base_config), fallback_logs
 
     def config_next_round(self, metrics_history: Dict, last_round_time: float):
-        
         t_agents_start = time.perf_counter()
         if not self.enabled:
             return self.default_config["patterns"]

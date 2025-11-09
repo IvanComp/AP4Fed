@@ -1,0 +1,11 @@
+
+== ROUND 1 ==
+[Agent 1] Decision (deepseek-r1:8b): CS: ·→❌ • MC: ·→❌ • HDH: ·→❌
+[Agent 2] Decision (deepseek-r1:8b): CS: ·→❌ • MC: ·→❌ • HDH: ·→❌
+[Agent 3] Decision (deepseek-r1:8b): CS: ·→❌ • MC: ·→❌ • HDH: ·→❌
+[Coordinator] Majority: CS: ·→❌ • MC: ·→❌ • HDH: ·→❌
+[Rationale A1] The system configuration shows all clients have identical CPU (5), RAM (2), and data distribution is IID. There is no evidence of straggler effect or non-IID data issues. The performance metrics indicate stable training and communication times, with no significant changes in F1. Since there are no bottlenecks or heterogeneity, it is safe to keep all patterns OFF to minimize overhead. CS=OFF; MC=OFF; HDH=OFF
+[Rationale A2] The system configuration shows two clients with identical CPU (5) and no non-IID data or delays. The metrics indicate stable performance with no clear bottleneck. Activating any pattern might introduce unnecessary overhead without proven benefit. Maintain current settings. CS=OFF; MC=OFF; HDH=OFF
+[Rationale A3] The system configuration shows two clients with identical CPU (5) and no non-IID data or delays. The metrics indicate stable performance with no clear bottleneck. Activating any pattern may introduce unnecessary overhead without proven benefit. Maintain current settings. CS=OFF; MC=OFF; HDH=OFF
+[Multiple AI-Agents (Voting-Based)] PolicyTime: 32.21s
+
