@@ -71,7 +71,6 @@ def run_one(cfg_path: Path, compose_template: Path, repeat_idx: int, tag: str, k
     cfg = load_json(cfg_path)
     work_dir = compose_template.parent.resolve()
 
-    # Metti il config dove lo legge simulation.py (Docker/configuration/config.json)
     (work_dir / "configuration").mkdir(parents=True, exist_ok=True)
     shutil.copy2(cfg_path, work_dir / "configuration" / "config.json")
 
@@ -80,50 +79,47 @@ def run_one(cfg_path: Path, compose_template: Path, repeat_idx: int, tag: str, k
         clean(work_dir / d)
     (work_dir / "logs").mkdir(exist_ok=True)
 
-    # Genera compose dinamico per questa run (N client da client_details)
     dyn_compose = work_dir / f"docker-compose.dynamic.{exp_label(cfg_path)}.yml"
     generate_compose_from_cfg(cfg, compose_template, dyn_compose)
-
-    # Env in stile simulation.py (NUM_ROUNDS ecc), project name safe per evitare conflitti
     env = os.environ.copy()
     env.update(derive_env_from_cfg(cfg))
     env["COMPOSE_PROJECT_NAME"] = sanitize_project(tag or exp_label(cfg_path))
-
-    # Sempre down prima di up per evitare il conflitto /flwr_server
     subprocess.run(["docker","compose","-f",str(dyn_compose),"down","-v","--remove-orphans"], cwd=str(work_dir))
-
     run_label = f"{stamp()}_{tag+'_' if tag else ''}{exp_label(cfg_path)}_r{repeat_idx:02d}"
     print(f"[{run_label}] compose={dyn_compose.name}", flush=True)
-
-    proc = subprocess.run(
-        ["docker","compose","-f",str(dyn_compose),"up","--build","--remove-orphans","--abort-on-container-exit"],
-        cwd=str(work_dir), env=env
-    )
-    print(f"[{run_label}] exit={proc.returncode}", flush=True)
-
-    # Down dopo la run per liberare i nomi container
-    subprocess.run(["docker","compose","-f",str(dyn_compose),"down","-v"], cwd=str(work_dir))
-
-    # === SOLO CSV: prendi il file performance e rinominalo r{N}.csv nella cartella del config ===
-    src_csv = work_dir / "performance" / "FLwithAP_performance_metrics.csv"
-    if not src_csv.exists():
-        # fallback robusto: primo CSV che combacia il pattern
-        matches = sorted((work_dir / "performance").glob("FLwithAP_performance_metrics*.csv"))
-        if matches:
-            src_csv = matches[0]
     dest_csv = cfg_path.parent / f"r{repeat_idx}.csv"
     dest_csv.parent.mkdir(parents=True, exist_ok=True)
 
-    if src_csv.exists():
-        shutil.copy2(src_csv, dest_csv)
-        print(f"[{run_label}] saved -> {dest_csv}")
-    else:
-        print(f"[{run_label}] WARNING: performance CSV non trovato in {work_dir/'performance'}")
+    err = None
+    try:
+        proc = subprocess.run(
+            ["docker","compose","-f",str(dyn_compose),"up","--build","--remove-orphans","--abort-on-container-exit"],
+            cwd=str(work_dir), env=env
+        )
+        print(f"[{run_label}] exit={proc.returncode}", flush=True)
 
-    # Pulisci tutto il resto per non lasciare residui
-    for d in ("performance", "model_weights", "logs"):
-        clean(work_dir / d)
+        if proc.returncode != 0:
+            err = RuntimeError(f"Docker compose exited with code {proc.returncode}")
 
+        # Copia il CSV solo se la run è riuscita
+        if not err:
+            src_csv = work_dir / "performance" / "FLwithAP_performance_metrics.csv"
+            if not src_csv.exists():
+                matches = sorted((work_dir / "performance").glob("FLwithAP_performance_metrics*.csv"))
+                if matches:
+                    src_csv = matches[0]
+            if src_csv.exists():
+                shutil.copy2(src_csv, dest_csv)
+                print(f"[{run_label}] saved -> {dest_csv}")
+            else:
+                print(f"[{run_label}] WARNING: performance CSV non trovato in {work_dir/'performance'}")
+    finally:
+        subprocess.run(["docker","compose","-f",str(dyn_compose),"down","-v"], cwd=str(work_dir))
+        if not keep:
+            for d in ("performance", "model_weights", "logs"):
+                clean(work_dir / d)
+    if err:
+        raise err
     return dest_csv.parent
 def main():
     ap = argparse.ArgumentParser()

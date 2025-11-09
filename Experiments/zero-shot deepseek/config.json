@@ -10,19 +10,15 @@
             "params": {}
         },
         "client_selector": {
-            "enabled": true,
-            "params": {
-                "selection_strategy": "Resource-Based",
-                "selection_criteria": "CPU",
-                "selection_value": 4
-            }
+            "enabled": false,
+            "params": {}
         },
         "client_cluster": {
             "enabled": false,
             "params": {}
         },
         "message_compressor": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         },
         "model_co-versioning_registry": {
@@ -34,7 +30,7 @@
             "params": {}
         },
         "heterogeneous_data_handler": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         }
     },
