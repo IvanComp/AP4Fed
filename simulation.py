@@ -662,7 +662,7 @@ class SimulationPage(QWidget):
         policy_title = str(self.config.get("adaptation", "AI-Agents Adaptation")).strip()
         model_name = self.config.get("LLM") or self.config.get("ollama_model") or ""
         if model_name:
-            policy_title = f"{policy_title} • LLM: {model_name}"
+            policy_title = f"{policy_title} • LLM: {'deepseek-r1:8b' if 'multiple' in policy_title.lower() else model_name}"
         log_file = agent_log_path()
         if self.agent_viewer is None:
             self.agent_viewer = AIAgentsLogViewer(policy_title, log_file)

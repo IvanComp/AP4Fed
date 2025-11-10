@@ -488,14 +488,13 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         return header_few + instructions + (rag or "") + ex1_ctx + "\n" + ex2_ctx + "\n" + ex3_ctx + "\n" + ex4_ctx + "\n" + ex5_ctx + "\n" + ex6_ctx + "\n" + "## Decision\n"
     return instructions + (rag or "") + "## Decision\n"
 
-def _sa_generate_with_retry(model_name: str, mode: str, config, last_round, agg, ap_prev, base_urls: List[str]):
+def _sa_generate_with_retry(model_name: str, mode: str, config, last_round, agg, ap_prev, base_urls: List[str], options: dict = None):
     p = _sa_build_prompt(mode, config, last_round, agg, ap_prev)
     raw = _sa_call_ollama(
-    model_name, p, base_urls,
-    force_json=True,
-    options={"temperature": 0.2, "top_p": 0.9, "num_ctx": 8192}
-)
-
+        model_name, p, base_urls,
+        force_json=True,
+        options=(options if options is not None else {"temperature": 0.2, "top_p": 0.9, "num_ctx": 8192})
+    )
     d1, r1, _ = _sa_parse_output(raw)
     return d1, r1
 
@@ -773,141 +772,144 @@ class AdaptationManager:
         return new_config, logs
 
     def _decide_voting(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
-        import json, re, copy
-        from collections import Counter
-
         MODEL, MODE = "deepseek-r1:8b", "few-shot"
+        COORD_MODEL = "deepseek-r1:8b"
 
-        logs: List[str] = []
-        last_round, last_csv = _sa_latest_round_csv()
-        agg, ap_prev = {}, {}
-        if last_csv:
-            try:
-                import pandas as pd
-                df = pd.read_csv(last_csv)
-                agg = _sa_aggregate_round(df)
-                ap_col = next((c for c in df.columns if isinstance(c, str) and c.startswith("AP List")), None)
-                if ap_col is not None and len(df) > 0:
-                    cell = str(df.iloc[-1][ap_col])
-                    m_keys = re.search(r"\((?P<inside>.*?)\)", ap_col)
-                    keys = [k.strip() for k in m_keys.group("inside").split(",")] if m_keys else []
-                    m_vals = re.search(r"\{(?P<inside>.*?)\}", cell)
-                    states = [s.strip().upper() for s in m_vals.group("inside").split(",")] if m_vals else []
-                    mapping = dict(zip(keys, states))
-                    ap_prev = {
-                        "client_selector": mapping.get("client_selector", "OFF") == "ON",
-                        "message_compressor": mapping.get("message_compressor", "OFF") == "ON",
-                        "heterogeneous_data_handler": mapping.get("heterogeneous_data_handler", "OFF") == "ON",
-                    }
-            except Exception:
-                pass
+        # --- lock anti-duplicato su disco (resiste a re-instanziazione) ---
+        try:
+            lock_dir = os.path.join(os.getcwd(), "logs")
+            os.makedirs(lock_dir, exist_ok=True)
+            lock_file = os.path.join(lock_dir, f".voting_round_{current_round}.lock")
+            if os.path.exists(lock_file):
+                # evita di ristampare: ritorna config corrente e nessun log
+                return copy.deepcopy(getattr(self, "default_config", base_config)), []
+        except Exception:
+            # se il lock fallisce, prosegui comunque
+            pass
 
+        logs: List[str] = [f"[ROUND {current_round}] Voting-based policy"]
+        t0 = time.time()
+
+        # --- contesto ultimo round e stato precedente ---
+        last_round = getattr(self, "_last_round_info", None) or {}
+        agg = getattr(self, "_last_round_agg", None) or {}
+        try:
+            ap_prev = self._read_previous_ap_state()
+        except Exception:
+            ap_prev = {}
+
+        # --- 3 agenti con temperature diverse ---
         agent_decisions: List[Dict] = []
         agent_rationales: List[str] = []
-        for _ in range(3):
+        temps = [0.1, 0.5, 0.9]
+        for i, t in enumerate(temps, start=1):
             try:
-                d_k, r_k = _sa_generate_with_retry(
-                    MODEL, MODE, self.default_config, last_round, agg, ap_prev, self.sa_ollama_urls
+                d_i, r_i = _sa_generate_with_retry(
+                    MODEL, MODE, self.default_config, last_round, agg, ap_prev, self.sa_ollama_urls,
+                    options={"temperature": t, "top_p": 0.95, "num_ctx": 8192}
                 )
-                agent_decisions.append(d_k or {})
-                agent_rationales.append((r_k or '').strip())
-            except Exception:
+                agent_decisions.append(d_i or {})
+                agent_rationales.append((r_i or "").strip())
+
+                prev_cs = ap_prev.get("client_selector", "OFF")
+                prev_mc = ap_prev.get("message_compressor", "OFF")
+                prev_hh = ap_prev.get("heterogeneous_data_handler", "OFF")
+                cs_new = (d_i or {}).get("client_selector", "OFF")
+                mc_new = (d_i or {}).get("message_compressor", "OFF")
+                hh_new = (d_i or {}).get("heterogeneous_data_handler", "OFF")
+
+                logs.append(f"[Agent {i}] Decision ({MODEL}, temp={t}): CS: {prev_cs}→{cs_new} • MC: {prev_mc}→{mc_new} • HDH: {prev_hh}→{hh_new}")
+                if r_i:
+                    logs.append(f"[Rationale A{i}] {r_i}")
+                logs.append("")  # riga vuota tra agenti
+            except Exception as e:
                 agent_decisions.append({})
-                agent_rationales.append('')
+                agent_rationales.append("")
+                logs.append(f"[Agent {i}] ERROR: {e!r}")
+                logs.append("")
 
-        prev_cs  = "✅" if ap_prev.get("client_selector") else ("❌" if ap_prev.get("client_selector") is not None else "·")
-        prev_mc  = "✅" if ap_prev.get("message_compressor") else ("❌" if ap_prev.get("message_compressor") is not None else "·")
-        prev_hdh = "✅" if ap_prev.get("heterogeneous_data_handler") else ("❌" if ap_prev.get("heterogeneous_data_handler") is not None else "·")
+        # --- maggioranza (comportamento ufficiale, immutato) ---
+        def _vote(pattern: str) -> int:
+            return sum(1 for d in agent_decisions if (d.get(pattern, "OFF") or "OFF").upper() == "ON")
 
-        for idx, d in enumerate(agent_decisions, start=1):
-            new_cs  = "✅" if (d.get("client_selector") == "ON") else "❌"
-            new_mc  = "✅" if (d.get("message_compressor") == "ON") else "❌"
-            new_hdh = "✅" if (d.get("heterogeneous_data_handler") == "ON") else "❌"
-            delta = " • ".join([f"CS: {prev_cs}→{new_cs}", f"MC: {prev_mc}→{new_mc}", f"HDH: {prev_hdh}→{new_hdh}"])
-            logs.append(f"[Agent {idx}] Decision ({MODEL}): {delta}")
+        maj_cs  = "ON" if _vote("client_selector") >= 2 else "OFF"
+        maj_mc  = "ON" if _vote("message_compressor") >= 2 else "OFF"
+        maj_hdh = "ON" if _vote("heterogeneous_data_handler") >= 2 else "OFF"
 
-        votes_cs  = [1 if (d.get("client_selector") == "ON") else 0 for d in agent_decisions]
-        votes_mc  = [1 if (d.get("message_compressor") == "ON") else 0 for d in agent_decisions]
-        votes_hdh = [1 if (d.get("heterogeneous_data_handler") == "ON") else 0 for d in agent_decisions]
-        maj_cs, maj_mc, maj_hdh = (sum(votes_cs) >= 2), (sum(votes_mc) >= 2), (sum(votes_hdh) >= 2)
-
-        sel_vals = []
-        for d in agent_decisions:
-            if d.get("client_selector") == "ON" and "selection_value" in d:
-                try:
-                    sel_vals.append(int(d.get("selection_value")))
-                except Exception:
-                    pass
-        sel_value = Counter(sel_vals).most_common(1)[0][0] if sel_vals else None
-
-        new_config = copy.deepcopy(base_config)
-        for p, on in [("client_selector", maj_cs), ("message_compressor", maj_mc), ("heterogeneous_data_handler", maj_hdh)]:
-            if p in new_config.get("patterns", {}):
-                new_config["patterns"][p]["enabled"] = bool(on)
-
-        if new_config.get("patterns", {}).get("client_selector", {}).get("enabled"):
-            existing = new_config["patterns"]["client_selector"].get("params", {}).get("selection_value")
-            if sel_value is None:
-                try:
-                    sel_value = int(existing) if existing is not None else 0
-                except Exception:
-                    sel_value = 0
-            new_config["patterns"]["client_selector"].setdefault("params", {})
-            new_config["patterns"]["client_selector"]["params"]["selection_value"] = int(sel_value)
-
-        new_cs  = "✅" if maj_cs else "❌"
-        new_mc  = "✅" if maj_mc else "❌"
-        new_hdh = "✅" if maj_hdh else "❌"
-        logs.append(f"[Coordinator] Majority: CS: {prev_cs}→{new_cs} • MC: {prev_mc}→{new_mc} • HDH: {prev_hdh}→{new_hdh}")
-
+        logs.append(f"[Coordinator] Majority: CS: ·→{maj_cs} • MC: ·→{maj_mc} • HDH: ·→{maj_hdh}")
         logs.append("")
 
-        for idx, r in enumerate(agent_rationales, start=1):
-            r_print = r
-            if r_print:
-                try:
-                    obj = json.loads(r_print)
-                    if isinstance(obj, dict) and isinstance(obj.get("rationale"), str):
-                        r_print = obj["rationale"].strip()
-                except Exception:
-                    m = re.search(r'"rationale"\s*:\s*"(?P<r>.*?)"', r_print, flags=re.S)
-                    if m:
-                        r_print = m.group("r").strip()
-            if r_print:
-                logs.append(f"[Rationale A{idx}] {r_print}")
-                logs.append("") 
+        # --- coordinator LLM consultivo, nessun override del risultato ---
+        try:
+            proposals = []
+            for i, (d, r) in enumerate(zip(agent_decisions, agent_rationales), start=1):
+                proposals.append({"agent_id": i, "decision": d or {}, "rationale": r or ""})
 
-        cs_on, cs_off   = sum(votes_cs),  len(votes_cs)  - sum(votes_cs)
-        mc_on, mc_off   = sum(votes_mc),  len(votes_mc)  - sum(votes_mc)
-        hdh_on, hdh_off = sum(votes_hdh), len(votes_hdh) - sum(votes_hdh)
+            coord_prompt = (
+                "You are the COORDINATOR of a voting-based multi-agent policy for Federated Learning.\n"
+                'Return exactly one JSON with keys: "client_selector","selection_value","message_compressor","heterogeneous_data_handler","rationale". '
+                'Use "selection_value" only if client_selector is "ON". Do not add extra keys. Do not use markdown fences.\n\n'
+                f"ConfigShort: {json.dumps(self.default_config.get('meta', {}), ensure_ascii=False)}\n"
+                f"LastRound: {json.dumps(last_round or {}, ensure_ascii=False)}\n"
+                f"Aggregates: {json.dumps(agg or {}, ensure_ascii=False)}\n"
+                f"PrevAP: {json.dumps(ap_prev or {}, ensure_ascii=False)}\n"
+                f"Proposals: {json.dumps(proposals, ensure_ascii=False)}\n"
+                f"MajorityBaseline: {json.dumps({'client_selector': maj_cs, 'message_compressor': maj_mc, 'heterogeneous_data_handler': maj_hdh}, ensure_ascii=False)}\n"
+                "Your job is to justify the majority or suggest an alternative, but your output will NOT override the majority in this system."
+            )
 
-        verdict = []
-        verdict.append("[Coordinator Verdict]")
-        verdict.append("Mechanism: Voting-Based (3 agents, simple majority, democratic). With 3 voters, ties are impossible.")
-        verdict.append(f"Votes — CS: ON {cs_on}/3, OFF {cs_off}/3; MC: ON {mc_on}/3, OFF {mc_off}/3; HDH: ON {hdh_on}/3, OFF {hdh_off}/3.")
-        dec_line = f"Final decision — CS={'ON' if maj_cs else 'OFF'}; MC={'ON' if maj_mc else 'OFF'}; HDH={'ON' if maj_hdh else 'OFF'}."
-        if maj_cs and sel_value is not None:
-            dec_line += f" (Client Selector selection_value={sel_value})"
-        verdict.append(dec_line)
+            raw = _sa_call_ollama(
+                COORD_MODEL,
+                coord_prompt,
+                self.sa_ollama_urls,
+                force_json=True,
+                options={"temperature": 0.2, "top_p": 0.9, "num_ctx": 8192}
+            )
+            coord_dec, coord_rat, _ = _sa_parse_output(raw)
+            if coord_rat:
+                logs.append(f"[Coordinator Rationale] {coord_rat}")
+            else:
+                cr = (coord_dec or {}).get("rationale", "")
+                if cr:
+                    logs.append(f"[Coordinator Rationale] {cr}")
+            logs.append("[Coordinator] LLM consulted. Majority kept to preserve current behavior.")
+        except Exception as e:
+            logs.append(f"[Coordinator] LLM consult ERROR: {e!r}. Majority kept.")
+        logs.append("")
 
-        def _mk_reason(on_count, off_count, name):
-            if on_count == 3 or off_count == 3:
-                return f"{name}: unanimous {'ON' if on_count == 3 else 'OFF'}; coordinator adopts the consensus."
-            return f"{name}: majority {'ON' if on_count > off_count else 'OFF'}; coordinator follows the majority per policy."
-        verdict.append(
-            "Rationale: " +
-            "; ".join([
-                _mk_reason(cs_on, cs_off, "CS"),
-                _mk_reason(mc_on, mc_off, "MC"),
-                _mk_reason(hdh_on, hdh_off, "HDH"),
-            ])
-        )
+        # --- applica decisione di maggioranza su config (immutato) ---
+        new_cfg = copy.deepcopy(base_config)
+        new_cfg.setdefault("patterns", {}).setdefault("client_selector", {}).update({"enabled": maj_cs == "ON"})
+        if maj_cs == "ON":
+            vals = []
+            for d in agent_decisions:
+                if (d.get("client_selector") or "").upper() == "ON" and "selection_value" in d:
+                    try:
+                        vals.append(int(d["selection_value"]))
+                    except Exception:
+                        pass
+            sel_val = max(set(vals), key=vals.count) if vals else 3
+            new_cfg["patterns"]["client_selector"].setdefault("params", {})["selection_value"] = sel_val
+        new_cfg["patterns"].setdefault("message_compressor", {})["enabled"] = (maj_mc == "ON")
+        new_cfg["patterns"].setdefault("heterogeneous_data_handler", {})["enabled"] = (maj_hdh == "ON")
 
-        logs.append("")  
-        logs.extend(verdict)
-        logs.append("") 
+        self.update_json(new_cfg)
+        self.update_config(new_cfg)
 
-        return new_config, logs
+        # --- PolicyTime una sola volta ---
+        pt_line = f"[Multiple AI-Agents (Voting-Based)] PolicyTime: {time.time() - t0:.2f}s"
+        if not logs or logs[-1] != pt_line:
+            logs.append(pt_line)
+
+        # --- scrivi lock per questo round ---
+        try:
+            with open(lock_file, "w", encoding="utf-8") as f:
+                f.write(str(time.time()))
+        except Exception:
+            pass
+
+        _append_agent_log(logs)
+        return new_cfg, logs
 
 
     def _decide_role(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
