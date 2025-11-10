@@ -1023,7 +1023,6 @@ class AdaptationManager:
             logs.append(f"[Rationale HDH] {r_hdh}")
             logs.append("")
 
-        # —— blocco finale Coordinator Verdict ——
         verdict = []
         verdict.append("[Coordinator Verdict]")
         verdict.append("Mechanism: Role-Based (3 agents specialized: CS, MC, HDH). Coordinator merges per-role outputs; no voting.")
@@ -1038,175 +1037,125 @@ class AdaptationManager:
 
         return new_config, logs
 
-
     def _decide_debate(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
-        import json, re, copy
-        from collections import Counter
-
         MODEL, MODE = "deepseek-r1:8b", "few-shot"
-        N_TURNS = 2 
+        logs: List[str]
 
-        logs: List[str] = []
-        last_round, last_csv = _sa_latest_round_csv()
-        agg, ap_prev = {}, {}
-        if last_csv:
-            try:
-                import pandas as pd
-                df = pd.read_csv(last_csv)
-                agg = _sa_aggregate_round(df)
-                ap_col = next((c for c in df.columns if isinstance(c, str) and c.startswith("AP List")), None)
-                if ap_col is not None and len(df) > 0:
-                    cell = str(df.iloc[-1][ap_col])
-                    m_keys = re.search(r"\((?P<inside>.*?)\)", ap_col)
-                    keys = [k.strip() for k in m_keys.group("inside").split(",")] if m_keys else []
-                    m_vals = re.search(r"\{(?P<inside>.*?)\}", cell)
-                    states = [s.strip().upper() for s in m_vals.group("inside").split(",")] if m_vals else []
-                    mapping = dict(zip(keys, states))
-                    ap_prev = {
-                        "client_selector": mapping.get("client_selector", "OFF") == "ON",
-                        "message_compressor": mapping.get("message_compressor", "OFF") == "ON",
-                        "heterogeneous_data_handler": mapping.get("heterogeneous_data_handler", "OFF") == "ON",
-                    }
-            except Exception:
-                pass
+        try:
+            N_TURNS = int(os.environ.get("DEBATE_TURNS", "5"))
+        except Exception:
+            N_TURNS = 5
 
-        prev_cs  = "✅" if ap_prev.get("client_selector") else ("❌" if ap_prev.get("client_selector") is not None else "·")
-        prev_mc  = "✅" if ap_prev.get("message_compressor") else ("❌" if ap_prev.get("message_compressor") is not None else "·")
-        prev_hdh = "✅" if ap_prev.get("heterogeneous_data_handler") else ("❌" if ap_prev.get("heterogeneous_data_handler") is not None else "·")
+        last_round = getattr(self, "_last_round_info", None) or {}
+        agg = getattr(self, "_last_round_agg", None) or {}
+        try:
+            ap_prev = self._read_previous_ap_state()
+        except Exception:
+            ap_prev = {}
 
-        # Transcript del dibattito
-        all_turn_votes = []      # per ogni turno: (on_cs, on_mc, on_hdh)
-        all_turn_decisions = []  # lista per turno: [dec_agent1, dec_agent2, dec_agent3]
-        all_turn_rationales = [] # lista per turno: [rat_agent1, rat_agent2, rat_agent3]
+        temps = [0.1, 0.5, 0.9]
 
-        last_majority = None
-        for t in range(1, N_TURNS + 1):
+        consensus_reached = False
+        final_decisions_last_turn: List[Dict] = []
+        final_turn_logs: List[str] = []
+
+        for turn in range(1, N_TURNS + 1):
             agent_decisions: List[Dict] = []
             agent_rationales: List[str] = []
+            turn_logs: List[str] = []
 
-            # proposte agenti al turno t
-            for k in range(3):
+            for i, t in enumerate(temps, start=1):
                 try:
-                    d_k, r_k = _sa_generate_with_retry(
-                        MODEL, MODE, self.default_config, last_round, agg, ap_prev, self.sa_ollama_urls
+                    d_i, r_i = _sa_generate_with_retry(
+                        MODEL, MODE, self.default_config, last_round, agg, ap_prev, self.sa_ollama_urls,
+                        options={"temperature": t, "top_p": 0.95, "num_ctx": 8192}
                     )
-                    agent_decisions.append(d_k or {})
-                    agent_rationales.append((r_k or '').strip())
-                except Exception:
+                    d_i = d_i or {}
+                    r_i = (r_i or "").strip()
+                    agent_decisions.append(d_i)
+                    agent_rationales.append(r_i)
+
+                    prev_cs = ap_prev.get("client_selector", "OFF")
+                    prev_mc = ap_prev.get("message_compressor", "OFF")
+                    prev_hh = ap_prev.get("heterogeneous_data_handler", "OFF")
+                    cs_new = (d_i.get("client_selector", "OFF") or "OFF").upper()
+                    mc_new = (d_i.get("message_compressor", "OFF") or "OFF").upper()
+                    hh_new = (d_i.get("heterogeneous_data_handler", "OFF") or "OFF").upper()
+
+                    turn_logs.append(f"[Agent {i}] Decision ({MODEL}, temp={t}): CS: {prev_cs}→{cs_new} • MC: {prev_mc}→{mc_new} • HDH: {prev_hh}→{hh_new}")
+                    if r_i:
+                        turn_logs.append(f"[Rationale A{i}] {r_i}")
+                    turn_logs.append("")  
+                except Exception as e:
                     agent_decisions.append({})
-                    agent_rationales.append('')
+                    agent_rationales.append("")
+                    turn_logs.append(f"[Agent {i}] ERROR: {e!r}")
+                    turn_logs.append("")
 
-            # log decision per turno (delta rispetto a stato precedente, come nel voting)
-            for idx, d in enumerate(agent_decisions, start=1):
-                new_cs  = "✅" if (d.get("client_selector") == "ON") else "❌"
-                new_mc  = "✅" if (d.get("message_compressor") == "ON") else "❌"
-                new_hdh = "✅" if (d.get("heterogeneous_data_handler") == "ON") else "❌"
-                delta = " • ".join([f"CS: {prev_cs}→{new_cs}", f"MC: {prev_mc}→{new_mc}", f"HDH: {prev_hdh}→{new_hdh}"])
-                logs.append(f"[Agent {idx}][T{t}] Decision ({MODEL}): {delta}")
+            def onoff(d: Dict, key: str) -> str:
+                return (d.get(key, "OFF") or "OFF").upper()
 
-            # conteggio voti del turno
-            votes_cs  = [1 if (d.get("client_selector") == "ON") else 0 for d in agent_decisions]
-            votes_mc  = [1 if (d.get("message_compressor") == "ON") else 0 for d in agent_decisions]
-            votes_hdh = [1 if (d.get("heterogeneous_data_handler") == "ON") else 0 for d in agent_decisions]
-            on_cs, on_mc, on_hdh = sum(votes_cs), sum(votes_mc), sum(votes_hdh)
-            all_turn_votes.append((on_cs, on_mc, on_hdh))
-            all_turn_decisions.append(agent_decisions)
-            all_turn_rationales.append(agent_rationales)
+            cs_set = {onoff(d, "client_selector") for d in agent_decisions}
+            mc_set = {onoff(d, "message_compressor") for d in agent_decisions}
+            hh_set = {onoff(d, "heterogeneous_data_handler") for d in agent_decisions}
 
-            # majority del turno
-            maj_cs, maj_mc, maj_hdh = (on_cs >= 2), (on_mc >= 2), (on_hdh >= 2)
-            logs.append(f"[Turn T{t}] Votes — CS: ON {on_cs}/3 • MC: ON {on_mc}/3 • HDH: ON {on_hdh}/3")
-            logs.append("")  # spazio
+            final_decisions_last_turn = agent_decisions
+            final_turn_logs = turn_logs 
 
-            # early stopping: se la majority non cambia tra due turni consecutivi
-            curr_majority = (maj_cs, maj_mc, maj_hdh)
-            if last_majority is not None and curr_majority == last_majority:
+            if len(cs_set) == len(mc_set) == len(hh_set) == 1:
+                consensus_reached = True
                 break
-            last_majority = curr_majority
 
-        # decisione finale = majority dell'ultimo turno
-        final_on_cs, final_on_mc, final_on_hdh = last_majority
-        final_decisions = all_turn_decisions[-1]
+        logs.extend(final_turn_logs)
 
-        # selection_value (solo ultimo turno, tra gli agenti che hanno CS=ON)
-        sel_vals = []
-        for d in final_decisions:
-            if d.get("client_selector") == "ON" and "selection_value" in d:
-                try:
-                    sel_vals.append(int(d.get("selection_value")))
-                except Exception:
-                    pass
-        sel_value = Counter(sel_vals).most_common(1)[0][0] if sel_vals else None
+        if consensus_reached:
+            cs_final = (final_decisions_last_turn[0].get("client_selector", "OFF") or "OFF").upper()
+            mc_final = (final_decisions_last_turn[0].get("message_compressor", "OFF") or "OFF").upper()
+            hh_final = (final_decisions_last_turn[0].get("heterogeneous_data_handler", "OFF") or "OFF").upper()
 
-        # applica nuova config
-        new_config = copy.deepcopy(base_config)
-        for p, on in [("client_selector", final_on_cs), ("message_compressor", final_on_mc), ("heterogeneous_data_handler", final_on_hdh)]:
-            if p in new_config.get("patterns", {}):
-                new_config["patterns"][p]["enabled"] = bool(on)
-
-        if new_config.get("patterns", {}).get("client_selector", {}).get("enabled"):
-            existing = new_config["patterns"]["client_selector"].get("params", {}).get("selection_value")
-            if sel_value is None:
-                try:
-                    sel_value = int(existing) if existing is not None else 0
-                except Exception:
-                    sel_value = 0
-            new_config["patterns"]["client_selector"].setdefault("params", {})
-            new_config["patterns"]["client_selector"]["params"]["selection_value"] = int(sel_value)
-
-        # sintesi finale (senza coordinatore)
-        new_cs  = "✅" if final_on_cs else "❌"
-        new_mc  = "✅" if final_on_mc else "❌"
-        new_hdh = "✅" if final_on_hdh else "❌"
-        logs.append("[Debate Summary] No coordinator; agents interact through multi-turn debate.")
-        logs.append(f"[Debate Majority] Final: CS: {prev_cs}→{new_cs} • MC: {prev_mc}→{new_mc} • HDH: {prev_hdh}→{new_hdh}")
-        logs.append("")
-
-        # Razionali degli agenti, per turno, con spazi
-        for t, agent_rationales in enumerate(all_turn_rationales, start=1):
-            for idx, r in enumerate(agent_rationales, start=1):
-                r_print = r
-                if r_print:
+            sel_val = None
+            if cs_final == "ON":
+                vals = []
+                for d in final_decisions_last_turn:
+                    if (d.get("client_selector") or "").upper() == "ON" and "selection_value" in d:
+                        try:
+                            vals.append(int(d["selection_value"]))
+                        except Exception:
+                            pass
+                if vals:
+                    from collections import Counter
+                    cnt = Counter(vals).most_common()
+                    top_freq = cnt[0][1]
+                    candidates = [v for v, f in cnt if f == top_freq]
+                    sel_val = max(candidates)
+                else:
                     try:
-                        obj = json.loads(r_print)
-                        if isinstance(obj, dict) and isinstance(obj.get("rationale"), str):
-                            r_print = obj["rationale"].strip()
+                        sel_val = int(base_config.get("patterns", {}).get("client_selector", {}).get("params", {}).get("selection_value", 3))
                     except Exception:
-                        m = re.search(r'"rationale"\s*:\s*"(?P<r>.*?)"', r_print, flags=re.S)
-                        if m:
-                            r_print = m.group("r").strip()
-                if r_print:
-                    logs.append(f"[Rationale A{idx}@T{t}] {r_print}")
-                    logs.append("")
-        # Blocco outcome (riassunto “da verbale” del dibattito)
-        outcome = []
-        outcome.append("[Debate Outcome]")
-        outcome.append("Mechanism: Debate-Based (3 agents, multi-turn, peer-to-peer, no coordinator).")
-        for t, (on_cs, on_mc, on_hdh) in enumerate(all_turn_votes, start=1):
-            outcome.append(f"T{t} Votes — CS: ON {on_cs}/3, OFF {3-on_cs}/3; MC: ON {on_mc}/3, OFF {3-on_mc}/3; HDH: ON {on_hdh}/3, OFF {3-on_hdh}/3.")
-        dec_line = f"Final decision — CS={'ON' if final_on_cs else 'OFF'}; MC={'ON' if final_on_mc else 'OFF'}; HDH={'ON' if final_on_hdh else 'OFF'}."
-        if final_on_cs and sel_value is not None:
-            dec_line += f" (Client Selector selection_value={sel_value})"
-        outcome.append(dec_line)
+                        sel_val = 3
 
-        def _mk_reason(on_count, off_count, name):
-            if on_count == 3 or off_count == 3:
-                return f"{name}: unanimous {'ON' if on_count == 3 else 'OFF'} at final turn."
-            return f"{name}: majority {'ON' if on_count > off_count else 'OFF'} at final turn."
-        last_votes = all_turn_votes[-1]
-        outcome.append(
-            "Rationale: " + "; ".join([
-                _mk_reason(last_votes[0], 3-last_votes[0], "CS"),
-                _mk_reason(last_votes[1], 3-last_votes[1], "MC"),
-                _mk_reason(last_votes[2], 3-last_votes[2], "HDH"),
-            ])
-        )
-        logs.append("")
-        logs.extend(outcome)
-        logs.append("")
+            new_cfg = copy.deepcopy(base_config)
+            new_cfg.setdefault("patterns", {}).setdefault("client_selector", {}).update({"enabled": cs_final == "ON"})
+            if cs_final == "ON":
+                new_cfg["patterns"]["client_selector"].setdefault("params", {})["selection_value"] = sel_val
+            new_cfg["patterns"].setdefault("message_compressor", {})["enabled"] = (mc_final == "ON")
+            new_cfg["patterns"].setdefault("heterogeneous_data_handler", {})["enabled"] = (hh_final == "ON")
 
-        return new_config, logs
+            logs.append(f"[Debate] Consensus reached at turn {turn}/{N_TURNS}.")
+            self.update_json(new_cfg)
+            self.update_config(new_cfg)
 
+            if str(os.environ.get("AGENT_LOG_TO_FILE", "0")).lower() in ("1", "true", "yes"):
+                _append_agent_log(logs)
+            return new_cfg, logs
+
+        logs.append(f"[Debate] No consensus after {N_TURNS} turns. Keeping previous arhcitectural pattern configuration.")
+        self.update_json(base_config)
+        self.update_config(base_config)
+
+        if str(os.environ.get("AGENT_LOG_TO_FILE", "0")).lower() in ("1", "true", "yes"):
+            _append_agent_log(logs)
+        return base_config, logs
 
     def _decide_single_agent(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
         import re, json
@@ -1220,16 +1169,11 @@ class AdaptationManager:
                 df = pd.read_csv(last_csv)
                 agg = _sa_aggregate_round(df)
 
-                # === Estrazione ap_prev direttamente da "AP List (...)" ===
                 ap_col = next((c for c in df.columns if isinstance(c, str) and c.startswith("AP List")), None)
                 if ap_col is not None and len(df) > 0:
                     cell = str(df.iloc[-1][ap_col])
-
-                    # Chiavi dall'header tra parentesi tonde
                     m_keys = re.search(r"\((?P<inside>.*?)\)", ap_col)
                     keys = [k.strip() for k in m_keys.group("inside").split(",")] if m_keys else []
-
-                    # Valori ON/OFF dalla cella tra parentesi graffe
                     m_vals = re.search(r"\{(?P<inside>.*?)\}", cell)
                     states = [s.strip().upper() for s in m_vals.group("inside").split(",")] if m_vals else []
 
@@ -1239,7 +1183,6 @@ class AdaptationManager:
                         "message_compressor": mapping.get("message_compressor", "OFF") == "ON",
                         "heterogeneous_data_handler": mapping.get("heterogeneous_data_handler", "OFF") == "ON",
                     }
-                # === fine estrazione ===
             except Exception:
                 pass
 
