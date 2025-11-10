@@ -886,156 +886,171 @@ class AdaptationManager:
         return new_cfg, logs
 
     def _decide_role(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
-        import json, re, copy
-        from collections import Counter
-
         MODEL, MODE = "deepseek-r1:8b", "few-shot"
+        logs: List[str] = [f"[ROUND {current_round}] Role-based policy"]
 
-        logs: List[str] = []
-        last_round, last_csv = _sa_latest_round_csv()
-        agg, ap_prev = {}, {}
-        if last_csv:
-            try:
-                import pandas as pd
-                df = pd.read_csv(last_csv)
-                agg = _sa_aggregate_round(df)
-                ap_col = next((c for c in df.columns if isinstance(c, str) and c.startswith("AP List")), None)
-                if ap_col is not None and len(df) > 0:
-                    cell = str(df.iloc[-1][ap_col])
-                    m_keys = re.search(r"\((?P<inside>.*?)\)", ap_col)
-                    keys = [k.strip() for k in m_keys.group("inside").split(",")] if m_keys else []
-                    m_vals = re.search(r"\{(?P<inside>.*?)\}", cell)
-                    states = [s.strip().upper() for s in m_vals.group("inside").split(",")] if m_vals else []
-                    mapping = dict(zip(keys, states))
-                    ap_prev = {
-                        "client_selector": mapping.get("client_selector", "OFF") == "ON",
-                        "message_compressor": mapping.get("message_compressor", "OFF") == "ON",
-                        "heterogeneous_data_handler": mapping.get("heterogeneous_data_handler", "OFF") == "ON",
-                    }
-            except Exception:
-                pass
+        # contesto (coerente con gli altri approcci)
+        last_round = getattr(self, "_last_round_info", None) or {}
+        agg = getattr(self, "_last_round_agg", None) or {}
+        try:
+            ap_prev = self._read_previous_ap_state()
+        except Exception:
+            ap_prev = {}
 
-        prev_cs  = "✅" if ap_prev.get("client_selector") else ("❌" if ap_prev.get("client_selector") is not None else "·")
-        prev_mc  = "✅" if ap_prev.get("message_compressor") else ("❌" if ap_prev.get("message_compressor") is not None else "·")
-        prev_hdh = "✅" if ap_prev.get("heterogeneous_data_handler") else ("❌" if ap_prev.get("heterogeneous_data_handler") is not None else "·")
-
-        # 3 agenti specializzati: ciascuno decide SOLO il proprio pattern
-        roles = [
-            ("CS",  "client_selector"),
-            ("MC",  "message_compressor"),
-            ("HDH", "heterogeneous_data_handler"),
+        # mapping specialisti: etichetta di log, chiave di focus, temperatura
+        specs = [
+            ("CS",  "client_selector",            0.1),
+            ("MC",  "message_compressor",         0.5),
+            ("HDH", "heterogeneous_data_handler", 0.9),
         ]
 
-        decisions = {}
-        rationales = {}
+        # raccolta output specialisti (filtrato per ruolo)
+        specialist = { "client_selector": {}, "message_compressor": {}, "heterogeneous_data_handler": {} }
+        specialist_rat = { "client_selector": "", "message_compressor": "", "heterogeneous_data_handler": "" }
 
-        for tag, key in roles:
+        # util per ON/OFF
+        def _onoff(x): return "ON" if str(x).strip().upper() == "ON" else "OFF"
+
+        # valori precedenti per frecce nei log
+        prev_cs  = (ap_prev.get("client_selector", "OFF") or "OFF").upper()
+        prev_mc  = (ap_prev.get("message_compressor", "OFF") or "OFF").upper()
+        prev_hdh = (ap_prev.get("heterogeneous_data_handler", "OFF") or "OFF").upper()
+
+        for label, key_focus, temp in specs:
             try:
-                d_k, r_k = _sa_generate_with_retry(
-                    MODEL, MODE, self.default_config, last_round, agg, ap_prev, self.sa_ollama_urls
+                # prompt base "di sempre"
+                base_p = _sa_build_prompt(MODE, self.default_config, last_round, agg, ap_prev)
+
+                # blocco Role Focus (molto rigido)
+                role_focus = (
+                    "\n\n### Role Focus\n"
+                    f"You are the specialist for '{key_focus}'.\n"
+                    f"- Decide ONLY '{key_focus}' as ON or OFF.\n"
+                    "- For the other patterns, copy their values EXACTLY from PrevAP into your JSON.\n"
+                    "- Your 'rationale' MUST discuss ONLY the focused pattern; do NOT mention the other patterns.\n"
+                    "- If you set 'client_selector' to ON, provide an integer 'selection_value'.\n"
+                    "Output STRICTLY one JSON object with EXACTLY these keys:\n"
+                    "  'client_selector', 'selection_value' (ONLY if client_selector='ON'), \n"
+                    "'message_compressor', 'heterogeneous_data_handler', 'rationale'.\n"
+                    "Do not add extra keys. Do not use markdown fences."
                 )
-            except Exception:
-                d_k, r_k = {}, ""
+                prompt = base_p + role_focus
 
-            decisions[key] = d_k or {}
-            rationales[key] = (r_k or "").strip()
+                raw = _sa_call_ollama(
+                    MODEL,
+                    prompt,
+                    self.sa_ollama_urls,
+                    force_json=True,
+                    options={"temperature": temp, "top_p": 0.95, "num_ctx": 8192}
+                )
+                d_i, r_i, _ = _sa_parse_output(raw)
+                d_i = d_i or {}
+                r_i = (r_i or "").strip()
+                cs_val  = prev_cs
+                mc_val  = prev_mc
+                hdh_val = prev_hdh
+                if key_focus == "client_selector":
+                    cs_val = _onoff(d_i.get("client_selector", prev_cs))
+                elif key_focus == "message_compressor":
+                    mc_val = _onoff(d_i.get("message_compressor", prev_mc))
+                else:  # HDH
+                    hdh_val = _onoff(d_i.get("heterogeneous_data_handler", prev_hdh))
 
-            # Log decision per ruolo (solo il pattern di competenza)
-            if key == "client_selector":
-                new_symbol = "✅" if (decisions[key].get(key) == "ON") else "❌"
-                logs.append(f"[Agent {tag}] Decision ({MODEL}): CS: {prev_cs}→{new_symbol}")
-            elif key == "message_compressor":
-                new_symbol = "✅" if (decisions[key].get(key) == "ON") else "❌"
-                logs.append(f"[Agent {tag}] Decision ({MODEL}): MC: {prev_mc}→{new_symbol}")
-            else:
-                new_symbol = "✅" if (decisions[key].get(key) == "ON") else "❌"
-                logs.append(f"[Agent {tag}] Decision ({MODEL}): HDH: {prev_hdh}→{new_symbol}")
+                # costruisci l’oggetto filtrato consegnato al coordinator (owner per pattern)
+                out = {
+                    "client_selector": cs_val,
+                    "message_compressor": mc_val,
+                    "heterogeneous_data_handler": hdh_val
+                }
+                # selection_value solo se focus è CS e CS=ON
+                if key_focus == "client_selector" and cs_val == "ON":
+                    try:
+                        sv = d_i.get("selection_value", None)
+                        if sv is not None:
+                            out["selection_value"] = int(sv)
+                    except Exception:
+                        pass
 
-        # Risoluzione finale (il coordinator unisce i 3 output, senza voto)
-        def _resolve_on(key: str, prev_bool):
-            v = decisions[key].get(key, None)
-            if isinstance(v, str) and v.upper() in ("ON", "OFF"):
-                return v.upper() == "ON"
-            # fallback: mantieni stato precedente se noto, altrimenti OFF
-            return bool(prev_bool) if prev_bool is not None else False
+                specialist[key_focus] = out
+                specialist_rat[key_focus] = r_i
 
-        on_cs  = _resolve_on("client_selector", ap_prev.get("client_selector"))
-        on_mc  = _resolve_on("message_compressor", ap_prev.get("message_compressor"))
-        on_hdh = _resolve_on("heterogeneous_data_handler", ap_prev.get("heterogeneous_data_handler"))
+                # log come nel tuo esempio: solo la riga del pattern di focus
+                if key_focus == "client_selector":
+                    logs.append(f"[Agent CS] Decision ({MODEL}): CS: ·→{'✅' if cs_val=='ON' else '❌'}")
+                    if r_i:
+                        logs.append(f"[Rationale CS] {r_i}")
+                elif key_focus == "message_compressor":
+                    logs.append(f"[Agent MC] Decision ({MODEL}): MC: ·→{'✅' if mc_val=='ON' else '❌'}")
+                    if r_i:
+                        logs.append(f"[Rationale MC] {r_i}")
+                else:
+                    logs.append(f"[Agent HDH] Decision ({MODEL}): HDH: ·→{'✅' if hdh_val=='ON' else '❌'}")
+                    if r_i:
+                        logs.append(f"[Rationale HDH] {r_i}")
+                logs.append("")  # spazio tra agenti
 
-        # selection_value dal solo agente CS
-        sel_value = None
-        if on_cs:
+            except Exception as e:
+                # in caso di errore: mantieni il valore prev per quel ruolo
+                if key_focus == "client_selector":
+                    specialist[key_focus] = {"client_selector": prev_cs, "message_compressor": prev_mc, "heterogeneous_data_handler": prev_hdh}
+                elif key_focus == "message_compressor":
+                    specialist[key_focus] = {"client_selector": prev_cs, "message_compressor": prev_mc, "heterogeneous_data_handler": prev_hdh}
+                else:
+                    specialist[key_focus] = {"client_selector": prev_cs, "message_compressor": prev_mc, "heterogeneous_data_handler": prev_hdh}
+                specialist_rat[key_focus] = ""
+                logs.append(f"[Agent {label}] ERROR: {e!r}")
+                logs.append("")
+
+        # Coordinator deterministico: merge per ruolo (no voting, no LLM)
+        cs_final  = specialist["client_selector"]["client_selector"]
+        mc_final  = specialist["message_compressor"]["message_compressor"]
+        hdh_final = specialist["heterogeneous_data_handler"]["heterogeneous_data_handler"]
+
+        # selection_value: prendi dallo specialista CS se presente, altrimenti fallback al precedente o 3
+        sel_val = None
+        if cs_final == "ON":
+            v = specialist["client_selector"].get("selection_value", None)
             try:
-                if "selection_value" in decisions["client_selector"]:
-                    sel_value = int(decisions["client_selector"]["selection_value"])
+                if v is not None:
+                    sel_val = int(v)
             except Exception:
-                sel_value = None
-
-        new_config = copy.deepcopy(base_config)
-        for p, on in [("client_selector", on_cs), ("message_compressor", on_mc), ("heterogeneous_data_handler", on_hdh)]:
-            if p in new_config.get("patterns", {}):
-                new_config["patterns"][p]["enabled"] = bool(on)
-
-        if new_config.get("patterns", {}).get("client_selector", {}).get("enabled"):
-            existing = new_config["patterns"]["client_selector"].get("params", {}).get("selection_value")
-            if sel_value is None:
+                sel_val = None
+            if sel_val is None:
                 try:
-                    sel_value = int(existing) if existing is not None else 0
+                    sel_val = int(base_config.get("patterns", {}).get("client_selector", {}).get("params", {}).get("selection_value", 3))
                 except Exception:
-                    sel_value = 0
-            new_config["patterns"]["client_selector"].setdefault("params", {})
-            new_config["patterns"]["client_selector"]["params"]["selection_value"] = int(sel_value)
+                    sel_val = 3
 
-        new_cs  = "✅" if on_cs else "❌"
-        new_mc  = "✅" if on_mc else "❌"
-        new_hdh = "✅" if on_hdh else "❌"
-        logs.append(f"[Coordinator] Role-Merge: CS: {prev_cs}→{new_cs} • MC: {prev_mc}→{new_mc} • HDH: {prev_hdh}→{new_hdh}")
-
-        # —— spazio dopo il merge ——
+        # Log coordinator come nel tuo format
+        logs.append("[Coordinator] Role-Merge: " +
+                    f"CS: ·→{'✅' if cs_final=='ON' else '❌'} • "
+                    f"MC: ·→{'✅' if mc_final=='ON' else '❌'} • "
+                    f"HDH: ·→{'✅' if hdh_final=='ON' else '❌'}")
+        logs.append("")
+        logs.append("[Coordinator Verdict]")
+        logs.append("Mechanism: Role-Based (3 agents specialized: CS, MC, HDH). Coordinator merges per-role outputs; no voting.")
+        logs.append("Roles — CS agent decides Client Selector (and selection_value); MC agent decides Message Compressor; HDH agent decides Heterogeneous Data Handler.")
+        logs.append(f"Final decision — CS={'ON' if cs_final=='ON' else 'OFF'}; MC={'ON' if mc_final=='ON' else 'OFF'}; HDH={'ON' if hdh_final=='ON' else 'OFF'}.")
+        logs.append("Rationale: each agent focused solely on its assigned pattern; any extra fields from an agent were ignored by design.")
         logs.append("")
 
-        # Rationales per ruolo con spazi
-        def _extract_rat(txt: str) -> str:
-            if not txt:
-                return ""
-            try:
-                obj = json.loads(txt)
-                if isinstance(obj, dict) and isinstance(obj.get("rationale"), str):
-                    return obj["rationale"].strip()
-            except Exception:
-                m = re.search(r'"rationale"\s*:\s*"(?P<r>.*?)"', txt, flags=re.S)
-                if m:
-                    return m.group("r").strip()
-            return txt.strip()
+        # applica su config
+        new_cfg = copy.deepcopy(base_config)
+        new_cfg.setdefault("patterns", {}).setdefault("client_selector", {}).update({"enabled": cs_final == "ON"})
+        if cs_final == "ON":
+            new_cfg["patterns"]["client_selector"].setdefault("params", {})["selection_value"] = sel_val
+        new_cfg["patterns"].setdefault("message_compressor", {})["enabled"] = (mc_final == "ON")
+        new_cfg["patterns"].setdefault("heterogeneous_data_handler", {})["enabled"] = (hdh_final == "ON")
 
-        r_cs  = _extract_rat(rationales["client_selector"])
-        r_mc  = _extract_rat(rationales["message_compressor"])
-        r_hdh = _extract_rat(rationales["heterogeneous_data_handler"])
+        self.update_json(new_cfg)
+        self.update_config(new_cfg)
 
-        if r_cs:
-            logs.append(f"[Rationale CS] {r_cs}")
-            logs.append("")
-        if r_mc:
-            logs.append(f"[Rationale MC] {r_mc}")
-            logs.append("")
-        if r_hdh:
-            logs.append(f"[Rationale HDH] {r_hdh}")
-            logs.append("")
+        # scrittura su file solo se richiesta
+        if str(os.environ.get("AGENT_LOG_TO_FILE", "0")).lower() in ("1", "true", "yes"):
+            _append_agent_log(logs)
 
-        verdict = []
-        verdict.append("[Coordinator Verdict]")
-        verdict.append("Mechanism: Role-Based (3 agents specialized: CS, MC, HDH). Coordinator merges per-role outputs; no voting.")
-        verdict.append("Roles — CS agent decides Client Selector (and selection_value); MC agent decides Message Compressor; HDH agent decides Heterogeneous Data Handler.")
-        dec_line = f"Final decision — CS={'ON' if on_cs else 'OFF'}; MC={'ON' if on_mc else 'OFF'}; HDH={'ON' if on_hdh else 'OFF'}."
-        if on_cs and sel_value is not None:
-            dec_line += f" (Client Selector selection_value={sel_value})"
-        verdict.append(dec_line)
-        verdict.append("Rationale: each agent focused solely on its assigned pattern; any extra fields from an agent were ignored by design.")
-        logs.extend(verdict)
-        logs.append("")
+        return new_cfg, logs
 
-        return new_config, logs
 
     def _decide_debate(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
         MODEL, MODE = "deepseek-r1:8b", "few-shot"

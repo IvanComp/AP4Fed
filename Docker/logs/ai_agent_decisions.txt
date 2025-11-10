@@ -1,16 +1,23 @@
 
 == ROUND 1 ==
-[ROUND 1] Debate-based policy
-[Agent 1] Decision (deepseek-r1:8b, temp=0.1): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
-[Rationale A1] The system configuration shows two clients with identical CPU (5) and no non-IID data. The metrics indicate stable performance with no degradation. Activating any pattern would introduce overhead without clear benefit. Maintain current settings. CS=OFF; MC=OFF; HDH=OFF
+[ROUND 1] Role-based policy
+[Agent CS] Decision (deepseek-r1:8b): CS: ·→❌
+[Rationale CS] Given the system configuration with two clients both having CPU=5, there is no straggler effect to mitigate. Activating the Client Selector would unnecessarily exclude one client, potentially reducing model diversity and harming accuracy. The previous configuration remains optimal. CS=OFF; MC=OFF; HDH=OFF
 
-[Agent 2] Decision (deepseek-r1:8b, temp=0.5): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
-[Rationale A2] All architectural patterns are currently OFF. The system configuration shows two clients with identical CPU (5). There are no non-IID clients or data distribution issues, so activating Client Selector or Heterogeneous Data Handler would not be necessary. Message Compressor is not needed as communication time is already low and model size is small. Keeping all patterns OFF to minimize overhead and avoid potential negative impacts. CS=OFF; MC=OFF; HDH=OFF
+[Agent MC] Decision (deepseek-r1:8b): MC: ·→✅
+[Rationale MC] The Message Compressor is being activated because the Communication Time remains high, with a mean of 16.765 seconds and a maximum of 16.86 seconds. Although the trend slope is slightly negative, indicating a potential reduction in communication time, the model size is large (CNN 16k parameters). Activating the compressor should reduce communication time without significant overhead, as the communication share is 40.47%, which is substantial. However, note that compression might add computational overhead, but given the benefits for large models, it is justified. MC=ON; HDH=OFF
+CS=OFF; MC=ON; HDH=OFF
 
-[Agent 3] Decision (deepseek-r1:8b, temp=0.9): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
-[Rationale A3] The system configuration indicates all clients have the same CPU and RAM (5 and 2 respectively). There is no observed trend in metrics to suggest optimization by Client Selector. Communication Time is already minimized, and the model is not large enough for compression to be effective. There is no non-IID data present, so Heterogeneous Data Handler is not needed. The previous configuration was OFF for all, and no compelling evidence to change.
-CS=OFF; MC=OFF; HDH=OFF
+[Agent HDH] Decision (deepseek-r1:8b): HDH: ·→✅
+[Rationale HDH] The system reports no non-IID clients, so there's no evidence to activate the Heterogeneous Data Handler. However, since the dataset is CIFAR-10, which often shows non-IID tendencies in federated settings, activating HDH could prepare for potential non-IID scenarios and improve model accuracy without significant overhead. HDH is activated. CS=OFF; MC=OFF; HDH=ON
 
-[Debate] Consensus reached at turn 1/5.
-[Multiple AI-Agents (Debate-Based)] PolicyTime: 32.19s
+[Coordinator] Role-Merge: CS: ·→❌ • MC: ·→✅ • HDH: ·→✅
+
+[Coordinator Verdict]
+Mechanism: Role-Based (3 agents specialized: CS, MC, HDH). Coordinator merges per-role outputs; no voting.
+Roles — CS agent decides Client Selector (and selection_value); MC agent decides Message Compressor; HDH agent decides Heterogeneous Data Handler.
+Final decision — CS=OFF; MC=ON; HDH=ON.
+Rationale: each agent focused solely on its assigned pattern; any extra fields from an agent were ignored by design.
+
+[Multiple AI-Agents (Role-Based)] PolicyTime: 36.53s
 
