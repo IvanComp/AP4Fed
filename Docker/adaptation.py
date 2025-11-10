@@ -774,23 +774,8 @@ class AdaptationManager:
     def _decide_voting(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
         MODEL, MODE = "deepseek-r1:8b", "few-shot"
         COORD_MODEL = "deepseek-r1:8b"
+        logs: List[str]
 
-        # --- lock anti-duplicato su disco (resiste a re-instanziazione) ---
-        try:
-            lock_dir = os.path.join(os.getcwd(), "logs")
-            os.makedirs(lock_dir, exist_ok=True)
-            lock_file = os.path.join(lock_dir, f".voting_round_{current_round}.lock")
-            if os.path.exists(lock_file):
-                # evita di ristampare: ritorna config corrente e nessun log
-                return copy.deepcopy(getattr(self, "default_config", base_config)), []
-        except Exception:
-            # se il lock fallisce, prosegui comunque
-            pass
-
-        logs: List[str] = [f"[ROUND {current_round}] Voting-based policy"]
-        t0 = time.time()
-
-        # --- contesto ultimo round e stato precedente ---
         last_round = getattr(self, "_last_round_info", None) or {}
         agg = getattr(self, "_last_round_agg", None) or {}
         try:
@@ -798,7 +783,6 @@ class AdaptationManager:
         except Exception:
             ap_prev = {}
 
-        # --- 3 agenti con temperature diverse ---
         agent_decisions: List[Dict] = []
         agent_rationales: List[str] = []
         temps = [0.1, 0.5, 0.9]
@@ -828,7 +812,7 @@ class AdaptationManager:
                 logs.append(f"[Agent {i}] ERROR: {e!r}")
                 logs.append("")
 
-        # --- maggioranza (comportamento ufficiale, immutato) ---
+        # maggioranza (comportamento ufficiale, immutato)
         def _vote(pattern: str) -> int:
             return sum(1 for d in agent_decisions if (d.get(pattern, "OFF") or "OFF").upper() == "ON")
 
@@ -839,7 +823,7 @@ class AdaptationManager:
         logs.append(f"[Coordinator] Majority: CS: ·→{maj_cs} • MC: ·→{maj_mc} • HDH: ·→{maj_hdh}")
         logs.append("")
 
-        # --- coordinator LLM consultivo, nessun override del risultato ---
+        # coordinator LLM consultivo, nessun override del risultato
         try:
             proposals = []
             for i, (d, r) in enumerate(zip(agent_decisions, agent_rationales), start=1):
@@ -872,12 +856,10 @@ class AdaptationManager:
                 cr = (coord_dec or {}).get("rationale", "")
                 if cr:
                     logs.append(f"[Coordinator Rationale] {cr}")
-            logs.append("[Coordinator] LLM consulted. Majority kept to preserve current behavior.")
         except Exception as e:
             logs.append(f"[Coordinator] LLM consult ERROR: {e!r}. Majority kept.")
         logs.append("")
 
-        # --- applica decisione di maggioranza su config (immutato) ---
         new_cfg = copy.deepcopy(base_config)
         new_cfg.setdefault("patterns", {}).setdefault("client_selector", {}).update({"enabled": maj_cs == "ON"})
         if maj_cs == "ON":
@@ -896,21 +878,12 @@ class AdaptationManager:
         self.update_json(new_cfg)
         self.update_config(new_cfg)
 
-        # --- PolicyTime una sola volta ---
-        pt_line = f"[Multiple AI-Agents (Voting-Based)] PolicyTime: {time.time() - t0:.2f}s"
-        if not logs or logs[-1] != pt_line:
-            logs.append(pt_line)
+        # scrivi su file SOLO se esplicitamente richiesto (evita duplicati in console)
+        if str(os.environ.get("AGENT_LOG_TO_FILE", "0")).lower() in ("1", "true", "yes"):
+            _append_agent_log(logs)
 
-        # --- scrivi lock per questo round ---
-        try:
-            with open(lock_file, "w", encoding="utf-8") as f:
-                f.write(str(time.time()))
-        except Exception:
-            pass
-
-        _append_agent_log(logs)
+        # NESSUNA riga PolicyTime qui; la stampa solo il chiamante (così non è doppia)
         return new_cfg, logs
-
 
     def _decide_role(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
         import json, re, copy

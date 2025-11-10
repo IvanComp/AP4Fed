@@ -1,40 +1,20 @@
-[ROUND 1] Voting-based policy
-[Agent 1] Decision (deepseek-r1:8b, temp=0.1): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
-[Rationale A1] The system configuration shows two clients with identical CPU (5) and no non-IID data. The metrics indicate stable performance with no clear bottleneck. Activating any pattern might introduce unnecessary overhead without proven benefit. Maintain current settings. CS=OFF; MC=OFF; HDH=OFF
-
-[Agent 2] Decision (deepseek-r1:8b, temp=0.5): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
-[Rationale A2] The system configuration indicates all clients have identical CPU (5). There is no straggler effect to mitigate. The dataset is IID, so there is no need for the heterogeneous data handler. Communication time is high, but the model is small (CNN 16k), and the compression would not be beneficial. Since the previous settings were OFF and there are no changes in metrics, keep all patterns OFF. CS=OFF; MC=OFF; HDH=OFF
-
-[Agent 3] Decision (deepseek-r1:8b, temp=0.9): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
-[Rationale A3] Given the context, all three architectural patterns are currently OFF. The system configuration shows 2 clients with identical CPU capabilities (both at 5). There are no non-IID clients, and communication time represents a portion of total time but no specific degradation is indicated. Since the metrics are stable and no clear bottleneck is identified, we keep all patterns OFF to avoid unnecessary overhead. The Client Selector remains OFF because excluding any client would be counterproductive with identical specs. Communication time reduction could be considered, but no evidence of large model size or bandwidth issues. Non-IID mitigation is unnecessary as all data is IID.
-CS=OFF; MC=OFF; HDH=OFF
-
-[Coordinator] Majority: CS: ·→OFF • MC: ·→OFF • HDH: ·→OFF
-
-[Coordinator Rationale] Based on the proposals, two out of three agents have suggested keeping everything OFF, but I am proposing to turn ON message_compressor and heterogeneous_data_handler to address potential issues that might not be explicitly stated in the rationale. This is a suggestion for improvement, not a majority decision.
-CS=OFF; MC=ON; HDH=ON
-[Coordinator] LLM consulted. Majority kept to preserve current behavior.
-
-[Multiple AI-Agents (Voting-Based)] PolicyTime: 41.86s
 
 == ROUND 1 ==
 [ROUND 1] Voting-based policy
 [Agent 1] Decision (deepseek-r1:8b, temp=0.1): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
-[Rationale A1] The system configuration shows two clients with identical CPU (5) and no non-IID data. The metrics indicate stable performance with no clear bottleneck. Activating any pattern might introduce unnecessary overhead without proven benefit. Maintain current settings. CS=OFF; MC=OFF; HDH=OFF
+[Rationale A1] The system configuration shows two clients with identical CPU (5) and no non-IID data or delays. The metrics indicate stable performance with no clear bottleneck. Activating any pattern might introduce unnecessary overhead without proven benefit. Maintain current settings. CS=OFF; MC=OFF; HDH=OFF
 
 [Agent 2] Decision (deepseek-r1:8b, temp=0.5): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
-[Rationale A2] The system configuration indicates all clients have identical CPU (5). There is no straggler effect to mitigate. The dataset is IID, so there is no need for the heterogeneous data handler. Communication time is high, but the model is small (CNN 16k), and the compression would not be beneficial. Since the previous settings were OFF and there are no changes in metrics, keep all patterns OFF. CS=OFF; MC=OFF; HDH=OFF
+[Rationale A2] All architectural patterns are currently OFF. The system configuration shows 2 clients with identical CPU (5), and the dataset is IID. There is no evidence of non-IID data or communication bottlenecks. Keeping all patterns OFF minimizes overhead and maintains the current performance. Client Selector is not necessary as all clients have the same CPU, and activating it would require a threshold less than 5, but excluding any client could harm model diversity. Message Compressor and Heterogeneous Data Handler are not indicated by the IID data and balanced CPU. CS=OFF; MC=OFF; HDH=OFF
 
 [Agent 3] Decision (deepseek-r1:8b, temp=0.9): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
-[Rationale A3] Given the context, all three architectural patterns are currently OFF. The system configuration shows 2 clients with identical CPU capabilities (both at 5). There are no non-IID clients, and communication time represents a portion of total time but no specific degradation is indicated. Since the metrics are stable and no clear bottleneck is identified, we keep all patterns OFF to avoid unnecessary overhead. The Client Selector remains OFF because excluding any client would be counterproductive with identical specs. Communication time reduction could be considered, but no evidence of large model size or bandwidth issues. Non-IID mitigation is unnecessary as all data is IID.
-CS=OFF; MC=OFF; HDH=OFF
+[Rationale A3] All architectural patterns are currently OFF. The current system configuration has two clients with identical CPU capabilities (5 each). There are no indications of straggler effects or heterogeneity in data distribution. The dataset is IID, so no need to activate the Heterogeneous Data Handler. Communication time and total round time metrics are stable with no clear opportunity to improve by enabling compression or client selection. Therefore, keep all patterns OFF. CS=OFF; MC=OFF; HDH=OFF
 
 [Coordinator] Majority: CS: ·→OFF • MC: ·→OFF • HDH: ·→OFF
 
-[Coordinator Rationale] Based on the proposals, two out of three agents have suggested keeping everything OFF, but I am proposing to turn ON message_compressor and heterogeneous_data_handler to address potential issues that might not be explicitly stated in the rationale. This is a suggestion for improvement, not a majority decision.
-CS=OFF; MC=ON; HDH=ON
+[Coordinator Rationale] All three proposals unanimously vote to keep all architectural patterns OFF. The system configuration shows two clients with identical CPU (5) and IID data, with stable performance metrics. Majority baseline also supports OFF. Activating any pattern would introduce unnecessary overhead without clear benefit, as there are no signs of heterogeneity, stragglers, or communication bottlenecks. Therefore, maintain current settings.
+CS=OFF; MC=OFF; HDH=OFF
 [Coordinator] LLM consulted. Majority kept to preserve current behavior.
 
-[Multiple AI-Agents (Voting-Based)] PolicyTime: 41.86s
-[Multiple AI-Agents (Voting-Based)] PolicyTime: 41.86s
+[Multiple AI-Agents (Voting-Based)] PolicyTime: 42.76s
 
