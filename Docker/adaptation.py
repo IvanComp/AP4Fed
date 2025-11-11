@@ -774,7 +774,7 @@ class AdaptationManager:
     def _decide_voting(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
         MODEL, MODE = "deepseek-r1:8b", "few-shot"
         COORD_MODEL = "deepseek-r1:8b"
-        logs: List[str]
+        logs: List[str] = []
 
         last_round = getattr(self, "_last_round_info", None) or {}
         agg = getattr(self, "_last_round_agg", None) or {}
@@ -887,7 +887,7 @@ class AdaptationManager:
 
     def _decide_role(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
         MODEL, MODE = "deepseek-r1:8b", "few-shot"
-        logs: List[str] = [f"[ROUND {current_round}] Role-based policy"]
+        logs: List[str] = []
 
         # contesto (coerente con gli altri approcci)
         last_round = getattr(self, "_last_round_info", None) or {}
@@ -1054,7 +1054,7 @@ class AdaptationManager:
 
     def _decide_debate(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
         MODEL, MODE = "deepseek-r1:8b", "few-shot"
-        logs: List[str]
+        logs: List[str] = []
 
         try:
             N_TURNS = int(os.environ.get("DEBATE_TURNS", "5"))

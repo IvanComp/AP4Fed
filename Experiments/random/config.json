@@ -2,8 +2,8 @@
     "simulation_type": "Docker",
     "rounds": 10,
     "clients": 5,
-    "adaptation": "Single AI-Agent (Few-Shot)",
-    "LLM": "deepseek-r1:8b",
+    "adaptation": "Random",
+    "LLM": "llama3.2:3b",
     "patterns": {
         "client_registry": {
             "enabled": true,
@@ -62,7 +62,7 @@
             "cpu": 5,
             "ram": 2,
             "dataset": "FashionMNIST",
-            "data_distribution_type": "IID",
+            "data_distribution_type": "non-IID",
             "data_persistence_type": "New Data",
             "delay_combobox": "Yes",
             "model": "CNN 16k",
@@ -84,7 +84,7 @@
             "cpu": 3,
             "ram": 2,
             "dataset": "FashionMNIST",
-            "data_distribution_type": "IID",
+            "data_distribution_type": "non-IID",
             "data_persistence_type": "Same Data",
             "delay_combobox": "No",
             "model": "CNN 16k",
