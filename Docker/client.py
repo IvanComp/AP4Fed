@@ -189,9 +189,9 @@ class FlowerClient(NumPyClient):
            self.trainloader, self.testloader = load_data_A(self.client_config, GLOBAL_ROUND_COUNTER)
            self.cached_round_loaded = GLOBAL_ROUND_COUNTER
 
-        if HETEROGENEOUS_DATA_HANDLER and not self.did_hdh:
+        if HETEROGENEOUS_DATA_HANDLER: #and not self.did_hdh:
             self.trainloader, hdh_ms = rebalance_trainloader_with_gan_A(self.trainloader)
-            self.did_hdh = True
+            #self.did_hdh = True
 
         if CLIENT_SELECTOR:
             selector_params = configJSON["patterns"]["client_selector"]["params"]

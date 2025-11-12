@@ -160,24 +160,6 @@ def _sa_aggregate_round(df):
         "comm_time_stats": cm_agg
     }
 
-
-def _sa_extract_ap_prev(df):
-    ap_prev = {"client_selector": None, "message_compressor": None, "heterogeneous_data_handler": None}
-    col = None
-    for c in df.columns:
-        if "AP List" in c or c.strip().lower() == "ap list":
-            col = c; break
-    if col is None or df.empty:
-        return ap_prev
-    val = str(df[col].dropna().iloc[-1]).strip().strip("{}[]() ")
-    parts = [x.strip().upper() for x in re.split(r"[;,\s]+", val) if x.strip() and x.strip() not in ["{","}"]]
-    if parts and all(p in {"ON","OFF"} for p in parts):
-        order = ["client_selector","client_cluster","message_compressor","model_co-versioning_registry","multi-task_model_trainer","heterogeneous_data_handler"]
-        for i, name in enumerate(order):
-            if name in ap_prev and i < len(parts):
-                ap_prev[name] = (parts[i] == "ON")
-    return ap_prev
-
 def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
     def _fmt(x, nd=3):
         try:
@@ -203,7 +185,7 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         "heterogeneous_data_handler": "ON" if (ap_prev or {}).get("heterogeneous_data_handler") else "OFF",
     }
 
-    # 1) Static Context: Role, Task, Output, Guardrails
+    # 1) Static Context: Role, Task, Guardrails, Output
     instructions = (
         "Architectural Pattern Decision: Prompt\n\n"
         "#Context\n"
@@ -226,9 +208,9 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         "4) Minimize Training Time, referring to the computational time each client requires to perform local model training.\n"
         "\n"
         "Enabling or disabling each architectural pattern has both advantages and disadvantages in terms of performance. Here are the architectural patterns’ performance trade-offs to consider:\n"
-        "- Client Selector: Selects clients with higher computational power to reduce slowdowns caused by weaker devices (the Straggler effect). This reduces total round time, training time, and communication time. However, persistently excluding lower-capacity clients may decrease model diversity, harming overall accuracy due to less varied data.\n"
-        "- Message Compressor: Compresses model updates exchanged between the server and clients to reduce communication time, which is especially beneficial for large models or bandwidth-constrained networks. The downside is the additional computational overhead from compression and decompression, which may outweigh the benefits when dealing with small model sizes.\n"
-        "- Heterogeneous Data Handler: Employs techniques such as data augmentation to address data heterogeneity among clients, improving global model accuracy and accelerating convergence on non-IID data. The trade-off is an increase in local computation required to generate synthetic data for balancing class distributions, which can add significant overhead.\n"
+        "- Client Selector (CS): Selects clients with higher computational power to reduce slowdowns caused by weaker devices (the Straggler effect). This reduces total round time, training time, and communication time. However, persistently excluding lower-capacity clients may decrease model diversity, harming overall accuracy due to less varied data.\n"
+        "- Message Compressor (MC): Compresses model updates exchanged between the server and clients to reduce communication time, which is especially beneficial for large models or bandwidth-constrained networks. The downside is the additional computational overhead from compression and decompression, which may outweigh the benefits when dealing with small model sizes.\n"
+        "- Heterogeneous Data Handler (HDH): Employs techniques such as data augmentation to address data heterogeneity among clients, improving global model accuracy and accelerating convergence on non-IID data. The trade-off is an increase in local computation required to generate synthetic data for balancing class distributions, which can add significant overhead.\n"
         "\n"
         "## Guardrails\n"
         "- Use only the Context and the RAG section (if present: config snapshot + recent metrics). Do not invent values.\n"
@@ -241,7 +223,7 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         "- If a pattern is already active from the previous round and you decide to keep it active, specify that 'it is kept active' and not, for example, 'we activate the pattern'.\n"
         "- Never rely on unstated assumptions; prefer measurable values (CPU list, non_iid_clients, last metrics).\n"
         "- F1 always means the GLOBAL MODEL validation F1 (use the column 'Val F1')\n"
-        "- When citing Training/Communication Time, always use client-level aggregates (mean and range min–max for the round). Do not quote a single client's time.\n"
+        "- When citing Training/Communication Time, always use client-level aggregates (mean and range min–max for the round).\n"
 
         "\n"
         "## Output\n"
@@ -279,6 +261,7 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
             rams = [int((c or {}).get("ram", 0) or 0) for c in cds if isinstance(c, dict)]
             dtypes = [str((c or {}).get("data_distribution_type", "")).upper() for c in cds if isinstance(c, dict)]
             delays = [str((c or {}).get("delay_combobox", "")).strip().lower() for c in cds if isinstance(c, dict)]
+            dpers = [str((c or {}).get("data_persistence_type", "")).strip() for c in cds if isinstance(c, dict)]
             non_iid_ids = [int((c or {}).get("client_id")) for c in cds if str((c or {}).get("data_distribution_type", "")).upper() != "IID"]
             models = sorted({str((c or {}).get("model", "")).strip() for c in cds if isinstance(c, dict)} - {""})
             dataset_name = (cds[0].get("dataset") if cds else cfg.get("dataset", "")) or dataset
@@ -298,7 +281,9 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
                 "non_iid_clients": non_iid_ids,
                 "has_delay_clients": any((d or "") == "yes" for d in delays),
                 "models": models,
-                "previous_ap": ap_prev_small
+                "previous_ap": ap_prev_small,
+                "data_persistence_per_client": dpers, 
+                "data_persistence_counts": {k: sum(1 for d in dpers if d == k) for k in set(dpers or [])},
             }
         except Exception:
             cfg_summary = {}
@@ -384,7 +369,6 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
                         "TrainingTime_s": stats(s_tr),
                         "CommunicationTime_s": stats(s_cm),
                         "TotalRoundTime_s": stats(s_tt),
-                        "CommShare_of_Total": stats([x for x in s_share if x is not None])
                     }
                 except Exception:
                     metrics_digest = {"file": last_file, "error": "failed_to_parse_csv"}
@@ -396,9 +380,33 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         rag = (
             "## RAG\n"
             "### System Configuration (config.json)\n"
-            + json.dumps(cfg_summary, ensure_ascii=False) + "\n\n"
+            + json.dumps(cfg_summary, ensure_ascii=False) + "\n"
+            "### System Configuration — Field Guide\n"
+            "- dataset: dataset name.\n"
+            "- clients: number of clients.\n"
+            "- cpu_per_client: CPUs per client (same order as client_details).\n"
+            "- ram_per_client: RAM per client (same order as client_details).\n"
+            "- max_cpu: maximum CPU across clients.\n"
+            "- second_highest_cpu: second-largest CPU (used by CS threshold guardrail).\n"
+            "- data_distribution_counts: counts by data_distribution_type (IID / NON-IID).\n"
+            "- non_iid_clients: list of client_id having NON-IID data.\n"
+            "- has_delay_clients: True if any client has delay_combobox='yes'.\n"
+            "- models: distinct model names used by clients.\n"
+            "- previous_ap: previous ON/OFF states of {client_selector, message_compressor, heterogeneous_data_handler}.\n"
+            "- data_persistence_per_client: for each client, 'New Data' (batched arrivals per round) or 'Same Data' (one-shot, all data at once).\n"
+            "- data_persistence_counts: counts of 'New Data' vs 'Same Data'.\n"
+            "\n"
             "### Performance Report (full history from CSV)\n"
-            + json.dumps(metrics_digest, ensure_ascii=False) + "\n\n"
+            + json.dumps(metrics_digest, ensure_ascii=False) + "\n"
+            "### Performance Report — Field Guide\n"
+            "- file: path of the last parsed metrics CSV (or None).\n"
+            "- columns: mapping of canonical metric names → CSV column names {F1, TrainingTime, CommTime, TotalTime}.\n"
+            "- F1: stats of global validation F1 ('Val F1').\n"
+            "- TrainingTime_s: stats over per-client training time (seconds) in the last round.\n"
+            "- CommunicationTime_s: stats over per-client communication time (seconds) in the last round.\n"
+            "- TotalRoundTime_s: stats over the global Total Round Time (seconds) in the last round.\n"
+            "Each stats dict contains: count, mean, min, max, last, last3_mean, last5_mean, trend_slope, tail.\n"
+            "\n"
         )
     else:
         rag = (
@@ -427,19 +435,17 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
             "## Example 1 — Client Selector (edge-case)\n"
             "### Context\n"
             "- CPUs: [5,5,5,3,3]\n"
-            "- Data: all IID\n"
-            "- Comm share: 0.30\n"
             "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
             "### Decision\n"
             "{\"client_selector\":\"ON\",\"selection_value\":1,\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\","
-            "\"rationale\":\"A single low-spec client (CPU=3) throttles synchronization. Set threshold >3 to exclude it; CS=ON; MC=OFF; HDH=OFF\"}\n"
+            "\"rationale\":\"A single low-spec client (CPU=3) solve the straggler effect. Set threshold >3 to exclude it and improve both Total Round Time and Training Time; CS=ON; MC=OFF; HDH=OFF\"}\n"
         )
         ex2_ctx = (
             "## Example 2 — Client Selector (numeric)\n"
             "### Context\n"
             "- 4 clients: 3 High-Spec (CPU=5) + 2 Low-Spec (CPU=3)\n"
             "- Data: IID\n"
-            "- Observed: with CS=OFF, Total Round Time ≈ 9× slower than with CS=ON; F1 ≈ 0.57–0.59 in both cases\n"
+            "- Observed: with CS=OFF, Total Round Time ≈ 9× slower than with CS=ON;\n"
             "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
             "### Decision\n"
             "{\"client_selector\":\"ON\",\"selection_value\":1,\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\","
@@ -468,6 +474,7 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         ex5_ctx = (
             "## Example 5 — Heterogeneous Data Handler (edge-case)\n"
             "### Context\n"
+            "Critical Note: HDH is the most resource-intensive pattern, so handle it carefully. For non-IID clients, you run it once to fix their data. After that, don't re-run it immediately. If you have batched clients (data_persistence_per_client=New Data) getting new data in later rounds, then consider turning HDH on again a few rounds later.\n"
             "- Clients: mix of IID and non-IID; clear class imbalance on non-IID subset\n"
             "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
             "### Decision\n"
@@ -477,13 +484,16 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         ex6_ctx = (
             "## Example 6 — Heterogeneous Data Handler (numeric)\n"
             "### Context\n"
-            "- 8 clients: 4 IID + 4 non-IID → apply GAN-based augmentation to non-IID\n"
-            "- Observed: F1 rises (e.g., ≈0.24→≈0.26 by rounds 9–10) and round times stabilize vs non-IID baseline (which shows 700–800 s and higher variance)\n"
+            "- 4 clients total: 2 IID + 2 non-IID\n"
+            "- IID clients, Val F1 (baseline → later): 0.84 → 0.87\n"
+            "- non-IID clients, Val F1 (baseline → later): 0.64 → 0.67\n"
+            "- After HDH=ON (applied to non-IID clients), Val F1: 0.74 → 0.76\n"
             "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
             "### Decision\n"
             "{\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"ON\","
-            "\"rationale\":\"Enable HDH to rebalance classes on non-IID clients, improving F1 while keeping round-time variability under control.\"}\n"
+            "\"rationale\":\"Enable HDH for the non-IID clients: their F1 moves from 0.64–0.67 to 0.74–0.76, while IID clients are already stable (0.84→0.87). Targeted rebalancing improves global accuracy with acceptable overhead.\"}\n"
         )
+
         header_few = "### Few-Shot Examples\n\n"
         return header_few + instructions + (rag or "") + ex1_ctx + "\n" + ex2_ctx + "\n" + ex3_ctx + "\n" + ex4_ctx + "\n" + ex5_ctx + "\n" + ex6_ctx + "\n" + "## Decision\n"
     return instructions + (rag or "") + "## Decision\n"
