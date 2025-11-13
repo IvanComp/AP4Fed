@@ -188,43 +188,40 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
     # 1) Static Context: Role, Task, Guardrails, Output
     instructions = (
         "Architectural Pattern Decision: Prompt\n\n"
-        "#Context\n"
-
+        "#Context"
         "\n"
         "## Role: You are an AI agent and expert software architect for Federated Learning systems.\n"
         "At the end of each training round, analyze the current SYSTEM CONFIGURATION and actual system EVALUATION METRICS, then recommend which architectural patterns to turn ON or OFF for the next round to optimize system EVALUATION METRICS.\n"        
-        
         "\n"
         "##Task: Your task is to activate or deactive one or a combination of architectural patterns for the next round of training. The objective is to optimize the system EVALUATION METRICS as much as possible.\n"
+        "\n"
+        "Ideally, we aim to optimize the following EVALUATION METRICS:\n"
+        "1) Maximize Global Model Accuracy or F1 Score, which measures the overall predictive performance of the aggregated model across all clients.\n"
+        "2) Minimize Total Round Time, defined as the elapsed time to complete a full federated learning round.\n"
+        "3) Minimize Communication Time, representing the duration spent exchanging data between the server and clients during each round.\n"
+        "4) Minimize Training Time, referring to the computational time each client requires to perform local model training.\n"
+        "\n"
         "Here are the three ARCHITECTURAL PATTERNS that you can consider to (de)activate:\n"
         "1) Client Selector: selects clients that will partecipate to the next round of Federated Learning. The selection is driven by the number of CPUs available by the clients. When active, you must specify 'selection_value': <int>, which is the CPU threshold. Only the clients with CPU > selection_value will be included for the next training round.\n"
         "2) Message Compressor: compresses messages exchanged between the clients and the server.\n"
         "3) Heterogeneous Data Handler: mitigates non-IID effects using class reweighting, augmentation, or distillation.\n"  
         "\n"
-        "Ideally, we aim to optimize the following EVALUATION METRICS:\n"
-        "1) Maximize Global Model Accuracy, which measures the overall predictive performance of the aggregated model across all clients.\n"
-        "2) Minimize Total Round Time, defined as the elapsed time to complete a full federated learning round.\n"
-        "3) Minimize Communication Time, representing the duration spent exchanging data between the server and clients during each round.\n"
-        "4) Minimize Training Time, referring to the computational time each client requires to perform local model training.\n"
-        "\n"
-        "Enabling or disabling each architectural pattern has both advantages and disadvantages in terms of performance. Here are the architectural patterns’ performance trade-offs to consider:\n"
-        "- Client Selector (CS): Selects clients with higher computational power to reduce slowdowns caused by weaker devices (the Straggler effect). This reduces total round time, training time, and communication time. However, persistently excluding lower-capacity clients may decrease model diversity, harming overall accuracy due to less varied data.\n"
-        "- Message Compressor (MC): Compresses model updates exchanged between the server and clients to reduce communication time, which is especially beneficial for large models or bandwidth-constrained networks. The downside is the additional computational overhead from compression and decompression, which may outweigh the benefits when dealing with small model sizes.\n"
-        "- Heterogeneous Data Handler (HDH): Employs techniques such as data augmentation to address data heterogeneity among clients, improving global model accuracy and accelerating convergence on non-IID data. The trade-off is an increase in local computation required to generate synthetic data for balancing class distributions, which can add significant overhead.\n"
+        "Architectural Patterns Performance Implications:\n" 
+        "Enabling or disabling each architectural pattern has both advantages and disadvantages in terms of performance:\n"
+        "- Client Selector (CS): Selects clients with higher number of CPUs to reduce slowdowns caused by clients devices (the Straggler effect). Discarding weaker clients reduces total round time and training time. However, persistently excluding lower-capacity clients may decrease model diversity, harming overall accuracy due to less varied data. To be activated if there are differences between clients with different CPUs. \n"
+        "- Message Compressor (MC): Compresses model updates exchanged between the server and clients to reduce communication time, which is especially beneficial for large models or bandwidth-constrained networks. The downside is the additional computational overhead from compression and decompression, which may outweigh the benefits when dealing with small model sizes. Enable MC when communication time is a clear bottleneck and apply it sparingly, avoiding consecutive rounds.\n"
+        "- Heterogeneous Data Handler (HDH): Employs data augmentation to address and mitigate data heterogeneity among non-iid clients, improving global model accuracy and accelerating convergence on non-IID data. The trade-off is an increase in local computation required to generate synthetic data for balancing class distributions, which can add significant overhead. To be activated if non-IID clients are present; consider at most a later follow-up if new non-IID data arrives (New Data).\n"
         "\n"
         "## Guardrails\n"
-        "- Use only the Context and the RAG section (if present: config snapshot + recent metrics). Do not invent values.\n"
-        "- Output only the JSON object, no extra text otherwise the system fails.\n"
+        "- Do not invent values.\n"
+        "- Output only the JSON object plus the rationale, no extra text otherwise the system will fail.\n"
         "- The last line of the 'rationale' must be exactly the signature: CS=<ON|OFF>; MC=<ON|OFF>; HDH=<ON|OFF>. These values must copy the JSON decisions above, in the same order and casing.\n"
         "- selection_value is a CPU threshold for the Client Selector pattern: only clients with CPU > selection_value participate in each training round. Therefore, use an integer within [0, max_cpu-1], and ensure it is strictly less than the second-highest CPU value to avoid excluding more clients than necessary. It is crucial to guarantee that at least two clients remain active and are not excluded, since the federated learning process will fail if fewer than two clients participate in a round.\n"
-        "- If evidence is insufficient or conflicting, keep the previous choices and say why in the rationale.\n"
-        "- Activating a pattern always introduces overhead. Carefully consider whether it is really necessary. This does not mean that they should never be activated.\n"
+        "- In the absence of strong evidence, testing a pattern to verify its improvements is allowed. However, Activating a pattern always introduces overhead. Carefully consider whether it is really necessary. THIS DOES NOT MEAN THAT THEY SHOULD NEVER BE ACTIVATED.\n"
         "- If you aggregate metrics over multiple rounds (mean/median), explicitly say which statistic and window you used; otherwise state 'last-round only'.\n"
         "- If a pattern is already active from the previous round and you decide to keep it active, specify that 'it is kept active' and not, for example, 'we activate the pattern'.\n"
-        "- Never rely on unstated assumptions; prefer measurable values (CPU list, non_iid_clients, last metrics).\n"
-        "- F1 always means the GLOBAL MODEL validation F1 (use the column 'Val F1')\n"
+        "- Do not rely on unstated assumptions; prioritize the system's current configuration (e.g., number of clients with non-IID data, number of client's CPUs) over past evaluation metrics, which should be used only as secondary context.\n"
         "- When citing Training/Communication Time, always use client-level aggregates (mean and range min–max for the round).\n"
-
         "\n"
         "## Output\n"
         "Return exactly one JSON object with keys:\n"
@@ -242,7 +239,6 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
     except Exception:
         use_rag = True
 
-    if use_rag:
         import os, json, glob, re
         cfg_summary = {}
         try:
@@ -395,107 +391,108 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
             "- previous_ap: previous ON/OFF states of {client_selector, message_compressor, heterogeneous_data_handler}.\n"
             "- data_persistence_per_client: for each client, 'New Data' (batched arrivals per round) or 'Same Data' (one-shot, all data at once).\n"
             "- data_persistence_counts: counts of 'New Data' vs 'Same Data'.\n"
-            "\n"
+            "\n"        
             "### Performance Report (full history from CSV)\n"
+            "The CSV file contains per-client metrics (Training Time and Communication Time) for each client in each round. You can consider these metrics individually per client or as an average.\n"
+            "Note that the 'Val F1' column is the global model accuracy for the entire round, and 'Total Round Time' is the total duration of the round. These two metrics are global, not per-client.\n"
+            "Note that column named 'Val F1' refers to the global model accuracy. Do not consider Train F1 column\n."
             + json.dumps(metrics_digest, ensure_ascii=False) + "\n"
             "### Performance Report — Field Guide\n"
-            "- file: path of the last parsed metrics CSV (or None).\n"
-            "- columns: mapping of canonical metric names → CSV column names {F1, TrainingTime, CommTime, TotalTime}.\n"
-            "- F1: stats of global validation F1 ('Val F1').\n"
+            "- columns: mapping of canonical metric names → CSV column names {Val F1, TrainingTime, CommTime, TotalTime}.\n"
+            "- Val F1: global model accuracy ('Val F1').\n"
             "- TrainingTime_s: stats over per-client training time (seconds) in the last round.\n"
             "- CommunicationTime_s: stats over per-client communication time (seconds) in the last round.\n"
             "- TotalRoundTime_s: stats over the global Total Round Time (seconds) in the last round.\n"
             "Each stats dict contains: count, mean, min, max, last, last3_mean, last5_mean, trend_slope, tail.\n"
             "\n"
         )
-    else:
-        rag = (
-            "## RAG\n"
-            "### System Configuration & Metrics Digest\n"
-            "The CSV file contains per-client metrics (Training Time and Communication Time) for each client in each round. You can consider these metrics individually per client or as an average.\n"
-            "Note that 'Val F1' is the global model accuracy for the entire round, and 'Total Round Time' is the total duration of the round. These two metrics are global, not per-client.\n"
-            "Note that column named 'Val F1' refers to the global model accuracy. Do not consider Train F1 column\n."
-            "### System Configuration (runtime snapshot)\n"
-             + json.dumps({
-                "dataset": dataset,
-                "clients": clients,
-                "model": model,
-                "previous_ap": ap_prev_small
-            }, ensure_ascii=False) + "\n\n"
-            "### Performance (aggregates)\n"
-            + json.dumps({
-                "mean_f1": mean_f1, "mean_training_time_s": mean_tr,
-                "mean_comm_time_s": mean_comm, "mean_total_time_s": mean_tt
-            }, ensure_ascii=False) + "\n\n"
-        )
+        try:
+            import os, re, glob
+            import pandas as pd
+            def _rnum(p):
+                m = re.search(r"round(\d+)", os.path.basename(p))
+                return int(m.group(1)) if m else -1
+            files = [( _rnum(p), p ) for p in glob.glob("**/FLwithAP_performance_metrics_round*.csv", recursive=True)]
+            files = sorted([x for x in files if x[0] >= 0], key=lambda x: x[0])
+            prev_window = [ (r,p) for r,p in files if r < int(round_idx or 0) ][-4:]
+            recent = []
+            for r, path in prev_window:
+                try:
+                    dfh = pd.read_csv(path)
+                    ah  = _sa_aggregate_round(dfh)  
+                    f1h = ah.get("mean_f1")
+                    tth = ah.get("mean_total_time")
+                    cmh = ah.get("mean_comm_time")
+                    csh = (float(cmh)/float(tth)) if (tth and cmh and float(tth) > 0.0) else None
+                    recent.append((r, f1h, csh))
+                except Exception:
+                    pass
+            if recent:
+                f1_line = "- Recent rounds (F1): " + " | ".join([f"r{r}:{_fmt(f1)}" for (r, f1, _) in recent]) + "\n"
+                cs_line = "- Recent rounds (Comm share): " + " | ".join([f"r{r}:{_fmt(cs)}" for (r, _, cs) in recent]) + "\n"
+                rag += f1_line + cs_line
+        except Exception:
+            pass
 
     # 3) Few-shot examples appended only for few-shot modes
     if mode != "zero":
         ex1_ctx = (
             "## Example 1 — Client Selector (edge-case)\n"
             "### Context\n"
-            "- CPUs: [5,5,5,3,3]\n"
-            "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
+            "- Client Selector can mitigate the Straggler effect\n"
             "### Decision\n"
-            "{\"client_selector\":\"ON\",\"selection_value\":1,\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\","
-            "\"rationale\":\"A single low-spec client (CPU=3) solve the straggler effect. Set threshold >3 to exclude it and improve both Total Round Time and Training Time; CS=ON; MC=OFF; HDH=OFF\"}\n"
+            "\"client_selector\":\"ON\",\"selection_value\":3\n"
+            "\"rationale\":\"low-spec clients (CPU=3) may cause the straggler effect. Activate the Client Selector with selection_value>3 to exclude them and improve both Total Round Time and Training Time; \n"
         )
         ex2_ctx = (
             "## Example 2 — Client Selector (numeric)\n"
             "### Context\n"
-            "- 4 clients: 3 High-Spec (CPU=5) + 2 Low-Spec (CPU=3)\n"
-            "- Data: IID\n"
-            "- Observed: with CS=OFF, Total Round Time ≈ 9× slower than with CS=ON;\n"
-            "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
+            "- 5 clients: 3 High-Spec (CPU=5) + 2 Low-Spec (CPU=3)\n"
             "### Decision\n"
-            "{\"client_selector\":\"ON\",\"selection_value\":1,\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\","
-            "\"rationale\":\"Exclude the lowest CPU clients (2) to remove the bottleneck (≈9× Total Round Time reduction reported with same F1). \"}\n"
+            "\"client_selector\":\"ON\",\"selection_value\":3\n"
+            "\"rationale\":\"After discarding the Low-Spec clients, ≈9× Total Round Time reduction reported.\"\n"
         )
         ex3_ctx = (
             "## Example 3 — Message Compressor (edge-case)\n"
             "### Context\n"
-            "- Model: large (parameters doubled); Comm share: 0.65\n"
-            "- CPUs balanced; Data: IID\n"
-            "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
+            "- Model: large (parameters doubled)\n"
             "### Decision\n"
-            "{\"client_selector\":\"OFF\",\"message_compressor\":\"ON\",\"heterogeneous_data_handler\":\"OFF\","
-            "\"rationale\":\"High communication proportion with a large model favors compression benefits; enable MC to cut comm time.\"}\n"
+            "{\"message_compressor\":\"ON\",\n"
+            "\"rationale\":\"High communication proportion with a large model favors compression benefits; enable MC to cut communication time.\"}\n"
         )
         ex4_ctx = (
             "## Example 4 — Message Compressor (numeric)\n"
             "### Context\n"
             "- Model sizes: n/2, n, n×2\n"
             "- Observed: n/2 → MC worsens comm time; n → MC improves after round 4; n×2 → MC reduces comm time in all rounds\n"
-            "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
             "### Decision\n"
-            "{\"client_selector\":\"OFF\",\"message_compressor\":\"ON\",\"heterogeneous_data_handler\":\"OFF\","
+            "{\"message_compressor\":\"ON\" (only for nx2)\n"
             "\"rationale\":\"For larger models (n×2) compression consistently reduces communication time across rounds; apply MC in this regime and avoid it for very small models (n/2).\"}\n"
         )
         ex5_ctx = (
             "## Example 5 — Heterogeneous Data Handler (edge-case)\n"
             "### Context\n"
-            "Critical Note: HDH is the most resource-intensive pattern, so handle it carefully. For non-IID clients, you run it once to fix their data. After that, don't re-run it immediately. If you have batched clients (data_persistence_per_client=New Data) getting new data in later rounds, then consider turning HDH on again a few rounds later.\n"
+            "- Critical Note: HDH is the most resource-intensive pattern, so handle it carefully. For non-IID clients, you run it once to fix their data. After that, don't re-run it immediately. Control later, if you have batched clients (data_persistence_per_client=New Data) getting new data in later rounds, then consider turning HDH on again a few rounds later.\n"
             "- Clients: mix of IID and non-IID; clear class imbalance on non-IID subset\n"
-            "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
             "### Decision\n"
-            "{\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"ON\","
-            "\"rationale\":\"Activate HDH to mitigate non-IID with augmentation; improves generalization with acceptable local overhead.\"}\n"
+            "{\"heterogeneous_data_handler\":\"ON\","
+            "\"rationale\":\"Activate HDH to mitigate non-IIDness; improves generalization with local overhead.\"}\n"
         )
         ex6_ctx = (
             "## Example 6 — Heterogeneous Data Handler (numeric)\n"
             "### Context\n"
-            "- 4 clients total: 2 IID + 2 non-IID\n"
+            "- Consider 4 clients total: 2 IID + 2 non-IID\n"
             "- IID clients, Val F1 (baseline → later): 0.84 → 0.87\n"
             "- non-IID clients, Val F1 (baseline → later): 0.64 → 0.67\n"
             "- After HDH=ON (applied to non-IID clients), Val F1: 0.74 → 0.76\n"
-            "- Previous AP: {\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"OFF\"}\n\n"
             "### Decision\n"
-            "{\"client_selector\":\"OFF\",\"message_compressor\":\"OFF\",\"heterogeneous_data_handler\":\"ON\","
-            "\"rationale\":\"Enable HDH for the non-IID clients: their F1 moves from 0.64–0.67 to 0.74–0.76, while IID clients are already stable (0.84→0.87). Targeted rebalancing improves global accuracy with acceptable overhead.\"}\n"
+            "{\"heterogeneous_data_handler\":\"ON\","
+            "\"rationale\":\"Enable HDH for the non-IID clients: their F1 moves from 0.64–0.67 to 0.74–0.76, while IID clients are already stable (0.84→0.87).\"}\n"
         )
 
         header_few = "### Few-Shot Examples\n\n"
         return header_few + instructions + (rag or "") + ex1_ctx + "\n" + ex2_ctx + "\n" + ex3_ctx + "\n" + ex4_ctx + "\n" + ex5_ctx + "\n" + ex6_ctx + "\n" + "## Decision\n"
+    
     return instructions + (rag or "") + "## Decision\n"
 
 def _sa_generate_with_retry(model_name: str, mode: str, config, last_round, agg, ap_prev, base_urls: List[str], options: dict = None):
@@ -503,7 +500,7 @@ def _sa_generate_with_retry(model_name: str, mode: str, config, last_round, agg,
     raw = _sa_call_ollama(
         model_name, p, base_urls,
         force_json=True,
-        options=(options if options is not None else {"temperature": 0.2, "top_p": 0.9, "num_ctx": 8192})
+        options=(options if options is not None else {"temperature": 1.0, "top_p": 0.9, "num_ctx": 8192})
     )
     d1, r1, _ = _sa_parse_output(raw)
     return d1, r1
@@ -795,12 +792,18 @@ class AdaptationManager:
 
         agent_decisions: List[Dict] = []
         agent_rationales: List[str] = []
-        temps = [0.1, 0.5, 0.9]
+        temps = [0.7, 0.8, 0.9]
         for i, t in enumerate(temps, start=1):
             try:
                 d_i, r_i = _sa_generate_with_retry(
-                    MODEL, MODE, self.default_config, last_round, agg, ap_prev, self.sa_ollama_urls,
-                    options={"temperature": t, "top_p": 0.95, "num_ctx": 8192}
+                    MODEL,
+                    MODE,
+                    self.default_config,
+                    last_round,
+                    agg,
+                    ap_prev,
+                    self.sa_ollama_urls,
+                    options={"temperature": t, "top_p": 0.95, "num_ctx": 8192},
                 )
                 agent_decisions.append(d_i or {})
                 agent_rationales.append((r_i or "").strip())
@@ -812,10 +815,12 @@ class AdaptationManager:
                 mc_new = (d_i or {}).get("message_compressor", "OFF")
                 hh_new = (d_i or {}).get("heterogeneous_data_handler", "OFF")
 
-                logs.append(f"[Agent {i}] Decision ({MODEL}, temp={t}): CS: {prev_cs}→{cs_new} • MC: {prev_mc}→{mc_new} • HDH: {prev_hh}→{hh_new}")
+                logs.append(
+                    f"[Agent {i}] Decision ({MODEL}, temp={t}): CS: {prev_cs}→{cs_new} • MC: {prev_mc}→{mc_new} • HDH: {prev_hh}→{hh_new}"
+                )
                 if r_i:
                     logs.append(f"[Rationale A{i}] {r_i}")
-                logs.append("")  # riga vuota tra agenti
+                logs.append("")  # spazio tra agenti
             except Exception as e:
                 agent_decisions.append({})
                 agent_rationales.append("")
@@ -832,44 +837,50 @@ class AdaptationManager:
 
         logs.append(f"[Coordinator] Majority: CS: ·→{maj_cs} • MC: ·→{maj_mc} • HDH: ·→{maj_hdh}")
         logs.append("")
+        # LOG DETERMINISTICO: ciò che viene davvero applicato
+        logs.append(f"[Final Decision] CS={maj_cs}; MC={maj_mc}; HDH={maj_hdh}")
+        logs.append("")
 
         # coordinator LLM consultivo, nessun override del risultato
         try:
-            proposals = []
-            for i, (d, r) in enumerate(zip(agent_decisions, agent_rationales), start=1):
-                proposals.append({"agent_id": i, "decision": d or {}, "rationale": r or ""})
-
-            coord_prompt = (
-                "You are the COORDINATOR of a voting-based multi-agent policy for Federated Learning.\n"
-                'Return exactly one JSON with keys: "client_selector","selection_value","message_compressor","heterogeneous_data_handler","rationale". '
-                'Use "selection_value" only if client_selector is "ON". Do not add extra keys. Do not use markdown fences.\n\n'
-                f"ConfigShort: {json.dumps(self.default_config.get('meta', {}), ensure_ascii=False)}\n"
-                f"LastRound: {json.dumps(last_round or {}, ensure_ascii=False)}\n"
-                f"Aggregates: {json.dumps(agg or {}, ensure_ascii=False)}\n"
-                f"PrevAP: {json.dumps(ap_prev or {}, ensure_ascii=False)}\n"
-                f"Proposals: {json.dumps(proposals, ensure_ascii=False)}\n"
-                f"MajorityBaseline: {json.dumps({'client_selector': maj_cs, 'message_compressor': maj_mc, 'heterogeneous_data_handler': maj_hdh}, ensure_ascii=False)}\n"
-                "Your job is to justify the majority or suggest an alternative, but your output will NOT override the majority in this system."
-            )
-
             raw = _sa_call_ollama(
                 COORD_MODEL,
-                coord_prompt,
+                # Prompt base + breve riepilogo dei voti/majority
+                _sa_build_prompt(MODE, self.default_config, last_round, agg, ap_prev)
+                + "\n\n### Voting Summary\n"
+                + "\n".join([f"- A{i}: {d}" for i, d in enumerate(agent_decisions, start=1)])
+                + "\n"
+                + f"- Majority: CS={maj_cs}; MC={maj_mc}; HDH={maj_hdh}\n"
+                + "Provide a short rationale for the majority outcome. Do NOT restate a final decision line.",
                 self.sa_ollama_urls,
                 force_json=True,
-                options={"temperature": 0.2, "top_p": 0.9, "num_ctx": 8192}
+                options={"temperature": 0.2, "top_p": 0.9, "num_ctx": 8192},
             )
             coord_dec, coord_rat, _ = _sa_parse_output(raw)
-            if coord_rat:
-                logs.append(f"[Coordinator Rationale] {coord_rat}")
-            else:
-                cr = (coord_dec or {}).get("rationale", "")
-                if cr:
-                    logs.append(f"[Coordinator Rationale] {cr}")
+            # Sanitize per evitare righe che sembrano un verdetto finale
+            import re as _re
+
+            text = coord_rat or (coord_dec or {}).get("rationale", "") or ""
+            if text:
+                sanitized_lines = []
+                for ln in str(text).splitlines():
+                    if _re.match(
+                        r"^\s*CS\s*=\s*(ON|OFF)\s*;\s*MC\s*=\s*(ON|OFF)\s*;\s*HDH\s*=\s*(ON|OFF)\s*$",
+                        ln,
+                        _re.I,
+                    ):
+                        continue
+                    sanitized_lines.append(ln.strip())
+                sanitized = " ".join([s for s in sanitized_lines if s]).strip()
+                if sanitized:
+                    logs.append(f"[Coordinator Rationale] {sanitized}")
+                else:
+                    logs.append("[Coordinator Rationale] (omitted: only decision-like lines)")
         except Exception as e:
             logs.append(f"[Coordinator] LLM consult ERROR: {e!r}. Majority kept.")
         logs.append("")
 
+        # applicazione configurazione secondo majority
         new_cfg = copy.deepcopy(base_config)
         new_cfg.setdefault("patterns", {}).setdefault("client_selector", {}).update({"enabled": maj_cs == "ON"})
         if maj_cs == "ON":
@@ -888,12 +899,12 @@ class AdaptationManager:
         self.update_json(new_cfg)
         self.update_config(new_cfg)
 
-        # scrivi su file SOLO se esplicitamente richiesto (evita duplicati in console)
+        # scrivi su file SOLO se richiesto
         if str(os.environ.get("AGENT_LOG_TO_FILE", "0")).lower() in ("1", "true", "yes"):
             _append_agent_log(logs)
 
-        # NESSUNA riga PolicyTime qui; la stampa solo il chiamante (così non è doppia)
         return new_cfg, logs
+
 
     def _decide_role(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
         MODEL, MODE = "deepseek-r1:8b", "few-shot"
@@ -909,9 +920,9 @@ class AdaptationManager:
 
         # mapping specialisti: etichetta di log, chiave di focus, temperatura
         specs = [
-            ("CS",  "client_selector",            0.1),
-            ("MC",  "message_compressor",         0.5),
-            ("HDH", "heterogeneous_data_handler", 0.9),
+            ("CS",  "client_selector",            1.0),
+            ("MC",  "message_compressor",         1.0),
+            ("HDH", "heterogeneous_data_handler", 1.0),
         ]
 
         # raccolta output specialisti (filtrato per ruolo)
@@ -937,7 +948,7 @@ class AdaptationManager:
                     f"You are the specialist for '{key_focus}'.\n"
                     f"- Decide ONLY '{key_focus}' as ON or OFF.\n"
                     "- For the other patterns, copy their values EXACTLY from PrevAP into your JSON.\n"
-                    "- Your 'rationale' MUST discuss ONLY the focused pattern; do NOT mention the other patterns.\n"
+                    "- Your 'rationale' MUST discuss ONLY the focused pattern; do NOT ever mention the other patterns.\n"
                     "- If you set 'client_selector' to ON, provide an integer 'selection_value'.\n"
                     "Output STRICTLY one JSON object with EXACTLY these keys:\n"
                     "  'client_selector', 'selection_value' (ONLY if client_selector='ON'), \n"
@@ -1078,7 +1089,7 @@ class AdaptationManager:
         except Exception:
             ap_prev = {}
 
-        temps = [0.1, 0.5, 0.9]
+        temps = [0.7, 0.8, 0.9]
 
         consensus_reached = False
         final_decisions_last_turn: List[Dict] = []
