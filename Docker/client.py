@@ -189,10 +189,6 @@ class FlowerClient(NumPyClient):
            self.trainloader, self.testloader = load_data_A(self.client_config, GLOBAL_ROUND_COUNTER)
            self.cached_round_loaded = GLOBAL_ROUND_COUNTER
 
-        if HETEROGENEOUS_DATA_HANDLER: #and not self.did_hdh:
-            self.trainloader, hdh_ms = rebalance_trainloader_with_gan_A(self.trainloader)
-            #self.did_hdh = True
-
         if CLIENT_SELECTOR:
             selector_params = configJSON["patterns"]["client_selector"]["params"]
             selection_strategy = selector_params.get("selection_strategy", "Resource-Based")
@@ -208,6 +204,10 @@ class FlowerClient(NumPyClient):
                         f"Client {self.cid} has insufficient RAM ({self.ram}). Will not participate in the next FL round.")
                     return parameters, 0, {}
             log(INFO, f"Client {self.cid} participates in this round. (CPU: {self.n_cpu}, RAM: {self.ram})")
+
+        if HETEROGENEOUS_DATA_HANDLER and str(self.data_distribution_type).strip().lower() != "iid":
+            self.trainloader, hdh_ms = rebalance_trainloader_with_gan_A(self.trainloader)
+            #self.did_hdh = True
 
         if CLIENT_CLUSTER:
             selector_params = configJSON["patterns"]["client_cluster"]["params"]

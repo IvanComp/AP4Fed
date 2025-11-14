@@ -217,6 +217,9 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         "- Output only the JSON object plus the rationale, no extra text otherwise the system will fail.\n"
         "- The last line of the 'rationale' must be exactly the signature: CS=<ON|OFF>; MC=<ON|OFF>; HDH=<ON|OFF>. These values must copy the JSON decisions above, in the same order and casing.\n"
         "- Considering the Client Selector, keep at least two clients active in every round: You MUST analyze the CPU values of all clients and choose an integer threshold that is strictly below the CPU values of at least two clients, so that at least two clients remain eligible and the system does not crash.\n"
+        "- When 'client_selector' is 'ON', you MUST derive 'selection_value' ONLY from cpu_per_client and max_cpu; NEVER invent arbitrary thresholds unrelated to the observed CPUs.\n"
+        "- Before finalizing 'selection_value', mentally simulate how many clients have CPU > selection_value. If fewer than two clients would remain active, that value is INVALID and MUST NOT be used.\n"
+        "- Prefer the SMALLEST safe 'selection_value' that excludes at least one lower-CPU client while keeping at least two clients with CPU > selection_value; if no such value exists, you MUST keep \"client_selector\":\"OFF\".\n"
         "- In the absence of strong evidence, testing a pattern to verify its improvements is allowed. However, Activating a pattern always introduces overhead. Carefully consider whether it is really necessary. THIS DOES NOT MEAN THAT ARCHITECTURAL PATTERNS SHOULD NEVER BE ACTIVATED.\n"
         "- If you aggregate metrics over multiple rounds (mean/median), explicitly say which statistic and window you used; otherwise state 'last-round only'.\n"
         "- If a pattern is already active from the previous round and you decide to keep it active, specify that 'it is kept active' and not, for example, 'we activate the pattern'.\n"
@@ -228,7 +231,7 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         '- "client_selector": "ON" or "OFF"\n'
         '- "message_compressor": "ON" or "OFF"\n'
         '- "heterogeneous_data_handler": "ON" or "OFF"\n'
-        '- "selection_value": <int>  # required only if "client_selector"=="ON"\n'
+        '- "selection_value": <int>  # required only if "client_selector"=="ON"; MUST be an integer between 0 and max_cpu-1 (inclusive). Do NOT use values >= max_cpu.\n'
         '- "rationale": A detailed explanation (at least 50 words). The rationale MUST end with the exact signature line: CS=<ON|OFF>; MC=<ON|OFF>; HDH=<ON|OFF>, where ON/OFF equals the JSON decisions above.'
     )
 
@@ -449,8 +452,8 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
             "### Context\n"
             "- 5 clients: 3 High-Spec (CPU=5) + 2 Low-Spec (CPU=3)\n"
             "### Decision\n"
-            "\"client_selector\":\"ON\",\"selection_value\":4\n"
-            "\"rationale\":\"After discarding the Low-Spec clients, ≈9× Total Round Time reduction reported.\"\n"
+            "\"client_selector\":\"ON\",\"selection_value\":3\n"
+            "\"rationale\":\"Set client_selector=ON and selection_value=3 to drop only the Low-Spec clients (CPU=3) while keeping the three 5-CPU clients active; this preserves at least two active clients and reduces Total Round Time without killing the round.\"\n"
         )
         ex3_ctx = (
             "## Example 3 — Message Compressor (edge-case)\n"
@@ -957,7 +960,8 @@ class AdaptationManager:
                     f"- Decide ONLY '{key_focus}' as ON or OFF.\n"
                     "- For the other patterns, copy their values EXACTLY from PrevAP into your JSON.\n"
                     "- Your 'rationale' MUST discuss ONLY the focused pattern; do NOT ever mention the other patterns.\n"
-                    "- If you set 'client_selector' to ON, provide an integer 'selection_value'.\n"
+                    "- If you set 'client_selector' to ON, you MUST provide a valid integer 'selection_value' between 0 and max_cpu-1 (inclusive).\n"
+                    "- Before finalizing 'selection_value', simulate its effect over cpu_per_client: DO NOT choose any value that would leave fewer than two clients with CPU > selection_value.\n"
                     "Output STRICTLY one JSON object with EXACTLY these keys:\n"
                     "  'client_selector', 'selection_value' (ONLY if client_selector='ON'), \n"
                     "'message_compressor', 'heterogeneous_data_handler', 'rationale'.\n"

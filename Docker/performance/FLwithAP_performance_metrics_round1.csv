@@ -1,6 +1,3 @@
 Client ID,FL Round,Training Time,JSD,HDH Time,Communication Time,Total Time of FL Round,# of CPU,CPU Usage (%),RAM Usage (%),Model Type,Data Distr. Type,Dataset,Train Loss,Train Accuracy,Train F1,Train MAE,Val Loss,Val Accuracy,Val F1,Val MAE,"AP List (client_selector,client_cluster,message_compressor,model_co-versioning_registry,multi-task_model_trainer,heterogeneous_data_handler)",Agent Time (s)
-Client 1,1,59.09,0.0,0.0,15.88,,5,330,17,CNN 16k,non-IID,FashionMNIST,,,,,,,,,,0.0
-Client 2,1,20.25,0.0,0.0,15.3,,5,203,16,CNN 16k,non-IID,FashionMNIST,,,,,,,,,,0.0
-Client 3,1,18.94,0.0,0.0,32.55,,5,205,17,CNN 16k,IID,FashionMNIST,,,,,,,,,,0.0
-Client 4,1,18.86,0.0,0.0,32.35,,3,145,16,CNN 16k,non-IID,FashionMNIST,,,,,,,,,,0.0
-Client 5,1,79.38,0.0,0.0,31.4,114.29,3,275,16,CNN 16k,IID,FashionMNIST,0.3,0.9094,0.7913,0.2895,1.19,0.7235,0.6906,0.7869,"{OFF,OFF,OFF,OFF,OFF,OFF}",38.53
+Client 1,1,36.02,0.0,0.0,17.59,,5,467,33,CNN 16k,IID,CIFAR-10,,,,,,,,,,0.0
+Client 2,1,16.97,0.05,157.53,9.09,194.38,5,468,51,CNN 16k,non-IID,CIFAR-10,1.33,0.514,0.5116,1.7861,1.89,0.4731,0.4612,1.8394,"{OFF,OFF,OFF,OFF,OFF,ON}",
