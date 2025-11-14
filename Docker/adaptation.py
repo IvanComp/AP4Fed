@@ -208,7 +208,7 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         "\n"
         "Architectural Patterns Performance Implications:\n" 
         "Enabling or disabling each architectural pattern has both advantages and disadvantages in terms of performance:\n"
-        "- Client Selector (CS): Selects clients with higher number of CPUs to reduce slowdowns caused by clients devices (the Straggler effect). Discarding weaker clients reduces total round time and training time. However, persistently excluding lower-capacity clients may decrease model diversity, harming overall accuracy due to less varied data. To be activated if there are differences between clients with different CPUs. \n"
+        "- Client Selector (CS): Selects clients with higher number of CPUs to reduce slowdowns caused by clients devices (the Straggler effect). Discarding weaker clients reduces total round time and training time. However, you should keep excluding lower-capacity clients as long as this strategy yields improvements in Val F1 (accuracy); if Val F1 stagnates or decreases, reconsider and gradually re-include them to preserve model diversity. To be activated when there are differences between clients with different CPUs. \n"
         "- Message Compressor (MC): Compresses model updates exchanged between the server and clients to reduce communication time, which is especially beneficial for large models or bandwidth-constrained networks. The downside is the additional computational overhead from compression and decompression, which may outweigh the benefits when dealing with small model sizes. Enable MC when communication time is a clear bottleneck and apply it sparingly, avoiding consecutive rounds.\n"
         "- Heterogeneous Data Handler (HDH): Employs data augmentation to address and mitigate data heterogeneity among non-iid clients, improving global model accuracy and accelerating convergence on non-IID data. The trade-off is an increase in local computation required to generate synthetic data for balancing class distributions, which can add significant overhead. To be activated if non-IID clients are present; consider at most a later follow-up if new non-IID data arrives (New Data).\n"
         "\n"
@@ -441,15 +441,15 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
             "### Context\n"
             "- Client Selector can mitigate the Straggler effect\n"
             "### Decision\n"
-            "\"client_selector\":\"ON\",\"selection_value\":3\n"
-            "\"rationale\":\"low-spec clients (CPU=3) may cause the straggler effect. Activate the Client Selector with selection_value>3 to exclude them and improve both Total Round Time and Training Time; \n"
+            "\"client_selector\":\"ON\",\"selection_value\":4\n"
+            "\"rationale\":\"low-spec clients (CPU=3) may cause the straggler effect. Activate the Client Selector with selection_value>4 to exclude them and improve both Total Round Time and Training Time; \n"
         )
         ex2_ctx = (
             "## Example 2 — Client Selector (numeric)\n"
             "### Context\n"
             "- 5 clients: 3 High-Spec (CPU=5) + 2 Low-Spec (CPU=3)\n"
             "### Decision\n"
-            "\"client_selector\":\"ON\",\"selection_value\":3\n"
+            "\"client_selector\":\"ON\",\"selection_value\":4\n"
             "\"rationale\":\"After discarding the Low-Spec clients, ≈9× Total Round Time reduction reported.\"\n"
         )
         ex3_ctx = (
@@ -892,14 +892,22 @@ class AdaptationManager:
                     except Exception:
                         pass
             sel_val = max(set(vals), key=vals.count) if vals else 3
-            new_cfg["patterns"]["client_selector"].setdefault("params", {})["selection_value"] = sel_val
-        new_cfg["patterns"].setdefault("message_compressor", {})["enabled"] = (maj_mc == "ON")
-        new_cfg["patterns"].setdefault("heterogeneous_data_handler", {})["enabled"] = (maj_hdh == "ON")
+
+            base_params = (
+                base_config
+                .get("patterns", {})
+                .get("client_selector", {})
+                .get("params", {})
+            )
+
+            new_cfg["patterns"]["client_selector"]["params"] = {
+                "selection_strategy": base_params.get("selection_strategy", "Resource-Based"),
+                "selection_criteria": base_params.get("selection_criteria", "CPU"),
+                "selection_value": sel_val,
+            }
 
         self.update_json(new_cfg)
         self.update_config(new_cfg)
-
-        # scrivi su file SOLO se richiesto
         if str(os.environ.get("AGENT_LOG_TO_FILE", "0")).lower() in ("1", "true", "yes"):
             _append_agent_log(logs)
 
@@ -1055,18 +1063,27 @@ class AdaptationManager:
         logs.append("Rationale: each agent focused solely on its assigned pattern; any extra fields from an agent were ignored by design.")
         logs.append("")
 
-        # applica su config
         new_cfg = copy.deepcopy(base_config)
         new_cfg.setdefault("patterns", {}).setdefault("client_selector", {}).update({"enabled": cs_final == "ON"})
         if cs_final == "ON":
-            new_cfg["patterns"]["client_selector"].setdefault("params", {})["selection_value"] = sel_val
-        new_cfg["patterns"].setdefault("message_compressor", {})["enabled"] = (mc_final == "ON")
-        new_cfg["patterns"].setdefault("heterogeneous_data_handler", {})["enabled"] = (hdh_final == "ON")
+            base_params = (
+                base_config
+                .get("patterns", {})
+                .get("client_selector", {})
+                .get("params", {})
+            )
+            strategy = base_params.get("selection_strategy", "Resource-Based")
+            criteria = base_params.get("selection_criteria", "CPU")
+
+            new_cfg["patterns"]["client_selector"]["params"] = {
+                "selection_strategy": strategy,
+                "selection_criteria": criteria,
+                "selection_value": sel_val,
+            }
 
         self.update_json(new_cfg)
         self.update_config(new_cfg)
 
-        # scrittura su file solo se richiesta
         if str(os.environ.get("AGENT_LOG_TO_FILE", "0")).lower() in ("1", "true", "yes"):
             _append_agent_log(logs)
 
@@ -1092,8 +1109,10 @@ class AdaptationManager:
         temps = [0.7, 0.8, 0.9]
 
         consensus_reached = False
+        consensus_flags = {"cs": False, "mc": False, "hh": False}
         final_decisions_last_turn: List[Dict] = []
         final_turn_logs: List[str] = []
+
 
         for turn in range(1, N_TURNS + 1):
             agent_decisions: List[Dict] = []
@@ -1138,44 +1157,96 @@ class AdaptationManager:
             final_decisions_last_turn = agent_decisions
             final_turn_logs = turn_logs 
 
-            if len(cs_set) == len(mc_set) == len(hh_set) == 1:
+            cs_consensus = len(cs_set) == 1
+            mc_consensus = len(mc_set) == 1
+            hh_consensus = len(hh_set) == 1
+
+            if cs_consensus or mc_consensus or hh_consensus:
                 consensus_reached = True
+                consensus_flags = {
+                    "cs": cs_consensus,
+                    "mc": mc_consensus,
+                    "hh": hh_consensus,
+                }
                 break
 
-        logs.extend(final_turn_logs)
+                logs.extend(final_turn_logs)
 
         if consensus_reached:
-            cs_final = (final_decisions_last_turn[0].get("client_selector", "OFF") or "OFF").upper()
-            mc_final = (final_decisions_last_turn[0].get("message_compressor", "OFF") or "OFF").upper()
-            hh_final = (final_decisions_last_turn[0].get("heterogeneous_data_handler", "OFF") or "OFF").upper()
+            # Consenso per pattern: se non c'è consenso su un pattern,
+            # manteniamo l'ON/OFF precedente da base_config.
+            def _final_for(key: str, flag: bool) -> str:
+                if flag:
+                    vset = {onoff(d, key) for d in final_decisions_last_turn}
+                    return next(iter(vset)) if vset else "OFF"
+                enabled = bool(
+                    base_config
+                    .get("patterns", {})
+                    .get(key, {})
+                    .get("enabled")
+                )
+                return "ON" if enabled else "OFF"
 
+            cs_final = _final_for("client_selector", consensus_flags["cs"])
+            mc_final = _final_for("message_compressor", consensus_flags["mc"])
+            hh_final = _final_for("heterogeneous_data_handler", consensus_flags["hh"])
+
+            # selection_value: lo aggiorniamo SOLO se c'è consenso su CS;
+            # altrimenti teniamo il valore precedente.
             sel_val = None
             if cs_final == "ON":
-                vals = []
-                for d in final_decisions_last_turn:
-                    if (d.get("client_selector") or "").upper() == "ON" and "selection_value" in d:
-                        try:
-                            vals.append(int(d["selection_value"]))
-                        except Exception:
-                            pass
-                if vals:
-                    from collections import Counter
-                    cnt = Counter(vals).most_common()
-                    top_freq = cnt[0][1]
-                    candidates = [v for v, f in cnt if f == top_freq]
-                    sel_val = max(candidates)
-                else:
+                if consensus_flags["cs"]:
+                    vals = []
+                    for d in final_decisions_last_turn:
+                        if (d.get("client_selector") or "").upper() == "ON" and "selection_value" in d:
+                            try:
+                                vals.append(int(d["selection_value"]))
+                            except Exception:
+                                pass
+                    if vals:
+                        from collections import Counter
+                        cnt = Counter(vals).most_common()
+                        top_freq = cnt[0][1]
+                        candidates = [v for v, f in cnt if f == top_freq]
+                        sel_val = max(candidates)
+                if sel_val is None:
                     try:
-                        sel_val = int(base_config.get("patterns", {}).get("client_selector", {}).get("params", {}).get("selection_value", 3))
+                        sel_val = int(
+                            base_config
+                            .get("patterns", {})
+                            .get("client_selector", {})
+                            .get("params", {})
+                            .get("selection_value", 3)
+                        )
                     except Exception:
                         sel_val = 3
 
             new_cfg = copy.deepcopy(base_config)
-            new_cfg.setdefault("patterns", {}).setdefault("client_selector", {}).update({"enabled": cs_final == "ON"})
+            # Applichiamo i final ON/OFF per tutti i pattern
+            for key, final_val in [
+                ("client_selector", cs_final),
+                ("message_compressor", mc_final),
+                ("heterogeneous_data_handler", hh_final),
+            ]:
+                new_cfg.setdefault("patterns", {}).setdefault(key, {}).update(
+                    {"enabled": final_val == "ON"}
+                )
+
             if cs_final == "ON":
-                new_cfg["patterns"]["client_selector"].setdefault("params", {})["selection_value"] = sel_val
-            new_cfg["patterns"].setdefault("message_compressor", {})["enabled"] = (mc_final == "ON")
-            new_cfg["patterns"].setdefault("heterogeneous_data_handler", {})["enabled"] = (hh_final == "ON")
+                base_params = (
+                    base_config
+                    .get("patterns", {})
+                    .get("client_selector", {})
+                    .get("params", {})
+                )
+                strategy = base_params.get("selection_strategy", "Resource-Based")
+                criteria = base_params.get("selection_criteria", "CPU")
+
+                new_cfg["patterns"]["client_selector"]["params"] = {
+                    "selection_strategy": strategy,
+                    "selection_criteria": criteria,
+                    "selection_value": sel_val,
+                }
 
             logs.append(f"[Debate] Consensus reached at turn {turn}/{N_TURNS}.")
             self.update_json(new_cfg)
@@ -1271,7 +1342,7 @@ class AdaptationManager:
                 try:
                     sel_val = int(existing) if existing is not None else 0
                 except Exception:
-                    sel_val = 0
+                    sel_val = 3
 
             new_config["patterns"]["client_selector"]["params"] = {
                 "selection_strategy": "Resource-Based",

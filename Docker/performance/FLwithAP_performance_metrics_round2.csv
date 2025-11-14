@@ -1,11 +1,11 @@
 Client ID,FL Round,Training Time,JSD,HDH Time,Communication Time,Total Time of FL Round,# of CPU,CPU Usage (%),RAM Usage (%),Model Type,Data Distr. Type,Dataset,Train Loss,Train Accuracy,Train F1,Train MAE,Val Loss,Val Accuracy,Val F1,Val MAE,"AP List (client_selector,client_cluster,message_compressor,model_co-versioning_registry,multi-task_model_trainer,heterogeneous_data_handler)",Agent Time (s)
-Client 1,1,47.35,0.0,0.0,13.59,,5,320,16,CNN 16k,non-IID,FashionMNIST,,,,,,,,,,0.0
-Client 2,1,18.29,0.0,0.0,11.77,,5,195,17,CNN 16k,non-IID,FashionMNIST,,,,,,,,,,0.0
-Client 3,1,19.28,0.0,0.0,38.1,,5,124,17,CNN 16k,non-IID,FashionMNIST,,,,,,,,,,0.0
-Client 4,1,20.63,0.0,0.0,55.86,,3,107,16,CNN 16k,non-IID,FashionMNIST,,,,,,,,,,0.0
-Client 5,1,59.46,0.0,0.0,31.81,99.93,3,258,16,CNN 16k,non-IID,FashionMNIST,0.3,0.907,0.7525,0.2936,2.12,0.6369,0.5825,1.1638,"{OFF,OFF,OFF,OFF,OFF,OFF}",0.0
-Client 1,2,15.54,0.05,243.07,7.98,,5,302,41,CNN 16k,non-IID,FashionMNIST,,,,,,,,,,0.0
-Client 2,2,65.1,0.05,79.76,18.34,,5,224,27,CNN 16k,non-IID,FashionMNIST,,,,,,,,,,0.0
-Client 3,2,3.88,0.05,178.67,41.02,,5,211,26,CNN 16k,non-IID,FashionMNIST,,,,,,,,,,0.0
-Client 4,2,63.88,0.05,80.64,52.35,,3,192,27,CNN 16k,non-IID,FashionMNIST,,,,,,,,,,0.0
-Client 5,2,34.68,0.05,200.09,16.3,273.5,3,189,39,CNN 16k,non-IID,FashionMNIST,0.68,0.6739,0.6467,1.0743,1.26,0.7156,0.6742,0.8718,"{OFF,OFF,ON,OFF,OFF,ON}",0.0
+Client 1,1,43.8,0.0,0.0,14.02,,5,312,16,CNN 16k,non-IID,FashionMNIST,,,,,,,,,,0.0
+Client 2,1,17.0,0.0,0.0,13.05,,5,192,17,CNN 16k,non-IID,FashionMNIST,,,,,,,,,,0.0
+Client 3,1,18.36,0.0,0.0,56.62,,5,138,17,CNN 16k,IID,FashionMNIST,,,,,,,,,,0.0
+Client 4,1,18.36,0.0,0.0,61.81,,3,88,17,CNN 16k,non-IID,FashionMNIST,,,,,,,,,,0.0
+Client 5,1,65.97,0.0,0.0,28.0,96.43,3,275,16,CNN 16k,IID,FashionMNIST,0.33,0.8957,0.8036,0.3567,1.23,0.7333,0.7109,0.858,"{OFF,OFF,OFF,OFF,OFF,OFF}",88.87
+Client 1,2,62.03,0.0,0.0,14.93,,5,294,16,CNN 16k,non-IID,FashionMNIST,,,,,,,,,,0.0
+Client 2,2,33.61,0.0,0.0,14.2,,5,195,16,CNN 16k,non-IID,FashionMNIST,,,,,,,,,,0.0
+Client 3,2,35.6,0.0,0.0,47.97,,5,177,17,CNN 16k,IID,FashionMNIST,,,,,,,,,,0.0
+Client 4,2,39.76,0.0,0.0,31.12,,3,161,17,CNN 16k,non-IID,FashionMNIST,,,,,,,,,,0.0
+Client 5,2,82.6,0.0,0.0,32.4,117.85,3,264,17,CNN 16k,IID,FashionMNIST,0.23,0.9179,0.8598,0.2838,0.78,0.7973,0.7734,0.6112,"{OFF,OFF,OFF,OFF,OFF,OFF}",108.85

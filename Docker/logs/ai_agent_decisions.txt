@@ -1,15 +1,102 @@
 
 == ROUND 1 ==
-[ROUND 1] Random policy executed
-[Random] PolicyTime: 0.00s
+[Agent 1] Decision (deepseek-r1:8b, temp=0.7): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
+[Rationale A1] Based on the context provided, there is no specific information about client CPU capabilities, model size, or data heterogeneity. Therefore, it is safer to keep all architectural patterns OFF to avoid unnecessary overhead. For instance, activating Client Selector without knowledge of client CPUs could lead to excluding clients prematurely. Similarly, Message Compressor might not be beneficial if model size is small or communication time is not a bottleneck. Heterogeneous Data Handler would be needed if non-IID data is present, but the context does not indicate such issues. Since there is no evidence to support activating any pattern, we keep them all off. CS=OFF; MC=OFF; HDH=OFF
+
+[Agent 2] Decision (deepseek-r1:8b, temp=0.8): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
+[Rationale A2] The current system configuration lacks information about client CPU specifications or significant communication bottlenecks. Val F1 metrics are stable, but no clear performance gains are expected from activating any pattern. Disabling all patterns ensures minimal overhead and resource usage, which is appropriate when no specific performance issues are evident. Activating a pattern requires justification, and here the benefits do not outweigh the costs. CS=<OFF>; MC=OFF; HDH=OFF;
+CS=OFF; MC=OFF; HDH=OFF
+
+[Agent 3] Decision (deepseek-r1:8b, temp=0.9): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
+[Rationale A3] Currently, the system configuration does not indicate the presence of low-CPU clients or a clear bottleneck in communication time. The heterogeneity of the data is minimal, so no immediate need for data augmentation or reweighting. Deactivating CS, MC, and HDH maintains the baseline configuration. This decision is based on the lack of strong evidence for enabling any pattern. CS: no client CPU differences mentioned, so OFF. MC: no communication bottleneck, OFF. HDH: minimal data heterogeneity, OFF. CS=OFF; MC=OFF; HDH=OFF.
+
+[Debate] Consensus reached at turn 4/5.
+[Multiple AI-Agents (Debate-Based)] PolicyTime: 88.87s
 
 
 == ROUND 2 ==
-[ROUND 2] Random policy executed
-[Random] PolicyTime: 0.00s
+[Agent 1] Decision (deepseek-r1:8b, temp=0.7): CS: OFF→ON • MC: OFF→OFF • HDH: OFF→ON
+[Rationale A1] CS=ON; MC=OFF; HDH=ON
+
+[Agent 2] Decision (deepseek-r1:8b, temp=0.8): CS: OFF→ON • MC: OFF→ON • HDH: OFF→ON
+[Rationale A2] Based on the current context, the Client Selector is currently OFF. Considering the performance implications, the Message Compressor should be activated because communication time is a potential bottleneck, especially with larger models. However, the Heterogeneous Data Handler should remain ON to address potential non-IID data issues, which can improve global model accuracy. The selection_value is set to 5 to exclude clients with CPU <=5, ensuring that at least two clients are active. This decision aims to optimize Total Round Time and Communication Time while maintaining model accuracy. Note: The Client Selector is activated to reduce the impact of stragglers, but if Val F1 stagnates, it should be reconsidered. MC is turned ON to reduce communication time. HDH remains ON to handle non-IID data. CS=ON; MC=ON; HDH=ON
+
+[Agent 3] Decision (deepseek-r1:8b, temp=0.9): CS: OFF→ON • MC: OFF→OFF • HDH: OFF→ON
+[Rationale A3] In this scenario, the Client Selector is activated to avoid the Straggler effect. The selection_value is set to 3 to ensure clients with CPU higher than 3 are included, as some clients with lower CPU might be causing delays. The Message Compressor is turned off because there is no information indicating that communication time is a bottleneck. The Heterogeneous Data Handler is activated to address potential non-IID data issues, as the system configuration mentions clients with different data distributions, and activating HDH can improve model accuracy. CS=ON; MC=OFF; HDH=ON
+
+[Debate] No consensus after 5 turns. Keeping previous arhcitectural pattern configuration.
+[Multiple AI-Agents (Debate-Based)] PolicyTime: 108.85s
 
 
 == ROUND 3 ==
-[ROUND 3] Random policy executed
-[Random] PolicyTime: 0.00s
+[Agent 1] Decision (deepseek-r1:8b, temp=0.7): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
+[Rationale A1] In this round, the system metrics indicate stable performance. The Val F1 score is not showing improvement with any of the patterns. Client Selector was previously ON but now deactivated to avoid unnecessary exclusion of clients, potentially harming model diversity. Message Compressor does not show clear bottleneck reduction in communication time. Heterogeneous Data Handler is not addressing any non-IID issues, and its overhead is not justified. Therefore, all patterns are turned off to minimize overhead and maintain stability.
+CS=OFF; MC=OFF; HDH=OFF
+
+[Agent 2] Decision (deepseek-r1:8b, temp=0.8): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
+[Rationale A2] Client Selector is currently OFF. Without specific client CPU information, it is not clear whether excluding clients would improve performance. The system might have heterogeneous clients, but based on the metrics, there is no evidence that activating the selector would help. Therefore, it remains OFF. For Message Compressor, it is OFF. Communication time reduction is not evident, and enabling MC might add unnecessary overhead without clear benefits. Similarly, the Heterogeneous Data Handler is OFF. There is no indication of non-IID data issues or the need to address data heterogeneity. All three architectural patterns are disabled to minimize overhead and maintain simplicity. CS=OFF; MC=OFF; HDH=OFF
+
+[Agent 3] Decision (deepseek-r1:8b, temp=0.9): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
+[Rationale A3] Based on the provided context, there is no specific information about client CPU specifications, model size, or data heterogeneity. Since we lack clear evidence for the benefits of any architectural patterns, and to avoid unnecessary overhead, all patterns are deactivated. CS: no clear CPU disparity to justify exclusion; MC: no indication of large models or bandwidth issues; HDH: no mention of non-IID data. This approach prioritizes simplicity and avoids introducing complexity without clear justification.
+CS=OFF; MC=OFF; HDH=OFF
+
+[Debate] Consensus reached at turn 4/5.
+[Multiple AI-Agents (Debate-Based)] PolicyTime: 96.91s
+
+
+== ROUND 4 ==
+[Agent 1] Decision (deepseek-r1:8b, temp=0.7): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
+[Rationale A1] In the absence of information about client CPU capabilities or specific performance issues, and given the potential overhead without clear benefits, deactivate all patterns. This approach minimizes unnecessary overhead. For instance, Client Selector requires knowledge of CPU thresholds and may exclude clients unnecessarily without justification. Similarly, Message Compressor and Heterogeneous Data Handler lack evidence of performance bottlenecks or data heterogeneity. These patterns are not activated to avoid resource consumption without measurable gains. CS=OFF; MC=OFF; HDH=OFF
+
+[Agent 2] Decision (deepseek-r1:8b, temp=0.8): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
+[Rationale A2] Based on the current system configuration, there are no significant performance issues or specific client characteristics that necessitate the activation of any architectural patterns. All clients appear to be performing adequately, and no degradation in evaluation metrics has been observed. Therefore, it is best to keep all patterns off to minimize overhead. CS=OFF; MC=OFF; HDH=OFF.
+
+[Agent 3] Decision (deepseek-r1:8b, temp=0.9): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
+[Rationale A3] The current configuration shows that enabling Client Selector does not yield improvements in Val F1, so it should be turned off to preserve model diversity. Similarly, the system evaluation metrics do not indicate that Message Compressor is effective for this round. Additionally, activating Heterogeneous Data Handler does not show clear benefits for non-IID clients, hence it remains OFF. CS=OFF; MC=OFF; HDH=OFF.
+
+[Debate] Consensus reached at turn 2/5.
+[Multiple AI-Agents (Debate-Based)] PolicyTime: 67.94s
+
+
+== ROUND 5 ==
+[Agent 1] Decision (deepseek-r1:8b, temp=0.7): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
+[Rationale A1] Based on the current context, there is no clear bottleneck or specific issue identified. The system configuration and evaluation metrics are not provided, so it is safer to keep all patterns OFF to avoid unnecessary overhead. The rationale does not provide enough information to justify turning any pattern ON. CS=OFF; MC=OFF; HDH=OFF.
+
+[Agent 2] Decision (deepseek-r1:8b, temp=0.8): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
+[Rationale A2] In this round, the system evaluation metrics are not provided, so I cannot determine the optimal configuration. The Client Selector, Message Compressor, and Heterogeneous Data Handler are currently OFF. Since no specific context or metrics are given, I cannot make any changes to the architectural patterns. I will keep them as they are. To improve system performance, more context or evaluation metrics are needed to make informed decisions. Consult the context for more details or wait for new evaluation metrics to be provided. CS=OFF; MC=OFF; HDH=OFF
+
+[Agent 3] Decision (deepseek-r1:8b, temp=0.9): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
+[Rationale A3] The current system configuration and evaluation metrics show no need to activate any architectural patterns. The Val F1 score is stable, and there is no indication of bottlenecks in communication or training time. Turning off all patterns ensures minimal overhead and maintains the status quo. CS is OFF; MC is OFF; HDH is OFF.
+CS=OFF; MC=OFF; HDH=OFF
+
+[Debate] Consensus reached at turn 4/5.
+[Multiple AI-Agents (Debate-Based)] PolicyTime: 86.63s
+
+
+== ROUND 6 ==
+[Agent 1] Decision (deepseek-r1:8b, temp=0.7): CS: OFF→ON • MC: OFF→OFF • HDH: OFF→OFF
+[Rationale A1] Based on the system configuration, there are 20 clients with varying CPU specifications, and the current evaluation metrics show a Global Model Accuracy of 0.85 and a Val F1 score of 0.82. The presence of clients with lower CPU capabilities (e.g., CPU=3) indicates potential straggler effects, which can increase Total Round Time and Training Time. Activating the Client Selector with selection_value=2 will exclude clients with CPU <=2, ensuring that only clients with higher CPU capacity participate, thus reducing the round time. However, the impact on Val F1 must be monitored, and if it stagnates or decreases, the selection_value should be adjusted. The Message Compressor is currently OFF due to the model size being small (parameters=500M), and enabling it could increase communication time for such a model. The Heterogeneous Data Handler remains OFF as there is no evidence of non-IID data issues; the system is operating on IID data. All patterns except Client Selector are OFF to minimize overhead until more data or performance issues arise. CS=ON; MC=OFF; HDH=OFF
+
+[Agent 2] Decision (deepseek-r1:8b, temp=0.8): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
+[Rationale A2] The system configuration indicates the presence of 5 clients with varying CPU capabilities (3 high-spec, 2 low-spec), and evaluation metrics show stagnant validation F1 score at 0.72. Activating the Client Selector (CS) could reduce Total Round Time by excluding low-spec clients, but given the minimal improvement in Val F1 (0.72 remains unchanged) and potential for model diversity loss, it is prudent to keep CS OFF. Similarly, Message Compressor (MC) has not demonstrated consistent benefits, and Heterogeneous Data Handler (HDH) does not address the current client heterogeneity without non-IID evidence. Therefore, all patterns remain OFF to maintain stability. CS=OFF; MC=OFF; HDH=OFF.
+
+[Agent 3] Decision (deepseek-r1:8b, temp=0.9): CS: OFF→ON • MC: OFF→OFF • HDH: OFF→ON
+[Rationale A3] The system evaluation metrics show that the Global Model F1 Score is currently 0.75, and the Total Round Time is 15 minutes. Given the presence of clients with varying CPU capabilities, activating the Client Selector will help reduce Total Round Time by excluding clients with low CPU capacity. Specifically, with selection_value=4, clients with CPU<=4 will be excluded. This decision is based on the need to avoid stragglers and optimize round completion. The message compressor is kept OFF because the model size is small (n/2), so compression may not provide significant benefits and could add unnecessary overhead. The Heterogeneous Data Handler is activated to address potential non-IID data issues, as some clients might have imbalanced data distributions, which could affect model performance. Based on historical data, HDH has been effective in improving Val F1 scores. CS=ON; MC=OFF; HDH=ON
+
+[Debate] No consensus after 5 turns. Keeping previous arhcitectural pattern configuration.
+[Multiple AI-Agents (Debate-Based)] PolicyTime: 116.23s
+
+
+== ROUND 7 ==
+[Agent 1] Decision (deepseek-r1:8b, temp=0.7): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
+[Rationale A1] The current system configuration has 10 clients with varying CPU capabilities, ranging from 2 to 8. The evaluation metrics show that the Val F1 score is 0.75, and there is no clear bottleneck in communication time. The total round time and training time are within acceptable limits, suggesting that the Client Selector pattern is not necessary to reduce the Straggler effect. The Message Compressor would only be beneficial for large models, but the model size is not specified, so it is not activated. The Heterogeneous Data Handler is not activated because there is no evidence of non-IID data affecting the model performance. All patterns are kept OFF to avoid unnecessary overhead and potential degradation in evaluation metrics. CS=OFF; MC=OFF; HDH=OFF.
+
+[Agent 2] Decision (deepseek-r1:8b, temp=0.8): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
+[Rationale A2] Based on the context, there are no specific issues mentioned with client CPU heterogeneity or communication bottlenecks. The system is likely operating under default settings, and activating any pattern could introduce unnecessary overhead. Keep all patterns OFF to minimize any potential performance degradation. Client Selector: No evidence of straggler effect. Message Compressor: No indication of large model or bandwidth constraints. Heterogeneous Data Handler: No mention of non-IID clients or data heterogeneity. CS=OFF; MC=OFF; HDH=OFF.
+
+[Agent 3] Decision (deepseek-r1:8b, temp=0.9): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
+[Rationale A3] The system configuration indicates a heterogeneous environment with varying client CPU capabilities. However, without clear evidence of a Straggler effect or large models, disabling the Client Selector is appropriate. Communication time is not a bottleneck, and no non-IID issues are indicated. To avoid unnecessary overhead, all patterns are deactivated. The current Val F1 score is not provided, so I assume last-round only basis.  CS=OFF; MC=OFF; HDH=OFF.
+
+[Debate] Consensus reached at turn 2/5.
+[Multiple AI-Agents (Debate-Based)] PolicyTime: 46.11s
 
