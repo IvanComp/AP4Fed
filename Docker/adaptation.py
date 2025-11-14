@@ -6,7 +6,7 @@ import re
 import glob
 import time
 import urllib.request, urllib.error
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from logging import INFO
 from flwr.common.logger import log
 
@@ -202,13 +202,13 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         "4) Minimize Training Time, referring to the computational time each client requires to perform local model training.\n"
         "\n"
         "Here are the three ARCHITECTURAL PATTERNS that you can consider to (de)activate:\n"
-        "1) Client Selector: selects clients that will partecipate to the next round of Federated Learning. The selection is driven by the number of CPUs available by the clients. When active, you must specify 'selection_value': <int>, which is the CPU threshold. Only the clients with CPU > selection_value will be included for the next training round.\n"
+        "1) Client Selector: selects clients that will partecipate to the next round of Federated Learning. The selection is driven by the number of CPUs available by the clients. When active, you must specify 'selection_value': <int>, which is the CPU threshold. Only the clients with CPU > selection_value will be included for the next training round. Critical Note: the value it can take is between 0 and n−1, where n is the number of CPUs present in the client with the largest CPU; otherwise, the system crashes.\n"
         "2) Message Compressor: compresses messages exchanged between the clients and the server.\n"
         "3) Heterogeneous Data Handler: mitigates non-IID effects using class reweighting, augmentation, or distillation.\n"  
         "\n"
         "Architectural Patterns Performance Implications:\n" 
         "Enabling or disabling each architectural pattern has both advantages and disadvantages in terms of performance:\n"
-        "- Client Selector (CS): Selects clients with higher number of CPUs to reduce slowdowns caused by clients devices (the Straggler effect). Discarding weaker clients reduces total round time and training time. However, you should keep excluding lower-capacity clients as long as this strategy yields improvements in Val F1 (accuracy); if Val F1 stagnates or decreases, reconsider and gradually re-include them to preserve model diversity. To be activated when there are differences between clients with different CPUs. \n"
+        "- Client Selector (CS): Selects clients with highest number of CPUs to reduce slowdowns caused by clients devices (the Straggler effect). Discarding weaker clients reduces total round time and training time. However, you should keep excluding lower-capacity clients as long as this strategy yields improvements in Val F1 (accuracy); if Val F1 stagnates or decreases, reconsider and gradually re-include them to preserve model diversity. To be activated when there are differences between clients with different CPUs. \n"
         "- Message Compressor (MC): Compresses model updates exchanged between the server and clients to reduce communication time, which is especially beneficial for large models or bandwidth-constrained networks. The downside is the additional computational overhead from compression and decompression, which may outweigh the benefits when dealing with small model sizes. Enable MC when communication time is a clear bottleneck and apply it sparingly, avoiding consecutive rounds.\n"
         "- Heterogeneous Data Handler (HDH): Employs data augmentation to address and mitigate data heterogeneity among non-iid clients, improving global model accuracy and accelerating convergence on non-IID data. The trade-off is an increase in local computation required to generate synthetic data for balancing class distributions, which can add significant overhead. To be activated if non-IID clients are present; consider at most a later follow-up if new non-IID data arrives (New Data).\n"
         "\n"
@@ -216,8 +216,8 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         "- Do not invent values.\n"
         "- Output only the JSON object plus the rationale, no extra text otherwise the system will fail.\n"
         "- The last line of the 'rationale' must be exactly the signature: CS=<ON|OFF>; MC=<ON|OFF>; HDH=<ON|OFF>. These values must copy the JSON decisions above, in the same order and casing.\n"
-        "- selection_value is a CPU threshold for the Client Selector pattern: only clients with CPU > selection_value participate in each training round. Therefore, use an integer within [0, max_cpu-1], and ensure it is strictly less than the second-highest CPU value to avoid excluding more clients than necessary. It is crucial to guarantee that at least two clients remain active and are not excluded, since the federated learning process will fail if fewer than two clients participate in a round.\n"
-        "- In the absence of strong evidence, testing a pattern to verify its improvements is allowed. However, Activating a pattern always introduces overhead. Carefully consider whether it is really necessary. THIS DOES NOT MEAN THAT THEY SHOULD NEVER BE ACTIVATED.\n"
+        "- Considering the Client Selector, keep at least two clients active in every round: You MUST analyze the CPU values of all clients and choose an integer threshold that is strictly below the CPU values of at least two clients, so that at least two clients remain eligible and the system does not crash.\n"
+        "- In the absence of strong evidence, testing a pattern to verify its improvements is allowed. However, Activating a pattern always introduces overhead. Carefully consider whether it is really necessary. THIS DOES NOT MEAN THAT ARCHITECTURAL PATTERNS SHOULD NEVER BE ACTIVATED.\n"
         "- If you aggregate metrics over multiple rounds (mean/median), explicitly say which statistic and window you used; otherwise state 'last-round only'.\n"
         "- If a pattern is already active from the previous round and you decide to keep it active, specify that 'it is kept active' and not, for example, 'we activate the pattern'.\n"
         "- Do not rely on unstated assumptions; prioritize the system's current configuration (e.g., number of clients with non-IID data, number of client's CPUs) over past evaluation metrics, which should be used only as secondary context.\n"
@@ -382,7 +382,7 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
             "- clients: number of clients.\n"
             "- cpu_per_client: CPUs per client (same order as client_details).\n"
             "- ram_per_client: RAM per client (same order as client_details).\n"
-            "- max_cpu: maximum CPU across clients.\n"
+            "- max_cpu: client with the highest amount of CPU across clients.\n"
             "- second_highest_cpu: second-largest CPU (used by CS threshold guardrail).\n"
             "- data_distribution_counts: counts by data_distribution_type (IID / NON-IID).\n"
             "- non_iid_clients: list of client_id having NON-IID data.\n"
@@ -1109,22 +1109,40 @@ class AdaptationManager:
         temps = [0.7, 0.8, 0.9]
 
         consensus_reached = False
-        consensus_flags = {"cs": False, "mc": False, "hh": False}
         final_decisions_last_turn: List[Dict] = []
-        final_turn_logs: List[str] = []
+        debate_history_lines: List[str] = []
 
+        last_cs_consensus = last_mc_consensus = last_hh_consensus = False
+        last_cs_majority = last_mc_majority = last_hh_majority = None
 
         for turn in range(1, N_TURNS + 1):
             agent_decisions: List[Dict] = []
             agent_rationales: List[str] = []
-            turn_logs: List[str] = []
 
             for i, t in enumerate(temps, start=1):
                 try:
-                    d_i, r_i = _sa_generate_with_retry(
-                        MODEL, MODE, self.default_config, last_round, agg, ap_prev, self.sa_ollama_urls,
-                        options={"temperature": t, "top_p": 0.95, "num_ctx": 8192}
-                    )
+                    base_prompt = _sa_build_prompt(MODE, self.default_config, last_round, agg, ap_prev)
+
+                    history_text = "\n".join(debate_history_lines).strip()
+                    if history_text:
+                        history_block = (
+                            "## Debate history so far\n"
+                            + history_text + "\n\n"
+                            + f"You are Agent {i} in turn {turn} of the debate. "
+                              "Take this history into account, but still output a single JSON object as your final decision.\n\n"
+                        )
+                        marker = "## Decision"
+                        if marker in base_prompt:
+                            prompt = base_prompt.replace(marker, history_block + marker, 1)
+                        else:
+                            prompt = base_prompt + "\n\n" + history_block + "\n## Decision\n"
+                    else:
+                        prompt = base_prompt
+
+                    options = {"temperature": t, "top_p": 0.95, "num_ctx": 8192}
+                    raw = _sa_call_ollama(MODEL, prompt, self.sa_ollama_urls, force_json=True, options=options)
+                    d_i, r_i, _ = _sa_parse_output(raw)
+
                     d_i = d_i or {}
                     r_i = (r_i or "").strip()
                     agent_decisions.append(d_i)
@@ -1137,66 +1155,87 @@ class AdaptationManager:
                     mc_new = (d_i.get("message_compressor", "OFF") or "OFF").upper()
                     hh_new = (d_i.get("heterogeneous_data_handler", "OFF") or "OFF").upper()
 
-                    turn_logs.append(f"[Agent {i}] Decision ({MODEL}, temp={t}): CS: {prev_cs}→{cs_new} • MC: {prev_mc}→{mc_new} • HDH: {prev_hh}→{hh_new}")
+                    logs.append(
+                        f"[Debate][Turn {turn}] Agent {i} Decision ({MODEL}, temp={t}): "
+                        f"CS: {prev_cs}->{cs_new}; MC: {prev_mc}->{mc_new}; HDH: {prev_hh}->{hh_new}"
+                    )
                     if r_i:
-                        turn_logs.append(f"[Rationale A{i}] {r_i}")
-                    turn_logs.append("")  
+                        logs.append(f"[Debate][Turn {turn}] Rationale A{i}: {r_i}")
+                    logs.append("")
+
+                    hist_line = (
+                        f"[Turn {turn} / Agent {i}] CS: {prev_cs}->{cs_new}; "
+                        f"MC: {prev_mc}->{mc_new}; HDH: {prev_hh}->{hh_new}"
+                    )
+                    debate_history_lines.append(hist_line)
+                    if r_i:
+                        short_rat = r_i if len(r_i) <= 600 else (r_i[:600] + " ... [truncated]")
+                        debate_history_lines.append(f"[Turn {turn} / Agent {i} Rationale] {short_rat}")
+
                 except Exception as e:
                     agent_decisions.append({})
                     agent_rationales.append("")
-                    turn_logs.append(f"[Agent {i}] ERROR: {e!r}")
-                    turn_logs.append("")
+                    logs.append(f"[Debate][Turn {turn}] Agent {i} ERROR: {e!r}")
+                    logs.append("")
 
-            def onoff(d: Dict, key: str) -> str:
+            def _onoff(d: Dict, key: str) -> str:
                 return (d.get(key, "OFF") or "OFF").upper()
 
-            cs_set = {onoff(d, "client_selector") for d in agent_decisions}
-            mc_set = {onoff(d, "message_compressor") for d in agent_decisions}
-            hh_set = {onoff(d, "heterogeneous_data_handler") for d in agent_decisions}
+            cs_vals = [_onoff(d, "client_selector") for d in agent_decisions]
+            mc_vals = [_onoff(d, "message_compressor") for d in agent_decisions]
+            hh_vals = [_onoff(d, "heterogeneous_data_handler") for d in agent_decisions]
+
+            def _majority(vals: List[str]):
+                on_count = vals.count("ON")
+                off_count = vals.count("OFF")
+                if on_count > off_count:
+                    return True, "ON"
+                if off_count > on_count:
+                    return True, "OFF"
+                return False, None
+
+            cs_consensus, cs_majority = _majority(cs_vals)
+            mc_consensus, mc_majority = _majority(mc_vals)
+            hh_consensus, hh_majority = _majority(hh_vals)
 
             final_decisions_last_turn = agent_decisions
-            final_turn_logs = turn_logs 
-
-            cs_consensus = len(cs_set) == 1
-            mc_consensus = len(mc_set) == 1
-            hh_consensus = len(hh_set) == 1
+            last_cs_consensus, last_mc_consensus, last_hh_consensus = cs_consensus, mc_consensus, hh_consensus
+            last_cs_majority, last_mc_majority, last_hh_majority = cs_majority, mc_majority, hh_majority
 
             if cs_consensus or mc_consensus or hh_consensus:
                 consensus_reached = True
-                consensus_flags = {
-                    "cs": cs_consensus,
-                    "mc": mc_consensus,
-                    "hh": hh_consensus,
-                }
                 break
 
-                logs.extend(final_turn_logs)
-
         if consensus_reached:
-            # Consenso per pattern: se non c'è consenso su un pattern,
-            # manteniamo l'ON/OFF precedente da base_config.
-            def _final_for(key: str, flag: bool) -> str:
-                if flag:
-                    vset = {onoff(d, key) for d in final_decisions_last_turn}
-                    return next(iter(vset)) if vset else "OFF"
-                enabled = bool(
-                    base_config
-                    .get("patterns", {})
-                    .get(key, {})
-                    .get("enabled")
-                )
-                return "ON" if enabled else "OFF"
+            prev_cs_enabled = bool(
+                base_config.get("patterns", {}).get("client_selector", {}).get("enabled")
+            )
+            prev_mc_enabled = bool(
+                base_config.get("patterns", {}).get("message_compressor", {}).get("enabled")
+            )
+            prev_hh_enabled = bool(
+                base_config.get("patterns", {}).get("heterogeneous_data_handler", {}).get("enabled")
+            )
 
-            cs_final = _final_for("client_selector", consensus_flags["cs"])
-            mc_final = _final_for("message_compressor", consensus_flags["mc"])
-            hh_final = _final_for("heterogeneous_data_handler", consensus_flags["hh"])
+            if last_cs_consensus and last_cs_majority is not None:
+                cs_final = last_cs_majority
+            else:
+                cs_final = "ON" if prev_cs_enabled else "OFF"
 
-            # selection_value: lo aggiorniamo SOLO se c'è consenso su CS;
-            # altrimenti teniamo il valore precedente.
+            if last_mc_consensus and last_mc_majority is not None:
+                mc_final = last_mc_majority
+            else:
+                mc_final = "ON" if prev_mc_enabled else "OFF"
+
+            if last_hh_consensus and last_hh_majority is not None:
+                hh_final = last_hh_majority
+            else:
+                hh_final = "ON" if prev_hh_enabled else "OFF"
+
             sel_val = None
             if cs_final == "ON":
-                if consensus_flags["cs"]:
-                    vals = []
+                if last_cs_consensus and last_cs_majority == "ON":
+                    vals: List[int] = []
                     for d in final_decisions_last_turn:
                         if (d.get("client_selector") or "").upper() == "ON" and "selection_value" in d:
                             try:
@@ -1222,15 +1261,14 @@ class AdaptationManager:
                         sel_val = 3
 
             new_cfg = copy.deepcopy(base_config)
-            # Applichiamo i final ON/OFF per tutti i pattern
-            for key, final_val in [
-                ("client_selector", cs_final),
-                ("message_compressor", mc_final),
-                ("heterogeneous_data_handler", hh_final),
-            ]:
-                new_cfg.setdefault("patterns", {}).setdefault(key, {}).update(
-                    {"enabled": final_val == "ON"}
-                )
+            pats = new_cfg.setdefault("patterns", {})
+            pats.setdefault("client_selector", {})
+            pats.setdefault("message_compressor", {})
+            pats.setdefault("heterogeneous_data_handler", {})
+
+            pats["client_selector"]["enabled"] = (cs_final == "ON")
+            pats["message_compressor"]["enabled"] = (mc_final == "ON")
+            pats["heterogeneous_data_handler"]["enabled"] = (hh_final == "ON")
 
             if cs_final == "ON":
                 base_params = (
@@ -1242,26 +1280,49 @@ class AdaptationManager:
                 strategy = base_params.get("selection_strategy", "Resource-Based")
                 criteria = base_params.get("selection_criteria", "CPU")
 
-                new_cfg["patterns"]["client_selector"]["params"] = {
+                pats["client_selector"]["params"] = {
                     "selection_strategy": strategy,
                     "selection_criteria": criteria,
                     "selection_value": sel_val,
                 }
 
-            logs.append(f"[Debate] Consensus reached at turn {turn}/{N_TURNS}.")
+            logs.append(
+                f"[Debate] Consensus reached at turn {turn}/{N_TURNS}. "
+                f"Final decision: CS={cs_final}; MC={mc_final}; HDH={hh_final}."
+            )
+
             self.update_json(new_cfg)
             self.update_config(new_cfg)
 
             if str(os.environ.get("AGENT_LOG_TO_FILE", "0")).lower() in ("1", "true", "yes"):
                 _append_agent_log(logs)
+
             return new_cfg, logs
 
-        logs.append(f"[Debate] No consensus after {N_TURNS} turns. Keeping previous arhcitectural pattern configuration.")
+        logs.append(
+            f"[Debate] No consensus after {N_TURNS} turns. "
+            "Keeping previous architectural pattern configuration."
+        )
         self.update_json(base_config)
         self.update_config(base_config)
 
         if str(os.environ.get("AGENT_LOG_TO_FILE", "0")).lower() in ("1", "true", "yes"):
             _append_agent_log(logs)
+
+        return base_config, logs
+
+
+        # Nessun consenso su nessun pattern in tutti i turni
+        logs.append(
+            f"[Debate] No consensus after {N_TURNS} turns. "
+            "Keeping previous architectural pattern configuration."
+        )
+        self.update_json(base_config)
+        self.update_config(base_config)
+
+        if str(os.environ.get("AGENT_LOG_TO_FILE", "0")).lower() in ("1", "true", "yes"):
+            _append_agent_log(logs)
+
         return base_config, logs
 
     def _decide_single_agent(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
