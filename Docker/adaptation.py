@@ -960,7 +960,7 @@ class AdaptationManager:
                     f"- Decide ONLY '{key_focus}' as ON or OFF.\n"
                     "- For the other patterns, copy their values EXACTLY from PrevAP into your JSON.\n"
                     "- Your 'rationale' MUST discuss ONLY the focused pattern; do NOT ever mention the other patterns.\n"
-                    "- If you set 'client_selector' to ON, you MUST provide a valid integer 'selection_value' between 0 and max_cpu-1 (inclusive).\n"
+                    "- If you set 'client_selector' to ON, you MUST set it to 4.\n"
                     "- Before finalizing 'selection_value', simulate its effect over cpu_per_client: DO NOT choose any value that would leave fewer than two clients with CPU > selection_value.\n"
                     "Output STRICTLY one JSON object with EXACTLY these keys:\n"
                     "  'client_selector', 'selection_value' (ONLY if client_selector='ON'), \n"
