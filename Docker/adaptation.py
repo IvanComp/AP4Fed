@@ -217,10 +217,12 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         "- Output only the JSON object plus the rationale, no extra text otherwise the system will fail.\n"
         "- The last line of the 'rationale' must be exactly the signature: CS=<ON|OFF>; MC=<ON|OFF>; HDH=<ON|OFF>. These values must copy the JSON decisions above, in the same order and casing.\n"
         "- Considering the Client Selector, keep at least two clients active in every round: You MUST analyze the CPU values of all clients and choose an integer threshold that is strictly below the CPU values of at least two clients, so that at least two clients remain eligible and the system does not crash.\n"
-        "- When 'client_selector' is 'ON', you MUST derive 'selection_value' ONLY from cpu_per_client and max_cpu; NEVER invent arbitrary thresholds unrelated to the observed CPUs.\n"
+        "- When 'client_selector' is 'ON', you MUST derive 'selection_value' from the CPU values of all clients. Let H be the highest CPU and S the second-highest CPU. Only clients with CPU > selection_value can participate, so valid thresholds are integers t with S <= t < H (for example, with CPUs {5,5,5,3,3}, valid thresholds are 3 or 4). Do NOT invent arbitrary thresholds unrelated to the observed CPUs.\n"
         "- Before finalizing 'selection_value', mentally simulate how many clients have CPU > selection_value. If fewer than two clients would remain active, that value is INVALID and MUST NOT be used.\n"
         "- Prefer the SMALLEST safe 'selection_value' that excludes at least one lower-CPU client while keeping at least two clients with CPU > selection_value; if no such value exists, you MUST keep \"client_selector\":\"OFF\".\n"
+        "- Do not keep architectural patterns permanently OFF. If a pattern (especially Message Compressor or Heterogeneous Data Handler) has been OFF in recent rounds and the evidence is weak or ambiguous, you should sometimes decide ON to probe its effect, instead of always defaulting to the safest minimal configuration.\n"
         "- In the absence of strong evidence, testing a pattern to verify its improvements is allowed. However, Activating a pattern always introduces overhead. Carefully consider whether it is really necessary. THIS DOES NOT MEAN THAT ARCHITECTURAL PATTERNS SHOULD NEVER BE ACTIVATED.\n"
+        "- When some clients are non-IID or validation F1 is clearly worse than in comparable IID runs, you are expected to enable Heterogeneous Data Handler at least once early in the training to test its effect. If HDH has been rarely used and F1 remains poor while round times are acceptable, you should be willing to enable it again in later rounds to reassess its final impact.\n"
         "- If you aggregate metrics over multiple rounds (mean/median), explicitly say which statistic and window you used; otherwise state 'last-round only'.\n"
         "- If a pattern is already active from the previous round and you decide to keep it active, specify that 'it is kept active' and not, for example, 'we activate the pattern'.\n"
         "- Do not rely on unstated assumptions; prioritize the system's current configuration (e.g., number of clients with non-IID data, number of client's CPUs) over past evaluation metrics, which should be used only as secondary context.\n"
@@ -771,6 +773,17 @@ class AdaptationManager:
         model_hist = metrics_history.get(self.model_type, {})
         round_list = model_hist.get("train_loss", [])
         return len(round_list)
+    
+    def _fix_selection_value(self, sel_val):
+        try:
+            v = int(sel_val)
+        except Exception:
+            v = 3
+        if v < 3:
+            v = 3
+        if v > 4:
+            v = 4
+        return v
 
     def _decide_random(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
         new_config = copy.deepcopy(base_config)
@@ -883,9 +896,16 @@ class AdaptationManager:
             logs.append(f"[Coordinator] LLM consult ERROR: {e!r}. Majority kept.")
         logs.append("")
 
-        # applicazione configurazione secondo majority
         new_cfg = copy.deepcopy(base_config)
-        new_cfg.setdefault("patterns", {}).setdefault("client_selector", {}).update({"enabled": maj_cs == "ON"})
+        pats = new_cfg.setdefault("patterns", {})
+        pats.setdefault("client_selector", {})
+        pats.setdefault("message_compressor", {})
+        pats.setdefault("heterogeneous_data_handler", {})
+
+        pats["client_selector"]["enabled"] = (maj_cs == "ON")
+        pats["message_compressor"]["enabled"] = (maj_mc == "ON")
+        pats["heterogeneous_data_handler"]["enabled"] = (maj_hdh == "ON")
+
         if maj_cs == "ON":
             vals = []
             for d in agent_decisions:
@@ -895,6 +915,7 @@ class AdaptationManager:
                     except Exception:
                         pass
             sel_val = max(set(vals), key=vals.count) if vals else 3
+            sel_val = self._fix_selection_value(sel_val)
 
             base_params = (
                 base_config
@@ -902,20 +923,21 @@ class AdaptationManager:
                 .get("client_selector", {})
                 .get("params", {})
             )
+            strategy = base_params.get("selection_strategy", "Resource-Based")
+            criteria = base_params.get("selection_criteria", "CPU")
 
-            new_cfg["patterns"]["client_selector"]["params"] = {
-                "selection_strategy": base_params.get("selection_strategy", "Resource-Based"),
-                "selection_criteria": base_params.get("selection_criteria", "CPU"),
+            pats["client_selector"]["params"] = {
+                "selection_strategy": strategy,
+                "selection_criteria": criteria,
                 "selection_value": sel_val,
             }
-
         self.update_json(new_cfg)
         self.update_config(new_cfg)
+
         if str(os.environ.get("AGENT_LOG_TO_FILE", "0")).lower() in ("1", "true", "yes"):
             _append_agent_log(logs)
 
         return new_cfg, logs
-
 
     def _decide_role(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
         MODEL, MODE = "deepseek-r1:8b", "few-shot"
@@ -960,7 +982,8 @@ class AdaptationManager:
                     f"- Decide ONLY '{key_focus}' as ON or OFF.\n"
                     "- For the other patterns, copy their values EXACTLY from PrevAP into your JSON.\n"
                     "- Your 'rationale' MUST discuss ONLY the focused pattern; do NOT ever mention the other patterns.\n"
-                    "- If you set 'client_selector' to ON, you MUST set it to 4.\n"
+                    "- If you set 'client_selector' to ON, you MUST derive 'selection_value' from the CPUs of all clients, as explained in the Guardrails, and choose a threshold that excludes only the slowest clients without killing the round.\n"
+                    "- If the focused pattern has been OFF in several recent rounds while the typical conditions for using it are present (for example, high communication time for MC, non-IID clients for HDH, or very high round time with slow clients for CS), treating it as always OFF is a mistake and you should seriously consider turning it ON.\n"
                     "- Before finalizing 'selection_value', simulate its effect over cpu_per_client: DO NOT choose any value that would leave fewer than two clients with CPU > selection_value.\n"
                     "Output STRICTLY one JSON object with EXACTLY these keys:\n"
                     "  'client_selector', 'selection_value' (ONLY if client_selector='ON'), \n"
@@ -1039,7 +1062,6 @@ class AdaptationManager:
         mc_final  = specialist["message_compressor"]["message_compressor"]
         hdh_final = specialist["heterogeneous_data_handler"]["heterogeneous_data_handler"]
 
-        # selection_value: prendi dallo specialista CS se presente, altrimenti fallback al precedente o 3
         sel_val = None
         if cs_final == "ON":
             v = specialist["client_selector"].get("selection_value", None)
@@ -1050,9 +1072,17 @@ class AdaptationManager:
                 sel_val = None
             if sel_val is None:
                 try:
-                    sel_val = int(base_config.get("patterns", {}).get("client_selector", {}).get("params", {}).get("selection_value", 3))
+                    sel_val = int(
+                        base_config
+                        .get("patterns", {})
+                        .get("client_selector", {})
+                        .get("params", {})
+                        .get("selection_value", 3)
+                    )
                 except Exception:
                     sel_val = 3
+
+            sel_val = self._fix_selection_value(sel_val)
 
         # Log coordinator come nel tuo format
         logs.append("[Coordinator] Role-Merge: " +
@@ -1068,7 +1098,15 @@ class AdaptationManager:
         logs.append("")
 
         new_cfg = copy.deepcopy(base_config)
-        new_cfg.setdefault("patterns", {}).setdefault("client_selector", {}).update({"enabled": cs_final == "ON"})
+        pats = new_cfg.setdefault("patterns", {})
+        pats.setdefault("client_selector", {})
+        pats.setdefault("message_compressor", {})
+        pats.setdefault("heterogeneous_data_handler", {})
+
+        pats["client_selector"]["enabled"] = (cs_final == "ON")
+        pats["message_compressor"]["enabled"] = (mc_final == "ON")
+        pats["heterogeneous_data_handler"]["enabled"] = (hdh_final == "ON")
+
         if cs_final == "ON":
             base_params = (
                 base_config
@@ -1079,7 +1117,7 @@ class AdaptationManager:
             strategy = base_params.get("selection_strategy", "Resource-Based")
             criteria = base_params.get("selection_criteria", "CPU")
 
-            new_cfg["patterns"]["client_selector"]["params"] = {
+            pats["client_selector"]["params"] = {
                 "selection_strategy": strategy,
                 "selection_criteria": criteria,
                 "selection_value": sel_val,
@@ -1087,6 +1125,7 @@ class AdaptationManager:
 
         self.update_json(new_cfg)
         self.update_config(new_cfg)
+
 
         if str(os.environ.get("AGENT_LOG_TO_FILE", "0")).lower() in ("1", "true", "yes"):
             _append_agent_log(logs)
@@ -1240,19 +1279,14 @@ class AdaptationManager:
             if cs_final == "ON":
                 if last_cs_consensus and last_cs_majority == "ON":
                     vals: List[int] = []
-                    for d in final_decisions_last_turn:
-                        if (d.get("client_selector") or "").upper() == "ON" and "selection_value" in d:
-                            try:
+                    for d in agent_decisions:
+                        try:
+                            if (d.get("client_selector") or "").upper() == "ON" and "selection_value" in d:
                                 vals.append(int(d["selection_value"]))
-                            except Exception:
-                                pass
-                    if vals:
-                        from collections import Counter
-                        cnt = Counter(vals).most_common()
-                        top_freq = cnt[0][1]
-                        candidates = [v for v, f in cnt if f == top_freq]
-                        sel_val = max(candidates)
-                if sel_val is None:
+                        except Exception:
+                            pass
+                    sel_val = max(set(vals), key=vals.count) if vals else 3
+                else:
                     try:
                         sel_val = int(
                             base_config
@@ -1263,6 +1297,9 @@ class AdaptationManager:
                         )
                     except Exception:
                         sel_val = 3
+
+                sel_val = self._fix_selection_value(sel_val)
+
 
             new_cfg = copy.deepcopy(base_config)
             pats = new_cfg.setdefault("patterns", {})
@@ -1314,20 +1351,17 @@ class AdaptationManager:
             _append_agent_log(logs)
 
         return base_config, logs
-
-
-        # Nessun consenso su nessun pattern in tutti i turni
-        logs.append(
-            f"[Debate] No consensus after {N_TURNS} turns. "
-            "Keeping previous architectural pattern configuration."
-        )
-        self.update_json(base_config)
-        self.update_config(base_config)
-
-        if str(os.environ.get("AGENT_LOG_TO_FILE", "0")).lower() in ("1", "true", "yes"):
-            _append_agent_log(logs)
-
-        return base_config, logs
+    
+    def _fix_selection_value(self, sel_val):
+        try:
+            v = int(sel_val)
+        except Exception:
+            v = 3
+        if v < 3:
+            v = 3
+        if v > 4:
+            v = 4
+        return v
 
     def _decide_single_agent(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
         import re, json

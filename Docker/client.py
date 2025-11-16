@@ -199,7 +199,7 @@ class FlowerClient(NumPyClient):
                     log(INFO,
                         f"Client {self.cid} has insufficient CPU ({self.n_cpu}). Will not participate in the next FL round.")
                     return parameters, 0, {}
-                if selection_criteria == "RAM" and self.ram < selection_value:
+                if selection_criteria == "RAM" and self.ram <= selection_value:
                     log(INFO,
                         f"Client {self.cid} has insufficient RAM ({self.ram}). Will not participate in the next FL round.")
                     return parameters, 0, {}
