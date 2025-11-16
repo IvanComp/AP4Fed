@@ -195,7 +195,7 @@ class FlowerClient(NumPyClient):
             selection_criteria = selector_params.get("selection_criteria", "CPU")
             selection_value = selector_params.get("selection_value", 3)
             if selection_strategy == "Resource-Based":
-                if selection_criteria == "CPU" and self.n_cpu < selection_value:
+                if selection_criteria == "CPU" and self.n_cpu <= selection_value:
                     log(INFO,
                         f"Client {self.cid} has insufficient CPU ({self.n_cpu}). Will not participate in the next FL round.")
                     return parameters, 0, {}
