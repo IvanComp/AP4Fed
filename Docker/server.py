@@ -827,12 +827,17 @@ class FedAvg(Strategy):
         metrics = []
         for client_params, num_examples, client_metrics in results:
             client_weights = parameters_to_ndarrays(client_params)
+            if num_examples == 0 or not client_weights:
+                continue
             weight = num_examples / total_examples
             if new_weights is None:
                 new_weights = [w * weight for w in client_weights]
             else:
                 new_weights = [nw + w * weight for nw, w in zip(new_weights, client_weights)]
             metrics.append((num_examples, client_metrics))
+
+        if new_weights is None:
+            return self.parameters_a
 
         weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_rounds)
         return ndarrays_to_parameters(new_weights)
