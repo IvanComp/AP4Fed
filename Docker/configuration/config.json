@@ -2,7 +2,7 @@
     "simulation_type": "Docker",
     "rounds": 10,
     "clients": 5,
-    "adaptation": "Multiple AI-Agents (Role-Based)",
+    "adaptation": "Multiple AI-Agents (Debate-Based)",
     "LLM": "deepseek-r1:8b",
     "patterns": {
         "client_registry": {
@@ -10,7 +10,7 @@
             "params": {}
         },
         "client_selector": {
-            "enabled": true,
+            "enabled": false,
             "params": {
                 "selection_strategy": "Resource-Based",
                 "selection_criteria": "CPU",
@@ -22,7 +22,7 @@
             "params": {}
         },
         "message_compressor": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         },
         "model_co-versioning_registry": {
@@ -34,7 +34,7 @@
             "params": {}
         },
         "heterogeneous_data_handler": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         }
     },
