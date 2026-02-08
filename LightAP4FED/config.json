@@ -1,0 +1,77 @@
+{
+    "simulation_type": "Local",
+    "rounds": 10,
+    "clients": 3,
+    "adaptation": "None",
+    "patterns": {
+        "client_registry": {
+            "enabled": true,
+            "params": {}
+        },
+        "client_selector": {
+            "enabled": true,
+            "params": {
+                "selection_criteria": "CPU",
+                "selection_value": "2"
+            }
+        },
+        "client_cluster": {
+            "enabled": false,
+            "params": {
+                "clustering_criteria": "CPU",
+                "selection_value": "2"
+            }
+        },
+        "message_compressor": {
+            "enabled": false,
+            "params": {}
+        },
+        "model_co-versioning_registry": {
+            "enabled": false,
+            "params": {}
+        },
+        "multi-task_model_trainer": {
+            "enabled": false,
+            "params": {}
+        },
+        "heterogeneous_data_handler": {
+            "enabled": false,
+            "params": {}
+        }
+    },
+    "client_details": [
+        {
+            "client_id": 1,
+            "cpu": 3,
+            "ram": 2,
+            "dataset": "MNIST",
+            "data_distribution_type": "IID",
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 2,
+            "cpu": 3,
+            "ram": 2,
+            "dataset": "MNIST",
+            "data_distribution_type": "Non-IID",
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 3,
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "MNIST",
+            "data_distribution_type": "IID",
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        }
+    ]
+}

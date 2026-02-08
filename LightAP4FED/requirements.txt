@@ -1,0 +1,16 @@
+flwr[simulation]
+torch
+torchvision
+numpy
+pandas
+matplotlib
+seaborn
+scikit-image
+pillow
+torchgan
+psutil
+rich
+scikit-learn
+ray
+torchtext
+portalocker
