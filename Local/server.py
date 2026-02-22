@@ -432,14 +432,27 @@ class FedAvg(Strategy):
             if pattern_info["enabled"]:
                 enabled_patterns.append((pattern_name, pattern_info))
 
-        if ADAPTATION == "ai-agents".lower():
-            log(INFO, ADAPTATION)
-            log(INFO, "AI-Agents Adaptation Enabled ✅")
-            self.adapt_mgr = AdaptationManager(True, config)
-            self.adapt_mgr.describe()
-        else:
+        if ADAPTATION == "none" or not ADAPTATION:
             log(INFO, "Adaptation Disabled ❌")
             self.adapt_mgr = AdaptationManager(False, config)
+        else:
+            pol_display = ADAPTATION.title()
+            if "voting" in ADAPTATION:
+                pol_display = "Voting-Based"
+            elif "role" in ADAPTATION:
+                pol_display = "Role-Based"
+            elif "debate" in ADAPTATION:
+                pol_display = "Debate-Based"
+            elif "expert" in ADAPTATION:
+                pol_display = "Expert-Driven"
+            elif "random" in ADAPTATION:
+                pol_display = "Random"
+            elif "single" in ADAPTATION or "ai-agents" in ADAPTATION:
+                pol_display = "AI-Agents"
+                
+            log(INFO, f"Adaptation Enabled ✅ - {pol_display}")
+            self.adapt_mgr = AdaptationManager(True, config)
+            self.adapt_mgr.describe()
 
         if not enabled_patterns:
             log(INFO, "No patterns are enabled.")

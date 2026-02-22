@@ -609,7 +609,7 @@ class SimulationPage(QWidget):
         self.XAI_button.clicked.connect(self.open_agents_viewer)
         adaptation_mode = self.config.get("adaptation", "None")
         mode_l = str(adaptation_mode).strip().lower()
-        if mode_l in ("none", "random"):
+        if mode_l in ("none", "random", "expert-driven"):
             self.XAI_button.setEnabled(False)
             self.XAI_button.setStyleSheet(
                 """
@@ -741,7 +741,7 @@ class SimulationPage(QWidget):
         else:
             work_dir = os.path.join(base_dir, "Local")
             cmd = "flower-simulation"
-            args = ["--server-app", "server:app", "--client-app", "client:app", "--num-supernodes", str(num_supernodes)]
+            args = ["--app", ".", "--num-supernodes", str(num_supernodes)]
 
             self.process = QProcess(self)
             self.process.setProcessChannelMode(QProcess.MergedChannels)

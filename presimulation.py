@@ -466,7 +466,7 @@ class PreSimulationPage(QWidget):
         font.setBold(True)
         label.setFont(font)
         self.sim_type_combo = QComboBox()
-        self.sim_type_combo.addItems(["Docker","Local"])
+        self.sim_type_combo.addItems(["Local","Docker"])
         self.sim_type_combo.setFixedWidth(90)
         g_layout.addRow(label, self.sim_type_combo)
 
@@ -475,7 +475,7 @@ class PreSimulationPage(QWidget):
         font.setBold(True)
         label.setFont(font)
         self.adaptation_combo = QComboBox()
-        self.adaptation_combo.addItems(["None","Random","Single AI-Agent (Zero-Shot)","Single AI-Agent (Few-Shot)","Multiple AI-Agents (Voting-Based)","Multiple AI-Agents (Role-Based)","Multiple AI-Agents (Debate-Based)"])
+        self.adaptation_combo.addItems(["None","Random","Expert-Driven","Single AI-Agent (Zero-Shot)","Single AI-Agent (Few-Shot)","Multiple AI-Agents (Voting-Based)","Multiple AI-Agents (Role-Based)","Multiple AI-Agents (Debate-Based)"])
         self.adaptation_combo.setFixedWidth(90)
         g_layout.addRow(label, self.adaptation_combo)
 

@@ -2,7 +2,7 @@
     "simulation_type": "Docker",
     "rounds": 2,
     "clients": 2,
-    "adaptation": "Single AI-Agent (Zero-Shot)",
+    "adaptation": "None",
     "LLM": "llama3.2:3b",
     "patterns": {
         "client_registry": {

@@ -91,6 +91,7 @@ def _sa_aggregate_round(df):
     col_cm    = _find([lambda s: ("comm" in s and "time" in s) or ("communication" in s)])
     col_tt    = _find([lambda s: ("total time of fl round" in s) or ("total" in s and "round" in s)])
     col_f1    = _find([lambda s: "val f1" in s or s == "f1"])
+    col_jsd   = _find([lambda s: "jsd" == str(s).strip().lower()])
 
     # Se la CSV ha più round, prendi l'ultimo; altrimenti usa tutto il df
     dfl = df
@@ -135,6 +136,7 @@ def _sa_aggregate_round(df):
 
     f1_last = _last_non_nan(dfl, col_f1)
     tt_last = _last_non_nan(dfl, col_tt)
+    jsd_last = _last_non_nan(dfl, col_jsd)
 
     # Statistiche aggregati per-client (round selezionato)
     def _agg(seq):
@@ -156,6 +158,7 @@ def _sa_aggregate_round(df):
         "mean_total_time": tt_last,          # GLOBAL Total Time of FL Round dell'ultimo round
         "mean_training_time": tr_agg["mean"],# media per-client del round
         "mean_comm_time": cm_agg["mean"],    # media per-client del round
+        "mean_jsd": jsd_last,                # GLOBAL JSD dell'ultimo round
         "training_time_stats": tr_agg,       # include count/min/max
         "comm_time_stats": cm_agg
     }
@@ -1465,8 +1468,63 @@ class AdaptationManager:
             return self._decide_role(base_config, current_round)
         if "debate" in pol:
             return self._decide_debate(base_config, current_round)
+        if "expert-driven" in pol:
+            return self._decide_expert_driven(base_config, current_round)
         fallback_logs = [f"[ROUND {current_round}] Policy '{self.policy}' not recognized or inactive (no changes)"]
         return copy.deepcopy(base_config), fallback_logs
+
+    def _decide_expert_driven(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
+        new_config = copy.deepcopy(base_config)
+        logs: List[str] = [f"[ROUND {current_round}] Expert-Driven policy executed"]
+        
+        last_r, last_f = _sa_latest_round_csv()
+        if not last_f:
+            logs.append("No metrics CSV found, retaining previous config.")
+            return new_config, logs
+        
+        import pandas as pd
+        try:
+            df = pd.read_csv(last_f)
+            agg = _sa_aggregate_round(df)
+        except Exception as e:
+            logs.append(f"Error reading metrics: {e}")
+            return new_config, logs
+        
+        f1_last = agg.get("mean_f1")
+        rt_last = agg.get("mean_total_time")
+        rt_comm = agg.get("mean_comm_time")
+        jsd_last = agg.get("mean_jsd")
+        
+        f1_last = float(f1_last) if f1_last is not None else 0.0
+        rt_last = float(rt_last) if rt_last is not None else 0.0
+        rt_comm = float(rt_comm) if rt_comm is not None else 0.0
+        jsd_last = float(jsd_last) if jsd_last is not None else 0.0
+
+        # Client Selector
+        if rt_last > 0 and (f1_last / rt_last) < 0.005:
+            new_config["patterns"]["client_selector"]["enabled"] = False
+            logs.append(f"Client Selector: OFF (f1_last={f1_last:.3f} / rt_last={rt_last:.3f} < 0.005)")
+        else:
+            new_config["patterns"]["client_selector"]["enabled"] = True
+            logs.append(f"Client Selector: ON (f1_last={f1_last:.3f} / rt_last={rt_last:.3f} >= 0.005)")
+
+        # Heterogeneous Data Handler
+        if jsd_last > 0.5:
+            new_config["patterns"]["heterogeneous_data_handler"]["enabled"] = True
+            logs.append(f"Heterogeneous Data Handler: ON (jsd={jsd_last:.3f} > 0.5)")
+        else:
+            new_config["patterns"]["heterogeneous_data_handler"]["enabled"] = False
+            logs.append(f"Heterogeneous Data Handler: OFF (jsd={jsd_last:.3f} <= 0.5)")
+
+        # Message Compressor
+        if rt_comm > 2.0:
+            new_config["patterns"]["message_compressor"]["enabled"] = True
+            logs.append(f"Message Compressor: ON (rt_comm={rt_comm:.3f} > 2.0)")
+        else:
+            new_config["patterns"]["message_compressor"]["enabled"] = False
+            logs.append(f"Message Compressor: OFF (rt_comm={rt_comm:.3f} <= 2.0)")
+
+        return new_config, logs
 
     def config_next_round(self, metrics_history: Dict, last_round_time: float):
         t_agents_start = time.perf_counter()

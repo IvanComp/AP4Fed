@@ -471,23 +471,29 @@ class FedAvg(Strategy):
 
         log(INFO, "==========================================")
 
-        ADAPTATION = config.get('adaptation', False).strip()
+        ADAPTATION = config.get('adaptation', "None").strip()
+        ADAPTATION_L = ADAPTATION.lower()
 
-        if ADAPTATION == "None":
+        if ADAPTATION_L in ["none", ""]:
             log(INFO, "Adaptation Disabled ❌")
             self.adapt_mgr = AdaptationManager(False, config)
         else:
-            if "Voting" in ADAPTATION:
-                ADAPTATION = "Voting-Based"
-            elif "Voting" in ADAPTATION:
-                ADAPTATION = "Voting-Based"
-            elif "Role" in ADAPTATION:
-                ADAPTATION = "Role-Based"
-            elif "Debate" in ADAPTATION:
-                ADAPTATION = "Debate-Based"
+            pol_display = ADAPTATION.title()
+            if "voting" in ADAPTATION_L:
+                pol_display = "Voting-Based"
+            elif "role" in ADAPTATION_L:
+                pol_display = "Role-Based"
+            elif "debate" in ADAPTATION_L:
+                pol_display = "Debate-Based"
+            elif "expert" in ADAPTATION_L:
+                pol_display = "Expert-Driven"
+            elif "random" in ADAPTATION_L:
+                pol_display = "Random"
+            elif "single" in ADAPTATION_L or "ai-agents" in ADAPTATION_L:
+                pol_display = "AI-Agents"
 
             self.adapt_mgr = AdaptationManager(True, config)
-            log(INFO, f"Adaptation Enabled ✅ - {ADAPTATION}")
+            log(INFO, f"Adaptation Enabled ✅ - {pol_display}")
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
         return None

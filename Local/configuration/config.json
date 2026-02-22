@@ -2,14 +2,15 @@
     "simulation_type": "Local",
     "rounds": 2,
     "clients": 2,
-    "adaptation": "None",
+    "adaptation": "Expert-Driven",
+    "LLM": "llama3.2:3b",
     "patterns": {
         "client_registry": {
             "enabled": true,
             "params": {}
         },
         "client_selector": {
-            "enabled": false,
+            "enabled": true,
             "params": {}
         },
         "client_cluster": {
@@ -17,7 +18,7 @@
             "params": {}
         },
         "message_compressor": {
-            "enabled": false,
+            "enabled": true,
             "params": {}
         },
         "model_co-versioning_registry": {
@@ -38,7 +39,7 @@
             "client_id": 1,
             "cpu": 5,
             "ram": 2,
-            "dataset": "FashionMNIST",
+            "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
             "data_persistence_type": "Same Data",
             "delay_combobox": "No",
@@ -49,7 +50,7 @@
             "client_id": 2,
             "cpu": 5,
             "ram": 2,
-            "dataset": "FashionMNIST",
+            "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
             "data_persistence_type": "Same Data",
             "delay_combobox": "No",
