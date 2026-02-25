@@ -77,6 +77,12 @@ def _sa_aggregate_round(df):
     tt_last = _last_non_nan(dfl, col_tt)
     jsd_last = _last_non_nan(dfl, col_jsd)
 
+    # --- DIAGNOSTIC LOG (temporary) ---
+    log(INFO, f"[JSD-DEBUG] col_jsd found='{col_jsd}', all cols={list(df.columns)}")
+    if col_jsd and col_jsd in dfl.columns:
+        log(INFO, f"[JSD-DEBUG] raw JSD values in last round: {dfl[col_jsd].tolist()}")
+    log(INFO, f"[JSD-DEBUG] jsd_last resolved to: {jsd_last}")
+
     def _agg(seq):
         if not seq: return {"count": 0, "mean": None, "min": None, "max": None}
         return {"count": len(seq), "mean": sum(seq) / len(seq), "min": min(seq), "max": max(seq)}
@@ -265,46 +271,72 @@ class AdaptationManager:
             if last_f:
                 try:
                     df = pd.read_csv(last_f)
-                    agg = _sa_aggregate_round(df)
                     
-                    f1_last = agg.get("mean_f1")
-                    rt_last = agg.get("mean_total_time")
-                    rt_comm = agg.get("mean_comm_time")
-                    jsd_last = agg.get("mean_jsd")
+                    # Trova la colonna dei round
+                    col_round = next((c for c in df.columns if "round" in str(c).lower().strip()), None)
                     
-                    f1_last = float(f1_last) if f1_last is not None else 0.0
-                    rt_last = float(rt_last) if rt_last is not None else 0.0
-                    rt_comm = float(rt_comm) if rt_comm is not None else 0.0
-                    jsd_last = float(jsd_last) if jsd_last is not None else 0.0
-
-                    if rt_last > 0 and (f1_last / rt_last) < 0.005:
-                        if "client_selector" in new_config.get("patterns", {}):
-                            new_config["patterns"]["client_selector"]["enabled"] = False
-                            log(INFO, f"Client Selector: OFF (f1_last={f1_last:.3f} / rt_last={rt_last:.3f} < 0.005)")
+                    if col_round and len(df) > 0:
+                        last_r_val = int(df[col_round].dropna().astype(int).max())
+                        df_r = df[df[col_round].astype(int) == last_r_val].copy()
+                        df_prev = df[df[col_round].astype(int) == (last_r_val - 1)].copy()
                     else:
-                        if "client_selector" in new_config.get("patterns", {}):
-                            new_config["patterns"]["client_selector"]["enabled"] = True
-                            log(INFO, f"Client Selector: ON (f1_last={f1_last:.3f} / rt_last={rt_last:.3f} >= 0.005)")
-
-                    if jsd_last > 0.5:
-                        if "heterogeneous_data_handler" in new_config.get("patterns", {}):
-                            new_config["patterns"]["heterogeneous_data_handler"]["enabled"] = True
-                            log(INFO, f"Heterogeneous Data Handler: ON (jsd={jsd_last:.3f} > 0.5)")
-                    else:
-                        if "heterogeneous_data_handler" in new_config.get("patterns", {}):
-                            new_config["patterns"]["heterogeneous_data_handler"]["enabled"] = False
-                            log(INFO, f"Heterogeneous Data Handler: OFF (jsd={jsd_last:.3f} <= 0.5)")
-
-                    if rt_comm > 2.0:
-                        if "message_compressor" in new_config.get("patterns", {}):
-                            new_config["patterns"]["message_compressor"]["enabled"] = True
-                            log(INFO, f"Message Compressor: ON (rt_comm={rt_comm:.3f} > 2.0)")
-                    else:
-                        if "message_compressor" in new_config.get("patterns", {}):
-                            new_config["patterns"]["message_compressor"]["enabled"] = False
-                            log(INFO, f"Message Compressor: OFF (rt_comm={rt_comm:.3f} <= 2.0)")
+                        df_r = df.copy()
+                        df_prev = pd.DataFrame() # Vuoto
+                        
+                    agg_r = _sa_aggregate_round(df_r)
+                    agg_prev = _sa_aggregate_round(df_prev) if not df_prev.empty else {}
+                    
                 except Exception as e:
                     log(INFO, f"Expert-Driven layer error -> {e}")
+                    return new_config
+                
+                # Helper per prendere i valori in sicurezza
+                def get_val(agg_dict, key, default=0.0):
+                    v = agg_dict.get(key)
+                    return float(v) if v is not None else default
+
+                f1_r = get_val(agg_r, "mean_f1")
+                time_r = get_val(agg_r, "mean_total_time", 1.0) # Evita div/0
+                jsd_r = get_val(agg_r, "mean_jsd")
+                comm_r = get_val(agg_r, "mean_comm_time")
+
+                f1_prev = get_val(agg_prev, "mean_f1")
+                time_prev = get_val(agg_prev, "mean_total_time", 1.0)
+                jsd_prev = get_val(agg_prev, "mean_jsd")
+                comm_prev = get_val(agg_prev, "mean_comm_time")
+
+                # Client Selector: (Accuracy_r / Time_r) < (Accuracy_prev / Time_prev)
+                rate_r = f1_r / time_r if time_r > 0 else 0
+                rate_prev = f1_prev / time_prev if time_prev > 0 else 0
+                
+                if rate_r < rate_prev:
+                    if "client_selector" in new_config.get("patterns", {}):
+                        new_config["patterns"]["client_selector"]["enabled"] = True
+                        log(INFO, f"Client Selector: ON (Rate {rate_r:.4f} < {rate_prev:.4f})")
+                else:
+                    if "client_selector" in new_config.get("patterns", {}):
+                        new_config["patterns"]["client_selector"]["enabled"] = False
+                        log(INFO, f"Client Selector: OFF (Rate {rate_r:.4f} >= {rate_prev:.4f})")
+
+                # Heterogeneous Data Handler: JSD_r < JSD_prev AND F1_r < F1_prev
+                if jsd_r < jsd_prev and f1_r < f1_prev:
+                    if "heterogeneous_data_handler" in new_config.get("patterns", {}):
+                        new_config["patterns"]["heterogeneous_data_handler"]["enabled"] = True
+                        log(INFO, f"Heterogeneous Data Handler: ON (JSD {jsd_r:.3f}<{jsd_prev:.3f} AND F1 {f1_r:.3f}<{f1_prev:.3f})")
+                else:
+                    if "heterogeneous_data_handler" in new_config.get("patterns", {}):
+                        new_config["patterns"]["heterogeneous_data_handler"]["enabled"] = False
+                        log(INFO, f"Heterogeneous Data Handler: OFF (Condition not met: JSD {jsd_r:.3f} vs {jsd_prev:.3f}, F1 {f1_r:.3f} vs {f1_prev:.3f})")
+
+                # Message Compressor: Comm_r > Comm_prev
+                if comm_r > comm_prev:
+                    if "message_compressor" in new_config.get("patterns", {}):
+                        new_config["patterns"]["message_compressor"]["enabled"] = True
+                        log(INFO, f"Message Compressor: ON (Comm {comm_r:.3f} > {comm_prev:.3f})")
+                else:
+                    if "message_compressor" in new_config.get("patterns", {}):
+                        new_config["patterns"]["message_compressor"]["enabled"] = False
+                        log(INFO, f"Message Compressor: OFF (Comm {comm_r:.3f} <= {comm_prev:.3f})")
 
         # 2) LIVELLO AGENTI (AI-Agents)
         #    Qui entra in gioco l'intelligenza multi-agente. Per ora è rule-based,

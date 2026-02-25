@@ -1,5 +1,7 @@
 Configuration,Model Accuracy (mean ± std),Total FL Time (mean ± std),Agent Overhead (mean ± std),n_runs
+never,0.74 ± 0.00*,1666 ± 124 s*,0 ± 0 s*,10
 random,0.74 ± 0.01,3796 ± 977 s,0 ± 0 s,10
+expert-driven,0.74 ± 0.01*,1720 ± 324 s*,0 ± 0 s*,9
 Single AI-Agents,,,,
 zero-shot llama,0.77 ± 0.01*,1422 ± 66 s*,7 ± 0 s*,10
 zero-shot deepseek,0.80 ± 0.00*,1870 ± 240 s*,19 ± 4 s*,10

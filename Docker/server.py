@@ -241,35 +241,48 @@ def preprocess_csv(agent_time=None):
     )
 
     df.sort_values(["FL Round", "Client Number"], inplace=True)
-    cols_round = ["Total Time of FL Round"] + list(
-        df.columns[df.columns.get_loc("Train Loss"):]
-    )
+    cols_round = [
+        c for c in
+        ["Total Time of FL Round"] + list(df.columns[df.columns.get_loc("Train Loss"):])
+        if c not in ("FL Round", "Client Number")  # never include the groupby key or helper col
+    ]
 
     def fix_round_values(subdf):
         subdf = subdf.copy()
         last = subdf["Client Number"].max()
         for col in cols_round:
+            if col not in subdf.columns:
+                continue  # column excluded by include_groups=False – skip safely
             vals = subdf[col].dropna()
             v = vals.iloc[-1] if not vals.empty else pd.NA
             subdf.loc[subdf["Client Number"] == last, col] = v
             subdf.loc[subdf["Client Number"] != last, col] = pd.NA
         return subdf
 
+    # Back up "FL Round" before apply – newer Pandas drops the groupby key from the result
+    fl_round_backup = df["FL Round"].copy()
     gb = df.groupby("FL Round", group_keys=False)
 
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message=r".*GroupBy\.apply.*", category=FutureWarning)
-        warnings.filterwarnings("ignore", message=r".*DataFrameGroupBy\.apply.*", category=FutureWarning)
-        try:
-            df = gb.apply(fix_round_values, include_groups=True)
-        except TypeError:
-            df = gb.apply(fix_round_values)
-            if "FL Round" not in df.columns:
-                if getattr(df.index, "name", None) == "FL Round":
-                    df = df.reset_index()
-                elif "FL Round" in getattr(df.index, "names", []):
-                    df = df.reset_index(level="FL Round")
-    
+    try:
+        # include_groups=False is the recommended form in Pandas >= 2.2
+        df = gb.apply(fix_round_values, include_groups=False)
+    except TypeError:
+        # Pandas < 2.2 doesn't have the include_groups parameter
+        df = gb.apply(fix_round_values)
+
+    # Restore "FL Round" if it was dropped from the result, preserving column order
+    if "FL Round" not in df.columns:
+        if isinstance(df.index, pd.MultiIndex) and "FL Round" in df.index.names:
+            df = df.reset_index(level="FL Round")
+        elif getattr(df.index, "name", None) == "FL Round":
+            df = df.reset_index()
+        else:
+            # Insert at position 1 (original location, after "Client ID") to keep column order
+            insert_pos = list(df.columns).index("Client ID") + 1 if "Client ID" in df.columns else 0
+            df.insert(insert_pos, "FL Round", fl_round_backup)
+
+
+
     if 'Agent Time (s)' not in df.columns:
         df['Agent Time (s)'] = 0.0
     else:

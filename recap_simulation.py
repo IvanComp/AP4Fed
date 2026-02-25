@@ -335,6 +335,14 @@ class RecapSimulationPage(QWidget):
         st=merged.get('simulation_type','local').lower()
         cfg_folder = os.path.join(base, 'Local' if st=='local' else 'Docker', 'configuration')
         os.makedirs(cfg_folder, exist_ok=True)
+        # Write the (possibly loaded) config to disk so Docker/Local server reads the correct values
+        try:
+            with open(os.path.join(cfg_folder, 'config.json'), 'w') as f:
+                json.dump(merged, f, indent=4)
+        except Exception as e:
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.critical(self, "Error", f"Could not write config.json:\n{e}")
+            return
         n=len(merged.get('client_details',[])) or 2
         self.simulation_page = SimulationPage(merged, n)
         self.simulation_page.show()

@@ -318,7 +318,7 @@ class FlowerClient(NumPyClient):
                 "data_distribution_type": self.data_distribution_type,
                 "dataset": self.dataset,
                 "compressed_parameters_b64": compressed_parameters_b64,
-                "jsd": get_jsd_A(self.trainloader) if HETEROGENEOUS_DATA_HANDLER else 0.0,
+                "jsd": get_jsd_A(self.trainloader),  # ALWAYS computed so expert-driven policy can read it
             }
             return [], len(self.trainloader.dataset), metrics
         else:
@@ -344,7 +344,7 @@ class FlowerClient(NumPyClient):
                 "model_type": self.model_type,
                 "data_distribution_type": self.data_distribution_type,
                 "dataset": self.dataset,
-                "jsd": get_jsd_A(self.trainloader) if HETEROGENEOUS_DATA_HANDLER else 0.0,
+                "jsd": get_jsd_A(self.trainloader),  # ALWAYS computed so expert-driven policy can read it
             }
             return new_parameters, len(self.trainloader.dataset), metrics
 
