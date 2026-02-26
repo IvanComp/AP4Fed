@@ -18,7 +18,7 @@
             "params": {}
         },
         "message_compressor": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         },
         "model_co-versioning_registry": {
@@ -62,7 +62,7 @@
             "cpu": 5,
             "ram": 2,
             "dataset": "FashionMNIST",
-            "data_distribution_type": "non-IID",
+            "data_distribution_type": "IID",
             "data_persistence_type": "New Data",
             "delay_combobox": "Yes",
             "model": "CNN 16k",

@@ -7,64 +7,64 @@ No metrics CSV found, retaining previous config.
 
 == ROUND 2 ==
 [ROUND 2] Expert-Driven policy executed
-Client Selector: OFF (Rate 0.0062 >= 0.0000)
-Heterogeneous Data Handler: OFF (Condition not met: JSD 0.170 vs 0.000, F1 0.636 vs 0.000)
-Message Compressor: ON (Comm 23.182 > 0.000)
+Client Selector: OFF (Rate 0.0056 >= 0.0000)
+Heterogeneous Data Handler: OFF (Condition not met: JSD 0.130 vs 0.000, F1 0.673 vs 0.000)
+Message Compressor: ON (Comm 32.744 > 0.000)
 [Expert-driven] PolicyTime: 0.01s
 
 
 == ROUND 3 ==
 [ROUND 3] Expert-Driven policy executed
-Client Selector: ON (Rate 0.0055 < 0.0062)
-Heterogeneous Data Handler: OFF (Condition not met: JSD 0.060 vs 0.170, F1 0.708 vs 0.636)
-Message Compressor: ON (Comm 33.660 > 23.182)
-[Expert-driven] PolicyTime: 0.01s
+Client Selector: ON (Rate 0.0054 < 0.0056)
+Heterogeneous Data Handler: OFF (Condition not met: JSD 0.130 vs 0.130, F1 0.660 vs 0.673)
+Message Compressor: ON (Comm 36.958 > 32.744)
+[Expert-driven] PolicyTime: 0.00s
 
 
 == ROUND 4 ==
 [ROUND 4] Expert-Driven policy executed
-Client Selector: ON (Rate 0.0047 < 0.0055)
-Heterogeneous Data Handler: OFF (Condition not met: JSD 0.150 vs 0.060, F1 0.699 vs 0.708)
-Message Compressor: ON (Comm 35.728 > 33.660)
+Client Selector: OFF (Rate 0.0057 >= 0.0054)
+Heterogeneous Data Handler: OFF (Condition not met: JSD 0.080 vs 0.130, F1 0.749 vs 0.660)
+Message Compressor: OFF (Comm 31.414 <= 36.958)
 [Expert-driven] PolicyTime: 0.01s
 
 
 == ROUND 5 ==
 [ROUND 5] Expert-Driven policy executed
-Client Selector: OFF (Rate 0.0100 >= 0.0047)
-Heterogeneous Data Handler: OFF (Condition not met: JSD 0.190 vs 0.150, F1 0.717 vs 0.699)
-Message Compressor: OFF (Comm 12.147 <= 35.728)
-[Expert-driven] PolicyTime: 0.01s
+Client Selector: OFF (Rate 0.0103 >= 0.0057)
+Heterogeneous Data Handler: ON (JSD 0.070<0.080 AND F1 0.741<0.749)
+Message Compressor: OFF (Comm 21.920 <= 31.414)
+[Expert-driven] PolicyTime: 0.00s
 
 
 == ROUND 6 ==
 [ROUND 6] Expert-Driven policy executed
-Client Selector: ON (Rate 0.0058 < 0.0100)
-Heterogeneous Data Handler: OFF (Condition not met: JSD 0.110 vs 0.190, F1 0.748 vs 0.717)
-Message Compressor: ON (Comm 37.223 > 12.147)
+Client Selector: ON (Rate 0.0052 < 0.0103)
+Heterogeneous Data Handler: OFF (Condition not met: JSD 0.100 vs 0.070, F1 0.764 vs 0.741)
+Message Compressor: ON (Comm 28.824 > 21.920)
 [Expert-driven] PolicyTime: 0.01s
 
 
 == ROUND 7 ==
 [ROUND 7] Expert-Driven policy executed
-Client Selector: ON (Rate 0.0038 < 0.0058)
-Heterogeneous Data Handler: OFF (Condition not met: JSD 0.160 vs 0.110, F1 0.765 vs 0.748)
-Message Compressor: ON (Comm 47.946 > 37.223)
+Client Selector: ON (Rate 0.0012 < 0.0052)
+Heterogeneous Data Handler: OFF (Condition not met: JSD 0.050 vs 0.100, F1 0.781 vs 0.764)
+Message Compressor: ON (Comm 35.408 > 28.824)
 [Expert-driven] PolicyTime: 0.01s
 
 
 == ROUND 8 ==
 [ROUND 8] Expert-Driven policy executed
-Client Selector: OFF (Rate 0.0072 >= 0.0038)
-Heterogeneous Data Handler: OFF (Condition not met: JSD 0.180 vs 0.160, F1 0.788 vs 0.765)
-Message Compressor: OFF (Comm 22.407 <= 47.946)
+Client Selector: OFF (Rate 0.0070 >= 0.0012)
+Heterogeneous Data Handler: OFF (Condition not met: JSD 0.020 vs 0.050, F1 0.812 vs 0.781)
+Message Compressor: OFF (Comm 26.903 <= 35.408)
 [Expert-driven] PolicyTime: 0.01s
 
 
 == ROUND 9 ==
 [ROUND 9] Expert-Driven policy executed
-Client Selector: ON (Rate 0.0047 < 0.0072)
-Heterogeneous Data Handler: ON (JSD 0.080<0.180 AND F1 0.788<0.788)
-Message Compressor: ON (Comm 39.440 > 22.407)
+Client Selector: ON (Rate 0.0066 < 0.0070)
+Heterogeneous Data Handler: ON (JSD 0.000<0.020 AND F1 0.789<0.812)
+Message Compressor: OFF (Comm 23.353 <= 26.903)
 [Expert-driven] PolicyTime: 0.01s
 
