@@ -10,6 +10,7 @@ import warnings
 import zlib
 import glob
 import numpy as np
+import matplotlib.pyplot as plt
 from torchvision import models
 from skimage import img_as_float
 from skimage.metrics import structural_similarity as ssim
@@ -35,10 +36,13 @@ from flwr.server.client_manager import ClientManager
 from flwr.server.client_proxy import ClientProxy
 from flwr.server.strategy import Strategy
 from flwr.common.logger import log
-from taskA import Net as NetA, get_weights as get_weights_A, set_weights as set_weights_A
-docker_client = docker.from_env()
+from taskA import Net as NetA, get_weights as get_weights_A, set_weights as set_weights_A, load_data as load_data_A, normalize_dataset_name
+client = docker.from_env()
 import torch
-from pytorch_grad_cam import GradCAM
+from pytorch_grad_cam import (
+    GradCAM, HiResCAM, ScoreCAM, GradCAMPlusPlus, 
+    AblationCAM, XGradCAM, EigenCAM, FullGrad
+)
 from pytorch_grad_cam.utils.image import show_cam_on_image, preprocess_image
 from adaptation import AdaptationManager
 
@@ -117,7 +121,9 @@ if os.path.exists(config_file):
 selector_params = config["patterns"]["client_selector"]["params"]
 selection_strategy = selector_params.get("selection_strategy")      
 selection_criteria = selector_params.get("selection_criteria")
+explainer_type = selector_params.get("explainer_type", "GradCAM")
 MODEL_NAME = GLOBAL_CLIENT_DETAILS[0]["model"]
+DATASET_NAME = normalize_dataset_name(config.get("dataset") or GLOBAL_CLIENT_DETAILS[0].get("dataset"))
 currentRnd = 0
 
 performance_dir = './performance/'
@@ -450,6 +456,7 @@ class FedAvg(Strategy):
         self.round_start_time: float | None = None
         self.parameters_a = initial_parameters_a
         self._send_ts = {}
+        self.excluded_cid = None
         banner = r"""
   ___  ______  ___ ______       _ 
  / _ \ | ___ \/   ||  ___|     | |
@@ -559,9 +566,10 @@ class FedAvg(Strategy):
         global previous_round_end_time, currentRnd
 
         if CLIENT_SELECTOR and selection_strategy == "SSIM-Based":
-                    with open("exclusion_log.txt", "r") as f:
-                        excluded_cid = f.read().strip()
-                        log(INFO, f"[Round {currentRnd}] Client {excluded_cid} excluded")
+            if self.excluded_cid:
+                log(INFO, f"[Round {currentRnd}] Client {self.excluded_cid} excluded from aggregation")
+            else:
+                log(INFO, f"[Round {currentRnd}] No clients excluded from previous round")
 
         agg_start = time.time()
         round_total_time = time.time() - self.round_start_time
@@ -612,8 +620,8 @@ class FedAvg(Strategy):
                 else:
                     metrics["server_comm_time"] = server_comm_time
 
-            if CLIENT_SELECTOR and selection_strategy == "SSIM-Based" and excluded_cid:
-                if str(client_id) == excluded_cid:
+            if CLIENT_SELECTOR and selection_strategy == "SSIM-Based" and self.excluded_cid:
+                if str(client_id) == str(self.excluded_cid):
                     log(INFO, f"[Round {currentRnd}] Skipping aggregation of client {client_id}")
                     continue
 
@@ -644,7 +652,7 @@ class FedAvg(Strategy):
         params_list = parameters_to_ndarrays(self.parameters_a)
         set_weights_A(aggregated_model, params_list)
 
-        if MODEL_COVERSIONING:
+        if MODEL_COVERSIONING or (CLIENT_SELECTOR and selection_strategy == "SSIM-Based"):
             server_folder = os.path.join("model_weights", "server")
             os.makedirs(server_folder, exist_ok=True)
             path = os.path.join(server_folder, f"MW_round{currentRnd}.pt")
@@ -684,21 +692,35 @@ class FedAvg(Strategy):
                 target_layers: list,
                 weights_filename: str,
                 image_filename: str,
+                explainer_type: str = "GradCAM",
             ):
-            
                 img = get_image(image_filename)
                 img = np.float32(img) / 255
                 img_tensor = preprocess_image(
                     img,
-                    mean = [0.485, 0.456, 0.406],
-                    std = [0.229, 0.224, 0.225],
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225],
                 ).to("cpu")
 
-                cam = GradCAM(model=model, target_layers=target_layers)
+                # Map string to class
+                cam_methods = {
+                    "GradCAM": GradCAM,
+                    "HiResCAM": HiResCAM,
+                    "ScoreCAM": ScoreCAM,
+                    "GradCAMPlusPlus": GradCAMPlusPlus,
+                    "AblationCAM": AblationCAM,
+                    "XGradCAM": XGradCAM,
+                    "EigenCAM": EigenCAM,
+                    "FullGrad": FullGrad
+                }
+                cam_class = cam_methods.get(explainer_type, GradCAM)
+                
+                cam = cam_class(model=model, target_layers=target_layers)
                 grayscale_cam = cam(input_tensor=img_tensor, targets=None)
                 grayscale_cam = grayscale_cam[0, :]
-                #img_explanation = show_cam_on_image(img, grayscale_cam, use_rgb=True)
-                #plt.imsave(define_save_filename(weights_filename, "gradcam", image_filename), img_explanation)
+                
+                # Save raw grayscale CAM
+                plt.imsave(define_save_filename(weights_filename, explainer_type.lower(), image_filename), grayscale_cam, cmap='gray')
                 return
 
 
@@ -706,20 +728,86 @@ class FedAvg(Strategy):
                 round: int = 1,
                 model_weights_folder = "models/0-NoPatterns/shufflenet_v2_x0_5/model_weights/",
                 model_name: str = "shufflenet_v2_x0_5",
+                explainer_type: str = "GradCAM",
             ):
-                if model_name == "squeezenet1_1":
+                # Initialize model and target layers based on model_name
+                name_clean = model_name.lower().replace("-", "_").replace(" ", "_")
+                if name_clean == "squeezenet1_1":
                     model = models.squeezenet1_1(weights=None, num_classes=10)
                     target_layers = [model.features[12].expand3x3]
-                elif model_name == "shufflenet_v2_x0_5":
+                elif name_clean == "shufflenet_v2_x0_5":
                     model = models.shufflenet_v2_x0_5(weights=None, num_classes=10)
                     target_layers = [model.conv5[0]]
+                elif "cnn" in name_clean:
+                    model = NetA()
+                    if hasattr(model, "conv2"):
+                        target_layers = [model.conv2]
+                    elif hasattr(model, "features"):
+                        # In some versions it's a Sequential, conv2 is typically the second Conv2d
+                        convs = [m for m in model.features if isinstance(m, torch.nn.Conv2d)]
+                        if len(convs) >= 2:
+                            target_layers = [convs[1]]
+                        elif len(convs) == 1:
+                            target_layers = [convs[0]]
+                        else:
+                            log(INFO, f"No conv layers found in model.features for {model_name}")
+                            return [], []
+                    else:
+                        log(INFO, f"Could not determine target layers for CNN model {model_name}")
+                        return [], []
+                else:
+                    log(INFO, f"Model {model_name} not supported for SSIM selection.")
+                    return [], []
 
-                images = glob.glob("data/imagenet100-preprocessed/test/**/*.JPEG", recursive=True)
+                # Dynamic Reference Set Extraction
+                ref_dir = "ssim_reference_images"
+                if not os.path.exists(ref_dir):
+                    os.makedirs(ref_dir)
+                
+                images = glob.glob(f"{ref_dir}/*.jpg")
+                if not images:
+                    log(INFO, f"Extracting reference images for dataset: {DATASET_NAME}")
+                    # Use a dummy config to load data
+                    dummy_cfg = GLOBAL_CLIENT_DETAILS[0].copy()
+                    _, testloader = load_data_A(dummy_cfg, 1)
+                    
+                    count = 0
+                    for batch_imgs, _ in testloader:
+                        for i in range(min(len(batch_imgs), 5 - count)):
+                            img_tensor = batch_imgs[i]
+                            # Denormalize and save as JPEG
+                            ndarr = img_tensor.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
+                            if ndarr.shape[2] == 1: # Grayscale to RGB for consistency
+                                ndarr = np.concatenate([ndarr]*3, axis=2)
+                            im = Image.fromarray(ndarr)
+                            im.save(f"{ref_dir}/ref_{count}.jpg")
+                            count += 1
+                        if count >= 5:
+                            break
+                    images = glob.glob(f"{ref_dir}/*.jpg")
+
+                if not images:
+                    log(INFO, f"No reference images could be extracted for {DATASET_NAME}. Skipping selection.")
+                    return [], []
+
                 server_pt = f"{model_weights_folder}/server/MW_round{round}.pt"
-                client_dirs = sorted(glob.glob(os.path.join(model_weights_folder, "clients", "*")), key=lambda d: int(os.path.basename(d)))
+                if not os.path.exists(server_pt):
+                    log(INFO, f"Server weights not found for round {round}: {server_pt}. Skipping selection.")
+                    return [], []
+
+                client_dirs_info = []
+                for client_dir in glob.glob(os.path.join(model_weights_folder, "clients", "*")):
+                    base_name = os.path.basename(client_dir)
+                    match = re.search(r"(\d+)$", base_name)
+                    if not match:
+                        log(INFO, f"Skipping non-client folder in model_weights: {base_name}")
+                        continue
+                    client_dirs_info.append((int(match.group(1)), client_dir))
+                client_dirs_info.sort(key=lambda item: item[0])
+
                 clients_pt = []
                 client_ids = []
-                for client_dir in client_dirs:
+                for parsed_cid, client_dir in client_dirs_info:
                     all_models = glob.glob(os.path.join(client_dir, "MW_round*.pt"))
                     valid = []
                     for p in all_models:
@@ -729,90 +817,146 @@ class FedAvg(Strategy):
                     if valid:
                         latest_path = max(valid, key=lambda x: x[0])[1]
                         clients_pt.append(latest_path)
-                        client_ids.append(int(os.path.basename(client_dir)))
+                        client_ids.append(parsed_cid)
                     else:
-                        log(INFO, f"Nessun modello per client {os.path.basename(client_dir)} fino al round {round}.")
+                        log(INFO, f"Nessun modello per client {parsed_cid} fino al round {round}.")
 
-                if not os.path.exists(f"{os.path.dirname(server_pt)}/gradcam_images"):
-                    os.makedirs(f"{os.path.dirname(server_pt)}/gradcam_images")
+                methods_to_run = ["GradCAM", "HiResCAM", "ScoreCAM", "GradCAMPlusPlus", "AblationCAM", "XGradCAM", "EigenCAM", "FullGrad"] if explainer_type == "All" else [explainer_type]
+                
+                for _, client_dir in client_dirs_info: # Iterate through client directories to create gradcam_images folders
+                    for m in methods_to_run:
+                        m_lower = m.lower()
+                        if not os.path.exists(f"{client_dir}/{m_lower}_images"):
+                            os.makedirs(f"{client_dir}/{m_lower}_images")
 
-                for client_pt in clients_pt:
-                    if not os.path.exists(f"{os.path.dirname(client_pt)}/gradcam_images"):
-                        os.makedirs(f"{os.path.dirname(client_pt)}/gradcam_images")
+                # Also for server
+                for m in methods_to_run:
+                    m_lower = m.lower()
+                    if not os.path.exists(f"{os.path.dirname(server_pt)}/{m_lower}_images"):
+                        os.makedirs(f"{os.path.dirname(server_pt)}/{m_lower}_images")
+                
+                all_results = {} # {method: [avg_ssim_client1, avg_ssim_client2, ...]}
 
-                if model_name == "squeezenet1_1":
-                    model = load_squeezenet_weights(model, server_pt)
-                elif model_name == "shufflenet_v2_x0_5":
-                    model = load_shufflenet_weights(model, server_pt)
+                for method in methods_to_run:
+                    # Load server model weights
+                    name_clean = model_name.lower().replace("-", "_").replace(" ", "_")
+                    if name_clean == "squeezenet1_1":
+                        model = load_squeezenet_weights(model, server_pt)
+                    elif name_clean == "shufflenet_v2_x0_5":
+                        model = load_shufflenet_weights(model, server_pt)
+                    else:
+                        model.load_state_dict(torch.load(server_pt, weights_only=True))
 
-                for image in images:
-                    run_cam(
-                        model=model,
-                        target_layers=target_layers,
-                        weights_filename=server_pt,
-                        image_filename=image,
-                    )
-
-                for client_pt in clients_pt:
-                    if model_name == "squeezenet1_1":
-                        model = load_squeezenet_weights(model, client_pt)
-                    elif model_name == "shufflenet_v2_x0_5":
-                        model = load_shufflenet_weights(model, client_pt)
-
+                    # Run CAM for server model
                     for image in images:
                         run_cam(
                             model=model,
                             target_layers=target_layers,
-                            weights_filename=client_pt,
+                            weights_filename=server_pt,
                             image_filename=image,
+                            explainer_type=method,
                         )
-                ssim_values = []
 
-                for client_pt in clients_pt:
-                    client_ssim = []
-                    for image in images:
-                        server_image = get_image(define_save_filename(server_pt, "gradcam", image))
-                        client_image = get_image(define_save_filename(client_pt, "gradcam", image))
-                        server_image = img_as_float(server_image)
-                        client_image = img_as_float(client_image)
+                    method_ssims = []
+                    for client_pt in clients_pt:
+                        # Load client model weights
+                        if name_clean == "squeezenet1_1":
+                            model = load_squeezenet_weights(model, client_pt)
+                        elif name_clean == "shufflenet_v2_x0_5":
+                            model = load_shufflenet_weights(model, client_pt)
+                        else:
+                            model.load_state_dict(torch.load(client_pt, weights_only=True))
 
-                        ssim_value = ssim(server_image, client_image, data_range=server_image.max() - server_image.min(), channel_axis=2)
-                        client_ssim.append(ssim_value)
+                        # Run CAM for client model
+                        for image in images:
+                            run_cam(
+                                model=model,
+                                target_layers=target_layers,
+                                weights_filename=client_pt,
+                                image_filename=image,
+                                explainer_type=method,
+                            )
+                        
+                        client_ssim_vals = []
+                        for image in images:
+                            server_image = img_as_float(get_image(define_save_filename(server_pt, method.lower(), image)))
+                            client_image = img_as_float(get_image(define_save_filename(client_pt, method.lower(), image)))
+                            if server_image.shape != client_image.shape:
+                                log(INFO, f"Skipping SSIM for {image}: shape mismatch {server_image.shape} vs {client_image.shape}")
+                                continue
 
-                    client_ssim = np.array(client_ssim)
-                    ssim_values.append(client_ssim.mean())
+                            min_side = min(server_image.shape[0], server_image.shape[1])
+                            if min_side < 3:
+                                log(INFO, f"Skipping SSIM for {image}: image too small ({server_image.shape})")
+                                continue
 
-                return client_ids, ssim_values
+                            win_size = min(7, min_side)
+                            if win_size % 2 == 0:
+                                win_size -= 1
+                            if win_size < 3:
+                                log(INFO, f"Skipping SSIM for {image}: invalid win_size={win_size}")
+                                continue
 
-            client_ids, ssim_values = compute_ssims(currentRnd, "model_weights", MODEL_NAME)
+                            data_range = max(np.ptp(server_image), np.ptp(client_image))
+                            if data_range <= 0:
+                                data_range = 1.0
 
-            values_str = ", ".join(f"Client {cid}: {val:.4f}"for cid, val in zip(client_ids, ssim_values))
+                            channel_axis = -1 if server_image.ndim == 3 else None
+                            ssim_val = ssim(
+                                server_image,
+                                client_image,
+                                data_range=data_range,
+                                win_size=win_size,
+                                channel_axis=channel_axis,
+                            )
+                            client_ssim_vals.append(ssim_val)
+                        if client_ssim_vals:
+                            method_ssims.append(float(np.mean(client_ssim_vals)))
+                        else:
+                            log(INFO, f"No valid SSIM pairs for client model {client_pt}, setting SSIM to 0.0")
+                            method_ssims.append(0.0)
+                    
+                    all_results[method] = method_ssims
 
-            if selection_criteria.lower() == "mid":
-                sorted_indices_and_values = sorted(enumerate(ssim_values), key=lambda x: x[1])
-                n_clients = len(ssim_values)
-                if n_clients % 2 == 1:
-                    median_idx = n_clients // 2
-                    exclude_idx = sorted_indices_and_values[median_idx][0]
-                else:
-                    median_idx_low = (n_clients // 2) - 1
-                    exclude_idx = sorted_indices_and_values[median_idx_low][0]
+                if explainer_type == "All":
+                    for i, cid in enumerate(client_ids):
+                        metrics_str = ", ".join([f"{m}: {all_results[m][i]:.4f}" for m in methods_to_run])
+                        log(INFO, f"[Round {round}] Client {cid} SSIM Metrics -> {metrics_str}")
+                
+                # Always return GradCAM results for selection if "All" is selected, otherwise the specific method
+                return client_ids, all_results.get("GradCAM" if explainer_type == "All" else explainer_type)
+
+            client_ids, ssim_values = compute_ssims(currentRnd, "model_weights", MODEL_NAME, explainer_type)
+
+            if not ssim_values:
+                log(INFO, "No SSIM values calculated. Skipping client exclusion.")
             else:
-                if selection_criteria.lower().startswith("max"):
-                    exclude_idx = int(np.argmax(ssim_values))
+                values_str = ", ".join(f"Client {cid}: {val:.4f}"for cid, val in zip(client_ids, ssim_values))
+
+                if selection_criteria.lower() == "mid":
+                    sorted_indices_and_values = sorted(enumerate(ssim_values), key=lambda x: x[1])
+                    n_clients = len(ssim_values)
+                    if n_clients % 2 == 1:
+                        median_idx = n_clients // 2
+                        exclude_idx = sorted_indices_and_values[median_idx][0]
+                    else:
+                        median_idx_low = (n_clients // 2) - 1
+                        exclude_idx = sorted_indices_and_values[median_idx_low][0]
                 else:
-                    exclude_idx = int(np.argmin(ssim_values))
+                    if selection_criteria.lower().startswith("max"):
+                        exclude_idx = int(np.argmax(ssim_values))
+                    else:
+                        exclude_idx = int(np.argmin(ssim_values))
 
-            excluded_val = ssim_values[exclude_idx]
-            excludingCID = exclude_idx + 1
-            with open("exclusion_log.txt", "w") as f:
-                f.write(f"{excludingCID}")
+                excluded_val = ssim_values[exclude_idx]
+                excludingCID = client_ids[exclude_idx]
+                self.excluded_cid = excludingCID
 
-            log(
-                INFO,
-                f"\nRound {currentRnd} – {values_str}. "
-                f"\nExcluding Client {exclude_idx+1} with SSIM={excluded_val:.4f}"
-            )
+                log(
+                    INFO,
+                    f"\nRound {currentRnd} – {values_str}. "
+                    f"\nExcluding Client {excludingCID} with SSIM={excluded_val:.4f}"
+                )
 
         model_under_training = GLOBAL_CLIENT_DETAILS[0]["model"]
         if model_under_training not in metrics_history:

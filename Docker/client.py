@@ -189,6 +189,8 @@ class FlowerClient(NumPyClient):
            self.trainloader, self.testloader = load_data_A(self.client_config, GLOBAL_ROUND_COUNTER)
            self.cached_round_loaded = GLOBAL_ROUND_COUNTER
 
+        selection_strategy = ""
+
         if CLIENT_SELECTOR:
             selector_params = configJSON["patterns"]["client_selector"]["params"]
             selection_strategy = selector_params.get("selection_strategy", "Resource-Based")
@@ -258,8 +260,12 @@ class FlowerClient(NumPyClient):
         round_number = GLOBAL_ROUND_COUNTER
         GLOBAL_ROUND_COUNTER += 1
 
-        if MODEL_COVERSIONING:
-            client_folder = os.path.join("model_weights", "clients", str(self.cid))
+        should_save_local_weights = MODEL_COVERSIONING or (
+            CLIENT_SELECTOR and selection_strategy == "SSIM-Based"
+        )
+        if should_save_local_weights:
+            client_id_for_path = str(self.client_config.get("client_id", self.cid))
+            client_folder = os.path.join("model_weights", "clients", client_id_for_path)
             os.makedirs(client_folder, exist_ok=True)
             client_file_path = os.path.join(client_folder, f"MW_round{round_number}.pt")
             torch.save(self.net.state_dict(), client_file_path)

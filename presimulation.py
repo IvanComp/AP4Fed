@@ -54,12 +54,26 @@ class ClientSelectorDialog(QDialog):
         self.explanation_label.setStyleSheet("font-size: 12px; color: gray;")
         layout.addWidget(self.explanation_label)
 
+        # Explainer Type (for SSIM-based)
+        self.explainer_label = QLabel("Explainer Type:")
+        self.explainer_combo = QComboBox()
+        self.explainer_combo.addItems([
+            "GradCAM", "HiResCAM", "ScoreCAM", "GradCAMPlusPlus", 
+            "AblationCAM", "XGradCAM", "EigenCAM", "FullGrad", "All"
+        ])
+        layout.addWidget(self.explainer_label)
+        layout.addWidget(self.explainer_combo)
+        self.explainer_label.hide()
+        self.explainer_combo.hide()
+
         if "selection_strategy" in self.existing_params:
             self.strategy_combo.setCurrentText(self.existing_params["selection_strategy"])
         self.update_criteria_options()
 
         if "selection_criteria" in self.existing_params:
             self.criteria_combo.setCurrentText(self.existing_params["selection_criteria"])
+        if "explainer_type" in self.existing_params:
+            self.explainer_combo.setCurrentText(self.existing_params["explainer_type"])
         if "selection_value" in self.existing_params:
             self.value_spinbox.setValue(self.existing_params["selection_value"])
 
@@ -76,6 +90,15 @@ class ClientSelectorDialog(QDialog):
                 self.value_label.hide()
                 self.value_spinbox.hide()
                 self.explanation_label.hide()
+                self.explainer_label.show()
+                self.explainer_combo.show()
+        else:
+                self.explainer_label.hide()
+                self.explainer_combo.hide()
+                self.value_label.show()
+                self.value_spinbox.show()
+                self.explanation_label.show()
+
         if strategy == "Resource-Based":
             self.criteria_combo.addItems(["CPU", "RAM"])
         elif strategy == "Data-Based":
@@ -88,11 +111,14 @@ class ClientSelectorDialog(QDialog):
         self.home_page_callback()
 
     def get_params(self):
-        return {
+        params = {
             "selection_strategy": self.strategy_combo.currentText(),
             "selection_criteria": self.criteria_combo.currentText(),
             "selection_value": self.value_spinbox.value()
         }
+        if self.strategy_combo.currentText() == "SSIM-Based":
+            params["explainer_type"] = self.explainer_combo.currentText()
+        return params
 
 # ------------------------------------------------------------------------------------------
 # Dialog window for the "Client Cluster" parameters
