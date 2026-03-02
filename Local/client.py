@@ -171,6 +171,15 @@ class FlowerClient(NumPyClient):
 
         self.net = NetA().to(DEVICE)
         self.DEVICE = DEVICE
+        if self.DEVICE.type == "cuda":
+            gpu_idx = torch.cuda.current_device()
+            gpu_name = torch.cuda.get_device_name(gpu_idx)
+            log(
+                INFO,
+                f"Client {self.cid} compute unit: CUDA (device={gpu_idx}, name={gpu_name}, pid={os.getpid()})",
+            )
+        else:
+            log(INFO, f"Client {self.cid} compute unit: CPU (pid={os.getpid()})")
 
     def fit(self, parameters, config):
         global GLOBAL_ROUND_COUNTER
@@ -364,7 +373,6 @@ class FlowerClient(NumPyClient):
 
 def client_fn(context: Context):
     config = get_next_config()
-    cid_str = str(config["client_id"])
-    return FlowerClient(client_config=config, model_type=config.get("model"))
+    return FlowerClient(client_config=config, model_type=config.get("model")).to_client()
 
 app = ClientApp(client_fn=client_fn)

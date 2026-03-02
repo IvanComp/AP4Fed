@@ -82,6 +82,33 @@ def load_adaptation(simulation_type):
     except Exception:
         return "None"
 
+
+def detect_cuda_gpu_count():
+    """Return the number of CUDA GPUs available on this host."""
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "-L"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout:
+            lines = [ln for ln in result.stdout.splitlines() if ln.strip().startswith("GPU ")]
+            if lines:
+                return len(lines)
+    except Exception:
+        pass
+
+    try:
+        import torch  # type: ignore
+
+        if torch.cuda.is_available():
+            return int(torch.cuda.device_count())
+    except Exception:
+        pass
+
+    return 0
+
 def agent_log_path():
     base = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base, "Docker", "logs", "ai_agent_decisions.txt")
@@ -741,7 +768,32 @@ class SimulationPage(QWidget):
         else:
             work_dir = os.path.join(base_dir, "Local")
             cmd = "flower-simulation"
-            args = ["--app", ".", "--num-supernodes", str(num_supernodes)]
+            effective_supernodes = int(num_supernodes)
+            args = ["--app", ".", "--num-supernodes", str(effective_supernodes)]
+
+            gpu_count = detect_cuda_gpu_count()
+            if gpu_count > 0:
+                if effective_supernodes > gpu_count:
+                    effective_supernodes = gpu_count
+                    args[3] = str(effective_supernodes)
+                    self.output_area.appendPlainText(
+                        f"CUDA detected: {gpu_count} GPU(s). "
+                        f"Reducing supernodes to {effective_supernodes} to avoid GPU contention."
+                    )
+                else:
+                    self.output_area.appendPlainText(
+                        f"CUDA detected: {gpu_count} GPU(s). Enabling GPU backend."
+                    )
+
+                backend_cfg = {
+                    "init_args": {"num_gpus": float(gpu_count)},
+                    "client_resources": {"num_cpus": 1.0, "num_gpus": 1.0},
+                }
+                args.extend(["--backend-config", json.dumps(backend_cfg, separators=(",", ":"))])
+            else:
+                self.output_area.appendPlainText(
+                    "No CUDA GPU detected. Running Local simulation on CPU."
+                )
 
             self.process = QProcess(self)
             self.process.setProcessChannelMode(QProcess.MergedChannels)

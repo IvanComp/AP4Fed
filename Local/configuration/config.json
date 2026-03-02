@@ -15,7 +15,7 @@
                 "selection_strategy": "SSIM-Based",
                 "selection_criteria": "Min",
                 "selection_value": 4,
-                "explainer_type": "All"
+                "explainer_type": "GradCAM"
             }
         },
         "client_cluster": {

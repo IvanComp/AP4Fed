@@ -3,6 +3,7 @@ from typing import List, Tuple, Dict, Optional
 import os
 import re
 import glob
+import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 from skimage import img_as_float
@@ -52,6 +53,13 @@ import zlib
 import pickle
 import torch
 from adaptation import AdaptationManager
+
+# Silence progress bars printed by pytorch-grad-cam internals (ScoreCAM/AblationCAM).
+_orig_tqdm = tqdm.tqdm
+def _silent_tqdm(*args, **kwargs):
+    kwargs.setdefault("disable", True)
+    return _orig_tqdm(*args, **kwargs)
+tqdm.tqdm = _silent_tqdm
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 folders_to_delete = ["performance", "model_weights"]
@@ -135,6 +143,7 @@ explainer_type = selector_params.get("explainer_type", "GradCAM")
 MODEL_NAME = GLOBAL_CLIENT_DETAILS[0]["model"]
 DATASET_NAME = normalize_dataset_name(config.get("dataset") or GLOBAL_CLIENT_DETAILS[0].get("dataset"))
 currentRnd = 0
+ssim_overhead_by_round = {}
 
 performance_dir = './performance/'
 if not os.path.exists(performance_dir):
@@ -153,6 +162,7 @@ with open(csv_file, 'w', newline='') as file:
         'Model Type', 'Data Distr. Type', 'Dataset',
         'Train Loss', 'Train Accuracy', 'Train F1', 'Train MAE',
         'Val Loss', 'Val Accuracy', 'Val F1', 'Val MAE',
+        'SSIM Overhead (indice)',
         'AP List (client_selector,client_cluster,message_compressor,model_co-versioning_registry,multi-task_model_trainer,heterogeneous_data_handler)'
     ])
 
@@ -161,7 +171,7 @@ def log_round_time(
         training_time, jsd, hdh_ms, communication_time, time_between_rounds,
         n_cpu, cpu_percent, ram_percent,
         client_model_type, data_distr, dataset_value,
-        already_logged, srt1, srt2, agg_key
+        already_logged, srt1, srt2, agg_key, ssim_overhead=None
 ):
 
     if agg_key not in global_metrics:
@@ -182,6 +192,7 @@ def log_round_time(
 
     if already_logged:
         srt2 = None
+        ssim_overhead = None
 
     with open(csv_file, 'a', newline='') as file:
         writer = csv.writer(file)
@@ -219,6 +230,7 @@ def log_round_time(
             f"{val_accuracy:.4f}" if val_accuracy is not None else "",
             f"{val_f1:.4f}" if val_f1 is not None else "",
             f"{val_mae:.4f}" if val_mae is not None else "",
+            f"{ssim_overhead:.2f}" if ssim_overhead is not None else "",
             ap_list
         ])
 
@@ -246,6 +258,11 @@ def preprocess_csv():
         .transform(lambda x: [None] * (len(x) - 1) + [x.iloc[-1]])
     )
 
+    if "SSIM Overhead (indice)" not in df.columns:
+        df["SSIM Overhead (indice)"] = pd.NA
+    else:
+        df["SSIM Overhead (indice)"] = pd.to_numeric(df["SSIM Overhead (indice)"], errors="coerce")
+
     df.sort_values(["FL Round", "Client Number"], inplace=True)
     cols_round = ["Total Time of FL Round"] + list(
         df.columns[df.columns.get_loc("Train Loss"):]
@@ -262,10 +279,17 @@ def preprocess_csv():
         return subdf
 
     df = df.groupby("FL Round", group_keys=False).apply(fix_round_values)
+
+    for fl_round, overhead in ssim_overhead_by_round.items():
+        mask = df["FL Round"] == fl_round
+        idx = df[mask].tail(1).index
+        if len(idx) > 0:
+            df.loc[idx, "SSIM Overhead (indice)"] = round(float(overhead), 2)
+
     df.drop(columns=["Client Number"], inplace=True)
     df.to_csv(csv_file, index=False)
 
-def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_rounds):
+def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_rounds, ssim_overhead=None):
     if agg_model_type not in global_metrics:
         global_metrics[agg_model_type] = {
             "train_loss": [],
@@ -353,7 +377,8 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
                 data_distr,
                 dataset_value,
                 srt1,
-                srt2
+                srt2,
+                ssim_overhead
             ))
 
     num_clients = len(client_data_list)
@@ -372,7 +397,8 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
             data_distr,
             dataset_value,
             srt1,
-            srt2
+            srt2,
+            ssim_overhead
         ) = client_data
         already_logged = (idx != num_clients - 1)
         log_round_time(
@@ -392,7 +418,8 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
             already_logged,
             srt1,
             srt2,
-            agg_model_type
+            agg_model_type,
+            ssim_overhead
         )
 
     return {
@@ -637,9 +664,9 @@ class FedAvg(Strategy):
                 model.load_state_dict(state_dict)
                 return model
 
-            def define_save_filename(weights_filename, method, image_filename):
+            def define_save_filename(weights_filename, method, image_key):
                 directory = os.path.dirname(weights_filename)
-                image = os.path.splitext(os.path.basename(image_filename))[0]
+                image = str(image_key)
                 round = os.path.splitext(os.path.basename(weights_filename))[0]
                 return f"{directory}/{method}_images/{method}_{image}_{round}.jpg"
 
@@ -648,11 +675,11 @@ class FedAvg(Strategy):
                 model: torch.nn.Module,
                 target_layers: list,
                 weights_filename: str,
-                image_filename: str,
+                image_array: np.ndarray,
+                image_key: str,
                 explainer_type: str = "GradCAM",
             ):
-                img = get_image(image_filename)
-                img = np.float32(img) / 255
+                img = np.float32(image_array) / 255.0
                 img_tensor = preprocess_image(
                     img,
                     mean=[0.485, 0.456, 0.406],
@@ -677,7 +704,7 @@ class FedAvg(Strategy):
                 grayscale_cam = grayscale_cam[0, :]
                 
                 # Save raw grayscale CAM
-                plt.imsave(define_save_filename(weights_filename, explainer_type.lower(), image_filename), grayscale_cam, cmap='gray')
+                plt.imsave(define_save_filename(weights_filename, explainer_type.lower(), image_key), grayscale_cam, cmap='gray')
                 return
 
 
@@ -716,37 +743,25 @@ class FedAvg(Strategy):
                     log(INFO, f"Model {model_name} not supported for SSIM selection.")
                     return [], []
 
-                # Dynamic Reference Set Extraction
-                ref_dir = "ssim_reference_images"
-                if not os.path.exists(ref_dir):
-                    os.makedirs(ref_dir)
-                
-                images = glob.glob(f"{ref_dir}/*.jpg")
-                if not images:
-                    log(INFO, f"Extracting reference images for dataset: {DATASET_NAME}")
-                    # Use a dummy config to load data
-                    dummy_cfg = GLOBAL_CLIENT_DETAILS[0].copy()
-                    _, testloader = load_data_A(dummy_cfg, 1)
-                    
-                    count = 0
-                    for batch_imgs, _ in testloader:
-                        for i in range(min(len(batch_imgs), 5 - count)):
-                            img_tensor = batch_imgs[i]
-                            # Denormalize if needed, though for SSIM on CAM it matters less as long as it's consistent
-                            # But saving as valid JPEG is better
-                            ndarr = img_tensor.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
-                            if ndarr.shape[2] == 1: # Grayscale to RGB for consistency
-                                ndarr = np.concatenate([ndarr]*3, axis=2)
-                            im = Image.fromarray(ndarr)
-                            im.save(f"{ref_dir}/ref_{count}.jpg")
-                            count += 1
-                        if count >= 5:
-                            break
-                    images = glob.glob(f"{ref_dir}/*.jpg")
+                # Extract a fresh reference set in-memory at every round (no on-disk cache).
+                log(INFO, f"Extracting fresh in-memory reference images for dataset: {DATASET_NAME}")
+                dummy_cfg = GLOBAL_CLIENT_DETAILS[0].copy()
+                _, testloader = load_data_A(dummy_cfg, 1)
+                reference_images = []
+                count = 0
+                for batch_imgs, _ in testloader:
+                    for i in range(len(batch_imgs)):
+                        img_tensor = batch_imgs[i]
+                        ndarr = img_tensor.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
+                        if ndarr.shape[2] == 1: # Grayscale to RGB for consistency
+                            ndarr = np.concatenate([ndarr]*3, axis=2)
+                        reference_images.append((f"ref_{count}", ndarr))
+                        count += 1
 
-                if not images:
+                if not reference_images:
                     log(INFO, f"No reference images could be extracted for {DATASET_NAME}. Skipping selection.")
                     return [], []
+                log(INFO, f"[Round {round}] Using {len(reference_images)} in-memory reference images for SSIM selection.")
 
                 server_pt = f"{model_weights_folder}/server/MW_round{round}.pt"
                 if not os.path.exists(server_pt):
@@ -780,6 +795,14 @@ class FedAvg(Strategy):
                         log(INFO, f"Nessun modello per client {parsed_cid} fino al round {round}.")
 
                 methods_to_run = ["GradCAM", "HiResCAM", "ScoreCAM", "GradCAMPlusPlus", "AblationCAM", "XGradCAM", "EigenCAM", "FullGrad"] if explainer_type == "All" else [explainer_type]
+                expected_cam_calls = len(methods_to_run) * len(reference_images) * (1 + len(clients_pt))
+                expected_ssim_calls = len(methods_to_run) * len(reference_images) * len(clients_pt)
+                log(
+                    INFO,
+                    f"[Round {round}] SSIM debug: methods={len(methods_to_run)}, "
+                    f"images={len(reference_images)}, clients={len(clients_pt)}, "
+                    f"expected_cam_calls={expected_cam_calls}, expected_ssim_pairs={expected_ssim_calls}"
+                )
 
                 for _, client_dir in client_dirs_info: # Iterate through client directories to create gradcam_images folders
                     for m in methods_to_run:
@@ -796,6 +819,11 @@ class FedAvg(Strategy):
                 all_results = {} # {method: [avg_ssim_client1, avg_ssim_client2, ...]}
 
                 for method in methods_to_run:
+                    method_start = time.time()
+                    method_valid_ssim_pairs = 0
+                    method_skipped_shape = 0
+                    method_skipped_small = 0
+                    method_skipped_win = 0
                     # Load server model weights
                     name_clean = model_name.lower().replace("-", "_").replace(" ", "_")
                     if name_clean == "squeezenet1_1":
@@ -806,12 +834,13 @@ class FedAvg(Strategy):
                         model.load_state_dict(torch.load(server_pt, weights_only=True))
 
                     # Run CAM for server model
-                    for image in images:
+                    for image_key, image_array in reference_images:
                         run_cam(
                             model=model,
                             target_layers=target_layers,
                             weights_filename=server_pt,
-                            image_filename=image,
+                            image_array=image_array,
+                            image_key=image_key,
                             explainer_type=method,
                         )
 
@@ -826,33 +855,34 @@ class FedAvg(Strategy):
                             model.load_state_dict(torch.load(client_pt, weights_only=True))
 
                         # Run CAM for client model
-                        for image in images:
+                        for image_key, image_array in reference_images:
                             run_cam(
                                 model=model,
                                 target_layers=target_layers,
                                 weights_filename=client_pt,
-                                image_filename=image,
+                                image_array=image_array,
+                                image_key=image_key,
                                 explainer_type=method,
                             )
                         
                         client_ssim_vals = []
-                        for image in images:
-                            server_image = img_as_float(get_image(define_save_filename(server_pt, method.lower(), image)))
-                            client_image = img_as_float(get_image(define_save_filename(client_pt, method.lower(), image)))
+                        for image_key, _ in reference_images:
+                            server_image = img_as_float(get_image(define_save_filename(server_pt, method.lower(), image_key)))
+                            client_image = img_as_float(get_image(define_save_filename(client_pt, method.lower(), image_key)))
                             if server_image.shape != client_image.shape:
-                                log(INFO, f"Skipping SSIM for {image}: shape mismatch {server_image.shape} vs {client_image.shape}")
+                                method_skipped_shape += 1
                                 continue
 
                             min_side = min(server_image.shape[0], server_image.shape[1])
                             if min_side < 3:
-                                log(INFO, f"Skipping SSIM for {image}: image too small ({server_image.shape})")
+                                method_skipped_small += 1
                                 continue
 
                             win_size = min(7, min_side)
                             if win_size % 2 == 0:
                                 win_size -= 1
                             if win_size < 3:
-                                log(INFO, f"Skipping SSIM for {image}: invalid win_size={win_size}")
+                                method_skipped_win += 1
                                 continue
 
                             data_range = max(np.ptp(server_image), np.ptp(client_image))
@@ -868,6 +898,7 @@ class FedAvg(Strategy):
                                 channel_axis=channel_axis,
                             )
                             client_ssim_vals.append(ssim_val)
+                            method_valid_ssim_pairs += 1
                         if client_ssim_vals:
                             method_ssims.append(float(np.mean(client_ssim_vals)))
                         else:
@@ -875,6 +906,14 @@ class FedAvg(Strategy):
                             method_ssims.append(0.0)
                     
                     all_results[method] = method_ssims
+                    method_elapsed = time.time() - method_start
+                    log(
+                        INFO,
+                        f"[Round {round}] SSIM method={method}: elapsed={method_elapsed:.3f}s, "
+                        f"valid_pairs={method_valid_ssim_pairs}, "
+                        f"skipped_shape={method_skipped_shape}, "
+                        f"skipped_small={method_skipped_small}, skipped_win={method_skipped_win}"
+                    )
 
                 if explainer_type == "All":
                     for i, cid in enumerate(client_ids):
@@ -884,7 +923,15 @@ class FedAvg(Strategy):
                 # Always return GradCAM results for selection if "All" is selected, otherwise the specific method
                 return client_ids, all_results.get("GradCAM" if explainer_type == "All" else explainer_type)
 
+            ssim_start = time.time()
             client_ids, ssim_values = compute_ssims(currentRnd, "model_weights", MODEL_NAME, explainer_type)
+            ssim_elapsed = time.time() - ssim_start
+            ssim_overhead_by_round[currentRnd] = float(ssim_elapsed)
+            log(
+                INFO,
+                f"[Round {currentRnd}] SSIM computation completed in {ssim_elapsed:.2f} seconds "
+                f"(clients_scored={len(ssim_values) if ssim_values else 0})"
+            )
 
             if not ssim_values:
                 log(INFO, "No SSIM values calculated. Skipping client exclusion.")
