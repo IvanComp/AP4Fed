@@ -54,10 +54,13 @@ Docker (Docker Compose) is not required to run local Federated Learning projects
 
 ## Local Project
 
-To install all the required Python libraries and run the tool, run the following command:
+To create a virtual environment, install dependencies, and run the tool, execute:
 
 ```bash
-pip install -r requirements.txt && python home.py
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python home.py
 ```
 
 ## Docker Project

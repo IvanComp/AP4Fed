@@ -12,3 +12,7 @@ docker==7.1.0
 ray==2.36.0
 pyfiglet
 torchgan
+tqdm
+scikit-learn
+scikit-image
+python-gradcam
