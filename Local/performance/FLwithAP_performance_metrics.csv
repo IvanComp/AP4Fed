@@ -1,6 +1,0 @@
-Client ID,FL Round,Training Time,JSD,HDH Time,Communication Time,Total Time of FL Round,# of CPU,CPU Usage (%),RAM Usage (%),Model Type,Data Distr. Type,Dataset,Train Loss,Train Accuracy,Train F1,Train MAE,Val Loss,Val Accuracy,Val F1,Val MAE,SSIM Overhead (indice),"AP List (client_selector,client_cluster,message_compressor,model_co-versioning_registry,multi-task_model_trainer,heterogeneous_data_handler)"
-Client 3,1,10.40,0.00,0.00,4.93,29.60,5,173,5,CNN 16k,IID,CIFAR-10,1.48,0.4670,0.3684,1.9054,2.09,0.3624,0.3310,2.3614,,"{ON,OFF,OFF,OFF,OFF,OFF}"
-Client 1,1,10.11,0.00,0.00,5.15,29.60,5,175,4,CNN 16k,IID,CIFAR-10,1.48,0.4670,0.3684,1.9054,2.09,0.3624,0.3310,2.3614,,"{ON,OFF,OFF,OFF,OFF,OFF}"
-Client 5,1,10.79,0.14,0.00,3.89,29.60,5,153,5,CNN 16k,non-IID,CIFAR-10,1.48,0.4670,0.3684,1.9054,2.09,0.3624,0.3310,2.3614,,"{ON,OFF,OFF,OFF,OFF,OFF}"
-Client 2,1,10.41,0.00,0.00,4.91,29.60,5,173,5,CNN 16k,IID,CIFAR-10,1.48,0.4670,0.3684,1.9054,2.09,0.3624,0.3310,2.3614,,"{ON,OFF,OFF,OFF,OFF,OFF}"
-Client 4,1,10.73,0.18,0.00,3.90,29.60,5,153,5,CNN 16k,non-IID,CIFAR-10,1.48,0.4670,0.3684,1.9054,2.09,0.3624,0.3310,2.3614,,"{ON,OFF,OFF,OFF,OFF,OFF}"
