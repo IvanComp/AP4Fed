@@ -23,7 +23,7 @@ DEFAULT_METHODS = [
     "FullGrad",
 ]
 
-DEFAULT_MODELS = ["CNN 16k", "shufflenet_v2_x0_5"]
+DEFAULT_MODELS = ["CNN 16k"]
 DEFAULT_DATASETS = ["CIFAR-10", "FashionMNIST"]
 DEFAULT_CRITERIA = ["Min", "Max"]
 
@@ -222,8 +222,16 @@ def main() -> int:
                 original_cfg, dataset, model, method, criteria, args.rounds
             )
             save_json(config_path, cfg)
-            run_supernodes = int(args.num_supernodes) if args.num_supernodes is not None else int(cfg.get("clients", 1))
-
+            configured_clients = int(cfg.get("clients", 1))
+            requested_supernodes = (
+                int(args.num_supernodes) if args.num_supernodes is not None else configured_clients
+            )
+            run_supernodes = max(requested_supernodes, configured_clients)
+            if run_supernodes != requested_supernodes:
+                print(
+                    f"[{idx}/{total}] Increasing supernodes from {requested_supernodes} to {run_supernodes} "
+                    f"to match configured clients ({configured_clients})."
+                )
             if args.dry_run:
                 print(f"[{idx}/{total}] DRY-RUN config prepared: {label} (supernodes={run_supernodes})")
                 continue
@@ -237,19 +245,16 @@ def main() -> int:
             ]
             gpu_count = detect_cuda_gpu_count()
             if gpu_count > 0:
-                if run_supernodes > gpu_count:
-                    run_supernodes = gpu_count
-                    cmd[4] = str(run_supernodes)
-                    print(
-                        f"[{idx}/{total}] CUDA detected: {gpu_count} GPU(s). "
-                        f"Reducing supernodes to {run_supernodes} to avoid GPU contention."
-                    )
-                else:
-                    print(f"[{idx}/{total}] CUDA detected: {gpu_count} GPU(s). Enabling GPU backend.")
+                per_client_gpus = min(1.0, float(gpu_count) / float(run_supernodes))
+                per_client_gpus = max(per_client_gpus, 0.01)
+                print(
+                    f"[{idx}/{total}] CUDA detected: {gpu_count} GPU(s). "
+                    f"Using {run_supernodes} supernode(s) with {per_client_gpus:.2f} GPU per client."
+                )
 
                 backend_cfg = {
                     "init_args": {"num_gpus": float(gpu_count)},
-                    "client_resources": {"num_cpus": 1.0, "num_gpus": 1.0},
+                    "client_resources": {"num_cpus": 1.0, "num_gpus": per_client_gpus},
                 }
                 cmd.extend(["--backend-config", json.dumps(backend_cfg, separators=(",", ":"))])
             else:
