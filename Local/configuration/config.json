@@ -1,7 +1,7 @@
 {
     "simulation_type": "Local",
-    "rounds": 3,
-    "clients": 3,
+    "rounds": 2,
+    "clients": 2,
     "adaptation": "None",
     "LLM": "llama3.2:3b",
     "patterns": {
@@ -53,17 +53,6 @@
         },
         {
             "client_id": 2,
-            "cpu": 5,
-            "ram": 2,
-            "dataset": "CIFAR-10",
-            "data_distribution_type": "IID",
-            "data_persistence_type": "Same Data",
-            "delay_combobox": "No",
-            "model": "CNN 16k",
-            "epochs": 1
-        },
-        {
-            "client_id": 3,
             "cpu": 5,
             "ram": 2,
             "dataset": "CIFAR-10",

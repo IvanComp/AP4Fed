@@ -15,4 +15,4 @@ torchgan
 tqdm
 scikit-learn
 scikit-image
-python-gradcam
+grad-cam

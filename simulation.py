@@ -768,33 +768,35 @@ class SimulationPage(QWidget):
         else:
             work_dir = os.path.join(base_dir, "Local")
             cmd = "flower-simulation"
-            effective_supernodes = int(num_supernodes)
+            configured_clients = int(self.config.get("clients", 1))
+            requested_supernodes = int(num_supernodes)
+            effective_supernodes = max(requested_supernodes, configured_clients)
             args = ["--app", ".", "--num-supernodes", str(effective_supernodes)]
+
+            if effective_supernodes != requested_supernodes:
+                self.output_area.appendPlainText(
+                    f"Increasing supernodes from {requested_supernodes} to {effective_supernodes} "
+                    f"to match configured clients ({configured_clients})."
+                )
 
             gpu_count = detect_cuda_gpu_count()
             if gpu_count > 0:
-                if effective_supernodes > gpu_count:
-                    effective_supernodes = gpu_count
-                    args[3] = str(effective_supernodes)
-                    self.output_area.appendPlainText(
-                        f"CUDA detected: {gpu_count} GPU(s). "
-                        f"Reducing supernodes to {effective_supernodes} to avoid GPU contention."
-                    )
-                else:
-                    self.output_area.appendPlainText(
-                        f"CUDA detected: {gpu_count} GPU(s). Enabling GPU backend."
-                    )
+                per_client_gpus = min(1.0, float(gpu_count) / float(effective_supernodes))
+                per_client_gpus = max(per_client_gpus, 0.01)
+                self.output_area.appendPlainText(
+                    f"CUDA detected: {gpu_count} GPU(s). "
+                    f"Using {effective_supernodes} supernode(s) with {per_client_gpus:.2f} GPU per client."
+                )
 
                 backend_cfg = {
                     "init_args": {"num_gpus": float(gpu_count)},
-                    "client_resources": {"num_cpus": 1.0, "num_gpus": 1.0},
+                    "client_resources": {"num_cpus": 1.0, "num_gpus": per_client_gpus},
                 }
                 args.extend(["--backend-config", json.dumps(backend_cfg, separators=(",", ":"))])
             else:
                 self.output_area.appendPlainText(
                     "No CUDA GPU detected. Running Local simulation on CPU."
                 )
-
             self.process = QProcess(self)
             self.process.setProcessChannelMode(QProcess.MergedChannels)
             self.process.readyReadStandardOutput.connect(self.handle_stdout)
