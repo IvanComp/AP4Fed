@@ -1,6 +1,6 @@
 {
     "simulation_type": "Local",
-    "rounds": 3,
+    "rounds": 2,
     "clients": 2,
     "adaptation": "None",
     "LLM": "llama3.2:3b",
@@ -30,7 +30,7 @@
             "params": {}
         },
         "heterogeneous_data_handler": {
-            "enabled": true,
+            "enabled": false,
             "params": {}
         }
     },

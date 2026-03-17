@@ -482,6 +482,124 @@ def get_non_iid_indices(dataset,
     return selected
 
 
+def build_client_partition_map(trainset, client_details, dataset_name, alpha=0.5, seed=1234):
+    dataset_name = normalize_dataset_name(dataset_name)
+    same_dataset_clients = [
+        client for client in client_details
+        if normalize_dataset_name(client.get("dataset", "")) == dataset_name
+    ]
+    same_dataset_clients = sorted(same_dataset_clients, key=lambda item: int(item.get("client_id", 0)))
+
+    if not same_dataset_clients:
+        return {}
+
+    client_ids = [int(client.get("client_id")) for client in same_dataset_clients]
+    num_clients = len(client_ids)
+    total_samples = len(trainset)
+    base_target = total_samples // num_clients
+    remainder = total_samples % num_clients
+    target_counts = {
+        client_id: base_target + (1 if idx < remainder else 0)
+        for idx, client_id in enumerate(client_ids)
+    }
+
+    class_to_indices = defaultdict(list)
+    for idx in range(len(trainset)):
+        _, label = trainset[idx]
+        class_to_indices[int(label)].append(idx)
+
+    labels_sorted = sorted(class_to_indices.keys())
+    num_classes = len(labels_sorted)
+
+    iid_client_ids = [
+        int(client.get("client_id"))
+        for client in same_dataset_clients
+        if str(client.get("data_distribution_type", "")).strip().lower() == "iid"
+    ]
+    non_iid_client_ids = [client_id for client_id in client_ids if client_id not in iid_client_ids]
+
+    rng = np.random.default_rng(seed)
+    preference = {client_id: np.ones(num_classes, dtype=np.float64) for client_id in iid_client_ids}
+    if non_iid_client_ids:
+        dirichlet_draws = rng.dirichlet(np.full(num_classes, alpha, dtype=np.float64), size=len(non_iid_client_ids))
+        for client_id, draw in zip(non_iid_client_ids, dirichlet_draws):
+            preference[client_id] = draw.astype(np.float64)
+
+    client_allocations = {client_id: [] for client_id in client_ids}
+    remaining_capacity = dict(target_counts)
+    leftover_indices = []
+
+    for class_pos, label in enumerate(labels_sorted):
+        indices = list(class_to_indices[label])
+        rng.shuffle(indices)
+        if not indices:
+            continue
+
+        active_clients = [client_id for client_id in client_ids if remaining_capacity[client_id] > 0]
+        if not active_clients:
+            leftover_indices.extend(indices)
+            continue
+
+        scores = np.array([
+            preference[client_id][class_pos] * max(remaining_capacity[client_id], 1)
+            for client_id in active_clients
+        ], dtype=np.float64)
+        if scores.sum() <= 0:
+            scores = np.ones(len(active_clients), dtype=np.float64)
+        probs = scores / scores.sum()
+
+        raw = probs * len(indices)
+        alloc = np.floor(raw).astype(int)
+        alloc = np.minimum(alloc, np.array([remaining_capacity[client_id] for client_id in active_clients], dtype=int))
+
+        assigned = int(alloc.sum())
+        remaining = len(indices) - assigned
+        if remaining > 0:
+            fractional = raw - np.floor(raw)
+            order = list(np.argsort(-fractional))
+            while remaining > 0:
+                progress = False
+                for idx_pos in order:
+                    client_id = active_clients[idx_pos]
+                    if alloc[idx_pos] < remaining_capacity[client_id]:
+                        alloc[idx_pos] += 1
+                        remaining -= 1
+                        progress = True
+                        if remaining == 0:
+                            break
+                if not progress:
+                    break
+
+        cursor = 0
+        for idx_pos, client_id in enumerate(active_clients):
+            take = int(alloc[idx_pos])
+            if take <= 0:
+                continue
+            selected = indices[cursor: cursor + take]
+            client_allocations[client_id].extend(selected)
+            remaining_capacity[client_id] -= take
+            cursor += take
+
+        if cursor < len(indices):
+            leftover_indices.extend(indices[cursor:])
+
+    if leftover_indices:
+        rng.shuffle(leftover_indices)
+        active_clients = [client_id for client_id in client_ids if remaining_capacity[client_id] > 0]
+        cursor = 0
+        for client_id in active_clients:
+            take = min(remaining_capacity[client_id], len(leftover_indices) - cursor)
+            if take <= 0:
+                continue
+            client_allocations[client_id].extend(leftover_indices[cursor: cursor + take])
+            remaining_capacity[client_id] -= take
+            cursor += take
+            if cursor >= len(leftover_indices):
+                break
+
+    return client_allocations
+
+
 def load_data(client_config, GLOBAL_ROUND_COUNTER, dataset_name_override=None):
     global DATASET_NAME, DATASET_TYPE, DATASET_PERSISTENCE
 
@@ -536,28 +654,22 @@ def load_data(client_config, GLOBAL_ROUND_COUNTER, dataset_name_override=None):
             trainset = cls("./data", train=True, download=True, transform=trf)
             testset = cls("./data", train=False, download=True, transform=trf)
 
-    if DATASET_TYPE == "non-iid":
-        classes = list({lbl for _, lbl in trainset})
-        n_cls = len(classes)
-        remove_frac = random.uniform(1 / n_cls, (n_cls - 1) / n_cls)
-        add_frac = random.uniform(0, (n_cls - 1) / n_cls)
-        low_r, high_r = sorted((random.uniform(0.5, 1.0), random.uniform(0.5, 1.0)))
-        low_a, high_a = sorted((random.uniform(0.5, 1.0), random.uniform(0.5, 1.0)))
-
-        idxs = get_non_iid_indices(
-            trainset,
-            remove_frac,
-            add_frac,
-            (low_r, high_r),
-            (low_a, high_a),
-        )
-        base = Subset(trainset, idxs)
-
-        trainset = base
-
     config_path = os.path.join(os.path.dirname(__file__), 'configuration', 'config.json')
     with open(config_path, 'r') as f:
-        total_rounds = json.load(f).get("rounds")
+        full_config = json.load(f)
+    total_rounds = full_config.get("rounds")
+    all_client_details = full_config.get("client_details", [])
+
+    partition_map = build_client_partition_map(
+        trainset,
+        all_client_details,
+        DATASET_NAME,
+        alpha=0.5,
+        seed=1234,
+    )
+    client_id = int(client_config.get("client_id", os.environ.get("CLIENT_ID", "1")))
+    client_indices = partition_map.get(client_id, [])
+    trainset = Subset(trainset, client_indices)
 
     if DATASET_PERSISTENCE == "Same Data":
         pass
@@ -572,7 +684,7 @@ def load_data(client_config, GLOBAL_ROUND_COUNTER, dataset_name_override=None):
         selected_indices = []
 
         NON_IID_ROUNDS = True
-        NON_IID_ALPHA = 0.30
+        NON_IID_ALPHA = 0.50
         NON_IID_SEED = 1234
 
         cid_raw = int(os.environ.get("CLIENT_ID", "1"))
