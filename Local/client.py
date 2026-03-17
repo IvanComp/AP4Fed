@@ -59,7 +59,8 @@ CLIENT_CONFIG_LIST = sorted(
 )
 COUNTER_PATH = Path(__file__).with_name(".client_idx")
 if not COUNTER_PATH.exists():
-    COUNTER_PATH.write_text("0")   
+    COUNTER_PATH.write_text("0")
+CPU_POOL_PATH = Path(__file__).with_name(".cpu_pool_state.json")
 
 
 def get_available_cpu_ids() -> list[int]:
@@ -76,45 +77,82 @@ def get_available_cpu_ids() -> list[int]:
     return list(range(total_cpus))
 
 
-def build_client_cpu_map() -> tuple[dict[str, list[int]], bool]:
+def _read_cpu_pool_state() -> dict:
+    if not CPU_POOL_PATH.exists():
+        return {"allocations": {}}
+    try:
+        with CPU_POOL_PATH.open("r") as f:
+            return json.load(f)
+    except Exception:
+        return {"allocations": {}}
+
+
+def _write_cpu_pool_state(state: dict) -> None:
+    with CPU_POOL_PATH.open("w") as f:
+        json.dump(state, f)
+
+
+def _cleanup_stale_allocations(state: dict) -> dict:
+    allocations = state.get("allocations", {})
+    cleaned = {}
+    for key, entry in allocations.items():
+        pid = entry.get("pid")
+        if isinstance(pid, int) and psutil.pid_exists(pid):
+            cleaned[key] = entry
+    state["allocations"] = cleaned
+    return state
+
+
+def acquire_client_cpu_cores(client_id: str, requested_cpus: int, process_pid: int) -> tuple[list[int], bool]:
     available_cpu_ids = get_available_cpu_ids()
     if not available_cpu_ids:
-        return {}, False
+        return [], False
 
-    cpu_map = {}
-    cursor = 0
-    overlap_used = False
-    total_available = len(available_cpu_ids)
+    requested_cpus = max(1, int(requested_cpus or 1))
+    allocation_key = f"{client_id}:{process_pid}"
 
-    for client_cfg in CLIENT_CONFIG_LIST:
-        client_id = str(client_cfg.get("client_id"))
-        try:
-            requested = max(1, int(client_cfg.get("cpu") or 1))
-        except (TypeError, ValueError):
-            requested = 1
+    with CPU_POOL_PATH.open("a+") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        state = _cleanup_stale_allocations(_read_cpu_pool_state())
+        allocations = state.setdefault("allocations", {})
 
-        if requested >= total_available:
-            cpu_map[client_id] = available_cpu_ids[:]
-            overlap_used = overlap_used or (requested > total_available)
-            continue
+        used_cores = set()
+        for key, entry in allocations.items():
+            if key == allocation_key:
+                continue
+            used_cores.update(int(core) for core in entry.get("cores", []))
 
-        if cursor + requested <= total_available:
-            assigned = available_cpu_ids[cursor: cursor + requested]
-            cursor += requested
+        free_cores = [core for core in available_cpu_ids if core not in used_cores]
+        overlap_used = False
+        if len(free_cores) >= requested_cpus:
+            assigned = free_cores[:requested_cpus]
+        elif free_cores:
+            overlap_used = True
+            assigned = free_cores[:]
+            assigned.extend(available_cpu_ids[: requested_cpus - len(assigned)])
         else:
             overlap_used = True
-            start = cursor % total_available
-            assigned = []
-            for offset in range(requested):
-                assigned.append(available_cpu_ids[(start + offset) % total_available])
-            cursor += requested
+            assigned = available_cpu_ids[:min(requested_cpus, len(available_cpu_ids))]
 
-        cpu_map[client_id] = assigned
+        allocations[allocation_key] = {
+            "client_id": str(client_id),
+            "pid": int(process_pid),
+            "cores": assigned,
+        }
+        _write_cpu_pool_state(state)
+        fcntl.flock(f, fcntl.LOCK_UN)
 
-    return cpu_map, overlap_used
+    return assigned, overlap_used
 
 
-CLIENT_CPU_MAP, CPU_MAP_HAS_OVERLAP = build_client_cpu_map()
+def release_client_cpu_cores(client_id: str, process_pid: int) -> None:
+    allocation_key = f"{client_id}:{process_pid}"
+    with CPU_POOL_PATH.open("a+") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        state = _cleanup_stale_allocations(_read_cpu_pool_state())
+        state.setdefault("allocations", {}).pop(allocation_key, None)
+        _write_cpu_pool_state(state)
+        fcntl.flock(f, fcntl.LOCK_UN)
 
 def get_next_config() -> dict:
     with COUNTER_PATH.open("r+") as f:
@@ -248,33 +286,26 @@ class FlowerClient(NumPyClient):
         self.trainloader, self.testloader = None, None
         self.delay_enabled = (client_config.get("delay_combobox") == "Yes")
         self.delay_injection = 50
-        self.assigned_cpu_cores = CLIENT_CPU_MAP.get(self.client_id, [])
-
-        if self.assigned_cpu_cores:
-            try:
-                set_cpu_affinity(os.getpid(), self.assigned_cpu_cores)
-            except Exception:
-                pass
-
-        self.torch_cpu_threads = configure_torch_cpu_threads(self.assigned_cpu_cores)
+        self.assigned_cpu_cores = []
+        self.torch_cpu_threads = max(1, int(self.n_cpu or 1))
 
         self.net = NetA().to(DEVICE)
         self.DEVICE = DEVICE
-        overlap_note = " (overlap due to limited host CPUs)" if CPU_MAP_HAS_OVERLAP else ""
         if self.DEVICE.type == "cuda":
             gpu_idx = torch.cuda.current_device()
             gpu_name = torch.cuda.get_device_name(gpu_idx)
             log(
                 INFO,
-                f"{self.cid} compute unit: CUDA (device={gpu_idx}, name={gpu_name}, pid={os.getpid()}, assigned_cores={self.assigned_cpu_cores}, torch_threads={self.torch_cpu_threads}){overlap_note}",
+                f"{self.cid} compute unit: CUDA (device={gpu_idx}, name={gpu_name}, pid={os.getpid()}, requested_cpus={self.n_cpu})",
             )
         else:
-            log(INFO, f"{self.cid} compute unit: CPU (pid={os.getpid()}, assigned_cores={self.assigned_cpu_cores}, torch_threads={self.torch_cpu_threads}){overlap_note}")
+            log(INFO, f"{self.cid} compute unit: CPU (pid={os.getpid()}, requested_cpus={self.n_cpu})")
 
     def fit(self, parameters, config):
         global GLOBAL_ROUND_COUNTER
         hdh_ms = 0.0
         ADAPTATION_ENABLED = False
+        round_cpu_overlap = False
         proc = psutil.Process(os.getpid())
         cpu_start = proc.cpu_times().user + proc.cpu_times().system
         wall_start = time.time()
@@ -310,97 +341,103 @@ class FlowerClient(NumPyClient):
             self.trainloader, self.testloader = load_data_A(self.client_config, GLOBAL_ROUND_COUNTER)
             self.cached_round_loaded = GLOBAL_ROUND_COUNTER
 
-        selection_strategy = ""
-
-        if HETEROGENEOUS_DATA_HANDLER and str(self.data_distribution_type).strip().lower() != "iid" and (ADAPTATION_ENABLED or not self.did_hdh):
-            self.trainloader, hdh_ms = rebalance_trainloader_with_gan_A(self.trainloader)
-            self.did_hdh = True
-
-        if CLIENT_SELECTOR:
-            selector_params = configJSON["patterns"]["client_selector"]["params"]
-            selection_strategy = selector_params.get("selection_strategy", "")
-            selection_criteria = selector_params.get("selection_criteria", "")
-            selection_value = selector_params.get("selection_value", "")
-            if selection_strategy == "Resource-Based":
-                if selection_criteria == "CPU" and self.n_cpu < selection_value:
-                    log(INFO,
-                        f"{self.cid} has insufficient CPU ({self.n_cpu}). Will not participate in the next FL round.")
-                    return parameters, 0, {}
-                if selection_criteria == "RAM" and self.ram < selection_value:
-                    log(INFO,
-                        f"{self.cid} has insufficient RAM ({self.ram}). Will not participate in the next FL round.")
-                    return parameters, 0, {}
-            log(INFO, f"{self.cid} participates in this round. (CPU: {self.n_cpu}, RAM: {self.ram})")
-
-        if CLIENT_CLUSTER:
-            selector_params = configJSON["patterns"]["client_cluster"]["params"]
-            clustering_strategy = selector_params.get("clustering_strategy", "")
-            clustering_criteria = selector_params.get("clustering_criteria", "")
-            selection_value = selector_params.get("selection_value", "")
-            if clustering_strategy == "Resource-Based":
-                if clustering_criteria == "CPU":
-                    grp = "A" if self.n_cpu < selection_value else "B"
-                else:
-                    grp = "A" if self.ram < selection_value else "B"
-                log(INFO, f"{self.cid} assigned to Cluster {grp} {self.model_type}")
-            elif clustering_strategy == "Data-Based":
-                if clustering_criteria == "IID":
-                    log(INFO, f"{self.cid} assigned to IID Cluster {self.model_type}")
-                else:
-                    log(INFO, f"{self.cid} assigned to non-IID Cluster {self.model_type}")
-
-        if MESSAGE_COMPRESSOR:
-            payload_b64 = config.get("compressed_parameters_b64")
-            compressed_parameters = base64.b64decode(payload_b64)
-            decompressed_parameters = pickle.loads(zlib.decompress(compressed_parameters))
-            numpy_arrays = [np.load(BytesIO(tensor)) for tensor in decompressed_parameters.tensors]
-            numpy_arrays = [arr.astype(np.float32) for arr in numpy_arrays]
-            parameters = numpy_arrays
-        else:
-            parameters = parameters
-
-        set_weights_A(self.net, parameters)
-        results, training_time = train_A(self.net, self.trainloader, self.testloader, epochs=1, DEVICE=self.DEVICE)
-        new_parameters = get_weights_A(self.net)
-        compressed_parameters_hex = None
-
-        train_end_ts = taskA.TRAIN_COMPLETED_TS or time.time()
-        if self.delay_enabled:
-            random_delay = random.randint(0, self.delay_injection)
-            log(INFO, f"client {self.cid} injecting delay of {random_delay} seconds")
-            time.sleep(random_delay)
-        send_ready_ts = time.time()
-        communication_time = send_ready_ts - train_end_ts
-
-        wall_end = time.time()
-        cpu_end = proc.cpu_times().user + proc.cpu_times().system
-        duration = wall_end - wall_start
-        cpu_percent = ((cpu_end - cpu_start) / duration * 100) if duration > 0 else 0.0
-        ram_percent = get_ram_percent_cgroup()
-
-        round_number = GLOBAL_ROUND_COUNTER
-        GLOBAL_ROUND_COUNTER += 1
-
-        should_save_local_weights = MODEL_COVERSIONING or (
-            CLIENT_SELECTOR and selection_strategy == "SSIM-Based"
+        self.assigned_cpu_cores, round_cpu_overlap = acquire_client_cpu_cores(
+            self.client_id,
+            self.n_cpu,
+            os.getpid(),
         )
-        if should_save_local_weights:
-            client_id_for_path = str(self.client_config.get("client_id", self.cid))
-            client_folder = os.path.join("model_weights", "clients", client_id_for_path)
-            os.makedirs(client_folder, exist_ok=True)
-            client_file_path = os.path.join(client_folder, f"MW_round{round_number}.pt")
-            torch.save(self.net.state_dict(), client_file_path)
-            log(INFO, f"{self.cid} model weights saved to {client_file_path}")
+        if self.assigned_cpu_cores:
+            try:
+                set_cpu_affinity(os.getpid(), self.assigned_cpu_cores)
+            except Exception:
+                pass
+        self.torch_cpu_threads = configure_torch_cpu_threads(self.assigned_cpu_cores)
+        overlap_note = " (overlap due to limited host CPUs)" if round_cpu_overlap else ""
+        log(
+            INFO,
+            f"{self.cid} round compute allocation: assigned_cores={self.assigned_cpu_cores}, torch_threads={self.torch_cpu_threads}{overlap_note}",
+        )
 
-        if MESSAGE_COMPRESSOR:
-            serialized_parameters = pickle.dumps(new_parameters)
-            original_size = len(serialized_parameters)
-            compressed_parameters = zlib.compress(serialized_parameters)
-            compressed_size = len(compressed_parameters)
-            compressed_parameters_b64 = base64.b64encode(compressed_parameters).decode("ascii")
-            reduction_bytes = original_size - compressed_size
-            reduction_percentage = (reduction_bytes / original_size) * 100
-            log(INFO, f"Local parameters compressed: reduced {reduction_bytes} bytes ({reduction_percentage:.2f}%)")
+        try:
+            selection_strategy = ""
+
+            if HETEROGENEOUS_DATA_HANDLER and str(self.data_distribution_type).strip().lower() != "iid" and (ADAPTATION_ENABLED or not self.did_hdh):
+                self.trainloader, hdh_ms = rebalance_trainloader_with_gan_A(self.trainloader)
+                self.did_hdh = True
+
+            if CLIENT_SELECTOR:
+                selector_params = configJSON["patterns"]["client_selector"]["params"]
+                selection_strategy = selector_params.get("selection_strategy", "")
+                selection_criteria = selector_params.get("selection_criteria", "")
+                selection_value = selector_params.get("selection_value", "")
+                if selection_strategy == "Resource-Based":
+                    if selection_criteria == "CPU" and self.n_cpu < selection_value:
+                        log(INFO,
+                            f"{self.cid} has insufficient CPU ({self.n_cpu}). Will not participate in the next FL round.")
+                        return parameters, 0, {}
+                    if selection_criteria == "RAM" and self.ram < selection_value:
+                        log(INFO,
+                            f"{self.cid} has insufficient RAM ({self.ram}). Will not participate in the next FL round.")
+                        return parameters, 0, {}
+                log(INFO, f"{self.cid} participates in this round. (CPU: {self.n_cpu}, RAM: {self.ram})")
+
+            if CLIENT_CLUSTER:
+                selector_params = configJSON["patterns"]["client_cluster"]["params"]
+                clustering_strategy = selector_params.get("clustering_strategy", "")
+                clustering_criteria = selector_params.get("clustering_criteria", "")
+                selection_value = selector_params.get("selection_value", "")
+                if clustering_strategy == "Resource-Based":
+                    if clustering_criteria == "CPU":
+                        grp = "A" if self.n_cpu < selection_value else "B"
+                    else:
+                        grp = "A" if self.ram < selection_value else "B"
+                    log(INFO, f"{self.cid} assigned to Cluster {grp} {self.model_type}")
+                elif clustering_strategy == "Data-Based":
+                    if clustering_criteria == "IID":
+                        log(INFO, f"{self.cid} assigned to IID Cluster {self.model_type}")
+                    else:
+                        log(INFO, f"{self.cid} assigned to non-IID Cluster {self.model_type}")
+
+            if MESSAGE_COMPRESSOR:
+                payload_b64 = config.get("compressed_parameters_b64")
+                compressed_parameters = base64.b64decode(payload_b64)
+                decompressed_parameters = pickle.loads(zlib.decompress(compressed_parameters))
+                numpy_arrays = [np.load(BytesIO(tensor)) for tensor in decompressed_parameters.tensors]
+                numpy_arrays = [arr.astype(np.float32) for arr in numpy_arrays]
+                parameters = numpy_arrays
+
+            set_weights_A(self.net, parameters)
+            results, training_time = train_A(self.net, self.trainloader, self.testloader, epochs=1, DEVICE=self.DEVICE)
+            new_parameters = get_weights_A(self.net)
+
+            train_end_ts = taskA.TRAIN_COMPLETED_TS or time.time()
+            if self.delay_enabled:
+                random_delay = random.randint(0, self.delay_injection)
+                log(INFO, f"client {self.cid} injecting delay of {random_delay} seconds")
+                time.sleep(random_delay)
+            send_ready_ts = time.time()
+            communication_time = send_ready_ts - train_end_ts
+
+            wall_end = time.time()
+            cpu_end = proc.cpu_times().user + proc.cpu_times().system
+            duration = wall_end - wall_start
+            cpu_percent = ((cpu_end - cpu_start) / duration * 100) if duration > 0 else 0.0
+            ram_percent = get_ram_percent_cgroup()
+
+            round_number = GLOBAL_ROUND_COUNTER
+            GLOBAL_ROUND_COUNTER += 1
+
+            should_save_local_weights = MODEL_COVERSIONING or (
+                CLIENT_SELECTOR and selection_strategy == "SSIM-Based"
+            )
+            if should_save_local_weights:
+                client_id_for_path = str(self.client_config.get("client_id", self.cid))
+                client_folder = os.path.join("model_weights", "clients", client_id_for_path)
+                os.makedirs(client_folder, exist_ok=True)
+                client_file_path = os.path.join(client_folder, f"MW_round{round_number}.pt")
+                torch.save(self.net.state_dict(), client_file_path)
+                log(INFO, f"{self.cid} model weights saved to {client_file_path}")
+
             metrics = {
                 "train_loss": results["train_loss"],
                 "train_accuracy": results["train_accuracy"],
@@ -423,36 +460,24 @@ class FlowerClient(NumPyClient):
                 "model_type": self.model_type,
                 "data_distribution_type": self.data_distribution_type,
                 "dataset": self.dataset,
-                "compressed_parameters_b64": compressed_parameters_b64,
-                "jsd": get_jsd_A(self.trainloader),  # ALWAYS computed so expert-driven policy can read it
+                "jsd": get_jsd_A(self.trainloader),
             }
-            return [], len(self.trainloader.dataset), metrics
-        else:
-            metrics = {
-                "train_loss": results["train_loss"],
-                "train_accuracy": results["train_accuracy"],
-                "train_f1": results["train_f1"],
-                "train_mae": results.get("train_mae", 0.0),
-                "val_loss": results["val_loss"],
-                "val_accuracy": results["val_accuracy"],
-                "val_f1": results["val_f1"],
-                "val_mae": results.get("val_mae", 0.0),
-                "training_time": training_time,
-                "n_cpu": self.n_cpu,
-                "ram": self.ram,
-                "cpu_percent": cpu_percent,
-                "ram_percent": ram_percent,
-                "hdh_ms": hdh_ms if HETEROGENEOUS_DATA_HANDLER else 0.0,
-                "communication_time": communication_time,
-                "client_sent_ts": send_ready_ts,
-                "train_end_ts": train_end_ts,
-                "client_id": self.cid,
-                "model_type": self.model_type,
-                "data_distribution_type": self.data_distribution_type,
-                "dataset": self.dataset,
-                "jsd": get_jsd_A(self.trainloader),  # ALWAYS computed so expert-driven policy can read it
-            }
+
+            if MESSAGE_COMPRESSOR:
+                serialized_parameters = pickle.dumps(new_parameters)
+                original_size = len(serialized_parameters)
+                compressed_parameters = zlib.compress(serialized_parameters)
+                compressed_size = len(compressed_parameters)
+                compressed_parameters_b64 = base64.b64encode(compressed_parameters).decode("ascii")
+                reduction_bytes = original_size - compressed_size
+                reduction_percentage = (reduction_bytes / original_size) * 100
+                log(INFO, f"Local parameters compressed: reduced {reduction_bytes} bytes ({reduction_percentage:.2f}%)")
+                metrics["compressed_parameters_b64"] = compressed_parameters_b64
+                return [], len(self.trainloader.dataset), metrics
+
             return new_parameters, len(self.trainloader.dataset), metrics
+        finally:
+            release_client_cpu_cores(self.client_id, os.getpid())
 
     def evaluate(self, parameters, config):
         set_weights_A(self.net, parameters)

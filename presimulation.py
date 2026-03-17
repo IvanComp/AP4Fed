@@ -470,7 +470,9 @@ class PreSimulationPage(QWidget):
                 font-weight: bold;
             }
         """)
-        g_layout = QFormLayout()
+        g_layout = QGridLayout()
+        g_layout.setHorizontalSpacing(24)
+        g_layout.setVerticalSpacing(14)
         bold_font = QFont()
         bold_font.setBold(True)
 
@@ -479,35 +481,42 @@ class PreSimulationPage(QWidget):
         self.rounds_input = QSpinBox()
         self.rounds_input.setRange(1, 100)
         self.rounds_input.setValue(2)
-        g_layout.addRow(rounds_label, self.rounds_input)
+
         clients_label = QLabel("Number of Clients:")
         clients_label.setFont(bold_font)
         self.clients_input = QSpinBox()
         self.clients_input.setRange(1, 128)
         self.clients_input.setValue(2)
-        g_layout.addRow(clients_label, self.clients_input)
 
-        label = QLabel("Type of Simulation:")
-        font = label.font()
+        clients_per_round_label = QLabel("Clients per Round:")
+        clients_per_round_label.setFont(bold_font)
+        self.clients_per_round_input = QSpinBox()
+        self.clients_per_round_input.setRange(1, 128)
+        self.clients_per_round_input.setValue(2)
+        self.clients_input.valueChanged.connect(self._sync_clients_per_round_range)
+        self._sync_clients_per_round_range(self.clients_input.value())
+
+        simulation_label = QLabel("Type of Simulation:")
+        font = simulation_label.font()
         font.setBold(True)
-        label.setFont(font)
+        simulation_label.setFont(font)
         self.sim_type_combo = QComboBox()
         self.sim_type_combo.addItems(["Local","Docker"])
-        self.sim_type_combo.setFixedWidth(90)
-        g_layout.addRow(label, self.sim_type_combo)
+        self.sim_type_combo.setMinimumWidth(160)
 
-        label = QLabel("Type of Adaptation:")
-        font = label.font()
+        adaptation_label = QLabel("Type of Adaptation:")
+        font = adaptation_label.font()
         font.setBold(True)
-        label.setFont(font)
+        adaptation_label.setFont(font)
         self.adaptation_combo = QComboBox()
         self.adaptation_combo.addItems(["None","Random","Expert-Driven","Single AI-Agent (Zero-Shot)","Single AI-Agent (Few-Shot)","Multiple AI-Agents (Voting-Based)","Multiple AI-Agents (Role-Based)","Multiple AI-Agents (Debate-Based)"])
-        self.adaptation_combo.setFixedWidth(90)
-        g_layout.addRow(label, self.adaptation_combo)
+        self.adaptation_combo.setMinimumWidth(280)
 
         self.llm_label = QLabel("LLM")
+        self.llm_label.setFont(bold_font)
         self.llm_combo = QComboBox()
         self.llm_combo.addItems(["llama3.2:3b","deepseek-r1:8b","gpt-oss:20b"])
+        self.llm_combo.setMinimumWidth(180)
         self.llm_label.hide()
         self.llm_combo.hide()
 
@@ -516,7 +525,22 @@ class PreSimulationPage(QWidget):
             self.llm_label.setVisible(vis)
             self.llm_combo.setVisible(vis)
 
-        g_layout.addRow(self.llm_label, self.llm_combo)
+        def add_setting(row, col, setting_label, setting_widget):
+            field = QWidget()
+            field_layout = QVBoxLayout(field)
+            field_layout.setContentsMargins(0, 0, 0, 0)
+            field_layout.setSpacing(6)
+            field_layout.addWidget(setting_label)
+            field_layout.addWidget(setting_widget)
+            g_layout.addWidget(field, row, col)
+
+        add_setting(0, 0, rounds_label, self.rounds_input)
+        add_setting(0, 1, clients_label, self.clients_input)
+        add_setting(0, 2, clients_per_round_label, self.clients_per_round_input)
+        add_setting(1, 0, simulation_label, self.sim_type_combo)
+        add_setting(1, 1, adaptation_label, self.adaptation_combo)
+        add_setting(1, 2, self.llm_label, self.llm_combo)
+
         self.adaptation_combo.currentTextChanged.connect(_toggle_llm_selector)
         _toggle_llm_selector(self.adaptation_combo.currentText())
 
@@ -541,7 +565,9 @@ class PreSimulationPage(QWidget):
         row.addWidget(self.docker_status_label)
         row.addWidget(update_btn)
         row.addStretch()
-        g_layout.addRow(row)
+        docker_status_row = QWidget()
+        docker_status_row.setLayout(row)
+        g_layout.addWidget(docker_status_row, 2, 0, 1, 3)
 
         def on_type_changed(text):
             show = (text == "Docker")
@@ -969,9 +995,12 @@ class PreSimulationPage(QWidget):
             "simulation_type": self.sim_type_combo.currentText(),
             "rounds": self.rounds_input.value(),
             "clients": self.clients_input.value(),
+            "clients_per_round": min(self.clients_per_round_input.value(), self.clients_input.value()),
             "adaptation": self.adaptation_combo.currentText(),
             "LLM": self.llm_combo.currentText(),
             "patterns": patterns_data,
+            "client_generation_mode": "manual",
+            "client_profiles": [],
             "client_details": []
         }
 
@@ -980,6 +1009,12 @@ class PreSimulationPage(QWidget):
         self.client_config_page.show()
         self.close()
 
+    def _sync_clients_per_round_range(self, total_clients):
+        total_clients = max(1, int(total_clients))
+        self.clients_per_round_input.setMaximum(total_clients)
+        if self.clients_per_round_input.value() > total_clients:
+            self.clients_per_round_input.setValue(total_clients)
+
 class ClientConfigurationPage(QWidget):
     def __init__(self, user_choices, home_page_callback):
         super().__init__()
@@ -987,6 +1022,9 @@ class ClientConfigurationPage(QWidget):
         self.resize(1000, 800)
         self.user_choices = user_choices
         self.home_page_callback = home_page_callback
+        self.current_config = self.user_choices[-1]
+        self.saved_manual_values = self.current_config.get("client_details", [])
+        self.saved_profile_values = self.current_config.get("client_profiles", [])
 
         self.setStyleSheet("""
             QWidget {
@@ -1056,30 +1094,39 @@ class ClientConfigurationPage(QWidget):
         header_layout.addWidget(back_btn, alignment=Qt.AlignLeft)
         header_layout.addWidget(title_label, stretch=1)
         main_layout.insertLayout(0, header_layout)
-        grid_layout = QGridLayout()
-        grid_layout.setSpacing(20)
-        grid_layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_widget = QWidget()
-        scroll_widget.setLayout(grid_layout)
-        scroll_area.setWidget(scroll_widget)
-        main_layout.addWidget(scroll_area)
+
+        controls_layout = QHBoxLayout()
+        controls_layout.setSpacing(16)
+
+        mode_label = QLabel("Configuration Mode:")
+        self.config_mode_combo = QComboBox()
+        self.config_mode_combo.addItems(["Manual", "Profile-Based"])
+        stored_mode = str(self.current_config.get("client_generation_mode", "manual")).strip().lower()
+        self.config_mode_combo.setCurrentText("Profile-Based" if stored_mode == "profile_based" else "Manual")
+        controls_layout.addWidget(mode_label)
+        controls_layout.addWidget(self.config_mode_combo)
+
+        self.profile_count_label = QLabel("Number of Profiles:")
+        self.profile_count_input = QSpinBox()
+        self.profile_count_input.setRange(1, 12)
+        self.profile_count_input.setValue(max(1, len(self.saved_profile_values)) if self.saved_profile_values else 2)
+        controls_layout.addWidget(self.profile_count_label)
+        controls_layout.addWidget(self.profile_count_input)
+        controls_layout.addStretch()
+        main_layout.addLayout(controls_layout)
+
+        self.cards_grid_layout = QGridLayout()
+        self.cards_grid_layout.setSpacing(20)
+        self.cards_grid_layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self.cards_scroll_area = QScrollArea()
+        self.cards_scroll_area.setWidgetResizable(True)
+        self.cards_scroll_widget = QWidget()
+        self.cards_scroll_widget.setLayout(self.cards_grid_layout)
+        self.cards_scroll_area.setWidget(self.cards_scroll_widget)
+        main_layout.addWidget(self.cards_scroll_area)
 
         self.client_configs = []
-        num_clients = self.user_choices[-1]["clients"]
-
-        for index in range(num_clients):
-            card_widget, config_dict = self.create_client_card(index + 1)
-            row = index // 3
-            col = index % 3
-            grid_layout.addWidget(card_widget, row, col)
-            self.client_configs.append(config_dict)
-
-        max_columns = min(num_clients, 3)
-        fixed_width = max_columns * 300 + (max_columns - 1) * grid_layout.spacing()
-        scroll_widget.setFixedWidth(fixed_width)
-
+        self.profile_configs = []
         confirm_button = QPushButton("Confirm and Continue")
         confirm_button.setCursor(Qt.PointingHandCursor)
         confirm_button.setStyleSheet("""
@@ -1100,9 +1147,9 @@ class ClientConfigurationPage(QWidget):
         confirm_button.clicked.connect(self.save_client_configurations_and_continue)
         main_layout.addWidget(confirm_button)
 
-        copy_button = QPushButton("Copy Client 1 to each Client")
-        copy_button.setCursor(Qt.PointingHandCursor)
-        copy_button.setStyleSheet("""
+        self.copy_button = QPushButton("Copy Client 1 to each Client")
+        self.copy_button.setCursor(Qt.PointingHandCursor)
+        self.copy_button.setStyleSheet("""
             QPushButton {
                 background-color: #007ACC;
                 color: white;
@@ -1118,15 +1165,23 @@ class ClientConfigurationPage(QWidget):
                 background-color: #004970;
             }
         """)
-        copy_button.clicked.connect(self.copy_to_each_client)
-        main_layout.addWidget(copy_button)
+        self.copy_button.clicked.connect(self.copy_to_each_client)
+        main_layout.addWidget(self.copy_button)
+
+        self.profile_count_input.valueChanged.connect(self.rebuild_cards)
+        self.config_mode_combo.currentIndexChanged.connect(self.on_configuration_mode_changed)
+        self.on_configuration_mode_changed()
 
     def on_back(self):
         self.close()
         self.home_page_callback()
 
     def copy_to_each_client(self):
-        first = self.client_configs[0]
+        configs = self.profile_configs if self.is_profile_mode() else self.client_configs
+        if not configs:
+            return
+
+        first = configs[0]
         cpu = first["cpu_input"].value()
         ram = first["ram_input"].value()
         ds = first["dataset_combobox"].currentText()
@@ -1135,8 +1190,9 @@ class ClientConfigurationPage(QWidget):
         delay = first["delay_combobox"].currentText()
         model = first["model_combobox"].currentText()
         epochs = first["epochs_spinbox"].value()
+        share = first.get("share_spinbox").value() if "share_spinbox" in first else None
 
-        for cfg in self.client_configs:
+        for cfg in configs:
             cfg["cpu_input"].setValue(cpu)
             cfg["ram_input"].setValue(ram)
 
@@ -1161,8 +1217,84 @@ class ClientConfigurationPage(QWidget):
                 cfg["model_combobox"].setCurrentIndex(idx_model)
 
             cfg["epochs_spinbox"].setValue(epochs)
+            if share is not None and "share_spinbox" in cfg:
+                cfg["share_spinbox"].setValue(share)
 
-    def create_client_card(self, client_id):
+    def is_profile_mode(self):
+        return self.config_mode_combo.currentText() == "Profile-Based"
+
+    def on_configuration_mode_changed(self):
+        is_profile = self.is_profile_mode()
+        self.profile_count_label.setVisible(is_profile)
+        self.profile_count_input.setVisible(is_profile)
+        self.copy_button.setText("Copy Profile 1 to each Profile" if is_profile else "Copy Client 1 to each Client")
+        self.rebuild_cards()
+
+    def rebuild_cards(self):
+        self.saved_manual_values = self.capture_manual_values()
+        self.saved_profile_values = self.capture_profile_values()
+
+        while self.cards_grid_layout.count():
+            item = self.cards_grid_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        self.client_configs = []
+        self.profile_configs = []
+
+        if self.is_profile_mode():
+            count = self.profile_count_input.value()
+            for index in range(count):
+                existing = self.saved_profile_values[index] if index < len(self.saved_profile_values) else None
+                card_widget, config_dict = self.create_profile_card(index + 1, existing)
+                row = index // 3
+                col = index % 3
+                self.cards_grid_layout.addWidget(card_widget, row, col)
+                self.profile_configs.append(config_dict)
+        else:
+            num_clients = self.user_choices[-1]["clients"]
+            for index in range(num_clients):
+                existing = self.saved_manual_values[index] if index < len(self.saved_manual_values) else None
+                card_widget, config_dict = self.create_client_card(index + 1, existing)
+                row = index // 3
+                col = index % 3
+                self.cards_grid_layout.addWidget(card_widget, row, col)
+                self.client_configs.append(config_dict)
+
+        max_cards = len(self.profile_configs) if self.is_profile_mode() else len(self.client_configs)
+        max_columns = min(max(max_cards, 1), 3)
+        fixed_width = max_columns * 300 + (max_columns - 1) * self.cards_grid_layout.spacing()
+        self.cards_scroll_widget.setFixedWidth(fixed_width)
+
+    def capture_manual_values(self):
+        captured = []
+        for idx, cfg in enumerate(getattr(self, "client_configs", []), start=1):
+            captured.append(self._serialize_card_values(cfg, idx))
+        return captured
+
+    def capture_profile_values(self):
+        captured = []
+        for idx, cfg in enumerate(getattr(self, "profile_configs", []), start=1):
+            profile_data = self._serialize_card_values(cfg, idx)
+            profile_data["share_percent"] = cfg["share_spinbox"].value()
+            captured.append(profile_data)
+        return captured
+
+    def _serialize_card_values(self, cfg, index):
+        return {
+            "client_id": index,
+            "cpu": cfg["cpu_input"].value(),
+            "ram": cfg["ram_input"].value(),
+            "dataset": cfg["dataset_combobox"].currentText(),
+            "data_distribution_type": cfg["partition_combobox"].currentText(),
+            "data_persistence_type": cfg["persistence_combobox"].currentText(),
+            "delay_combobox": cfg["delay_combobox"].currentText(),
+            "model": cfg["model_combobox"].currentText(),
+            "epochs": cfg["epochs_spinbox"].value(),
+        }
+
+    def create_client_card(self, client_id, existing=None):
         card = QFrame(objectName="ClientCard")
         card_layout = QVBoxLayout()
         card_layout.setContentsMargins(8, 8, 9, 9)
@@ -1190,7 +1322,7 @@ class ClientConfigurationPage(QWidget):
         cpu_label.setAlignment(Qt.AlignLeft)
         cpu_input = QSpinBox()
         cpu_input.setRange(1, 16)
-        cpu_input.setValue(5)
+        cpu_input.setValue(int((existing or {}).get("cpu", 5)))
         cpu_input.setSuffix(" CPUs")
         cpu_input.setFixedWidth(160)
         cpu_layout = QHBoxLayout()
@@ -1204,7 +1336,7 @@ class ClientConfigurationPage(QWidget):
         ram_label.setAlignment(Qt.AlignLeft)
         ram_input = QSpinBox()
         ram_input.setRange(1, 128)
-        ram_input.setValue(2)
+        ram_input.setValue(int((existing or {}).get("ram", 2)))
         ram_input.setSuffix(" GB")
         ram_input.setFixedWidth(160)
         ram_layout = QHBoxLayout()
@@ -1295,7 +1427,7 @@ class ClientConfigurationPage(QWidget):
         epochs_label.setAlignment(Qt.AlignLeft)
         epochs_spinbox = QSpinBox()
         epochs_spinbox.setRange(1, 100)
-        epochs_spinbox.setValue(1)
+        epochs_spinbox.setValue(int((existing or {}).get("epochs", 1)))
         epochs_spinbox.setFixedWidth(60)
 
         epochs_layout = QHBoxLayout()
@@ -1332,6 +1464,13 @@ class ClientConfigurationPage(QWidget):
         dataset_combobox.currentIndexChanged.connect(update_model_options)
         update_model_options() 
 
+        if existing:
+            self._set_combo_text(dataset_combobox, existing.get("dataset"))
+            self._set_combo_text(partition_combobox, existing.get("data_distribution_type"))
+            self._set_combo_text(persistence_combobox, existing.get("data_persistence_type"))
+            self._set_combo_text(delay_combobox, existing.get("delay_combobox"))
+            self._set_combo_text(model_combobox, existing.get("model"))
+
         config_dict = {
             "cpu_input": cpu_input,
             "ram_input": ram_input,
@@ -1345,27 +1484,134 @@ class ClientConfigurationPage(QWidget):
 
         return card, config_dict
 
-    def save_client_configurations_and_continue(self):
+    def create_profile_card(self, profile_id, existing=None):
+        card, config_dict = self.create_client_card(profile_id, existing)
+        layout = card.layout()
+
+        share_label = QLabel("Population Share:")
+        share_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
+        share_label.setAlignment(Qt.AlignLeft)
+        share_spinbox = QSpinBox()
+        share_spinbox.setRange(0, 100)
+        default_share = int((existing or {}).get("share_percent", max(1, round(100 / max(self.profile_count_input.value(), 1)))))
+        share_spinbox.setValue(default_share)
+        share_spinbox.setSuffix(" %")
+        share_spinbox.setFixedWidth(160)
+        share_layout = QHBoxLayout()
+        share_layout.addWidget(share_label)
+        share_layout.addWidget(share_spinbox)
+        layout.insertLayout(2, share_layout)
+
+        title_label = layout.itemAt(1).widget()
+        if isinstance(title_label, QLabel):
+            title_label.setText(f"Profile {profile_id}")
+
+        config_dict["share_spinbox"] = share_spinbox
+        return card, config_dict
+
+    def _set_combo_text(self, combo, value):
+        if value is None:
+            return
+        idx = combo.findText(str(value))
+        if idx >= 0:
+            combo.setCurrentIndex(idx)
+
+    def _normalize_profile_counts(self, total_clients, profiles):
+        positive_profiles = [profile for profile in profiles if profile.get("share_percent", 0) > 0]
+        if not positive_profiles:
+            return []
+
+        if total_clients <= 0:
+            return []
+
+        if total_clients < len(positive_profiles):
+            ranked = sorted(positive_profiles, key=lambda p: p["share_percent"], reverse=True)
+            counts = {id(p): 0 for p in positive_profiles}
+            for profile in ranked[:total_clients]:
+                counts[id(profile)] += 1
+            return [counts[id(profile)] for profile in profiles]
+
+        counts = {id(profile): 1 for profile in positive_profiles}
+        remaining = total_clients - len(positive_profiles)
+        weight_sum = sum(profile["share_percent"] for profile in positive_profiles)
+        raw = [
+            (profile["share_percent"] / weight_sum) * remaining if weight_sum > 0 else 0.0
+            for profile in positive_profiles
+        ]
+        floors = [int(value) for value in raw]
+        fractions = [value - floor for value, floor in zip(raw, floors)]
+
+        for profile, floor in zip(positive_profiles, floors):
+            counts[id(profile)] += floor
+
+        leftover = remaining - sum(floors)
+        order = sorted(range(len(positive_profiles)), key=lambda idx: fractions[idx], reverse=True)
+        for idx in order[:leftover]:
+            counts[id(positive_profiles[idx])] += 1
+
+        return [counts.get(id(profile), 0) for profile in profiles]
+
+    def _expand_profiles_to_clients(self, total_clients, profiles):
+        counts = self._normalize_profile_counts(total_clients, profiles)
         client_details = []
-        for idx, cfg in enumerate(self.client_configs):
-            _dist = cfg['partition_combobox'].currentText()
-            if _dist == 'Random':
-                _dist = 'IID' if random.random() < 0.5 else 'non-IID'
-            _delay = cfg['delay_combobox'].currentText()
-            if _delay == 'Random':
-                _delay = 'Yes' if random.random() < 0.5 else 'No'
-            client_info = {
-                "client_id": idx + 1,
-                "cpu": cfg["cpu_input"].value(),
-                "ram": cfg["ram_input"].value(),
-                "dataset": cfg["dataset_combobox"].currentText(),
-                "data_distribution_type": cfg["partition_combobox"].currentText(),
-                "data_persistence_type": cfg["persistence_combobox"].currentText(),
-                "delay_combobox": cfg["delay_combobox"].currentText(),
-                "model": cfg["model_combobox"].currentText(),
-                "epochs": cfg["epochs_spinbox"].value()
-            }
-            client_details.append(client_info)
+        next_client_id = 1
+        for profile, count in zip(profiles, counts):
+            for _ in range(count):
+                client_details.append({
+                    "client_id": next_client_id,
+                    "cpu": profile["cpu"],
+                    "ram": profile["ram"],
+                    "dataset": profile["dataset"],
+                    "data_distribution_type": profile["data_distribution_type"],
+                    "data_persistence_type": profile["data_persistence_type"],
+                    "delay_combobox": profile["delay_combobox"],
+                    "model": profile["model"],
+                    "epochs": profile["epochs"],
+                })
+                next_client_id += 1
+        return client_details
+
+    def save_client_configurations_and_continue(self):
+        total_clients = int(self.user_choices[-1]["clients"])
+
+        if self.is_profile_mode():
+            profiles = []
+            for idx, cfg in enumerate(self.profile_configs, start=1):
+                profiles.append({
+                    "profile_id": idx,
+                    "share_percent": cfg["share_spinbox"].value(),
+                    "cpu": cfg["cpu_input"].value(),
+                    "ram": cfg["ram_input"].value(),
+                    "dataset": cfg["dataset_combobox"].currentText(),
+                    "data_distribution_type": cfg["partition_combobox"].currentText(),
+                    "data_persistence_type": cfg["persistence_combobox"].currentText(),
+                    "delay_combobox": cfg["delay_combobox"].currentText(),
+                    "model": cfg["model_combobox"].currentText(),
+                    "epochs": cfg["epochs_spinbox"].value()
+                })
+            if sum(profile["share_percent"] for profile in profiles) <= 0:
+                QMessageBox.warning(self, "Invalid Profiles", "At least one profile must have a share percentage greater than 0.")
+                return
+            client_details = self._expand_profiles_to_clients(total_clients, profiles)
+            self.user_choices[-1]["client_generation_mode"] = "profile_based"
+            self.user_choices[-1]["client_profiles"] = profiles
+        else:
+            client_details = []
+            for idx, cfg in enumerate(self.client_configs):
+                client_info = {
+                    "client_id": idx + 1,
+                    "cpu": cfg["cpu_input"].value(),
+                    "ram": cfg["ram_input"].value(),
+                    "dataset": cfg["dataset_combobox"].currentText(),
+                    "data_distribution_type": cfg["partition_combobox"].currentText(),
+                    "data_persistence_type": cfg["persistence_combobox"].currentText(),
+                    "delay_combobox": cfg["delay_combobox"].currentText(),
+                    "model": cfg["model_combobox"].currentText(),
+                    "epochs": cfg["epochs_spinbox"].value()
+                }
+                client_details.append(client_info)
+            self.user_choices[-1]["client_generation_mode"] = "manual"
+            self.user_choices[-1]["client_profiles"] = []
 
         self.user_choices[-1]["client_details"] = client_details
         self.save_configuration_to_file()

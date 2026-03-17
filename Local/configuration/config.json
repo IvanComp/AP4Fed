@@ -1,7 +1,8 @@
 {
     "simulation_type": "Local",
-    "rounds": 10,
+    "rounds": 2,
     "clients": 2,
+    "clients_per_round": 2,
     "adaptation": "None",
     "LLM": "llama3.2:3b",
     "patterns": {
@@ -34,12 +35,14 @@
             "params": {}
         }
     },
+    "client_generation_mode": "manual",
+    "client_profiles": [],
     "client_details": [
         {
             "client_id": 1,
             "cpu": 5,
             "ram": 2,
-            "dataset": "FashionMNIST",
+            "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
             "data_persistence_type": "Same Data",
             "delay_combobox": "No",
@@ -50,8 +53,8 @@
             "client_id": 2,
             "cpu": 5,
             "ram": 2,
-            "dataset": "FashionMNIST",
-            "data_distribution_type": "non-IID",
+            "dataset": "CIFAR-10",
+            "data_distribution_type": "IID",
             "data_persistence_type": "Same Data",
             "delay_combobox": "No",
             "model": "CNN 16k",

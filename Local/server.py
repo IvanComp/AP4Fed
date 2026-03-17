@@ -37,6 +37,7 @@ from rich.panel import Panel
 from flwr.server.strategy import Strategy, FedAvg
 from flwr.server.client_manager import ClientManager
 from flwr.server.client_proxy import ClientProxy
+from flwr.server.criterion import Criterion
 from flwr.common.logger import log
 from logging import INFO
 import textwrap
@@ -119,6 +120,7 @@ if os.path.exists(config_file):
 
     num_rounds = int(config.get('rounds', 10))
     client_count = int(config.get('clients', 2))
+    clients_per_round = int(config.get('clients_per_round', client_count))
     config_patterns(config["patterns"])
 
     CLIENT_DETAILS = config.get("client_details", [])
@@ -668,12 +670,21 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
 parametersA = ndarrays_to_parameters(get_weights_A(NetA()))
 client_model_mapping = {}
 
+
+class ClientCidCriterion(Criterion):
+    def __init__(self, allowed_cids):
+        self.allowed_cids = {str(cid) for cid in allowed_cids}
+
+    def select(self, client: ClientProxy) -> bool:
+        return str(client.cid) in self.allowed_cids
+
 class FedAvg(Strategy):
     def __init__(self, initial_parameters_a: Parameters):
         self.round_start_time: float | None = None
         self.parameters_a = initial_parameters_a
         self._send_ts = {}
         self.excluded_cid = None
+        self._used_training_client_cids = set()
         banner = r"""
   ___  ______  ___ ______       _ 
  / _ \ | ___ \/   ||  ___|     | |
@@ -745,11 +756,40 @@ class FedAvg(Strategy):
         if available < 1:
             return []
 
-        num_fit = available
-        clients: List[ClientProxy] = client_manager.sample(
-            num_clients=num_fit,
-            min_num_clients=1
-        )
+        num_fit = min(available, max(1, clients_per_round))
+        all_clients = client_manager.all()
+        unseen_cids = [
+            cid for cid in all_clients.keys()
+            if str(cid) not in self._used_training_client_cids
+        ]
+
+        clients: List[ClientProxy] = []
+        if unseen_cids:
+            clients.extend(
+                client_manager.sample(
+                    num_clients=min(num_fit, len(unseen_cids)),
+                    min_num_clients=1,
+                    criterion=ClientCidCriterion(unseen_cids),
+                )
+            )
+
+        if len(clients) < num_fit:
+            selected_cids = {str(client.cid) for client in clients}
+            remaining_cids = [
+                cid for cid in all_clients.keys()
+                if str(cid) not in selected_cids
+            ]
+            remaining_needed = num_fit - len(clients)
+            if remaining_cids and remaining_needed > 0:
+                clients.extend(
+                    client_manager.sample(
+                        num_clients=min(remaining_needed, len(remaining_cids)),
+                        min_num_clients=1,
+                        criterion=ClientCidCriterion(remaining_cids),
+                    )
+                )
+
+        self._used_training_client_cids.update(str(client.cid) for client in clients)
 
         base_params: Parameters = self.parameters_a if self.parameters_a is not None else parameters
         if base_params is None:

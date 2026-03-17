@@ -200,6 +200,7 @@ class DashboardWindow(QWidget):
 
         number_of_rounds = cfg.get("rounds", 0)
         number_of_clients = cfg.get("clients", 0)
+        clients_per_round = cfg.get("clients_per_round", number_of_clients)
         model_name = ""
         dataset_name = ""
         if cfg.get("client_details"):
@@ -219,6 +220,7 @@ class DashboardWindow(QWidget):
             f'Model: <b>{model_name}</b> • '
             f'Dataset: <b>{dataset_name}</b> • '
             f'Number of Clients: <b>{number_of_clients}</b> • '
+            f'Clients per Round: <b>{clients_per_round}</b> • '
             f'Number of Rounds: <b>{number_of_rounds}</b>'
         )
         big_font = QFont()
