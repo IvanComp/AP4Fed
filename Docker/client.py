@@ -73,6 +73,20 @@ class ConfigServer:
             self.counter += 1
             return config
 
+
+def is_adaptation_enabled(raw_value) -> bool:
+    return str(raw_value).strip().lower() not in ("", "none", "false")
+
+
+def client_enabled_for_pattern(client_config: dict, enabled_clients) -> bool:
+    if not enabled_clients:
+        return True
+
+    client_id = str(client_config.get("client_id", "")).strip()
+    client_label = f"Client {client_id}"
+    normalized_enabled = {str(item).strip() for item in enabled_clients}
+    return client_id in normalized_enabled or client_label in normalized_enabled
+
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 GLOBAL_ROUND_COUNTER = 1
 
@@ -164,14 +178,15 @@ class FlowerClient(NumPyClient):
             gpu_name = torch.cuda.get_device_name(gpu_idx)
             log(
                 INFO,
-                f"Client {self.cid} compute unit: CUDA (device={gpu_idx}, name={gpu_name}, pid={os.getpid()})",
+                f"{self.cid} compute unit: CUDA (device={gpu_idx}, name={gpu_name}, pid={os.getpid()})",
             )
         else:
-            log(INFO, f"Client {self.cid} compute unit: CPU (pid={os.getpid()})")
+            log(INFO, f"{self.cid} compute unit: CPU (pid={os.getpid()})")
 
     def fit(self, parameters, config):
         global GLOBAL_ROUND_COUNTER
         hdh_ms = 0.0
+        ADAPTATION_ENABLED = False
         proc = psutil.Process(os.getpid())
         cpu_start = proc.cpu_times().user + proc.cpu_times().system
         wall_start = time.time()
@@ -184,6 +199,7 @@ class FlowerClient(NumPyClient):
         if os.path.exists(config_file):
             with open(config_file, 'r') as f:
                 configJSON = json.load(f)
+            ADAPTATION_ENABLED = is_adaptation_enabled(configJSON.get("adaptation", False))
             for name, info in configJSON.get("patterns", {}).items():
                 if info.get("enabled"):
                     if name == "client_selector": CLIENT_SELECTOR = True
@@ -191,7 +207,10 @@ class FlowerClient(NumPyClient):
                     elif name == "message_compressor": MESSAGE_COMPRESSOR = True
                     elif name == "model_co-versioning_registry": MODEL_COVERSIONING = True
                     elif name == "multi-task_model_trainer": MULTI_TASK_MODEL_TRAINER = True
-                    elif name == "heterogeneous_data_handler": HETEROGENEOUS_DATA_HANDLER = True
+                    elif name == "heterogeneous_data_handler":
+                        enabled_clients = info.get("params", {}).get("enabled_clients", [])
+                        if (not ADAPTATION_ENABLED) or client_enabled_for_pattern(self.client_config, enabled_clients):
+                            HETEROGENEOUS_DATA_HANDLER = True
 
         self.cached_round_loaded = None
         if self.cached_round_loaded != GLOBAL_ROUND_COUNTER:
@@ -208,13 +227,13 @@ class FlowerClient(NumPyClient):
             if selection_strategy == "Resource-Based":
                 if selection_criteria == "CPU" and self.n_cpu <= selection_value:
                     log(INFO,
-                        f"Client {self.cid} has insufficient CPU ({self.n_cpu}). Will not participate in the next FL round.")
+                        f"{self.cid} has insufficient CPU ({self.n_cpu}). Will not participate in the next FL round.")
                     return parameters, 0, {}
                 if selection_criteria == "RAM" and self.ram <= selection_value:
                     log(INFO,
-                        f"Client {self.cid} has insufficient RAM ({self.ram}). Will not participate in the next FL round.")
+                        f"{self.cid} has insufficient RAM ({self.ram}). Will not participate in the next FL round.")
                     return parameters, 0, {}
-            log(INFO, f"Client {self.cid} participates in this round. (CPU: {self.n_cpu}, RAM: {self.ram})")
+            log(INFO, f"{self.cid} participates in this round. (CPU: {self.n_cpu}, RAM: {self.ram})")
 
         if HETEROGENEOUS_DATA_HANDLER and str(self.data_distribution_type).strip().lower() != "iid":
             self.trainloader, hdh_ms = rebalance_trainloader_with_gan_A(self.trainloader)
@@ -230,12 +249,12 @@ class FlowerClient(NumPyClient):
                     grp = "A" if self.n_cpu < selection_value else "B"
                 else:
                     grp = "A" if self.ram < selection_value else "B"
-                log(INFO, f"Client {self.cid} assigned to Cluster {grp} {self.model_type}")
+                log(INFO, f"{self.cid} assigned to Cluster {grp} {self.model_type}")
             elif clustering_strategy == "Data-Based":
                 if clustering_criteria == "IID":
-                    log(INFO, f"Client {self.cid} assigned to IID Cluster {self.model_type}")
+                    log(INFO, f"{self.cid} assigned to IID Cluster {self.model_type}")
                 else:
-                    log(INFO, f"Client {self.cid} assigned to non-IID Cluster {self.model_type}")
+                    log(INFO, f"{self.cid} assigned to non-IID Cluster {self.model_type}")
 
         if MESSAGE_COMPRESSOR:
             payload_b64 = config.get("compressed_parameters_b64")
@@ -278,7 +297,7 @@ class FlowerClient(NumPyClient):
             os.makedirs(client_folder, exist_ok=True)
             client_file_path = os.path.join(client_folder, f"MW_round{round_number}.pt")
             torch.save(self.net.state_dict(), client_file_path)
-            log(INFO, f"Client {self.cid} model weights saved to {client_file_path}")
+            log(INFO, f"{self.cid} model weights saved to {client_file_path}")
 
         if MESSAGE_COMPRESSOR:
             serialized_parameters = pickle.dumps(new_parameters)

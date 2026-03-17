@@ -1,6 +1,6 @@
 {
     "simulation_type": "Local",
-    "rounds": 2,
+    "rounds": 3,
     "clients": 2,
     "adaptation": "None",
     "LLM": "llama3.2:3b",
@@ -30,31 +30,31 @@
             "params": {}
         },
         "heterogeneous_data_handler": {
-            "enabled": false,
+            "enabled": true,
             "params": {}
         }
     },
     "client_details": [
         {
             "client_id": 1,
-            "cpu": 1,
+            "cpu": 5,
             "ram": 2,
-            "dataset": "CIFAR-10",
+            "dataset": "FashionMNIST",
             "data_distribution_type": "IID",
             "data_persistence_type": "Same Data",
             "delay_combobox": "No",
-            "model": "squeezenet1_1",
+            "model": "CNN 16k",
             "epochs": 1
         },
         {
             "client_id": 2,
             "cpu": 5,
             "ram": 2,
-            "dataset": "CIFAR-10",
-            "data_distribution_type": "IID",
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "non-IID",
             "data_persistence_type": "Same Data",
             "delay_combobox": "No",
-            "model": "squeezenet1_1",
+            "model": "CNN 16k",
             "epochs": 1
         }
     ]

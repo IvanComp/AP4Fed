@@ -336,11 +336,16 @@ def _build_ap_list_for_ml():
 
 
 def _infer_alpha_dirichlet(client_detail):
+    distribution = str(client_detail.get("data_distribution_type", "")).strip().lower()
+    if distribution == "iid":
+        return 1
+    if distribution == "non-iid":
+        return 0.5
     if "alpha_dirichlet" in client_detail:
         return client_detail.get("alpha_dirichlet")
     if client_detail.get("data_persistence_type") in {"New Data", "Remove Data"}:
-        return 0.30
-    return None
+        return 0.5
+    return np.nan
 
 
 def _resolve_checkpoint_round(available_rounds, fraction):
@@ -430,12 +435,12 @@ def build_ml_experiment_row(report_path):
     )
     epochs_value = unique_epochs[0] if len(unique_epochs) == 1 else _serialize_value(unique_epochs)
     selector_cfg = config.get("patterns", {}).get("client_selector", {}).get("params", {})
-    message_compressor_cfg = config.get("patterns", {}).get("message_compressor", {}).get("params", {})
     hdh_cfg = config.get("patterns", {}).get("heterogeneous_data_handler", {}).get("params", {})
+    hdh_enabled = bool(config.get("patterns", {}).get("heterogeneous_data_handler", {}).get("enabled", False))
     final_row = round_level_df.iloc[-1]
 
     row = {
-        "Total Rounds": int(num_rounds),
+        "N Rounds": int(num_rounds),
         "Total Clients": int(client_count),
         "Model": first_model,
         "Dataset": first_dataset,
@@ -445,6 +450,20 @@ def build_ml_experiment_row(report_path):
         "Epochs": epochs_value,
     }
 
+    for client_detail in sorted(GLOBAL_CLIENT_DETAILS, key=lambda item: int(item.get("client_id", 0))):
+        client_number = int(client_detail.get("client_id", 0))
+        prefix = f"Client {client_number}"
+        client_df = df[df["Client Number"] == client_number]
+        row[f"{prefix} ID"] = prefix
+        row[f"{prefix} CPU"] = client_detail.get("cpu", "")
+        row[f"{prefix} RAM"] = client_detail.get("ram", "")
+        row[f"{prefix} Data Distribution"] = _nan_if_missing(client_detail.get("data_distribution_type"))
+        row[f"{prefix} Data Persistence"] = _nan_if_missing(client_detail.get("data_persistence_type"))
+        row[f"{prefix} Alpha Dirichlet"] = _infer_alpha_dirichlet(client_detail)
+        row[f"{prefix} JSD"] = _safe_float(client_df["JSD"].mean()) if (hdh_enabled and not client_df.empty) else np.nan
+        row[f"{prefix} CPU Usage Avg"] = _safe_float(client_df["CPU Usage (%)"].mean()) if not client_df.empty else np.nan
+        row[f"{prefix} RAM Usage Avg"] = _safe_float(client_df["RAM Usage (%)"].mean()) if not client_df.empty else np.nan
+
     for fraction, label in [(0.25, "25"), (0.50, "50"), (0.75, "75")]:
         checkpoint_round = _resolve_checkpoint_round(available_rounds, fraction)
         checkpoint = _collect_checkpoint_metrics(df, round_level_df, checkpoint_round)
@@ -453,21 +472,6 @@ def build_ml_experiment_row(report_path):
         row[f"Training Time Avg {label}%"] = checkpoint.get("training_time_avg")
         row[f"Communication Time Avg {label}%"] = checkpoint.get("communication_time_avg")
         row[f"Total Round Time {label}%"] = checkpoint.get("total_round_time")
-
-    for client_detail in sorted(GLOBAL_CLIENT_DETAILS, key=lambda item: int(item.get("client_id", 0))):
-        client_number = int(client_detail.get("client_id", 0))
-        prefix = f"Client {client_number}"
-        client_df = df[df["Client Number"] == client_number]
-        row[f"{prefix} ID"] = prefix
-        row[f"{prefix} CPU"] = client_detail.get("cpu", "")
-        row[f"{prefix} RAM"] = client_detail.get("ram", "")
-        row[f"{prefix} Epochs"] = _nan_if_missing(client_detail.get("epochs"))
-        row[f"{prefix} Data Distribution"] = _nan_if_missing(client_detail.get("data_distribution_type"))
-        row[f"{prefix} Data Persistence"] = _nan_if_missing(client_detail.get("data_persistence_type"))
-        row[f"{prefix} Alpha Dirichlet"] = _infer_alpha_dirichlet(client_detail)
-        row[f"{prefix} JSD Avg"] = _safe_float(client_df["JSD"].mean()) if not client_df.empty else None
-        row[f"{prefix} CPU Usage Avg"] = _safe_float(client_df["CPU Usage (%)"].mean()) if not client_df.empty else None
-        row[f"{prefix} RAM Usage Avg"] = _safe_float(client_df["RAM Usage (%)"].mean()) if not client_df.empty else None
 
     row.update({
         "Avg Training Time": _safe_float(df["Training Time"].mean()),
@@ -484,9 +488,16 @@ def build_ml_experiment_row(report_path):
         "Client Selector Strategy": _nan_if_missing(selector_cfg.get("selection_strategy")),
         "Client Selector Criteria": _nan_if_missing(selector_cfg.get("selection_criteria")),
         "Client Selector Value": _nan_if_missing(selector_cfg.get("selection_value")),
-        "Client Selector Explainer Type": _nan_if_missing(selector_cfg.get("explainer_type")),
-        "Message Compressor Params": _serialize_value(message_compressor_cfg if message_compressor_cfg else None),
-        "Heterogeneous Data Handler Params": _serialize_value(hdh_cfg if hdh_cfg else None),
+        "Message Compressor Alg": "zlib",
+        "HDH Batch Size": 32,
+        "HDH Beta 1": 0.5,
+        "HDH Beta 2": 0.999,
+        "HDH Discriminator": "DCGANDiscriminator",
+        "HDH Epochs": 1,
+        "HDH Generator": "DCGANGenerator",
+        "HDH Learning Rate": 2e-4,
+        "HDH Latent Dim": 100,
+        "HDH Optimizer": "Adam",
     })
 
     return row
@@ -496,12 +507,18 @@ def append_ml_experiment_row(row):
     if not row:
         return
     row_df = pd.DataFrame([row])
+    ordered_columns = list(row_df.columns)
     if os.path.exists(ml_csv_file):
-        existing_df = pd.read_csv(ml_csv_file)
+        try:
+            existing_df = pd.read_csv(ml_csv_file, sep=";", decimal=",")
+        except Exception:
+            existing_df = pd.read_csv(ml_csv_file)
         combined_df = pd.concat([existing_df, row_df], ignore_index=True, sort=False)
-        combined_df.to_csv(ml_csv_file, index=False)
+        ordered_columns.extend([col for col in combined_df.columns if col not in ordered_columns])
+        combined_df = combined_df.reindex(columns=ordered_columns)
+        combined_df.to_csv(ml_csv_file, index=False, na_rep="NaN", sep=";", decimal=",")
     else:
-        row_df.to_csv(ml_csv_file, index=False)
+        row_df.to_csv(ml_csv_file, index=False, na_rep="NaN", sep=";", decimal=",")
 
 def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_rounds, ssim_overhead=None):
     if agg_model_type not in global_metrics:
