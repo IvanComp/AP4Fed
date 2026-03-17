@@ -1,10 +1,10 @@
 {
     "simulation_type": "Local",
-    "rounds": 2,
+    "rounds": 9,
     "clients": 2,
     "clients_per_round": 2,
-    "adaptation": "None",
-    "LLM": "llama3.2:3b",
+    "adaptation": "Single AI-Agent (Few-Shot)",
+    "LLM": "deepseek-r1:8b",
     "patterns": {
         "client_registry": {
             "enabled": true,
