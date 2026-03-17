@@ -61,6 +61,61 @@ COUNTER_PATH = Path(__file__).with_name(".client_idx")
 if not COUNTER_PATH.exists():
     COUNTER_PATH.write_text("0")   
 
+
+def get_available_cpu_ids() -> list[int]:
+    try:
+        proc = psutil.Process(os.getpid())
+        if hasattr(proc, "cpu_affinity"):
+            cpu_ids = sorted(proc.cpu_affinity())
+            if cpu_ids:
+                return cpu_ids
+    except Exception:
+        pass
+
+    total_cpus = os.cpu_count() or 1
+    return list(range(total_cpus))
+
+
+def build_client_cpu_map() -> tuple[dict[str, list[int]], bool]:
+    available_cpu_ids = get_available_cpu_ids()
+    if not available_cpu_ids:
+        return {}, False
+
+    cpu_map = {}
+    cursor = 0
+    overlap_used = False
+    total_available = len(available_cpu_ids)
+
+    for client_cfg in CLIENT_CONFIG_LIST:
+        client_id = str(client_cfg.get("client_id"))
+        try:
+            requested = max(1, int(client_cfg.get("cpu") or 1))
+        except (TypeError, ValueError):
+            requested = 1
+
+        if requested >= total_available:
+            cpu_map[client_id] = available_cpu_ids[:]
+            overlap_used = overlap_used or (requested > total_available)
+            continue
+
+        if cursor + requested <= total_available:
+            assigned = available_cpu_ids[cursor: cursor + requested]
+            cursor += requested
+        else:
+            overlap_used = True
+            start = cursor % total_available
+            assigned = []
+            for offset in range(requested):
+                assigned.append(available_cpu_ids[(start + offset) % total_available])
+            cursor += requested
+
+        cpu_map[client_id] = assigned
+
+    return cpu_map, overlap_used
+
+
+CLIENT_CPU_MAP, CPU_MAP_HAS_OVERLAP = build_client_cpu_map()
+
 def get_next_config() -> dict:
     with COUNTER_PATH.open("r+") as f:
         fcntl.flock(f, fcntl.LOCK_EX)
@@ -98,7 +153,7 @@ def get_ram_percent_cgroup():
 
     return psutil.Process(os.getpid()).memory_percent()
 
-def set_cpu_affinity(process_pid: int, num_cpus: int) -> bool:
+def set_cpu_affinity(process_pid: int, target_cpus: list[int]) -> bool:
     import platform, os
     import psutil
 
@@ -108,14 +163,9 @@ def set_cpu_affinity(process_pid: int, num_cpus: int) -> bool:
     system = platform.system()
     try:
         process = psutil.Process(process_pid)
-        total_cpus = os.cpu_count()
-        cpus_to_use = min(num_cpus, total_cpus)
-
-        if cpus_to_use <= 0:
-            safe_log(f"Client (PID {process_pid}): Invalid or zero CPU count ({num_cpus}), skipping affinity.")
+        if not target_cpus:
+            safe_log(f"Client (PID {process_pid}): no CPU cores assigned, skipping affinity.")
             return False
-
-        target_cpus = list(range(cpus_to_use)) 
 
         if system == "Windows":
             process.cpu_affinity(target_cpus)
@@ -149,6 +199,7 @@ class FlowerClient(NumPyClient):
     def __init__(self, client_config: dict, model_type: str):
         self.client_config = client_config
         self.cid = f"Client {client_config.get('client_id')}"
+        self.client_id = str(client_config.get("client_id"))
         self.n_cpu = client_config.get("cpu")
         self.ram = client_config.get("ram")
         self.dataset = client_config.get("dataset")
@@ -160,26 +211,26 @@ class FlowerClient(NumPyClient):
         self.trainloader, self.testloader = None, None
         self.delay_enabled = (client_config.get("delay_combobox") == "Yes")
         self.delay_injection = 50
+        self.assigned_cpu_cores = CLIENT_CPU_MAP.get(self.client_id, [])
 
-        if self.n_cpu is not None:
+        if self.assigned_cpu_cores:
             try:
-                num_cpus_int = int(self.n_cpu)
-                if num_cpus_int > 0:
-                    set_cpu_affinity(os.getpid(), num_cpus_int)
+                set_cpu_affinity(os.getpid(), self.assigned_cpu_cores)
             except Exception:
                 pass
 
         self.net = NetA().to(DEVICE)
         self.DEVICE = DEVICE
+        overlap_note = " (overlap due to limited host CPUs)" if CPU_MAP_HAS_OVERLAP else ""
         if self.DEVICE.type == "cuda":
             gpu_idx = torch.cuda.current_device()
             gpu_name = torch.cuda.get_device_name(gpu_idx)
             log(
                 INFO,
-                f"Client {self.cid} compute unit: CUDA (device={gpu_idx}, name={gpu_name}, pid={os.getpid()})",
+                f"Client {self.cid} compute unit: CUDA (device={gpu_idx}, name={gpu_name}, pid={os.getpid()}, assigned_cores={self.assigned_cpu_cores}){overlap_note}",
             )
         else:
-            log(INFO, f"Client {self.cid} compute unit: CPU (pid={os.getpid()})")
+            log(INFO, f"Client {self.cid} compute unit: CPU (pid={os.getpid()}, assigned_cores={self.assigned_cpu_cores}){overlap_note}")
 
     def fit(self, parameters, config):
         global GLOBAL_ROUND_COUNTER

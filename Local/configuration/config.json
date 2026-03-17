@@ -10,13 +10,8 @@
             "params": {}
         },
         "client_selector": {
-            "enabled": true,
-            "params": {
-                "selection_strategy": "SSIM-Based",
-                "selection_criteria": "Min",
-                "selection_value": 4,
-                "explainer_type": "GradCAM"
-            }
+            "enabled": false,
+            "params": {}
         },
         "client_cluster": {
             "enabled": false,
@@ -44,7 +39,7 @@
             "client_id": 1,
             "cpu": 5,
             "ram": 2,
-            "dataset": "CIFAR-10",
+            "dataset": "FashionMNIST",
             "data_distribution_type": "IID",
             "data_persistence_type": "Same Data",
             "delay_combobox": "No",
@@ -53,9 +48,9 @@
         },
         {
             "client_id": 2,
-            "cpu": 5,
+            "cpu": 3,
             "ram": 2,
-            "dataset": "CIFAR-10",
+            "dataset": "FashionMNIST",
             "data_distribution_type": "IID",
             "data_persistence_type": "Same Data",
             "delay_combobox": "No",

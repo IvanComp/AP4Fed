@@ -11,6 +11,7 @@ import zlib
 import glob
 import tqdm
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from torchvision import models
 from skimage import img_as_float
@@ -122,7 +123,9 @@ if os.path.exists(config_file):
             "ram_percent": client.get("ram_percent"),
             "dataset": client.get("dataset"),
             "data_distribution_type": client.get("data_distribution_type"),
-            "model": client.get("model")
+            "data_persistence_type": client.get("data_persistence_type"),
+            "model": client.get("model"),
+            "epochs": client.get("epochs"),
         })
     GLOBAL_CLIENT_DETAILS = client_details_structure
 
@@ -139,9 +142,15 @@ performance_dir = './performance/'
 if not os.path.exists(performance_dir):
     os.makedirs(performance_dir)
 
+performance_ml_dir = './performance_MLdata/'
+if not os.path.exists(performance_ml_dir):
+    os.makedirs(performance_ml_dir)
+
 csv_file = os.path.join(performance_dir, 'FLwithAP_performance_metrics.csv')
 if os.path.exists(csv_file):
     os.remove(csv_file)
+
+ml_csv_file = os.path.join(performance_ml_dir, 'FLwithAP_MLdata.csv')
 
 with open(csv_file, 'w', newline='') as file:
     writer = csv.writer(file)
@@ -327,6 +336,214 @@ def preprocess_csv(agent_time=None):
     df.loc[idx, 'Agent Time (s)'] = val
     df.drop(columns=["Client Number"], inplace=True)
     df.to_csv(csv_file, index=False)
+
+
+def _safe_float(value):
+    try:
+        if pd.isna(value):
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _serialize_value(value):
+    if value is None:
+        return np.nan
+    if isinstance(value, (list, tuple, dict)):
+        return json.dumps(value, sort_keys=True)
+    return str(value)
+
+
+def _nan_if_missing(value):
+    if value is None:
+        return np.nan
+    if isinstance(value, str) and not value.strip():
+        return np.nan
+    return value
+
+
+def _pattern_state(enabled):
+    return "ON" if enabled else "OFF"
+
+
+def _build_ap_list_for_ml():
+    return "{" + ",".join([
+        _pattern_state(CLIENT_SELECTOR),
+        _pattern_state(MESSAGE_COMPRESSOR),
+        _pattern_state(HETEROGENEOUS_DATA_HANDLER),
+    ]) + "}"
+
+
+def _infer_alpha_dirichlet(client_detail):
+    if "alpha_dirichlet" in client_detail:
+        return client_detail.get("alpha_dirichlet")
+    if client_detail.get("data_persistence_type") in {"New Data", "Remove Data"}:
+        return 0.30
+    return None
+
+
+def _resolve_checkpoint_round(available_rounds, fraction):
+    if not available_rounds:
+        return None
+    target_round = int(np.ceil(num_rounds * fraction))
+    target_round = max(1, min(num_rounds, target_round))
+    if target_round in available_rounds:
+        return target_round
+    lower_or_equal = [rnd for rnd in available_rounds if rnd <= target_round]
+    if lower_or_equal:
+        return max(lower_or_equal)
+    return min(available_rounds)
+
+
+def _collect_checkpoint_metrics(df, round_level_df, round_number):
+    if round_number is None:
+        return {}
+    round_df = df[df["FL Round"] == round_number]
+    round_level_row = round_level_df[round_level_df["FL Round"] == round_number]
+    if round_df.empty or round_level_row.empty:
+        return {}
+    last_row = round_level_row.iloc[-1]
+    return {
+        "round": int(round_number),
+        "val_f1": _safe_float(last_row.get("Val F1")),
+        "training_time_avg": _safe_float(round_df["Training Time"].mean()),
+        "communication_time_avg": _safe_float(round_df["Communication Time"].mean()),
+        "total_round_time": _safe_float(last_row.get("Total Time of FL Round")),
+    }
+
+
+def build_ml_experiment_row(report_path):
+    if not os.path.exists(report_path):
+        return None
+
+    df = pd.read_csv(report_path)
+    if df.empty:
+        return None
+
+    numeric_cols = [
+        "FL Round",
+        "Training Time",
+        "JSD",
+        "HDH Time",
+        "Communication Time",
+        "Total Time of FL Round",
+        "# of CPU",
+        "CPU Usage (%)",
+        "RAM Usage (%)",
+        "Train Loss",
+        "Train Accuracy",
+        "Train F1",
+        "Train MAE",
+        "Val Loss",
+        "Val Accuracy",
+        "Val F1",
+        "Val MAE",
+        "SSIM Overhead (indice)",
+        "Agent Time (s)",
+    ]
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    df["Client Number"] = (
+        df["Client ID"]
+        .astype(str)
+        .str.extract(r"(\d+)")[0]
+        .astype(int)
+    )
+    df.sort_values(["FL Round", "Client Number"], inplace=True)
+    round_level_df = df.groupby("FL Round", group_keys=False).tail(1).copy()
+    round_level_df.sort_values("FL Round", inplace=True)
+    available_rounds = round_level_df["FL Round"].dropna().astype(int).tolist()
+    if not available_rounds:
+        return None
+
+    first_client = GLOBAL_CLIENT_DETAILS[0] if GLOBAL_CLIENT_DETAILS else {}
+    first_model = first_client.get("model", "")
+    first_dataset = config.get("dataset") or first_client.get("dataset", "")
+    unique_epochs = sorted(
+        {
+            int(client.get("epochs"))
+            for client in GLOBAL_CLIENT_DETAILS
+            if client.get("epochs") is not None
+        }
+    )
+    epochs_value = unique_epochs[0] if len(unique_epochs) == 1 else _serialize_value(unique_epochs)
+    selector_cfg = config.get("patterns", {}).get("client_selector", {}).get("params", {})
+    message_compressor_cfg = config.get("patterns", {}).get("message_compressor", {}).get("params", {})
+    hdh_cfg = config.get("patterns", {}).get("heterogeneous_data_handler", {}).get("params", {})
+    final_row = round_level_df.iloc[-1]
+
+    row = {
+        "Total Rounds": int(num_rounds),
+        "Total Clients": int(client_count),
+        "Model": first_model,
+        "Dataset": first_dataset,
+        "Optimizer": "Adam",
+        "Learning Rate": 0.001,
+        "Batch Size": 64,
+        "Epochs": epochs_value,
+    }
+
+    for fraction, label in [(0.25, "25"), (0.50, "50"), (0.75, "75")]:
+        checkpoint_round = _resolve_checkpoint_round(available_rounds, fraction)
+        checkpoint = _collect_checkpoint_metrics(df, round_level_df, checkpoint_round)
+        row[f"Round {label}%"] = checkpoint.get("round", "")
+        row[f"Val F1 {label}%"] = checkpoint.get("val_f1")
+        row[f"Training Time Avg {label}%"] = checkpoint.get("training_time_avg")
+        row[f"Communication Time Avg {label}%"] = checkpoint.get("communication_time_avg")
+        row[f"Total Round Time {label}%"] = checkpoint.get("total_round_time")
+
+    for client_detail in sorted(GLOBAL_CLIENT_DETAILS, key=lambda item: int(item.get("client_id", 0))):
+        client_number = int(client_detail.get("client_id", 0))
+        prefix = f"Client {client_number}"
+        client_df = df[df["Client Number"] == client_number]
+        row[f"{prefix} ID"] = prefix
+        row[f"{prefix} CPU"] = client_detail.get("cpu", "")
+        row[f"{prefix} RAM"] = client_detail.get("ram", "")
+        row[f"{prefix} Epochs"] = _nan_if_missing(client_detail.get("epochs"))
+        row[f"{prefix} Data Distribution"] = _nan_if_missing(client_detail.get("data_distribution_type"))
+        row[f"{prefix} Data Persistence"] = _nan_if_missing(client_detail.get("data_persistence_type"))
+        row[f"{prefix} Alpha Dirichlet"] = _infer_alpha_dirichlet(client_detail)
+        row[f"{prefix} JSD Avg"] = _safe_float(client_df["JSD"].mean()) if not client_df.empty else None
+        row[f"{prefix} CPU Usage Avg"] = _safe_float(client_df["CPU Usage (%)"].mean()) if not client_df.empty else None
+        row[f"{prefix} RAM Usage Avg"] = _safe_float(client_df["RAM Usage (%)"].mean()) if not client_df.empty else None
+
+    row.update({
+        "Avg Training Time": _safe_float(df["Training Time"].mean()),
+        "Avg Communication Time": _safe_float(df["Communication Time"].mean()),
+        "Avg Total Round Time": _safe_float(round_level_df["Total Time of FL Round"].mean()),
+        "Final Train Loss": _safe_float(final_row.get("Train Loss")),
+        "Final Train Accuracy": _safe_float(final_row.get("Train Accuracy")),
+        "Final Train F1": _safe_float(final_row.get("Train F1")),
+        "Final Val Loss": _safe_float(final_row.get("Val Loss")),
+        "Final Val Accuracy": _safe_float(final_row.get("Val Accuracy")),
+        "Final Val F1 (Last Round)": _safe_float(final_row.get("Val F1")),
+        "Final Val F1 (Best)": _safe_float(round_level_df["Val F1"].max()),
+        "Final Agent Time": _safe_float(final_row.get("Agent Time (s)")) if "Agent Time (s)" in round_level_df.columns else None,
+        "AP List (client_selector,message_compressor,heterogeneous_data_handler)": _build_ap_list_for_ml(),
+        "Client Selector Strategy": _nan_if_missing(selector_cfg.get("selection_strategy")),
+        "Client Selector Criteria": _nan_if_missing(selector_cfg.get("selection_criteria")),
+        "Client Selector Value": _nan_if_missing(selector_cfg.get("selection_value")),
+        "Client Selector Explainer Type": _nan_if_missing(selector_cfg.get("explainer_type")),
+        "Message Compressor Params": _serialize_value(message_compressor_cfg if message_compressor_cfg else None),
+        "Heterogeneous Data Handler Params": _serialize_value(hdh_cfg if hdh_cfg else None),
+    })
+
+    return row
+
+
+def append_ml_experiment_row(row):
+    if not row:
+        return
+    row_df = pd.DataFrame([row])
+    if os.path.exists(ml_csv_file):
+        existing_df = pd.read_csv(ml_csv_file)
+        combined_df = pd.concat([existing_df, row_df], ignore_index=True, sort=False)
+        combined_df.to_csv(ml_csv_file, index=False)
+    else:
+        row_df.to_csv(ml_csv_file, index=False)
 
 def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_rounds):
     if agg_model_type not in global_metrics:
@@ -1025,6 +1242,8 @@ class FedAvg(Strategy):
         preprocess_csv(agent_time)
         round_csv = os.path.join(performance_dir, f"FLwithAP_performance_metrics_round{currentRnd}.csv")
         shutil.copy(csv_file, round_csv)
+        if currentRnd >= num_rounds:
+            append_ml_experiment_row(build_ml_experiment_row(csv_file))
         config_patterns(next_round_config)
 
         return self.parameters_a, metrics_aggregated
