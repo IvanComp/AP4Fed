@@ -195,6 +195,29 @@ def set_cpu_affinity(process_pid: int, target_cpus: list[int]) -> bool:
         safe_log(f"Unexpected error while setting CPU affinity for {process_pid}: {e}")
         return False
 
+
+def configure_torch_cpu_threads(assigned_cpu_cores: list[int]) -> int:
+    if not assigned_cpu_cores:
+        return max(1, int(torch.get_num_threads()))
+
+    num_threads = max(1, len(assigned_cpu_cores))
+
+    os.environ["OMP_NUM_THREADS"] = str(num_threads)
+    os.environ["MKL_NUM_THREADS"] = str(num_threads)
+
+    try:
+        torch.set_num_threads(num_threads)
+    except Exception:
+        pass
+
+    try:
+        interop_threads = 1 if num_threads == 1 else min(2, num_threads)
+        torch.set_num_interop_threads(interop_threads)
+    except Exception:
+        pass
+
+    return max(1, int(torch.get_num_threads()))
+
 class FlowerClient(NumPyClient):
     def __init__(self, client_config: dict, model_type: str):
         self.client_config = client_config
@@ -219,6 +242,8 @@ class FlowerClient(NumPyClient):
             except Exception:
                 pass
 
+        self.torch_cpu_threads = configure_torch_cpu_threads(self.assigned_cpu_cores)
+
         self.net = NetA().to(DEVICE)
         self.DEVICE = DEVICE
         overlap_note = " (overlap due to limited host CPUs)" if CPU_MAP_HAS_OVERLAP else ""
@@ -227,10 +252,10 @@ class FlowerClient(NumPyClient):
             gpu_name = torch.cuda.get_device_name(gpu_idx)
             log(
                 INFO,
-                f"Client {self.cid} compute unit: CUDA (device={gpu_idx}, name={gpu_name}, pid={os.getpid()}, assigned_cores={self.assigned_cpu_cores}){overlap_note}",
+                f"Client {self.cid} compute unit: CUDA (device={gpu_idx}, name={gpu_name}, pid={os.getpid()}, assigned_cores={self.assigned_cpu_cores}, torch_threads={self.torch_cpu_threads}){overlap_note}",
             )
         else:
-            log(INFO, f"Client {self.cid} compute unit: CPU (pid={os.getpid()}, assigned_cores={self.assigned_cpu_cores}){overlap_note}")
+            log(INFO, f"Client {self.cid} compute unit: CPU (pid={os.getpid()}, assigned_cores={self.assigned_cpu_cores}, torch_threads={self.torch_cpu_threads}){overlap_note}")
 
     def fit(self, parameters, config):
         global GLOBAL_ROUND_COUNTER
