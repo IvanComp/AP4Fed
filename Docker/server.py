@@ -476,7 +476,7 @@ def build_ml_experiment_row(report_path):
     )
     epochs_value = unique_epochs[0] if len(unique_epochs) == 1 else _serialize_value(unique_epochs)
     selector_cfg = config.get("patterns", {}).get("client_selector", {}).get("params", {})
-    hdh_cfg = config.get("patterns", {}).get("heterogeneous_data_handler", {}).get("params", {})
+    message_compressor_enabled = bool(config.get("patterns", {}).get("message_compressor", {}).get("enabled", False))
     hdh_enabled = bool(config.get("patterns", {}).get("heterogeneous_data_handler", {}).get("enabled", False))
     final_row = round_level_df.iloc[-1]
 
@@ -530,16 +530,16 @@ def build_ml_experiment_row(report_path):
         "Client Selector Strategy": _nan_if_missing(selector_cfg.get("selection_strategy")),
         "Client Selector Criteria": _nan_if_missing(selector_cfg.get("selection_criteria")),
         "Client Selector Value": _nan_if_missing(selector_cfg.get("selection_value")),
-        "Message Compressor Alg": "zlib",
-        "HDH Batch Size": 32,
-        "HDH Beta 1": 0.5,
-        "HDH Beta 2": 0.999,
-        "HDH Discriminator": "DCGANDiscriminator",
-        "HDH Epochs": 1,
-        "HDH Generator": "DCGANGenerator",
-        "HDH Learning Rate": 2e-4,
-        "HDH Latent Dim": 100,
-        "HDH Optimizer": "Adam",
+        "Message Compressor Alg": "zlib" if message_compressor_enabled else np.nan,
+        "HDH Batch Size": 32 if hdh_enabled else np.nan,
+        "HDH Beta 1": 0.5 if hdh_enabled else np.nan,
+        "HDH Beta 2": 0.999 if hdh_enabled else np.nan,
+        "HDH Discriminator": "DCGANDiscriminator" if hdh_enabled else np.nan,
+        "HDH Epochs": 1 if hdh_enabled else np.nan,
+        "HDH Generator": "DCGANGenerator" if hdh_enabled else np.nan,
+        "HDH Learning Rate": 2e-4 if hdh_enabled else np.nan,
+        "HDH Latent Dim": 100 if hdh_enabled else np.nan,
+        "HDH Optimizer": "Adam" if hdh_enabled else np.nan,
     })
 
     return row

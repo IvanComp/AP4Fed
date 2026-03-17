@@ -1,6 +1,6 @@
 {
     "simulation_type": "Local",
-    "rounds": 2,
+    "rounds": 10,
     "clients": 2,
     "adaptation": "None",
     "LLM": "llama3.2:3b",
