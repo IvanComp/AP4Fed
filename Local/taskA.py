@@ -775,13 +775,25 @@ def balance_dataset_with_gan(
 
     C, H, W = trainset[0][0].shape
     target_size = get_valid_downscale_size(min(H, W))
+    mean_vals, std_vals = AVAILABLE_DATASETS[DATASET_NAME]["normalize"]
+
+    def _denormalize_tensor(img: torch.Tensor) -> torch.Tensor:
+        mean = img.new_tensor(mean_vals).view(-1, 1, 1)
+        std = img.new_tensor(std_vals).view(-1, 1, 1)
+        return (img * std + mean).clamp(0.0, 1.0)
+
+    def _normalize_tensor(img: torch.Tensor) -> torch.Tensor:
+        mean = img.new_tensor(mean_vals).view(-1, 1, 1)
+        std = img.new_tensor(std_vals).view(-1, 1, 1)
+        return (img - mean) / std
+
     if H != target_size or W != target_size:
-        resize_for_gan = Compose([
-            ToPILImage(),
-            Resize((target_size, target_size)),
-            ToTensor(),
-        ])
-        train_for_gan = [(resize_for_gan(img), lbl) for img, lbl in trainset]
+        def _resize_real_for_gan(img: torch.Tensor) -> torch.Tensor:
+            img_01 = _denormalize_tensor(img)
+            resized = ToTensor()(Resize((target_size, target_size))(ToPILImage()(img_01)))
+            return _normalize_tensor(resized)
+
+        train_for_gan = [(_resize_real_for_gan(img), lbl) for img, lbl in trainset]
     else:
         train_for_gan = list(trainset)
 
@@ -826,8 +838,12 @@ def balance_dataset_with_gan(
 
     if synth_imgs:
         all_imgs_gan = torch.cat(synth_imgs, dim=0)
-        downsample = Compose([ToPILImage(), Resize((H, W)), ToTensor()])
-        resized = torch.stack([downsample(img) for img in all_imgs_gan])
+        def _resize_fake_back(img: torch.Tensor) -> torch.Tensor:
+            img_01 = _denormalize_tensor(img)
+            resized = ToTensor()(Resize((H, W))(ToPILImage()(img_01)))
+            return _normalize_tensor(resized)
+
+        resized = torch.stack([_resize_fake_back(img) for img in all_imgs_gan])
         all_lbls = torch.tensor(synth_lbls, dtype=torch.long)
         synth_ds = TensorDataset(resized, all_lbls)
         result = ConcatDataset([trainset, synth_ds])

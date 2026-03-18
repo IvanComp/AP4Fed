@@ -361,7 +361,11 @@ class FlowerClient(NumPyClient):
         try:
             selection_strategy = ""
 
-            if HETEROGENEOUS_DATA_HANDLER and str(self.data_distribution_type).strip().lower() != "iid" and (ADAPTATION_ENABLED or not self.did_hdh):
+            if (
+                HETEROGENEOUS_DATA_HANDLER
+                and str(self.data_distribution_type).strip().lower() != "iid"
+                and not self.did_hdh
+            ):
                 self.trainloader, hdh_ms = rebalance_trainloader_with_gan_A(self.trainloader)
                 self.did_hdh = True
 

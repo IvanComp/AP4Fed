@@ -235,9 +235,13 @@ class FlowerClient(NumPyClient):
                     return parameters, 0, {}
             log(INFO, f"{self.cid} participates in this round. (CPU: {self.n_cpu}, RAM: {self.ram})")
 
-        if HETEROGENEOUS_DATA_HANDLER and str(self.data_distribution_type).strip().lower() != "iid":
+        if (
+            HETEROGENEOUS_DATA_HANDLER
+            and str(self.data_distribution_type).strip().lower() != "iid"
+            and not self.did_hdh
+        ):
             self.trainloader, hdh_ms = rebalance_trainloader_with_gan_A(self.trainloader)
-            #self.did_hdh = True
+            self.did_hdh = True
 
         if CLIENT_CLUSTER:
             selector_params = configJSON["patterns"]["client_cluster"]["params"]

@@ -118,7 +118,7 @@ if os.path.exists(config_file):
         config = json.load(f)
     ADAPTATION = config.get('adaptation', False).strip().lower()
 
-    num_rounds = int(config.get('rounds', 10))
+    num_rounds = int(os.environ.get("AP4FED_ROUNDS_OVERRIDE", config.get('rounds', 10)))
     client_count = int(config.get('clients', 2))
     clients_per_round = int(config.get('clients_per_round', client_count))
     config_patterns(config["patterns"])
