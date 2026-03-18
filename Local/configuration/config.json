@@ -1,6 +1,6 @@
 {
     "simulation_type": "Local",
-    "rounds": 10,
+    "rounds": 2,
     "clients": 2,
     "clients_per_round": 2,
     "adaptation": "None",
@@ -43,7 +43,7 @@
             "cpu": 5,
             "ram": 2,
             "dataset": "CIFAR-10",
-            "data_distribution_type": "non-IID",
+            "data_distribution_type": "IID",
             "data_persistence_type": "Same Data",
             "delay_combobox": "No",
             "model": "CNN 16k",

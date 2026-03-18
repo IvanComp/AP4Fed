@@ -783,6 +783,16 @@ def load_data(client_config, GLOBAL_ROUND_COUNTER, dataset_name_override=None):
 
         trainset = Subset(trainset, selected_indices)
 
+    class_distribution = Counter()
+    for idx in range(len(trainset)):
+        _, label = trainset[idx]
+        class_distribution[int(label)] += 1
+    log(
+        INFO,
+        f"[DATA DEBUG] Client {client_id} round {GLOBAL_ROUND_COUNTER} "
+        f"train class distribution: {dict(sorted(class_distribution.items()))}",
+    )
+
     trainloader = DataLoader(TensorLabelDataset(trainset), batch_size=batch_size, shuffle=True)
     testloader = DataLoader(testset, batch_size=batch_size, shuffle=False)
     return trainloader, testloader

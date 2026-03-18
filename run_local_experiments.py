@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 
-DEFAULT_MODELS = ["CNN 16k", "squeezenet1_1"]
+DEFAULT_MODELS = ["CNN 16k"]
 DEFAULT_DATASETS = ["CIFAR-10", "FashionMNIST"]
 DEFAULT_EXPERIMENTS = ["baseline", "client_selector", "heterogeneous_data_handler", "message_compressor"]
 
@@ -80,7 +80,7 @@ def build_client_details(template: Dict[str, Any], dataset: str, model: str) -> 
     for cid in range(1, 6):
         cd = copy.deepcopy(template)
         cd["client_id"] = cid
-        cd["cpu"] = 1 if cid == 5 else 3
+        cd["cpu"] = 1 if cid >= 4 else 2
         cd["ram"] = 2
         cd["dataset"] = dataset
         cd["model"] = model
