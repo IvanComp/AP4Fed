@@ -182,26 +182,15 @@ class RecapSimulationPage(QWidget):
         return card
 
     def display_patterns(self, layout):
-        base_dir = os.path.dirname(os.path.abspath(__file__))
         merged = {}
         for choice in self.user_choices:
             if isinstance(choice, dict):
                 merged.update(choice)
-        st = merged.get('simulation_type')
-        subdir = 'Docker' if st == 'Docker' else 'Local'
-        config_path = os.path.join(base_dir, subdir, 'configuration', 'config.json')
-
-        try:
-            with open(config_path, 'r') as f:
-                merged_config = json.load(f)
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to load config.json from {subdir}: {e}")
-            return
 
         patterns_label = QLabel("Patterns")
         patterns_label.setStyleSheet("color: black; font-size: 20px; font-weight: bold; margin-top: 20px;")
         layout.addWidget(patterns_label)
-        all_patterns = merged_config.get('patterns', {})
+        all_patterns = merged.get('patterns', {})
         categories = [
             ("Client Management", [
                 ("client_registry", "Client Registry"),

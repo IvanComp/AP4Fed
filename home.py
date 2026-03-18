@@ -163,6 +163,19 @@ class HomePage(QWidget):
                     loaded_config = json.load(f)
 
                 if self.validate_configuration(loaded_config):
+                    loaded_config["rounds"] = int(loaded_config.get("rounds", 10))
+                    loaded_config["clients"] = int(loaded_config.get("clients", 2))
+                    loaded_config["clients_per_round"] = int(
+                        loaded_config.get("clients_per_round", loaded_config["clients"])
+                    )
+
+                    base_dir = os.path.dirname(os.path.abspath(__file__))
+                    sim_type = str(loaded_config.get("simulation_type", "Local")).lower()
+                    config_dir = os.path.join(base_dir, "Docker" if sim_type == "docker" else "Local", "configuration")
+                    os.makedirs(config_dir, exist_ok=True)
+                    with open(os.path.join(config_dir, "config.json"), "w") as cfg_out:
+                        json.dump(loaded_config, cfg_out, indent=4)
+
                     global user_choices
                     user_choices = [loaded_config]
                     self.recap_simulation_page = RecapSimulationPage(user_choices, home_page_callback=self.show)

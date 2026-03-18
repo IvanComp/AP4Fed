@@ -1,10 +1,10 @@
 {
     "simulation_type": "Local",
-    "rounds": 9,
+    "rounds": 10,
     "clients": 2,
     "clients_per_round": 2,
-    "adaptation": "Single AI-Agent (Few-Shot)",
-    "LLM": "deepseek-r1:8b",
+    "adaptation": "None",
+    "LLM": "llama3.2:3b",
     "patterns": {
         "client_registry": {
             "enabled": true,
@@ -31,7 +31,7 @@
             "params": {}
         },
         "heterogeneous_data_handler": {
-            "enabled": false,
+            "enabled": true,
             "params": {}
         }
     },
@@ -43,7 +43,7 @@
             "cpu": 5,
             "ram": 2,
             "dataset": "CIFAR-10",
-            "data_distribution_type": "IID",
+            "data_distribution_type": "non-IID",
             "data_persistence_type": "Same Data",
             "delay_combobox": "No",
             "model": "CNN 16k",
@@ -54,7 +54,7 @@
             "cpu": 5,
             "ram": 2,
             "dataset": "CIFAR-10",
-            "data_distribution_type": "IID",
+            "data_distribution_type": "non-IID",
             "data_persistence_type": "Same Data",
             "delay_combobox": "No",
             "model": "CNN 16k",
