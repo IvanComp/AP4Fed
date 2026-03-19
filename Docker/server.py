@@ -934,13 +934,26 @@ class FedAvg(Strategy):
 
             results_a.append((fit_res.parameters, fit_res.num_examples, metrics))
 
+        effective_results_a = [
+            item for item in results_a
+            if item[1] and item[1] > 0
+        ]
+
+        if not effective_results_a:
+            previous_round_end_time = time.time()
+            log(
+                INFO,
+                f"[Round {currentRnd}] No clients satisfied the selector criteria for aggregation. Skipping round.",
+            )
+            return self.parameters_a, {}
+
         previous_round_end_time = time.time()
         max_train = max(training_times) if training_times else 0.0
         agg_end = time.time()
         aggregation_time = agg_end - agg_start
 
         self.parameters_a = self.aggregate_parameters(
-            results_a,
+            effective_results_a,
             model_type,
             max_train,
             communication_time,
