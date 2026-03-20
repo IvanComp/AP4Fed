@@ -66,7 +66,7 @@ def detect_cuda_gpu_count() -> int:
         pass
 
     try:
-        import torch  # type: ignore
+        import torch 
 
         if torch.cuda.is_available():
             return int(torch.cuda.device_count())
@@ -494,7 +494,7 @@ def main() -> int:
     ap.add_argument("--experiments", default=",".join(DEFAULT_EXPERIMENTS))
     ap.add_argument("--client-setups", default=",".join(DEFAULT_CLIENT_SETUPS))
     ap.add_argument("--repeat", type=int, default=1)
-    ap.add_argument("--rounds", type=int, default=2)
+    ap.add_argument("--rounds", type=int, default=100)
     ap.add_argument("--num-supernodes", type=int, default=None)
     ap.add_argument("--continue-on-error", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
