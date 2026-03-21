@@ -633,10 +633,6 @@ def main() -> int:
             if gpu_count > 0:
                 per_client_gpus = min(1.0, float(gpu_count) / float(run_supernodes))
                 per_client_gpus = max(per_client_gpus, 0.01)
-                print(
-                    f"[{idx}/{total}] CUDA detected: {gpu_count} GPU(s). "
-                    f"Using {run_supernodes} supernode(s) with {per_client_gpus:.2f} GPU per client."
-                )
                 backend_cfg = {
                     "init_args": {"num_gpus": float(gpu_count)},
                     "client_resources": {"num_cpus": 1.0, "num_gpus": per_client_gpus},
