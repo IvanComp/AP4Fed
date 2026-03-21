@@ -21,7 +21,7 @@ from torchgan.losses import MinimaxGeneratorLoss, MinimaxDiscriminatorLoss
 from torchgan.models import DCGANGenerator, DCGANDiscriminator
 from torchgan.trainer import Trainer
 from torchvision.datasets import CIFAR10, CIFAR100, MNIST, FashionMNIST, KMNIST, OxfordIIITPet, ImageFolder
-from torchvision.transforms import Resize, CenterCrop, ToTensor, Normalize, Compose, ToPILImage, RandomCrop, RandomHorizontalFlip
+from torchvision.transforms import Resize, CenterCrop, ToTensor, Normalize, Compose, ToPILImage
 
 class TensorLabelDataset(Dataset):
     def __init__(self, dataset):
@@ -623,28 +623,16 @@ def load_data(client_config, GLOBAL_ROUND_COUNTER, dataset_name_override=None):
     target_size = 256 if model_name in ["alexnet", "vgg11", "vgg13", "vgg16", "vgg19"] else base_size
 
     # Trasformazioni
-    train_transforms_list = []
-    test_transforms_list = []
+    transforms_list = []
     if DATASET_NAME == "ImageNet100":
-        train_transforms_list = [Resize(224), CenterCrop(224)]
-        test_transforms_list = [Resize(224), CenterCrop(224)]
+        transforms_list = [Resize(224), CenterCrop(224)]
         batch_size = 64
     else:
         if target_size != base_size:
-            train_transforms_list.append(Resize((target_size, target_size)))
-            test_transforms_list.append(Resize((target_size, target_size)))
-        if DATASET_NAME in {"CIFAR10", "CIFAR100"}:
-            train_transforms_list.extend([
-                RandomCrop(base_size, padding=4),
-                RandomHorizontalFlip(),
-            ])
-        elif DATASET_NAME == "FashionMNIST":
-            train_transforms_list.append(RandomCrop(base_size, padding=2))
+            transforms_list.append(Resize((target_size, target_size)))
         batch_size = 64
-    train_transforms_list += [ToTensor(), Normalize(*normalize_params)]
-    test_transforms_list += [ToTensor(), Normalize(*normalize_params)]
-    trf_train = Compose(train_transforms_list)
-    trf_test = Compose(test_transforms_list)
+    transforms_list += [ToTensor(), Normalize(*normalize_params)]
+    trf = Compose(transforms_list)
 
     # Caricamento trainset / testset
     if DATASET_NAME == "ImageNet100":
@@ -655,16 +643,16 @@ def load_data(client_config, GLOBAL_ROUND_COUNTER, dataset_name_override=None):
             raise FileNotFoundError(
                 f"Dataset ImageNet100 non trovato in {train_path} e {test_path}"
             )
-        trainset = ImageFolder(train_path, transform=trf_train)
-        testset = ImageFolder(test_path, transform=trf_test)
+        trainset = ImageFolder(train_path, transform=trf)
+        testset = ImageFolder(test_path, transform=trf)
     else:
         cls = config["class"]
         if DATASET_NAME == "OXFORDIIITPET":
-            trainset = cls("./data", split="trainval", download=True, transform=trf_train)
-            testset = cls("./data", split="test", download=True, transform=trf_test)
+            trainset = cls("./data", split="trainval", download=True, transform=trf)
+            testset = cls("./data", split="test", download=True, transform=trf)
         else:
-            trainset = cls("./data", train=True, download=True, transform=trf_train)
-            testset = cls("./data", train=False, download=True, transform=trf_test)
+            trainset = cls("./data", train=True, download=True, transform=trf)
+            testset = cls("./data", train=False, download=True, transform=trf)
 
     config_path = os.path.join(os.path.dirname(__file__), 'configuration', 'config.json')
     with open(config_path, 'r') as f:

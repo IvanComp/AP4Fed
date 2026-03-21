@@ -42,19 +42,19 @@
             "client_id": 1,
             "cpu": 5,
             "ram": 2,
-            "dataset": "MNIST",
+            "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
             "data_persistence_type": "Same Data",
             "delay_combobox": "No",
             "model": "CNN 16k",
-            "epochs": 1
+            "epochs": 5
         },
         {
             "client_id": 2,
             "cpu": 5,
             "ram": 2,
-            "dataset": "MNIST",
-            "data_distribution_type": "IID",
+            "dataset": "CIFAR-10",
+            "data_distribution_type": "non-IID",
             "data_persistence_type": "Same Data",
             "delay_combobox": "No",
             "model": "CNN 16k",

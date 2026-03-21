@@ -157,6 +157,7 @@ class FlowerClient(NumPyClient):
         self.data_distribution_type = client_config.get("data_distribution_type")
         self.data_persistence_type = client_config.get("data_persistence_type", "Same Data")
         self.model = client_config.get("model")
+        self.epochs = max(1, int(client_config.get("epochs", 1) or 1))
         self.model_type = model_type
         self.did_hdh = False
         self.trainloader, self.testloader = None, None
@@ -271,7 +272,13 @@ class FlowerClient(NumPyClient):
             parameters = parameters
 
         set_weights_A(self.net, parameters)
-        results, training_time = train_A(self.net, self.trainloader, self.testloader, epochs=1, DEVICE=self.DEVICE)
+        results, training_time = train_A(
+            self.net,
+            self.trainloader,
+            self.testloader,
+            epochs=self.epochs,
+            DEVICE=self.DEVICE,
+        )
         new_parameters = get_weights_A(self.net)
         compressed_parameters_hex = None
 
