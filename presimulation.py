@@ -5,7 +5,7 @@ import random
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QFrame, QVBoxLayout, QLabel, QPushButton, QSpinBox,
     QCheckBox, QGroupBox, QFormLayout, QHBoxLayout, QGridLayout,
-    QComboBox, QScrollArea, QStyle, QMessageBox,
+    QComboBox, QScrollArea, QStyle, QMessageBox, QSlider,
     QDialog, QDialogButtonBox
 )
 from PyQt5.QtCore import Qt, QSize
@@ -1186,6 +1186,7 @@ class ClientConfigurationPage(QWidget):
         ram = first["ram_input"].value()
         ds = first["dataset_combobox"].currentText()
         part = first["partition_combobox"].currentText()
+        non_iid_alpha = first["non_iid_alpha_slider"].value()
         pers = first["persistence_combobox"].currentText()
         delay = first["delay_combobox"].currentText()
         model = first["model_combobox"].currentText()
@@ -1203,6 +1204,7 @@ class ClientConfigurationPage(QWidget):
             idx_part = cfg["partition_combobox"].findText(part)
             if idx_part >= 0:
                 cfg["partition_combobox"].setCurrentIndex(idx_part)
+            cfg["non_iid_alpha_slider"].setValue(non_iid_alpha)
 
             idx_pers = cfg["persistence_combobox"].findText(pers)
             if idx_pers >= 0:
@@ -1288,6 +1290,7 @@ class ClientConfigurationPage(QWidget):
             "ram": cfg["ram_input"].value(),
             "dataset": cfg["dataset_combobox"].currentText(),
             "data_distribution_type": cfg["partition_combobox"].currentText(),
+            "non_iid_alpha": cfg["non_iid_alpha_slider"].value() / 100.0,
             "data_persistence_type": cfg["persistence_combobox"].currentText(),
             "delay_combobox": cfg["delay_combobox"].currentText(),
             "model": cfg["model_combobox"].currentText(),
@@ -1302,7 +1305,7 @@ class ClientConfigurationPage(QWidget):
         card.setLayout(card_layout)
 
         fixed_width = 305
-        fixed_height = 420
+        fixed_height = 470
         card.setFixedWidth(fixed_width)
         card.setFixedHeight(fixed_height)
 
@@ -1367,6 +1370,25 @@ class ClientConfigurationPage(QWidget):
         partition_layout.addWidget(partition_label)
         partition_layout.addWidget(partition_combobox)
         card_layout.addLayout(partition_layout)
+
+        non_iid_alpha_label = QLabel("non-IIDness:")
+        non_iid_alpha_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
+        non_iid_alpha_label.setAlignment(Qt.AlignLeft)
+        non_iid_alpha_slider = QSlider(Qt.Horizontal)
+        non_iid_alpha_slider.setRange(1, 100)
+        default_non_iid_alpha = float((existing or {}).get("non_iid_alpha", 0.5))
+        default_non_iid_alpha = max(0.01, min(1.0, default_non_iid_alpha))
+        non_iid_alpha_slider.setValue(int(round(default_non_iid_alpha * 100)))
+        non_iid_alpha_slider.setFixedWidth(110)
+        non_iid_alpha_value_label = QLabel()
+        non_iid_alpha_value_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        non_iid_alpha_value_label.setFixedWidth(40)
+
+        non_iid_alpha_layout = QHBoxLayout()
+        non_iid_alpha_layout.addWidget(non_iid_alpha_label)
+        non_iid_alpha_layout.addWidget(non_iid_alpha_slider)
+        non_iid_alpha_layout.addWidget(non_iid_alpha_value_label)
+        card_layout.addLayout(non_iid_alpha_layout)
 
         persistence_label = QLabel("Data Persistence:")
         persistence_label.setStyleSheet("font-size: 12px; background:#f9f9f9")
@@ -1464,12 +1486,30 @@ class ClientConfigurationPage(QWidget):
         dataset_combobox.currentIndexChanged.connect(update_model_options)
         update_model_options() 
 
+        def update_non_iid_alpha_visibility():
+            is_non_iid = partition_combobox.currentText() == "non-IID"
+            non_iid_alpha_label.setVisible(is_non_iid)
+            non_iid_alpha_slider.setVisible(is_non_iid)
+            non_iid_alpha_value_label.setVisible(is_non_iid)
+
+        def update_non_iid_alpha_label():
+            alpha_value = non_iid_alpha_slider.value() / 100.0
+            non_iid_alpha_value_label.setText("IID" if alpha_value >= 1.0 else f"{alpha_value:.2f}")
+
+        partition_combobox.currentIndexChanged.connect(update_non_iid_alpha_visibility)
+        non_iid_alpha_slider.valueChanged.connect(update_non_iid_alpha_label)
+        update_non_iid_alpha_label()
+        update_non_iid_alpha_visibility()
+
         if existing:
             self._set_combo_text(dataset_combobox, existing.get("dataset"))
             self._set_combo_text(partition_combobox, existing.get("data_distribution_type"))
             self._set_combo_text(persistence_combobox, existing.get("data_persistence_type"))
             self._set_combo_text(delay_combobox, existing.get("delay_combobox"))
             self._set_combo_text(model_combobox, existing.get("model"))
+            non_iid_alpha_slider.setValue(int(round(max(0.01, min(1.0, float(existing.get("non_iid_alpha", 0.5)))) * 100)))
+            update_non_iid_alpha_label()
+            update_non_iid_alpha_visibility()
 
         config_dict = {
             "cpu_input": cpu_input,
@@ -1477,6 +1517,7 @@ class ClientConfigurationPage(QWidget):
             "dataset_combobox": dataset_combobox,
             "persistence_combobox": persistence_combobox,
             "partition_combobox": partition_combobox,
+            "non_iid_alpha_slider": non_iid_alpha_slider,
             "delay_combobox": delay_combobox,
             "model_combobox": model_combobox,
             "epochs_spinbox": epochs_spinbox
@@ -1563,6 +1604,7 @@ class ClientConfigurationPage(QWidget):
                     "ram": profile["ram"],
                     "dataset": profile["dataset"],
                     "data_distribution_type": profile["data_distribution_type"],
+                    "non_iid_alpha": profile.get("non_iid_alpha", 0.5),
                     "data_persistence_type": profile["data_persistence_type"],
                     "delay_combobox": profile["delay_combobox"],
                     "model": profile["model"],
@@ -1584,6 +1626,7 @@ class ClientConfigurationPage(QWidget):
                     "ram": cfg["ram_input"].value(),
                     "dataset": cfg["dataset_combobox"].currentText(),
                     "data_distribution_type": cfg["partition_combobox"].currentText(),
+                    "non_iid_alpha": cfg["non_iid_alpha_slider"].value() / 100.0,
                     "data_persistence_type": cfg["persistence_combobox"].currentText(),
                     "delay_combobox": cfg["delay_combobox"].currentText(),
                     "model": cfg["model_combobox"].currentText(),
@@ -1604,6 +1647,7 @@ class ClientConfigurationPage(QWidget):
                     "ram": cfg["ram_input"].value(),
                     "dataset": cfg["dataset_combobox"].currentText(),
                     "data_distribution_type": cfg["partition_combobox"].currentText(),
+                    "non_iid_alpha": cfg["non_iid_alpha_slider"].value() / 100.0,
                     "data_persistence_type": cfg["persistence_combobox"].currentText(),
                     "delay_combobox": cfg["delay_combobox"].currentText(),
                     "model": cfg["model_combobox"].currentText(),

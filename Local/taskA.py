@@ -457,12 +457,23 @@ def build_client_partition_map(trainset, client_details, dataset_name, alpha=0.5
         if str(client.get("data_distribution_type", "")).strip().lower() == "iid"
     ]
     non_iid_client_ids = [client_id for client_id in client_ids if client_id not in iid_client_ids]
+    client_detail_by_id = {
+        int(client.get("client_id")): client
+        for client in same_dataset_clients
+    }
 
     rng = np.random.default_rng(seed)
     preference = {client_id: np.ones(num_classes, dtype=np.float64) for client_id in iid_client_ids}
     if non_iid_client_ids:
-        dirichlet_draws = rng.dirichlet(np.full(num_classes, alpha, dtype=np.float64), size=len(non_iid_client_ids))
-        for client_id, draw in zip(non_iid_client_ids, dirichlet_draws):
+        for client_id in non_iid_client_ids:
+            client_detail = client_detail_by_id.get(client_id, {})
+            client_alpha = client_detail.get("non_iid_alpha", client_detail.get("alpha_dirichlet", alpha))
+            try:
+                client_alpha = float(client_alpha)
+            except Exception:
+                client_alpha = alpha
+            client_alpha = max(0.01, min(1.0, client_alpha))
+            draw = rng.dirichlet(np.full(num_classes, client_alpha, dtype=np.float64))
             preference[client_id] = draw.astype(np.float64)
 
     client_allocations = {client_id: [] for client_id in client_ids}

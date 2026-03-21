@@ -44,10 +44,11 @@
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "IID",
+            "non_iid_alpha": 0.5,
             "data_persistence_type": "Same Data",
             "delay_combobox": "No",
             "model": "CNN 16k",
-            "epochs": 5
+            "epochs": 1
         },
         {
             "client_id": 2,
@@ -55,6 +56,7 @@
             "ram": 2,
             "dataset": "CIFAR-10",
             "data_distribution_type": "non-IID",
+            "non_iid_alpha": 0.86,
             "data_persistence_type": "Same Data",
             "delay_combobox": "No",
             "model": "CNN 16k",

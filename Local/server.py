@@ -342,7 +342,9 @@ def _infer_alpha_dirichlet(client_detail):
     if distribution == "iid":
         return 1
     if distribution == "non-iid":
-        return 0.5
+        return client_detail.get("non_iid_alpha", client_detail.get("alpha_dirichlet", 0.5))
+    if "non_iid_alpha" in client_detail:
+        return client_detail.get("non_iid_alpha")
     if "alpha_dirichlet" in client_detail:
         return client_detail.get("alpha_dirichlet")
     if client_detail.get("data_persistence_type") in {"New Data", "Remove Data"}:
