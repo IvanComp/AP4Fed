@@ -536,6 +536,25 @@ def build_client_partition_map(trainset, client_details, dataset_name, alpha=0.5
             draw = rng.dirichlet(np.full(num_classes, client_alpha, dtype=np.float64))
             preference[client_id] = draw.astype(np.float64)
 
+    iid_target_by_class = {
+        client_id: np.zeros(num_classes, dtype=int)
+        for client_id in iid_client_ids
+    }
+    if iid_client_ids:
+        class_sizes = [len(class_to_indices[label]) for label in labels_sorted]
+        for client_offset, client_id in enumerate(iid_client_ids):
+            total_target = target_counts[client_id]
+            base = total_target // num_classes
+            remainder_quota = total_target % num_classes
+            iid_target_by_class[client_id][:] = base
+
+            class_order = sorted(
+                range(num_classes),
+                key=lambda pos: (-class_sizes[pos], (pos - client_offset) % max(num_classes, 1)),
+            )
+            for class_pos in class_order[:remainder_quota]:
+                iid_target_by_class[client_id][class_pos] += 1
+
     client_allocations = {client_id: [] for client_id in client_ids}
     remaining_capacity = dict(target_counts)
     leftover_indices = []
@@ -543,6 +562,49 @@ def build_client_partition_map(trainset, client_details, dataset_name, alpha=0.5
     for class_pos, label in enumerate(labels_sorted):
         indices = list(class_to_indices[label])
         rng.shuffle(indices)
+        if not indices:
+            continue
+
+        # Step 1: reserve a near-uniform quota for IID clients before the mixed allocation.
+        iid_candidates = [
+            client_id for client_id in iid_client_ids
+            if remaining_capacity[client_id] > 0 and iid_target_by_class[client_id][class_pos] > 0
+        ]
+        if iid_candidates:
+            iid_candidates = sorted(
+                iid_candidates,
+                key=lambda client_id: (
+                    -iid_target_by_class[client_id][class_pos],
+                    -remaining_capacity[client_id],
+                    client_id,
+                ),
+            )
+            while indices and iid_candidates:
+                progress = False
+                for client_id in iid_candidates:
+                    if not indices:
+                        break
+                    if remaining_capacity[client_id] <= 0 or iid_target_by_class[client_id][class_pos] <= 0:
+                        continue
+                    client_allocations[client_id].append(indices.pop())
+                    remaining_capacity[client_id] -= 1
+                    iid_target_by_class[client_id][class_pos] -= 1
+                    progress = True
+                if not progress:
+                    break
+                iid_candidates = [
+                    client_id for client_id in iid_client_ids
+                    if remaining_capacity[client_id] > 0 and iid_target_by_class[client_id][class_pos] > 0
+                ]
+                iid_candidates = sorted(
+                    iid_candidates,
+                    key=lambda client_id: (
+                        -iid_target_by_class[client_id][class_pos],
+                        -remaining_capacity[client_id],
+                        client_id,
+                    ),
+                )
+
         if not indices:
             continue
 
@@ -670,13 +732,14 @@ def load_data(client_config, GLOBAL_ROUND_COUNTER, dataset_name_override=None):
         full_config = json.load(f)
     total_rounds = full_config.get("rounds")
     all_client_details = full_config.get("client_details", [])
+    partition_seed = int(full_config.get("partition_seed", 1234))
 
     partition_map = build_client_partition_map(
         trainset,
         all_client_details,
         DATASET_NAME,
         alpha=0.5,
-        seed=1234,
+        seed=partition_seed,
     )
     client_id = int(client_config.get("client_id", os.environ.get("CLIENT_ID", "1")))
     client_indices = partition_map.get(client_id, [])

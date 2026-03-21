@@ -1,8 +1,8 @@
 {
     "simulation_type": "Local",
-    "rounds": 2,
-    "clients": 2,
-    "clients_per_round": 2,
+    "rounds": 100,
+    "clients": 20,
+    "clients_per_round": 5,
     "adaptation": "None",
     "LLM": "llama3.2:3b",
     "patterns": {
@@ -12,14 +12,18 @@
         },
         "client_selector": {
             "enabled": false,
-            "params": {}
+            "params": {
+                "selection_strategy": "Resource-Based",
+                "selection_criteria": "CPU",
+                "selection_value": 2
+            }
         },
         "client_cluster": {
             "enabled": false,
             "params": {}
         },
         "message_compressor": {
-            "enabled": false,
+            "enabled": true,
             "params": {}
         },
         "model_co-versioning_registry": {
@@ -35,14 +39,51 @@
             "params": {}
         }
     },
-    "client_generation_mode": "manual",
-    "client_profiles": [],
+    "client_generation_mode": "profile_based",
+    "client_profiles": [
+        {
+            "profile_id": 1,
+            "share_percent": 34,
+            "cpu": 3,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "Random",
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "profile_id": 2,
+            "share_percent": 33,
+            "cpu": 2,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "Random",
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "profile_id": 3,
+            "share_percent": 33,
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "Random",
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        }
+    ],
     "client_details": [
         {
             "client_id": 1,
-            "cpu": 5,
+            "cpu": 3,
             "ram": 2,
-            "dataset": "CIFAR-10",
+            "dataset": "FashionMNIST",
             "data_distribution_type": "IID",
             "non_iid_alpha": 0.5,
             "data_persistence_type": "Same Data",
@@ -52,15 +93,232 @@
         },
         {
             "client_id": 2,
-            "cpu": 5,
+            "cpu": 3,
             "ram": 2,
-            "dataset": "CIFAR-10",
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "IID",
+            "non_iid_alpha": 0.5,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 3,
+            "cpu": 3,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "IID",
+            "non_iid_alpha": 0.5,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 4,
+            "cpu": 3,
+            "ram": 2,
+            "dataset": "FashionMNIST",
             "data_distribution_type": "non-IID",
-            "non_iid_alpha": 0.86,
+            "non_iid_alpha": 0.9,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 5,
+            "cpu": 3,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "non-IID",
+            "non_iid_alpha": 0.9,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 6,
+            "cpu": 3,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "non-IID",
+            "non_iid_alpha": 0.9,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 7,
+            "cpu": 3,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "non-IID",
+            "non_iid_alpha": 0.9,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 8,
+            "cpu": 2,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "IID",
+            "non_iid_alpha": 0.5,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 9,
+            "cpu": 2,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "IID",
+            "non_iid_alpha": 0.5,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 10,
+            "cpu": 2,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "IID",
+            "non_iid_alpha": 0.5,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 11,
+            "cpu": 2,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "non-IID",
+            "non_iid_alpha": 0.9,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 12,
+            "cpu": 2,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "IID",
+            "non_iid_alpha": 0.5,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 13,
+            "cpu": 2,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "IID",
+            "non_iid_alpha": 0.5,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 14,
+            "cpu": 2,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "IID",
+            "non_iid_alpha": 0.5,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 15,
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "non-IID",
+            "non_iid_alpha": 0.3,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 16,
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "IID",
+            "non_iid_alpha": 0.5,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 17,
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "non-IID",
+            "non_iid_alpha": 0.3,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 18,
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "non-IID",
+            "non_iid_alpha": 0.3,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 19,
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "IID",
+            "non_iid_alpha": 0.5,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 20,
+            "cpu": 1,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "IID",
+            "non_iid_alpha": 0.5,
             "data_persistence_type": "Same Data",
             "delay_combobox": "No",
             "model": "CNN 16k",
             "epochs": 1
         }
-    ]
+    ],
+    "partition_seed": 1278627554
 }

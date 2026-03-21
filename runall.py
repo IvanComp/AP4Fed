@@ -8,15 +8,15 @@ import os
 import subprocess
 import sys
 import time
+import zlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 
 DEFAULT_MODELS = ["CNN 16k"]
-DEFAULT_DATASETS = ["FashionMNIST", "CIFAR-10"]
+DEFAULT_DATASETS = ["FashionMNIST", "CIFAR-10", "CIFAR-100"]
 DEFAULT_EXPERIMENTS = ["baseline", "client_selector", "heterogeneous_data_handler", "message_compressor"]
 DEFAULT_CLIENT_SETUPS = [
-    "manual5",
     "profile_34_33_33",
     "profile_60_30_10",
     "profile_60_10_30",
@@ -80,6 +80,26 @@ def sanitize_name(s: str) -> str:
     return "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in s).strip("_")
 
 
+def build_partition_seed(
+    dataset: str,
+    model: str,
+    experiment_name: str,
+    client_setup: str,
+    repeat_idx: int,
+) -> int:
+    payload = json.dumps(
+        {
+            "dataset": dataset,
+            "model": model,
+            "experiment": experiment_name,
+            "client_setup": client_setup,
+            "repeat": repeat_idx,
+        },
+        sort_keys=True,
+    ).encode("utf-8")
+    return int(zlib.crc32(payload) & 0xFFFFFFFF)
+
+
 def experiment_label(
     dataset: str,
     model: str,
@@ -121,6 +141,8 @@ def build_client_details(template: Dict[str, Any], dataset: str, model: str) -> 
         cd["delay_combobox"] = cd.get("delay_combobox", "No")
         cd["data_persistence_type"] = cd.get("data_persistence_type", "Same Data")
         cd["data_distribution_type"] = "IID" if cid <= 3 else "non-IID"
+        if cd["data_distribution_type"] == "non-IID":
+            cd["non_iid_alpha"] = 0.3 if int(cd["cpu"]) == 1 else 0.9
         client_details.append(cd)
     return client_details
 
@@ -146,10 +168,12 @@ def build_profile_scenario(
     client_setup: str,
     experiment_name: str,
     repeat_idx: int,
+    total_clients_override: Optional[int] = None,
+    clients_per_round_override: Optional[int] = None,
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], int, int]:
     shares = PROFILE_SHARE_MAP[client_setup]
-    total_clients = 100
-    clients_per_round = 5
+    total_clients = int(total_clients_override) if total_clients_override is not None else 100
+    clients_per_round = int(clients_per_round_override) if clients_per_round_override is not None else 5
     counts = normalize_profile_counts(total_clients, list(shares))
     profiles = [
         {
@@ -212,6 +236,8 @@ def build_profile_scenario(
             cd["ram"] = profile["ram"]
             cd["dataset"] = dataset
             cd["data_distribution_type"] = seeded.choice(["IID", "non-IID"])
+            if cd["data_distribution_type"] == "non-IID":
+                cd["non_iid_alpha"] = 0.3 if int(cd["cpu"]) == 1 else 0.9
             cd["data_persistence_type"] = "Same Data"
             cd["delay_combobox"] = "No"
             cd["model"] = model
@@ -230,6 +256,8 @@ def apply_experiment_to_config(
     rounds_override: Optional[int],
     client_setup: str,
     repeat_idx: int,
+    total_clients_override: Optional[int] = None,
+    clients_per_round_override: Optional[int] = None,
 ) -> Dict[str, Any]:
     cfg = copy.deepcopy(base_cfg)
 
@@ -238,6 +266,13 @@ def apply_experiment_to_config(
 
     cfg["simulation_type"] = "Local"
     cfg["adaptation"] = "None"
+    cfg["partition_seed"] = build_partition_seed(
+        dataset,
+        model,
+        experiment_name,
+        client_setup,
+        repeat_idx,
+    )
 
     reset_patterns(cfg)
 
@@ -257,6 +292,8 @@ def apply_experiment_to_config(
             client_setup,
             experiment_name,
             repeat_idx,
+            total_clients_override=total_clients_override,
+            clients_per_round_override=clients_per_round_override,
         )
         cfg["clients"] = total_clients
         cfg["clients_per_round"] = clients_per_round
@@ -495,6 +532,8 @@ def main() -> int:
     ap.add_argument("--client-setups", default=",".join(DEFAULT_CLIENT_SETUPS))
     ap.add_argument("--repeat", type=int, default=1)
     ap.add_argument("--rounds", type=int, default=100)
+    ap.add_argument("--total-clients", type=int, default=20)
+    ap.add_argument("--clients-per-round", type=int, default=5)
     ap.add_argument("--num-supernodes", type=int, default=None)
     ap.add_argument("--continue-on-error", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
@@ -527,21 +566,9 @@ def main() -> int:
         print("--repeat must be >= 1", file=sys.stderr)
         return 2
 
-    ordered_client_setups = []
-    if "manual5" in client_setups:
-        ordered_client_setups.append("manual5")
-    ordered_client_setups.extend([setup for setup in client_setups if setup != "manual5"])
-
     matrix: List[Tuple[str, str, str, str, int]] = []
-
-    if "manual5" in ordered_client_setups:
-        for dataset, model, experiment_name in itertools.product(datasets, models, experiments):
-            for r in range(1, args.repeat + 1):
-                matrix.append((dataset, model, experiment_name, "manual5", r))
-
-    profile_setups = [setup for setup in ordered_client_setups if setup != "manual5"]
     for dataset in datasets:
-        for client_setup in profile_setups:
+        for client_setup in client_setups:
             for model, experiment_name in itertools.product(models, experiments):
                 for r in range(1, args.repeat + 1):
                     matrix.append((dataset, model, experiment_name, client_setup, r))
@@ -566,7 +593,15 @@ def main() -> int:
             )
 
             cfg = apply_experiment_to_config(
-                original_cfg, dataset, model, experiment_name, args.rounds, client_setup, repeat_idx
+                original_cfg,
+                dataset,
+                model,
+                experiment_name,
+                args.rounds,
+                client_setup,
+                repeat_idx,
+                total_clients_override=args.total_clients,
+                clients_per_round_override=args.clients_per_round,
             )
             save_json(config_path, cfg)
             reset_experiment_outputs(local_dir)
