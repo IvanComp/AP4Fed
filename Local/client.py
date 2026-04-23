@@ -286,7 +286,10 @@ class FlowerClient(NumPyClient):
         self.did_hdh = False
         self.trainloader, self.testloader = None, None
         self.delay_enabled = (client_config.get("delay_combobox") == "Yes")
-        self.delay_injection = 50
+        self.delay_min_seconds = int(client_config.get("delay_min_seconds", 0) or 0)
+        self.delay_max_seconds = int(client_config.get("delay_max_seconds", 50) or 50)
+        if self.delay_max_seconds < self.delay_min_seconds:
+            self.delay_min_seconds, self.delay_max_seconds = self.delay_max_seconds, self.delay_min_seconds
         self.assigned_cpu_cores = []
         self.torch_cpu_threads = max(1, int(self.n_cpu or 1))
 
@@ -376,11 +379,11 @@ class FlowerClient(NumPyClient):
                 selection_criteria = selector_params.get("selection_criteria", "")
                 selection_value = selector_params.get("selection_value", "")
                 if selection_strategy == "Resource-Based":
-                    if selection_criteria == "CPU" and self.n_cpu < selection_value:
+                    if selection_criteria == "CPU" and self.n_cpu <= selection_value:
                         log(INFO,
                             f"{self.cid} has insufficient CPU ({self.n_cpu}). Will not participate in the next FL round.")
                         return parameters, 0, {}
-                    if selection_criteria == "RAM" and self.ram < selection_value:
+                    if selection_criteria == "RAM" and self.ram <= selection_value:
                         log(INFO,
                             f"{self.cid} has insufficient RAM ({self.ram}). Will not participate in the next FL round.")
                         return parameters, 0, {}
@@ -423,7 +426,7 @@ class FlowerClient(NumPyClient):
 
             train_end_ts = taskA.TRAIN_COMPLETED_TS or time.time()
             if self.delay_enabled:
-                random_delay = random.randint(0, self.delay_injection)
+                random_delay = random.randint(self.delay_min_seconds, self.delay_max_seconds)
                 log(INFO, f"client {self.cid} injecting delay of {random_delay} seconds")
                 time.sleep(random_delay)
             send_ready_ts = time.time()

@@ -423,12 +423,89 @@ def _collect_checkpoint_metrics(df, round_level_df, round_number):
 
 
 def build_ml_experiment_row(report_path):
+    def _build_empty_row():
+        first_client = GLOBAL_CLIENT_DETAILS[0] if GLOBAL_CLIENT_DETAILS else {}
+        first_model = first_client.get("model", "")
+        first_dataset = config.get("dataset") or first_client.get("dataset", "")
+        unique_epochs = sorted(
+            {
+                int(client.get("epochs"))
+                for client in GLOBAL_CLIENT_DETAILS
+                if client.get("epochs") is not None
+            }
+        )
+        epochs_value = unique_epochs[0] if len(unique_epochs) == 1 else _serialize_value(unique_epochs)
+        selector_block = config.get("patterns", {}).get("client_selector", {})
+        selector_cfg = selector_block.get("params", {})
+        selector_enabled = bool(selector_block.get("enabled", False))
+        message_compressor_enabled = bool(config.get("patterns", {}).get("message_compressor", {}).get("enabled", False))
+        hdh_enabled = bool(config.get("patterns", {}).get("heterogeneous_data_handler", {}).get("enabled", False))
+
+        row = {
+            "N Rounds": int(num_rounds),
+            "Total Clients": int(client_count),
+            "Model": first_model,
+            "Dataset": first_dataset,
+            "Optimizer": "Adam",
+            "Learning Rate": 0.001,
+            "Batch Size": 64,
+            "Epochs": epochs_value,
+        }
+
+        for client_detail in sorted(GLOBAL_CLIENT_DETAILS, key=lambda item: int(item.get("client_id", 0))):
+            client_number = int(client_detail.get("client_id", 0))
+            prefix = f"Client {client_number}"
+            row[f"{prefix} ID"] = prefix
+            row[f"{prefix} CPU"] = client_detail.get("cpu", "")
+            row[f"{prefix} RAM"] = client_detail.get("ram", "")
+            row[f"{prefix} Data Distribution"] = _nan_if_missing(client_detail.get("data_distribution_type"))
+            row[f"{prefix} Data Persistence"] = _nan_if_missing(client_detail.get("data_persistence_type"))
+            row[f"{prefix} Alpha Dirichlet"] = _infer_alpha_dirichlet(client_detail)
+            row[f"{prefix} JSD"] = np.nan
+            row[f"{prefix} CPU Usage Avg"] = np.nan
+            row[f"{prefix} RAM Usage Avg"] = np.nan
+
+        for label in ("25", "50", "75"):
+            row[f"Round {label}%"] = np.nan
+            row[f"Val F1 {label}%"] = np.nan
+            row[f"Training Time Avg {label}%"] = np.nan
+            row[f"Communication Time Avg {label}%"] = np.nan
+            row[f"Total Round Time {label}%"] = np.nan
+
+        row.update({
+            "Avg Training Time": np.nan,
+            "Avg Communication Time": np.nan,
+            "Avg Total Round Time": np.nan,
+            "Final Train Loss": np.nan,
+            "Final Train Accuracy": np.nan,
+            "Final Train F1": np.nan,
+            "Final Val Loss": np.nan,
+            "Final Val Accuracy": np.nan,
+            "Final Val F1 (Last Round)": np.nan,
+            "Final Val F1 (Best)": np.nan,
+            "AP List (client_selector,message_compressor,heterogeneous_data_handler)": _build_ap_list_for_ml(),
+            "Client Selector Strategy": _nan_if_missing(selector_cfg.get("selection_strategy")) if selector_enabled else np.nan,
+            "Client Selector Criteria": _nan_if_missing(selector_cfg.get("selection_criteria")) if selector_enabled else np.nan,
+            "Client Selector Value": _nan_if_missing(selector_cfg.get("selection_value")) if selector_enabled else np.nan,
+            "Message Compressor Alg": "zlib" if message_compressor_enabled else np.nan,
+            "HDH Batch Size": 32 if hdh_enabled else np.nan,
+            "HDH Beta 1": 0.5 if hdh_enabled else np.nan,
+            "HDH Beta 2": 0.999 if hdh_enabled else np.nan,
+            "HDH Discriminator": "DCGANDiscriminator" if hdh_enabled else np.nan,
+            "HDH Epochs": 1 if hdh_enabled else np.nan,
+            "HDH Generator": "DCGANGenerator" if hdh_enabled else np.nan,
+            "HDH Learning Rate": 2e-4 if hdh_enabled else np.nan,
+            "HDH Latent Dim": 100 if hdh_enabled else np.nan,
+            "HDH Optimizer": "Adam" if hdh_enabled else np.nan,
+        })
+        return row
+
     if not os.path.exists(report_path):
-        return None
+        return _build_empty_row()
 
     df = pd.read_csv(report_path)
     if df.empty:
-        return None
+        return _build_empty_row()
 
     numeric_cols = [
         "FL Round",
@@ -466,7 +543,7 @@ def build_ml_experiment_row(report_path):
     round_level_df.sort_values("FL Round", inplace=True)
     available_rounds = round_level_df["FL Round"].dropna().astype(int).tolist()
     if not available_rounds:
-        return None
+        return _build_empty_row()
 
     first_client = GLOBAL_CLIENT_DETAILS[0] if GLOBAL_CLIENT_DETAILS else {}
     first_model = first_client.get("model", "")
@@ -479,7 +556,9 @@ def build_ml_experiment_row(report_path):
         }
     )
     epochs_value = unique_epochs[0] if len(unique_epochs) == 1 else _serialize_value(unique_epochs)
-    selector_cfg = config.get("patterns", {}).get("client_selector", {}).get("params", {})
+    selector_block = config.get("patterns", {}).get("client_selector", {})
+    selector_cfg = selector_block.get("params", {})
+    selector_enabled = bool(selector_block.get("enabled", False))
     message_compressor_enabled = bool(config.get("patterns", {}).get("message_compressor", {}).get("enabled", False))
     hdh_enabled = bool(config.get("patterns", {}).get("heterogeneous_data_handler", {}).get("enabled", False))
     final_row = round_level_df.iloc[-1]
@@ -531,9 +610,9 @@ def build_ml_experiment_row(report_path):
         "Final Val F1 (Best)": _safe_float(round_level_df["Val F1"].max()),
         "Final Agent Time": _safe_float(final_row.get("Agent Time (s)")) if "Agent Time (s)" in round_level_df.columns else None,
         "AP List (client_selector,message_compressor,heterogeneous_data_handler)": _build_ap_list_for_ml(),
-        "Client Selector Strategy": _nan_if_missing(selector_cfg.get("selection_strategy")),
-        "Client Selector Criteria": _nan_if_missing(selector_cfg.get("selection_criteria")),
-        "Client Selector Value": _nan_if_missing(selector_cfg.get("selection_value")),
+        "Client Selector Strategy": _nan_if_missing(selector_cfg.get("selection_strategy")) if selector_enabled else np.nan,
+        "Client Selector Criteria": _nan_if_missing(selector_cfg.get("selection_criteria")) if selector_enabled else np.nan,
+        "Client Selector Value": _nan_if_missing(selector_cfg.get("selection_value")) if selector_enabled else np.nan,
         "Message Compressor Alg": "zlib" if message_compressor_enabled else np.nan,
         "HDH Batch Size": 32 if hdh_enabled else np.nan,
         "HDH Beta 1": 0.5 if hdh_enabled else np.nan,
@@ -722,6 +801,40 @@ class ClientCidCriterion(Criterion):
     def select(self, client: ClientProxy) -> bool:
         return str(client.cid) in self.allowed_cids
 
+
+def _client_detail_by_cid(cid: str):
+    cid_str = str(cid)
+    for detail in GLOBAL_CLIENT_DETAILS:
+        if str(detail.get("client_id")) == cid_str:
+            return detail
+    return {}
+
+
+def _is_resource_eligible_client(cid: str) -> bool:
+    if not (CLIENT_SELECTOR and selection_strategy == "Resource-Based"):
+        return True
+    detail = _client_detail_by_cid(cid)
+    if not detail:
+        return True
+    selection_value = int(selector_params.get("selection_value", 0) or 0)
+    if selection_criteria == "CPU":
+        return int(detail.get("cpu", 0) or 0) >= selection_value
+    if selection_criteria == "RAM":
+        return int(detail.get("ram", 0) or 0) >= selection_value
+    return True
+
+
+def _is_high_tier_client(cid: str) -> bool:
+    detail = _client_detail_by_cid(cid)
+    if not detail:
+        return False
+    selection_value = int(selector_params.get("selection_value", 0) or 0)
+    if selection_criteria == "CPU":
+        return int(detail.get("cpu", 0) or 0) > selection_value
+    if selection_criteria == "RAM":
+        return int(detail.get("ram", 0) or 0) > selection_value
+    return False
+
 class FedAvg(Strategy):
     def __init__(self, initial_parameters_a: Parameters):
         self.round_start_time: float | None = None
@@ -834,6 +947,49 @@ class FedAvg(Strategy):
                         criterion=ClientCidCriterion(remaining_cids),
                     )
                 )
+
+        if CLIENT_SELECTOR and selection_strategy == "Resource-Based":
+            eligible_clients = [client for client in clients if _is_resource_eligible_client(client.cid)]
+            if len(eligible_clients) < 2:
+                selected_cids = {str(client.cid) for client in clients}
+                preferred_high_tier_cids = [
+                    cid for cid in self._used_training_client_cids
+                    if cid in all_clients
+                    and cid not in selected_cids
+                    and _is_high_tier_client(cid)
+                ]
+                needed_high_tier = 2 - len(eligible_clients)
+                candidate_high_tier_cids = preferred_high_tier_cids[:]
+                if needed_high_tier > 0 and len(candidate_high_tier_cids) < needed_high_tier:
+                    global_high_tier_cids = [
+                        cid for cid in all_clients.keys()
+                        if str(cid) not in selected_cids
+                        and str(cid) not in candidate_high_tier_cids
+                        and _is_high_tier_client(cid)
+                    ]
+                    candidate_high_tier_cids.extend(global_high_tier_cids)
+                if candidate_high_tier_cids and needed_high_tier > 0:
+                    fallback_clients = client_manager.sample(
+                        num_clients=min(needed_high_tier, len(candidate_high_tier_cids)),
+                        min_num_clients=1,
+                        criterion=ClientCidCriterion(candidate_high_tier_cids),
+                    )
+                    fallback_by_cid = {str(client.cid): client for client in fallback_clients}
+                    updated_clients = list(clients)
+                    replaceable_indexes = [
+                        idx for idx, client in enumerate(updated_clients)
+                        if not _is_resource_eligible_client(client.cid)
+                    ]
+                    for replace_idx, fallback_client in zip(replaceable_indexes, fallback_by_cid.values()):
+                        updated_clients[replace_idx] = fallback_client
+                    deduped_clients = []
+                    seen_final_cids = set()
+                    for client in updated_clients:
+                        cid = str(client.cid)
+                        if cid not in seen_final_cids:
+                            deduped_clients.append(client)
+                            seen_final_cids.add(cid)
+                    clients = deduped_clients
 
         self._used_training_client_cids.update(str(client.cid) for client in clients)
 
@@ -1309,6 +1465,9 @@ class FedAvg(Strategy):
                 for key in global_metrics[model_type]
             }
 
+        round_client_ids = [str(client_proxy.cid) for client_proxy, _ in results]
+        if hasattr(self.adapt_mgr, "set_last_round_client_ids"):
+            self.adapt_mgr.set_last_round_client_ids(round_client_ids)
         next_round_config = self.adapt_mgr.config_next_round(metrics_history, round_total_time)
         agent_time = getattr(self.adapt_mgr, 'adaptation_time', None)
         preprocess_csv(agent_time)

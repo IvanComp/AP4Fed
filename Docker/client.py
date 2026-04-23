@@ -162,7 +162,10 @@ class FlowerClient(NumPyClient):
         self.did_hdh = False
         self.trainloader, self.testloader = None, None
         self.delay_enabled = (client_config.get("delay_combobox") == "Yes")
-        self.delay_injection = 50
+        self.delay_min_seconds = int(client_config.get("delay_min_seconds", 0) or 0)
+        self.delay_max_seconds = int(client_config.get("delay_max_seconds", 50) or 50)
+        if self.delay_max_seconds < self.delay_min_seconds:
+            self.delay_min_seconds, self.delay_max_seconds = self.delay_max_seconds, self.delay_min_seconds
 
         if self.n_cpu is not None:
             try:
@@ -284,7 +287,7 @@ class FlowerClient(NumPyClient):
 
         train_end_ts = taskA.TRAIN_COMPLETED_TS or time.time()
         if self.delay_enabled:
-            random_delay = random.randint(0, self.delay_injection)
+            random_delay = random.randint(self.delay_min_seconds, self.delay_max_seconds)
             log(INFO, f"{self.cid} injecting delay of {random_delay} seconds")
             time.sleep(random_delay)
         send_ready_ts = time.time()

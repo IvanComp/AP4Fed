@@ -521,7 +521,7 @@ class PreSimulationPage(QWidget):
         self.llm_combo.hide()
 
         def _toggle_llm_selector(text):
-            vis = "single" in str(text).lower()
+            vis = "ai-agent" in str(text).lower()
             self.llm_label.setVisible(vis)
             self.llm_combo.setVisible(vis)
 

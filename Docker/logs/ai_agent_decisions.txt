@@ -1,6 +1,0 @@
-
-== ROUND 1 ==
-[Single-Agent] Decision (llama3.2:3b): CS: ·→✅ • MC: ·→❌ • HDH: ·→✅
-[Rationale] Client selector is enabled with a selection_value of 2. This setting helps to exclude lower-CPU clients (CPU = 3) while keeping at least two clients active (CPU = 5). This configuration is expected to improve Total Round Time and Training Time while maintaining Global Model Accuracy. The message compressor is disabled as there is no clear evidence of communication time being a bottleneck. The heterogeneous data handler is enabled to mitigate non-IID effects and improve generalization. The selection_value of 2 excludes one lower-CPU client (CPU = 3) while keeping at least two clients with CPU > selection_value. This configuration should preserve model diversity and improve the overall performance of the federated learning system. CS=ON; MC=OFF; HDH=ON.
-[Single AI-Agent (Few-Shot)] PolicyTime: 8.13s
-

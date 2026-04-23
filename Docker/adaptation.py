@@ -1,3 +1,4 @@
+import csv
 import json
 import os
 import random
@@ -22,6 +23,11 @@ PATTERNS = [
 ]
 USE_RAG = True
 AGENT_LOG_FILE = os.environ.get("AGENT_LOG_FILE", os.path.join(os.getcwd(), "logs", "ai_agent_decisions.txt"))
+PERFORMANCE_DIR = os.environ.get("AP4FED_PERFORMANCE_DIR", os.path.join(os.getcwd(), "performance"))
+RATIONALE_CSV_FILE = os.environ.get(
+    "AP4FED_RATIONALE_CSV_FILE",
+    os.path.join(PERFORMANCE_DIR, "FLwithAP_adaptation_rationales.csv"),
+)
 
 def _append_agent_log(lines):
     p = AGENT_LOG_FILE
@@ -29,6 +35,126 @@ def _append_agent_log(lines):
     with open(p, "a", encoding="utf-8") as f:
         for line in lines:
             f.write(line.rstrip("\n") + "\n")
+
+
+def _extract_rationale_entries(round_idx: int, policy: str, decision_logs: List[str]) -> List[Dict[str, str]]:
+    entries: List[Dict[str, str]] = []
+    patterns = [
+        (
+            re.compile(r"^\[Rationale\]\s*(?P<text>.*)$", re.S),
+            lambda m: {
+                "round": str(round_idx),
+                "policy": policy,
+                "tag": "[Rationale]",
+                "turn": "",
+                "agent": "",
+                "role": "",
+                "rationale": m.group("text").strip(),
+            },
+        ),
+        (
+            re.compile(r"^\[Rationale A(?P<agent>\d+)\]\s*(?P<text>.*)$", re.S),
+            lambda m: {
+                "round": str(round_idx),
+                "policy": policy,
+                "tag": f"[Rationale A{m.group('agent')}]",
+                "turn": "",
+                "agent": m.group("agent"),
+                "role": "",
+                "rationale": m.group("text").strip(),
+            },
+        ),
+        (
+            re.compile(r"^\[Rationale (?P<role>CS|MC|HDH)\]\s*(?P<text>.*)$", re.S),
+            lambda m: {
+                "round": str(round_idx),
+                "policy": policy,
+                "tag": f"[Rationale {m.group('role')}]",
+                "turn": "",
+                "agent": "",
+                "role": m.group("role"),
+                "rationale": m.group("text").strip(),
+            },
+        ),
+        (
+            re.compile(r"^\[Coordinator Rationale\]\s*(?P<text>.*)$", re.S),
+            lambda m: {
+                "round": str(round_idx),
+                "policy": policy,
+                "tag": "[Coordinator Rationale]",
+                "turn": "",
+                "agent": "",
+                "role": "Coordinator",
+                "rationale": m.group("text").strip(),
+            },
+        ),
+        (
+            re.compile(
+                r"^\[Debate\]\[Turn (?P<turn>\d+)\] Rationale A(?P<agent>\d+):\s*(?P<text>.*)$",
+                re.S,
+            ),
+            lambda m: {
+                "round": str(round_idx),
+                "policy": policy,
+                "tag": f"[Debate][Turn {m.group('turn')}] Rationale A{m.group('agent')}",
+                "turn": m.group("turn"),
+                "agent": m.group("agent"),
+                "role": "",
+                "rationale": m.group("text").strip(),
+            },
+        ),
+    ]
+
+    for raw_line in decision_logs:
+        if raw_line is None:
+            continue
+        text = str(raw_line).strip()
+        if not text:
+            continue
+        for pattern, factory in patterns:
+            match = pattern.match(text)
+            if not match:
+                continue
+            entry = factory(match)
+            rationale = entry.get("rationale", "").strip()
+            if not rationale or rationale.lower().startswith("(omitted:"):
+                break
+            entry["rationale"] = rationale
+            entries.append(entry)
+            break
+
+    return entries
+
+
+def _persist_round_rationales(round_idx: int, policy: str, decision_logs: List[str]) -> None:
+    entries = _extract_rationale_entries(round_idx, policy, decision_logs)
+    if not entries:
+        return
+
+    os.makedirs(PERFORMANCE_DIR, exist_ok=True)
+
+    fieldnames = ["round", "policy", "tag", "turn", "agent", "role", "rationale"]
+    write_header = not os.path.exists(RATIONALE_CSV_FILE)
+    with open(RATIONALE_CSV_FILE, "a", encoding="utf-8", newline="") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+        if write_header:
+            writer.writeheader()
+        writer.writerows(entries)
+
+    round_txt_path = os.path.join(PERFORMANCE_DIR, f"FLwithAP_adaptation_rationales_round{round_idx}.txt")
+    with open(round_txt_path, "w", encoding="utf-8") as txt_file:
+        txt_file.write(f"Round: {round_idx}\n")
+        txt_file.write(f"Policy: {policy}\n\n")
+        for entry in entries:
+            header_bits = [entry["tag"]]
+            if entry["turn"]:
+                header_bits.append(f"turn={entry['turn']}")
+            if entry["agent"]:
+                header_bits.append(f"agent={entry['agent']}")
+            if entry["role"]:
+                header_bits.append(f"role={entry['role']}")
+            txt_file.write(" | ".join(header_bits) + "\n")
+            txt_file.write(entry["rationale"] + "\n\n")
 
 class ActivationCriterion:
     def __init__(self, pattern: str, default_enabled: bool, default_params: Dict):
@@ -169,6 +295,15 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
             return f"{float(x):.{nd}f}"
         except Exception:
             return "?"
+    def _delta(curr, prev, nd=3):
+        try:
+            c = float(curr)
+            p = float(prev)
+            diff = c - p
+            sign = "+" if diff >= 0 else ""
+            return f"{sign}{diff:.{nd}f}"
+        except Exception:
+            return "?"
     try:
         first = dict((config.get("client_details") or [{}])[0] or {})
     except Exception:
@@ -181,11 +316,27 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
     mean_tt   = (agg or {}).get("mean_total_time")
     mean_tr   = (agg or {}).get("mean_training_time")
     mean_comm = (agg or {}).get("mean_comm_time")
+    mean_jsd  = (agg or {}).get("mean_jsd")
+    tr_stats  = (agg or {}).get("training_time_stats") or {}
+    cm_stats  = (agg or {}).get("comm_time_stats") or {}
+
+    try:
+        round_no = int(round_idx)
+    except Exception:
+        try:
+            round_no = int((agg or {}).get("round"))
+        except Exception:
+            round_no = None
+
+    def _state(v):
+        if isinstance(v, bool):
+            return "ON" if v else "OFF"
+        return "ON" if str(v).strip().upper() == "ON" else "OFF"
 
     ap_prev_small = {
-        "client_selector": "ON" if (ap_prev or {}).get("client_selector") else "OFF",
-        "message_compressor": "ON" if (ap_prev or {}).get("message_compressor") else "OFF",
-        "heterogeneous_data_handler": "ON" if (ap_prev or {}).get("heterogeneous_data_handler") else "OFF",
+        "client_selector": _state((ap_prev or {}).get("client_selector")),
+        "message_compressor": _state((ap_prev or {}).get("message_compressor")),
+        "heterogeneous_data_handler": _state((ap_prev or {}).get("heterogeneous_data_handler")),
     }
 
     # 1) Static Context: Role, Task, Guardrails, Output
@@ -220,7 +371,7 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         "- Output only the JSON object plus the rationale, no extra text otherwise the system will fail.\n"
         "- The last line of the 'rationale' must be exactly the signature: CS=<ON|OFF>; MC=<ON|OFF>; HDH=<ON|OFF>. These values must copy the JSON decisions above, in the same order and casing.\n"
         "- Considering the Client Selector, keep at least two clients active in every round: You MUST analyze the CPU values of all clients and choose an integer threshold that is strictly below the CPU values of at least two clients, so that at least two clients remain eligible and the system does not crash.\n"
-        "- When 'client_selector' is 'ON', you MUST derive 'selection_value' from the CPU values of all clients. Let H be the highest CPU and S the second-highest CPU. Only clients with CPU > selection_value can participate, so valid thresholds are integers t with S <= t < H (for example, with CPUs {5,5,5,3,3}, valid thresholds are 3 or 4). Do NOT invent arbitrary thresholds unrelated to the observed CPUs.\n"
+        "- When 'client_selector' is 'ON', you MUST derive 'selection_value' from the observed CPU values of all clients. A threshold t is SAFE only if at least two clients satisfy CPU > t and at least one client satisfies CPU <= t. Examples: with CPUs {5,5,5,3,3}, safe thresholds are 3 or 4; with CPUs {3,3,3,2,1}, safe thresholds are 1 or 2. Do NOT invent arbitrary thresholds unrelated to the observed CPUs.\n"
         "- Before finalizing 'selection_value', mentally simulate how many clients have CPU > selection_value. If fewer than two clients would remain active, that value is INVALID and MUST NOT be used.\n"
         "- Prefer the SMALLEST safe 'selection_value' that excludes at least one lower-CPU client while keeping at least two clients with CPU > selection_value; if no such value exists, you MUST keep \"client_selector\":\"OFF\".\n"
         "- Do not keep architectural patterns permanently OFF. If a pattern (especially Message Compressor or Heterogeneous Data Handler) has been OFF in recent rounds and the evidence is weak or ambiguous, you should sometimes decide ON to probe its effect, instead of always defaulting to the safest minimal configuration.\n"
@@ -247,8 +398,10 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
     except Exception:
         use_rag = True
 
+    if use_rag:
         import os, json, glob, re
         cfg_summary = {}
+        prev_round_agg = {}
         try:
             cfg = {}
             try:
@@ -286,7 +439,7 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
                 "has_delay_clients": any((d or "") == "yes" for d in delays),
                 "models": models,
                 "previous_ap": ap_prev_small,
-                "data_persistence_per_client": dpers, 
+                "data_persistence_per_client": dpers,
                 "data_persistence_counts": {k: sum(1 for d in dpers if d == k) for k in set(dpers or [])},
             }
         except Exception:
@@ -341,12 +494,6 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
                     s_tr = to_series(col_tr)
                     s_cm = to_series(col_cm)
                     s_tt = to_series(col_tt)
-                    s_share = []
-                    for c, t in zip(s_cm, s_tt):
-                        try:
-                            s_share.append(c / max(1e-9, t))
-                        except Exception:
-                            s_share.append(None)
 
                     def stats(seq):
                         if not seq:
@@ -381,6 +528,48 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         except Exception:
             metrics_digest = {"file": None, "error": "metrics_digest_failed"}
 
+        try:
+            import pandas as pd
+
+            def _rnum_for_prev(p):
+                m = re.search(r"round(\d+)", os.path.basename(p))
+                return int(m.group(1)) if m else -1
+
+            prev_candidates = [
+                (r, p)
+                for r, p in [(_rnum_for_prev(p), p) for p in glob.glob("**/FLwithAP_performance_metrics_round*.csv", recursive=True)]
+                if r >= 0 and round_no is not None and r < round_no
+            ]
+            if prev_candidates:
+                _, prev_path = max(prev_candidates, key=lambda item: item[0])
+                prev_round_agg = _sa_aggregate_round(pd.read_csv(prev_path))
+        except Exception:
+            prev_round_agg = {}
+
+        last_round_snapshot = (
+            "### Last-Round Snapshot\n"
+            f"- last_completed_round: {round_no if round_no is not None else '?'}\n"
+            f"- Val F1: {_fmt(mean_f1, 4)}\n"
+            f"- Total Round Time (global): {_fmt(mean_tt, 3)} s\n"
+            f"- Training Time mean/min/max: {_fmt(mean_tr, 3)} / {_fmt(tr_stats.get('min'), 3)} / {_fmt(tr_stats.get('max'), 3)} s\n"
+            f"- Communication Time mean/min/max: {_fmt(mean_comm, 3)} / {_fmt(cm_stats.get('min'), 3)} / {_fmt(cm_stats.get('max'), 3)} s\n"
+            f"- JSD: {_fmt(mean_jsd, 4)}\n"
+        )
+        if prev_round_agg:
+            last_round_snapshot += (
+                "### Delta Vs Previous Completed Round\n"
+                f"- Val F1 delta: {_delta(mean_f1, prev_round_agg.get('mean_f1'), 4)}\n"
+                f"- Total Round Time delta: {_delta(mean_tt, prev_round_agg.get('mean_total_time'), 3)} s\n"
+                f"- Training Time mean delta: {_delta(mean_tr, prev_round_agg.get('mean_training_time'), 3)} s\n"
+                f"- Communication Time mean delta: {_delta(mean_comm, prev_round_agg.get('mean_comm_time'), 3)} s\n"
+                f"- JSD delta: {_delta(mean_jsd, prev_round_agg.get('mean_jsd'), 4)}\n"
+            )
+        else:
+            last_round_snapshot += (
+                "### Delta Vs Previous Completed Round\n"
+                "- previous_round_metrics: unavailable\n"
+            )
+
         rag = (
             "## RAG\n"
             "### System Configuration (config.json)\n"
@@ -399,7 +588,9 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
             "- previous_ap: previous ON/OFF states of {client_selector, message_compressor, heterogeneous_data_handler}.\n"
             "- data_persistence_per_client: for each client, 'New Data' (batched arrivals per round) or 'Same Data' (one-shot, all data at once).\n"
             "- data_persistence_counts: counts of 'New Data' vs 'Same Data'.\n"
-            "\n"        
+            "\n"
+            + last_round_snapshot
+            + "\n"
             "### Performance Report (full history from CSV)\n"
             "The CSV file contains per-client metrics (Training Time and Communication Time) for each client in each round. You can consider these metrics individually per client or as an average.\n"
             "Note that the 'Val F1' column is the global model accuracy for the entire round, and 'Total Round Time' is the total duration of the round. These two metrics are global, not per-client.\n"
@@ -415,23 +606,24 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
             "\n"
         )
         try:
-            import os, re, glob
             import pandas as pd
+
             def _rnum(p):
                 m = re.search(r"round(\d+)", os.path.basename(p))
                 return int(m.group(1)) if m else -1
-            files = [( _rnum(p), p ) for p in glob.glob("**/FLwithAP_performance_metrics_round*.csv", recursive=True)]
+
+            files = [(_rnum(p), p) for p in glob.glob("**/FLwithAP_performance_metrics_round*.csv", recursive=True)]
             files = sorted([x for x in files if x[0] >= 0], key=lambda x: x[0])
-            prev_window = [ (r,p) for r,p in files if r < int(round_idx or 0) ][-4:]
+            prev_window = [(r, p) for r, p in files if r < int(round_idx or 0)][-4:]
             recent = []
             for r, path in prev_window:
                 try:
                     dfh = pd.read_csv(path)
-                    ah  = _sa_aggregate_round(dfh)  
+                    ah = _sa_aggregate_round(dfh)
                     f1h = ah.get("mean_f1")
                     tth = ah.get("mean_total_time")
                     cmh = ah.get("mean_comm_time")
-                    csh = (float(cmh)/float(tth)) if (tth and cmh and float(tth) > 0.0) else None
+                    csh = (float(cmh) / float(tth)) if (tth and cmh and float(tth) > 0.0) else None
                     recent.append((r, f1h, csh))
                 except Exception:
                     pass
@@ -698,6 +890,7 @@ class AdaptationManager:
         self.name = "AdaptationManager"
         self.use_rag = use_rag
         self.adaptation_time = None
+        self._last_round_client_ids: List[str] = []
         self.default_config = default_config
         self.policy = str(default_config.get("adaptation", "None")).strip()
         self.total_rounds = int(default_config.get("rounds", 1))
@@ -736,6 +929,13 @@ class AdaptationManager:
             }
             self.cached_aggregated_metrics = None
 
+    def describe(self):
+        if not self.enabled:
+            return log(INFO, f"{self.name}: adaptation disabled")
+        if not getattr(self, "adaptation_criteria", None):
+            return log(INFO, f"{self.name}: no explicit activation criteria loaded")
+        return log(INFO, "\n".join([str(cr) for cr in self.adaptation_criteria.values()]))
+
     def _icon(self, enabled: bool) -> str:
         return "✅" if enabled else "❌"
 
@@ -748,6 +948,17 @@ class AdaptationManager:
 
     def update_metrics(self, new_aggregated_metrics: Dict):
         self.cached_aggregated_metrics = new_aggregated_metrics
+
+    def set_last_round_client_ids(self, client_ids: Optional[List[str]]) -> None:
+        deduped: List[str] = []
+        seen = set()
+        for raw_cid in client_ids or []:
+            cid = str(raw_cid).strip()
+            if not cid or cid in seen:
+                continue
+            deduped.append(cid)
+            seen.add(cid)
+        self._last_round_client_ids = deduped
 
     def update_config(self, new_config: Dict):
         for pattern in new_config["patterns"]:
@@ -776,17 +987,101 @@ class AdaptationManager:
         model_hist = metrics_history.get(self.model_type, {})
         round_list = model_hist.get("train_loss", [])
         return len(round_list)
-    
-    def _fix_selection_value(self, sel_val):
+
+    def _get_client_cpus(self, config: Optional[Dict] = None) -> List[int]:
+        cfg = config if isinstance(config, dict) else self.default_config
+        if not isinstance(cfg, dict) or not cfg.get("client_details"):
+            cfg = self.default_config
+        cpus: List[int] = []
+        for client in cfg.get("client_details") or []:
+            if not isinstance(client, dict):
+                continue
+            try:
+                cpu = int(client.get("cpu", 0) or 0)
+            except Exception:
+                cpu = 0
+            if cpu > 0:
+                cpus.append(cpu)
+        return cpus
+
+    def _valid_selection_values(self, config: Optional[Dict] = None) -> List[int]:
+        cpus = self._get_client_cpus(config)
+        if len(cpus) < 2:
+            return []
+        max_cpu = max(cpus)
+        valid: List[int] = []
+        for threshold in range(max_cpu):
+            active = sum(1 for cpu in cpus if cpu > threshold)
+            excluded = sum(1 for cpu in cpus if cpu <= threshold)
+            if active >= 2 and excluded >= 1:
+                valid.append(threshold)
+        return valid
+
+    def _fix_selection_value(self, sel_val, config: Optional[Dict] = None) -> Optional[int]:
+        valid = self._valid_selection_values(config)
+        if not valid:
+            return None
         try:
-            v = int(sel_val)
+            candidate = int(sel_val)
         except Exception:
-            v = 3
-        if v < 3:
-            v = 3
-        if v > 4:
-            v = 4
-        return v
+            candidate = None
+        if candidate in valid:
+            return candidate
+        return valid[0]
+
+    def _read_previous_ap_state(self) -> Dict[str, str]:
+        prev = {
+            "client_selector": "OFF",
+            "message_compressor": "OFF",
+            "heterogeneous_data_handler": "OFF",
+        }
+        _, last_csv = _sa_latest_round_csv()
+        if not last_csv:
+            return prev
+        try:
+            import pandas as pd
+
+            df = pd.read_csv(last_csv)
+            ap_col = next((c for c in df.columns if isinstance(c, str) and c.startswith("AP List")), None)
+            if ap_col is None or len(df) == 0:
+                return prev
+
+            cell = str(df.iloc[-1][ap_col])
+            m_keys = re.search(r"\((?P<inside>.*?)\)", ap_col)
+            keys = [k.strip() for k in m_keys.group("inside").split(",")] if m_keys else []
+            m_vals = re.search(r"\{(?P<inside>.*?)\}", cell)
+            states = [s.strip().upper() for s in m_vals.group("inside").split(",")] if m_vals else []
+            mapping = dict(zip(keys, states))
+
+            prev["client_selector"] = mapping.get("client_selector", "OFF")
+            prev["message_compressor"] = mapping.get("message_compressor", "OFF")
+            prev["heterogeneous_data_handler"] = mapping.get("heterogeneous_data_handler", "OFF")
+        except Exception:
+            pass
+        return prev
+
+    def _build_runtime_config(self) -> Dict:
+        runtime_cfg = copy.deepcopy(self.default_config)
+        runtime_patterns = runtime_cfg.setdefault("patterns", {})
+        cached_patterns = (self.cached_config or {}).get("patterns", {})
+        for pattern_name, pattern_cfg in cached_patterns.items():
+            runtime_patterns.setdefault(pattern_name, {})
+            runtime_patterns[pattern_name]["enabled"] = bool(pattern_cfg.get("enabled", False))
+            runtime_patterns[pattern_name]["params"] = copy.deepcopy(pattern_cfg.get("params", {}))
+        round_client_ids = set(self._last_round_client_ids or [])
+        if round_client_ids:
+            filtered_client_details = []
+            for client in runtime_cfg.get("client_details") or []:
+                if not isinstance(client, dict):
+                    continue
+                client_id = str(client.get("client_id", "")).strip()
+                if client_id in round_client_ids:
+                    filtered_client_details.append(client)
+            if filtered_client_details:
+                runtime_cfg["client_details"] = filtered_client_details
+                runtime_cfg["clients"] = len(filtered_client_details)
+                runtime_cfg["clients_per_round"] = len(filtered_client_details)
+        return runtime_cfg
 
     def _decide_random(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
         new_config = copy.deepcopy(base_config)
@@ -798,8 +1093,8 @@ class AdaptationManager:
         return new_config, logs
 
     def _decide_voting(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
-        MODEL, MODE = "deepseek-r1:8b", "few-shot"
-        COORD_MODEL = "deepseek-r1:8b"
+        MODEL, MODE = self.sa_model, "few-shot"
+        COORD_MODEL = MODEL
         logs: List[str] = []
 
         last_round = getattr(self, "_last_round_info", None) or {}
@@ -817,7 +1112,7 @@ class AdaptationManager:
                 d_i, r_i = _sa_generate_with_retry(
                     MODEL,
                     MODE,
-                    self.default_config,
+                    base_config,
                     last_round,
                     agg,
                     ap_prev,
@@ -865,7 +1160,7 @@ class AdaptationManager:
             raw = _sa_call_ollama(
                 COORD_MODEL,
                 # Prompt base + breve riepilogo dei voti/majority
-                _sa_build_prompt(MODE, self.default_config, last_round, agg, ap_prev)
+                _sa_build_prompt(MODE, base_config, last_round, agg, ap_prev)
                 + "\n\n### Voting Summary\n"
                 + "\n".join([f"- A{i}: {d}" for i, d in enumerate(agent_decisions, start=1)])
                 + "\n"
@@ -917,23 +1212,28 @@ class AdaptationManager:
                         vals.append(int(d["selection_value"]))
                     except Exception:
                         pass
-            sel_val = max(set(vals), key=vals.count) if vals else 3
-            sel_val = self._fix_selection_value(sel_val)
+            sel_val = max(set(vals), key=vals.count) if vals else None
+            sel_val = self._fix_selection_value(sel_val, base_config)
+            if sel_val is None:
+                pats["client_selector"]["enabled"] = False
+                logs.append("[Coordinator] CS requested ON but no safe selection_value exists for the current CPU distribution. CS kept OFF.")
+                sel_val = None
 
-            base_params = (
-                base_config
-                .get("patterns", {})
-                .get("client_selector", {})
-                .get("params", {})
-            )
-            strategy = base_params.get("selection_strategy", "Resource-Based")
-            criteria = base_params.get("selection_criteria", "CPU")
+            if sel_val is not None:
+                base_params = (
+                    base_config
+                    .get("patterns", {})
+                    .get("client_selector", {})
+                    .get("params", {})
+                )
+                strategy = base_params.get("selection_strategy", "Resource-Based")
+                criteria = base_params.get("selection_criteria", "CPU")
 
-            pats["client_selector"]["params"] = {
-                "selection_strategy": strategy,
-                "selection_criteria": criteria,
-                "selection_value": sel_val,
-            }
+                pats["client_selector"]["params"] = {
+                    "selection_strategy": strategy,
+                    "selection_criteria": criteria,
+                    "selection_value": sel_val,
+                }
         self.update_json(new_cfg)
         self.update_config(new_cfg)
 
@@ -943,7 +1243,7 @@ class AdaptationManager:
         return new_cfg, logs
 
     def _decide_role(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
-        MODEL, MODE = "deepseek-r1:8b", "few-shot"
+        MODEL, MODE = self.sa_model, "few-shot"
         logs: List[str] = []
 
         # contesto (coerente con gli altri approcci)
@@ -976,7 +1276,7 @@ class AdaptationManager:
         for label, key_focus, temp in specs:
             try:
                 # prompt base "di sempre"
-                base_p = _sa_build_prompt(MODE, self.default_config, last_round, agg, ap_prev)
+                base_p = _sa_build_prompt(MODE, base_config, last_round, agg, ap_prev)
 
                 # blocco Role Focus (molto rigido)
                 role_focus = (
@@ -985,7 +1285,7 @@ class AdaptationManager:
                     f"- Decide ONLY '{key_focus}' as ON or OFF.\n"
                     "- For the other patterns, copy their values EXACTLY from PrevAP into your JSON.\n"
                     "- Your 'rationale' MUST discuss ONLY the focused pattern; do NOT ever mention the other patterns.\n"
-                    "- If you set 'client_selector' to ON, you MUST derive 'selection_value' from the CPUs of all clients, as explained in the Guardrails, and choose a threshold that excludes only the slowest clients without killing the round.\n"
+                    "- If you set 'client_selector' to ON, you MUST derive 'selection_value' from the CPUs of the clients listed in the current System Configuration, as explained in the Guardrails, and choose a threshold that excludes only the slowest clients without killing the round.\n"
                     "- If the focused pattern has been OFF in several recent rounds while the typical conditions for using it are present (for example, high communication time for MC, non-IID clients for HDH, or very high round time with slow clients for CS), treating it as always OFF is a mistake and you should seriously consider turning it ON.\n"
                     "- Before finalizing 'selection_value', simulate its effect over cpu_per_client: DO NOT choose any value that would leave fewer than two clients with CPU > selection_value.\n"
                     "Output STRICTLY one JSON object with EXACTLY these keys:\n"
@@ -1085,7 +1385,10 @@ class AdaptationManager:
                 except Exception:
                     sel_val = 3
 
-            sel_val = self._fix_selection_value(sel_val)
+            sel_val = self._fix_selection_value(sel_val, base_config)
+            if sel_val is None:
+                cs_final = "OFF"
+                logs.append("[Coordinator] Role-Merge rejected CS because no safe selection_value exists for the current CPU distribution.")
 
         # Log coordinator come nel tuo format
         logs.append("[Coordinator] Role-Merge: " +
@@ -1110,7 +1413,7 @@ class AdaptationManager:
         pats["message_compressor"]["enabled"] = (mc_final == "ON")
         pats["heterogeneous_data_handler"]["enabled"] = (hdh_final == "ON")
 
-        if cs_final == "ON":
+        if cs_final == "ON" and sel_val is not None:
             base_params = (
                 base_config
                 .get("patterns", {})
@@ -1137,7 +1440,7 @@ class AdaptationManager:
 
 
     def _decide_debate(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
-        MODEL, MODE = "deepseek-r1:8b", "few-shot"
+        MODEL, MODE = self.sa_model, "few-shot"
         logs: List[str] = []
 
         try:
@@ -1167,7 +1470,7 @@ class AdaptationManager:
 
             for i, t in enumerate(temps, start=1):
                 try:
-                    base_prompt = _sa_build_prompt(MODE, self.default_config, last_round, agg, ap_prev)
+                    base_prompt = _sa_build_prompt(MODE, base_config, last_round, agg, ap_prev)
 
                     history_text = "\n".join(debate_history_lines).strip()
                     if history_text:
@@ -1248,7 +1551,7 @@ class AdaptationManager:
             last_cs_consensus, last_mc_consensus, last_hh_consensus = cs_consensus, mc_consensus, hh_consensus
             last_cs_majority, last_mc_majority, last_hh_majority = cs_majority, mc_majority, hh_majority
 
-            if cs_consensus or mc_consensus or hh_consensus:
+            if cs_consensus and mc_consensus and hh_consensus:
                 consensus_reached = True
                 break
 
@@ -1301,7 +1604,10 @@ class AdaptationManager:
                     except Exception:
                         sel_val = 3
 
-                sel_val = self._fix_selection_value(sel_val)
+                sel_val = self._fix_selection_value(sel_val, base_config)
+                if sel_val is None:
+                    cs_final = "OFF"
+                    logs.append("[Debate] CS majority reached ON, but no safe selection_value exists for the current CPU distribution. CS kept OFF.")
 
 
             new_cfg = copy.deepcopy(base_config)
@@ -1314,7 +1620,7 @@ class AdaptationManager:
             pats["message_compressor"]["enabled"] = (mc_final == "ON")
             pats["heterogeneous_data_handler"]["enabled"] = (hh_final == "ON")
 
-            if cs_final == "ON":
+            if cs_final == "ON" and sel_val is not None:
                 base_params = (
                     base_config
                     .get("patterns", {})
@@ -1343,6 +1649,70 @@ class AdaptationManager:
 
             return new_cfg, logs
 
+        if any(flag for flag in (last_cs_consensus, last_mc_consensus, last_hh_consensus)):
+            prev_cs_enabled = bool(
+                base_config.get("patterns", {}).get("client_selector", {}).get("enabled")
+            )
+            prev_mc_enabled = bool(
+                base_config.get("patterns", {}).get("message_compressor", {}).get("enabled")
+            )
+            prev_hh_enabled = bool(
+                base_config.get("patterns", {}).get("heterogeneous_data_handler", {}).get("enabled")
+            )
+
+            cs_final = last_cs_majority if last_cs_consensus and last_cs_majority is not None else ("ON" if prev_cs_enabled else "OFF")
+            mc_final = last_mc_majority if last_mc_consensus and last_mc_majority is not None else ("ON" if prev_mc_enabled else "OFF")
+            hh_final = last_hh_majority if last_hh_consensus and last_hh_majority is not None else ("ON" if prev_hh_enabled else "OFF")
+
+            sel_val = None
+            if cs_final == "ON":
+                vals: List[int] = []
+                for d in final_decisions_last_turn:
+                    try:
+                        if (d.get("client_selector") or "").upper() == "ON" and "selection_value" in d:
+                            vals.append(int(d["selection_value"]))
+                    except Exception:
+                        pass
+                fallback_sel = max(set(vals), key=vals.count) if vals else base_config.get("patterns", {}).get("client_selector", {}).get("params", {}).get("selection_value", 2)
+                sel_val = self._fix_selection_value(fallback_sel, base_config)
+                if sel_val is None:
+                    cs_final = "OFF"
+                    logs.append("[Debate] Partial-majority CS decision rejected because no safe selection_value exists for the current CPU distribution.")
+
+            new_cfg = copy.deepcopy(base_config)
+            pats = new_cfg.setdefault("patterns", {})
+            pats.setdefault("client_selector", {})
+            pats.setdefault("message_compressor", {})
+            pats.setdefault("heterogeneous_data_handler", {})
+            pats["client_selector"]["enabled"] = (cs_final == "ON")
+            pats["message_compressor"]["enabled"] = (mc_final == "ON")
+            pats["heterogeneous_data_handler"]["enabled"] = (hh_final == "ON")
+
+            if cs_final == "ON" and sel_val is not None:
+                base_params = (
+                    base_config
+                    .get("patterns", {})
+                    .get("client_selector", {})
+                    .get("params", {})
+                )
+                pats["client_selector"]["params"] = {
+                    "selection_strategy": base_params.get("selection_strategy", "Resource-Based"),
+                    "selection_criteria": base_params.get("selection_criteria", "CPU"),
+                    "selection_value": sel_val,
+                }
+
+            logs.append(
+                f"[Debate] No full consensus after {N_TURNS} turns, but applying available strict majorities. "
+                f"Final decision: CS={cs_final}; MC={mc_final}; HDH={hh_final}."
+            )
+            self.update_json(new_cfg)
+            self.update_config(new_cfg)
+
+            if str(os.environ.get("AGENT_LOG_TO_FILE", "0")).lower() in ("1", "true", "yes"):
+                _append_agent_log(logs)
+
+            return new_cfg, logs
+
         logs.append(
             f"[Debate] No consensus after {N_TURNS} turns. "
             "Keeping previous architectural pattern configuration."
@@ -1355,57 +1725,33 @@ class AdaptationManager:
 
         return base_config, logs
     
-    def _fix_selection_value(self, sel_val):
-        try:
-            v = int(sel_val)
-        except Exception:
-            v = 3
-        if v < 3:
-            v = 3
-        if v > 4:
-            v = 4
-        return v
-
     def _decide_single_agent(self, base_config: Dict, current_round: int) -> Tuple[Dict, List[str]]:
         import re, json
 
         logs: List[str] = []
         last_round, last_csv = _sa_latest_round_csv()
-        agg, ap_prev = {}, {}
+        agg = {}
         if last_csv:
             try:
                 import pandas as pd
                 df = pd.read_csv(last_csv)
                 agg = _sa_aggregate_round(df)
-
-                ap_col = next((c for c in df.columns if isinstance(c, str) and c.startswith("AP List")), None)
-                if ap_col is not None and len(df) > 0:
-                    cell = str(df.iloc[-1][ap_col])
-                    m_keys = re.search(r"\((?P<inside>.*?)\)", ap_col)
-                    keys = [k.strip() for k in m_keys.group("inside").split(",")] if m_keys else []
-                    m_vals = re.search(r"\{(?P<inside>.*?)\}", cell)
-                    states = [s.strip().upper() for s in m_vals.group("inside").split(",")] if m_vals else []
-
-                    mapping = dict(zip(keys, states))
-                    ap_prev = {
-                        "client_selector": mapping.get("client_selector", "OFF") == "ON",
-                        "message_compressor": mapping.get("message_compressor", "OFF") == "ON",
-                        "heterogeneous_data_handler": mapping.get("heterogeneous_data_handler", "OFF") == "ON",
-                    }
             except Exception:
                 pass
+
+        ap_prev = self._read_previous_ap_state()
 
         mode = _sa_mode_from_policy(self.policy)
         try:
             decisions, rationale = _sa_generate_with_retry(
-                self.sa_model, mode, self.default_config, last_round, agg, ap_prev, self.sa_ollama_urls
+                self.sa_model, mode, base_config, last_round, agg, ap_prev, self.sa_ollama_urls
             )
         except Exception:
             return copy.deepcopy(base_config), logs
 
-        prev_cs  = "✅" if ap_prev.get("client_selector") else ("❌" if ap_prev.get("client_selector") is not None else "·")
-        prev_mc  = "✅" if ap_prev.get("message_compressor") else ("❌" if ap_prev.get("message_compressor") is not None else "·")
-        prev_hdh = "✅" if ap_prev.get("heterogeneous_data_handler") else ("❌" if ap_prev.get("heterogeneous_data_handler") is not None else "·")
+        prev_cs  = "✅" if ap_prev.get("client_selector") == "ON" else "❌"
+        prev_mc  = "✅" if ap_prev.get("message_compressor") == "ON" else "❌"
+        prev_hdh = "✅" if ap_prev.get("heterogeneous_data_handler") == "ON" else "❌"
 
         new_cs = "✅" if decisions.get("client_selector") == "ON" else "❌"
         new_mc = "✅" if decisions.get("message_compressor") == "ON" else "❌"
@@ -1445,6 +1791,12 @@ class AdaptationManager:
                     sel_val = int(existing) if existing is not None else 0
                 except Exception:
                     sel_val = 3
+
+            sel_val = self._fix_selection_value(sel_val, base_config)
+            if sel_val is None:
+                new_config["patterns"]["client_selector"]["enabled"] = False
+                logs.append("[Single-Agent] CS suggested ON but no safe selection_value exists for the current CPU distribution. CS kept OFF.")
+                return new_config, logs
 
             new_config["patterns"]["client_selector"]["params"] = {
                 "selection_strategy": "Resource-Based",
@@ -1555,12 +1907,22 @@ class AdaptationManager:
         current_round = self._infer_current_round(metrics_history)
         if current_round <= 0:
             current_round = 1
+        self._last_round_info = current_round
+        try:
+            _, last_csv = _sa_latest_round_csv()
+            if last_csv:
+                import pandas as pd
+                self._last_round_agg = _sa_aggregate_round(pd.read_csv(last_csv))
+            else:
+                self._last_round_agg = {}
+        except Exception:
+            self._last_round_agg = {}
         is_last_round = current_round >= self.total_rounds
         if is_last_round:
             log(INFO, f"[ROUND {current_round}] Final round reached ({current_round}/{self.total_rounds}). No adaptation for next round.")
             return self.cached_config["patterns"]
 
-        base_config = copy.deepcopy(self.cached_config)
+        base_config = self._build_runtime_config()
 
 
         next_config, decision_logs = self._decide_next_config(base_config, current_round)
@@ -1570,6 +1932,11 @@ class AdaptationManager:
         
         for line in decision_logs:
             log(INFO, line)
+
+        try:
+            _persist_round_rationales(current_round, self.policy, decision_logs)
+        except Exception as exc:
+            log(INFO, f"[Rationale Export] ERROR: {exc!r}")
 
         _append_agent_log([
             f"\n== ROUND {current_round} ==",

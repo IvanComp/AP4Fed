@@ -347,7 +347,10 @@ def infer_experiment_name_from_ap_list(ap_list_value: str) -> Optional[str]:
 
 
 def get_batch_fieldnames(source_fieldnames: List[str]) -> List[str]:
-    metadata_fields = [
+    excluded_source_fields = {
+        "Dataset",
+        "Model",
+        "N Rounds",
         "Runall Dataset",
         "Runall Model",
         "Runall Config",
@@ -355,8 +358,28 @@ def get_batch_fieldnames(source_fieldnames: List[str]) -> List[str]:
         "Runall Repeat",
         "Runall Rounds",
         "Runall Label",
+        "Config",
+        "Client Setup",
+        "Repeat",
+        "Label",
+    }
+    filtered_source_fieldnames = [
+        field
+        for field in source_fieldnames
+        if field not in excluded_source_fields
+        and " Data Distribution" not in field
+        and " Data Persistence" not in field
     ]
-    return metadata_fields + source_fieldnames
+    metadata_fields = [
+        "Config",
+        "Client Setup",
+        "Repeat",
+        "Label",
+        "N Rounds",
+        "Model",
+        "Dataset",
+    ]
+    return metadata_fields + filtered_source_fieldnames
 
 
 def convert_row_to_current_batch_schema(
@@ -369,36 +392,38 @@ def convert_row_to_current_batch_schema(
         if field in row:
             converted[field] = row.get(field, "")
 
-    if not converted["Runall Dataset"]:
-        converted["Runall Dataset"] = row.get("Dataset", "")
-    if not converted["Runall Model"]:
-        converted["Runall Model"] = row.get("Model", "")
-    if not converted["Runall Rounds"]:
-        converted["Runall Rounds"] = row.get("N Rounds", "")
+    if not converted["Dataset"]:
+        converted["Dataset"] = row.get("Dataset", "") or row.get("Runall Dataset", "")
+    if not converted["Model"]:
+        converted["Model"] = row.get("Model", "") or row.get("Runall Model", "")
+    if not converted["N Rounds"]:
+        converted["N Rounds"] = row.get("N Rounds", "") or row.get("Runall Rounds", "")
 
-    if not converted["Runall Config"]:
-        converted["Runall Config"] = infer_experiment_name_from_ap_list(
+    if not converted["Config"]:
+        converted["Config"] = row.get("Config", "") or row.get("Runall Config", "")
+    if not converted["Config"]:
+        converted["Config"] = infer_experiment_name_from_ap_list(
             row.get("AP List (client_selector,message_compressor,heterogeneous_data_handler)", "")
         ) or ""
 
-    if not converted["Runall Client Setup"]:
-        converted["Runall Client Setup"] = "manual5"
+    if not converted["Client Setup"]:
+        converted["Client Setup"] = row.get("Client Setup", "") or row.get("Runall Client Setup", "") or "manual5"
 
-    if not converted["Runall Repeat"]:
-        converted["Runall Repeat"] = "1"
+    if not converted["Repeat"]:
+        converted["Repeat"] = row.get("Repeat", "") or row.get("Runall Repeat", "") or "1"
 
-    if not converted["Runall Label"]:
-        dataset = converted["Runall Dataset"]
-        model = converted["Runall Model"]
-        experiment_name = converted["Runall Config"]
-        client_setup = converted["Runall Client Setup"] or "manual5"
-        repeat_raw = converted["Runall Repeat"] or "1"
+    if not converted["Label"]:
+        dataset = converted["Dataset"]
+        model = converted["Model"]
+        experiment_name = converted["Config"]
+        client_setup = converted["Client Setup"] or "manual5"
+        repeat_raw = converted["Repeat"] or "1"
         try:
             repeat_idx = int(float(str(repeat_raw).replace(",", ".")))
         except Exception:
             repeat_idx = 1
         if dataset and model and experiment_name:
-            converted["Runall Label"] = experiment_label(
+            converted["Label"] = experiment_label(
                 dataset,
                 model,
                 experiment_name,
@@ -441,6 +466,8 @@ def read_completed_labels(batch_csv_path: Path, expected_rounds: int) -> set[str
         return set()
 
     completed = set()
+    existing_fieldnames = raw_lines[0].split(";")
+    header_index = {name: idx for idx, name in enumerate(existing_fieldnames)}
 
     for line in raw_lines[1:]:
         parts = line.split(";")
@@ -451,12 +478,13 @@ def read_completed_labels(batch_csv_path: Path, expected_rounds: int) -> set[str
         # dataset, model, config, client_setup, repeat, rounds, label, ...
         # Older runall rows:
         # dataset, model, config, repeat, rounds, label, ...
-        if len(parts) >= 7 and not str(parts[3]).isdigit():
-            client_setup = parts[3].strip() or "manual5"
+        if "Label" in existing_fieldnames:
+            label = parts[header_index.get("Label", -1)].strip() if len(parts) > header_index.get("Label", -1) >= 0 else ""
+            row_rounds = parts[header_index.get("N Rounds", -1)].strip() if len(parts) > header_index.get("N Rounds", -1) >= 0 else ""
+        elif len(parts) >= 7 and not str(parts[3]).isdigit():
             row_rounds = parts[5].strip()
             label = parts[6].strip()
         else:
-            client_setup = "manual5"
             row_rounds = parts[4].strip()
             label = parts[5].strip()
 
@@ -490,16 +518,21 @@ def append_to_batch_ml_summary(
         source_fieldnames = list(reader[0].keys())
         last_row = reader[-1]
 
-    metadata = {
-        "Runall Dataset": dataset,
-        "Runall Model": model,
-        "Runall Config": experiment_name,
-        "Runall Client Setup": client_setup,
-        "Runall Repeat": repeat_idx,
-        "Runall Rounds": last_row.get("N Rounds"),
-        "Runall Label": label,
+    filtered_last_row = {
+        key: value
+        for key, value in last_row.items()
+        if " Data Distribution" not in key and " Data Persistence" not in key
     }
-    combined_row = {**metadata, **last_row}
+    metadata = {
+        "Config": experiment_name,
+        "Client Setup": client_setup,
+        "Repeat": repeat_idx,
+        "Label": label,
+        "N Rounds": filtered_last_row.get("N Rounds"),
+        "Model": model,
+        "Dataset": dataset,
+    }
+    combined_row = {**filtered_last_row, **metadata}
     fieldnames = get_batch_fieldnames(source_fieldnames)
 
     ensure_batch_csv_schema(batch_csv_path, fieldnames)
