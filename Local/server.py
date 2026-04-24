@@ -1029,6 +1029,7 @@ class FedAvg(Strategy):
         currentRnd += 1
 
         for client_proxy, fit_res in results:
+            compressed_parameters_b64 = None
             if fit_res.num_examples == 0:
                 training_time = None
                 communication_time = None

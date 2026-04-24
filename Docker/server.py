@@ -1037,6 +1037,7 @@ class FedAvg(Strategy):
         currentRnd += 1
 
         for client_proxy, fit_res in results:
+            compressed_parameters_b64 = None
             if fit_res.num_examples == 0:
                 training_time = None
                 communication_time = None
@@ -1082,7 +1083,7 @@ class FedAvg(Strategy):
                     log(INFO, f"[Round {currentRnd}] Skipping aggregation of client {client_id}")
                     continue
 
-            if MESSAGE_COMPRESSOR and (locals().get("compressed_parameters_b64") is not None):
+            if MESSAGE_COMPRESSOR and compressed_parameters_b64:
                 compressed = base64.b64decode(compressed_parameters_b64)
                 decompressed = pickle.loads(zlib.decompress(compressed))
                 fit_res.parameters = ndarrays_to_parameters(decompressed)

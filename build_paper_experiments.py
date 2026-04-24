@@ -35,16 +35,21 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import yaml
 from matplotlib.ticker import FuncFormatter
 
 
 ROOT = Path(__file__).resolve().parent
 LOCAL_DIR = ROOT / "Local"
+DOCKER_DIR = ROOT / "Docker"
 LOCAL_CONFIG_PATH = LOCAL_DIR / "configuration" / "config.json"
+DOCKER_CONFIG_PATH = DOCKER_DIR / "configuration" / "config.json"
 LOCAL_ADAPTATION_PATH = LOCAL_DIR / "adaptation.py"
 DOCKER_ADAPTATION_PATH = ROOT / "Docker" / "adaptation.py"
-DEFAULT_OUTPUT_DIR = ROOT / "Experiments_100r"
-DEFAULT_STAGING_DIR = ROOT / "paper_results_local_100r"
+LOCAL_OUTPUT_DIR = ROOT / "Experiments_100r"
+LOCAL_STAGING_DIR = ROOT / "paper_results_local_100r"
+DOCKER_OUTPUT_DIR = ROOT / "Experiments_100r_docker"
+DOCKER_STAGING_DIR = ROOT / "paper_results_docker_100r"
 
 INDEX_FIELDS = [
     "Configuration",
@@ -196,6 +201,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build a fresh Experiments-style folder for the paper's 6 approaches."
     )
+    parser.add_argument("--mode", choices=("local", "docker"), default="local")
     parser.add_argument("--rounds", type=int, default=100)
     parser.add_argument(
         "--repeat",
@@ -203,8 +209,8 @@ def parse_args() -> argparse.Namespace:
         default=1,
         help="Target total number of runs per approach. Existing rN.csv files are reused and missing runs resume from the next index.",
     )
-    parser.add_argument("--staging-dir", default=str(DEFAULT_STAGING_DIR))
-    parser.add_argument("--ollama-base-url", default="http://127.0.0.1:11434")
+    parser.add_argument("--staging-dir")
+    parser.add_argument("--ollama-base-url")
     parser.add_argument("--skip-run", action="store_true", help="Reuse an existing staging directory.")
     parser.add_argument("--force", action="store_true", help="Reset both staging and exported outputs, then start again from r1.")
     parser.add_argument("--continue-on-error", action="store_true")
@@ -275,9 +281,57 @@ def build_patterns() -> Dict[str, Dict[str, Any]]:
     }
 
 
-def build_local_config(spec: ApproachSpec, rounds: int, repeat_idx: int, ollama_base_url: str) -> Dict[str, Any]:
+def default_output_dir_for_mode(mode: str) -> Path:
+    return LOCAL_OUTPUT_DIR if mode == "local" else DOCKER_OUTPUT_DIR
+
+
+def default_staging_dir_for_mode(mode: str) -> Path:
+    return LOCAL_STAGING_DIR if mode == "local" else DOCKER_STAGING_DIR
+
+
+def default_ollama_url_for_mode(mode: str) -> str:
+    return "http://127.0.0.1:11434" if mode == "local" else "http://host.docker.internal:11434"
+
+
+def notebook_template_for_output(output_dir: Path) -> Path:
+    base_name = output_dir.name.removesuffix("_docker")
+    k5_variant = "k5" in base_name
+    template_dir = ROOT / ("Experiments_100r_k5" if k5_variant else "Experiments_100r")
+    return template_dir / "Paper Figures.ipynb"
+
+
+def sync_output_notebook(output_dir: Path) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    destination = output_dir / "Paper Figures.ipynb"
+    template = notebook_template_for_output(output_dir)
+    if not template.exists():
+        return
+
+    if template.resolve() == destination.resolve():
+        return
+
+    notebook = json.loads(template.read_text(encoding="utf-8"))
+    root_line = f'ROOT = Path("{output_dir}")\n'
+    for cell in notebook.get("cells", []):
+        source = cell.get("source")
+        if not isinstance(source, list):
+            continue
+        for idx, line in enumerate(source):
+            if isinstance(line, str) and line.strip().startswith("ROOT = Path("):
+                source[idx] = root_line
+
+    destination.write_text(json.dumps(notebook, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def build_local_config(
+    spec: ApproachSpec,
+    rounds: int,
+    repeat_idx: int,
+    ollama_base_url: str,
+    simulation_type: str = "Local",
+) -> Dict[str, Any]:
     return {
-        "simulation_type": "Local",
+        "simulation_type": simulation_type,
         "rounds": int(rounds),
         "clients": len(CLIENT_TEMPLATE),
         "clients_per_round": len(CLIENT_TEMPLATE),
@@ -311,9 +365,9 @@ def restore_text_file(path: Path, original_text: Optional[str]) -> None:
     path.write_text(original_text, encoding="utf-8")
 
 
-def reset_local_outputs() -> None:
-    for folder_name in ("performance", "performance_MLdata", "logs"):
-        folder_path = LOCAL_DIR / folder_name
+def reset_runtime_outputs(runtime_dir: Path) -> None:
+    for folder_name in ("performance", "performance_MLdata", "logs", "model_weights"):
+        folder_path = runtime_dir / folder_name
         if not folder_path.exists():
             continue
         for entry in folder_path.iterdir():
@@ -347,13 +401,13 @@ def copy_if_exists(src: Path, dst: Path) -> None:
         shutil.copy2(src, dst)
 
 
-def archive_local_run_outputs(run_dir: Path, initial_config: Dict[str, Any]) -> Dict[str, str]:
+def archive_run_outputs(run_dir: Path, runtime_dir: Path, config_path: Path, initial_config: Dict[str, Any]) -> Dict[str, str]:
     run_dir.mkdir(parents=True, exist_ok=True)
     write_json(run_dir / "config.initial.json", initial_config)
-    copy_if_exists(LOCAL_CONFIG_PATH, run_dir / "config.final.json")
-    copy_if_exists(LOCAL_DIR / "performance", run_dir / "performance")
-    copy_if_exists(LOCAL_DIR / "performance_MLdata", run_dir / "performance_MLdata")
-    copy_if_exists(LOCAL_DIR / "logs", run_dir / "logs")
+    copy_if_exists(config_path, run_dir / "config.final.json")
+    copy_if_exists(runtime_dir / "performance", run_dir / "performance")
+    copy_if_exists(runtime_dir / "performance_MLdata", run_dir / "performance_MLdata")
+    copy_if_exists(runtime_dir / "logs", run_dir / "logs")
 
     ml_csv = run_dir / "performance_MLdata" / "FLwithAP_MLdata.csv"
     rationale_csv = run_dir / "performance" / "FLwithAP_adaptation_rationales.csv"
@@ -430,13 +484,102 @@ def plan_resume_matrix(target_repeat: int, staging_dir: Path, output_dir: Path) 
     return matrix, plan
 
 
+def refresh_exported_outputs(staging_dir: Path, output_dir: Path, pattern_run_id: int) -> None:
+    sync_output_notebook(output_dir)
+    stage_df = read_stage_index(staging_dir)
+    export_stage_to_experiments(stage_df, output_dir)
+    try:
+        generate_outputs(output_dir, pattern_run_id=pattern_run_id)
+    except ValueError:
+        # No successful runs have been exported yet.
+        pass
+
+
+def build_docker_compose(config: Dict[str, Any], compose_path: Path) -> None:
+    template_path = DOCKER_DIR / "docker-compose.yml"
+    with template_path.open("r", encoding="utf-8") as handle:
+        compose = yaml.safe_load(handle)
+
+    server_svc = copy.deepcopy(compose["services"].get("server"))
+    client_tpl = copy.deepcopy(compose["services"].get("client"))
+    if not server_svc or not client_tpl:
+        raise ValueError("docker-compose.yml must define both 'server' and 'client' services")
+
+    server_svc["image"] = "ap4fed_server:latest"
+    server_env = server_svc.setdefault("environment", {})
+    server_env["NUM_ROUNDS"] = str(config["rounds"])
+    extra_hosts = server_svc.setdefault("extra_hosts", [])
+    host_gateway_entry = "host.docker.internal:host-gateway"
+    if host_gateway_entry not in extra_hosts:
+        extra_hosts.append(host_gateway_entry)
+
+    new_svcs = {"server": server_svc}
+    for detail in config["client_details"]:
+        cid = detail["client_id"]
+        cpu = detail["cpu"]
+        ram = detail["ram"]
+
+        svc = copy.deepcopy(client_tpl)
+        svc.pop("deploy", None)
+        svc["image"] = "ap4fed_client:latest"
+        svc["container_name"] = f"Client{cid}"
+        svc["cpus"] = float(cpu)
+        svc["mem_limit"] = f"{ram}g"
+
+        env = svc.setdefault("environment", {})
+        env["NUM_ROUNDS"] = str(config["rounds"])
+        env["NUM_CPUS"] = str(cpu)
+        env["NUM_RAM"] = f"{ram}g"
+        env["CLIENT_ID"] = str(cid)
+
+        extra_hosts = svc.setdefault("extra_hosts", [])
+        if host_gateway_entry not in extra_hosts:
+            extra_hosts.append(host_gateway_entry)
+
+        new_svcs[f"client{cid}"] = svc
+
+    compose["services"] = new_svcs
+    with compose_path.open("w", encoding="utf-8") as handle:
+        yaml.safe_dump(compose, handle, sort_keys=False)
+
+
+def run_docker_compose(compose_path: Path, log_path: Path, env: Optional[Dict[str, str]] = None) -> int:
+    down_cmd = ["docker", "compose", "-f", str(compose_path), "down", "--remove-orphans"]
+    subprocess.run(
+        down_cmd,
+        cwd=str(DOCKER_DIR),
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        env=env,
+    )
+    try:
+        return run_command(
+            ["docker", "compose", "-f", str(compose_path), "up", "--build"],
+            cwd=DOCKER_DIR,
+            log_path=log_path,
+            env=env,
+        )
+    finally:
+        subprocess.run(
+            down_cmd,
+            cwd=str(DOCKER_DIR),
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=env,
+        )
+
+
 def run_local_campaign(
     rounds: int,
     matrix: List[Dict[str, Any]],
     staging_dir: Path,
+    output_dir: Path,
     ollama_base_url: str,
     continue_on_error: bool,
-) -> None:
+    pattern_run_id: int,
+) -> int:
     staging_dir.mkdir(parents=True, exist_ok=True)
     index_csv_path = staging_dir / "index.csv"
 
@@ -456,9 +599,15 @@ def run_local_campaign(
             run_dir = item["run_dir"]
 
             print(f"[{idx}/{len(matrix)}] Running {label} ({spec.description})")
-            reset_local_outputs()
+            reset_runtime_outputs(LOCAL_DIR)
 
-            config = build_local_config(spec, rounds=rounds, repeat_idx=repeat_idx, ollama_base_url=ollama_base_url)
+            config = build_local_config(
+                spec,
+                rounds=rounds,
+                repeat_idx=repeat_idx,
+                ollama_base_url=ollama_base_url,
+                simulation_type="Local",
+            )
             write_json(LOCAL_CONFIG_PATH, config)
 
             env = dict(os.environ)
@@ -476,7 +625,7 @@ def run_local_campaign(
             )
             duration_seconds = f"{time.time() - started_at:.1f}"
 
-            archived = archive_local_run_outputs(run_dir, config)
+            archived = archive_run_outputs(run_dir, LOCAL_DIR, LOCAL_CONFIG_PATH, config)
             status = "ok" if rc == 0 else f"failed({rc})"
             append_stage_index_row(
                 index_csv_path,
@@ -497,16 +646,100 @@ def run_local_campaign(
             if rc != 0:
                 failures += 1
                 print(f"[{idx}/{len(matrix)}] FAILED: {label} (exit={rc})", file=sys.stderr)
-                if not continue_on_error:
-                    raise RuntimeError(f"Run failed: {label} (exit={rc})")
             else:
                 print(f"[{idx}/{len(matrix)}] OK: {label} ({duration_seconds}s)")
+
+            refresh_exported_outputs(staging_dir, output_dir, pattern_run_id)
+
+            if rc != 0 and not continue_on_error:
+                break
     finally:
         restore_text_file(LOCAL_CONFIG_PATH, original_config_text)
         restore_text_file(LOCAL_ADAPTATION_PATH, original_adaptation_text)
 
-    if failures:
-        raise RuntimeError(f"Local campaign completed with {failures} failure(s)")
+    return failures
+
+
+def run_docker_campaign(
+    rounds: int,
+    matrix: List[Dict[str, Any]],
+    staging_dir: Path,
+    output_dir: Path,
+    ollama_base_url: str,
+    continue_on_error: bool,
+    pattern_run_id: int,
+) -> int:
+    staging_dir.mkdir(parents=True, exist_ok=True)
+    index_csv_path = staging_dir / "index.csv"
+
+    original_config_text = read_text_if_exists(DOCKER_CONFIG_PATH)
+    failures = 0
+    try:
+        for idx, item in enumerate(matrix, start=1):
+            spec = item["spec"]
+            repeat_idx = item["repeat"]
+            label = item["label"]
+            run_dir = item["run_dir"]
+
+            print(f"[{idx}/{len(matrix)}] Running {label} ({spec.description})")
+            reset_runtime_outputs(DOCKER_DIR)
+
+            config = build_local_config(
+                spec,
+                rounds=rounds,
+                repeat_idx=repeat_idx,
+                ollama_base_url=ollama_base_url,
+                simulation_type="Docker",
+            )
+            write_json(DOCKER_CONFIG_PATH, config)
+
+            env = dict(os.environ)
+            env["COMPOSE_BAKE"] = "true"
+
+            compose_path = DOCKER_DIR / f"docker-compose.generated.{label}.yml"
+            build_docker_compose(config, compose_path)
+            safe_copy(compose_path, run_dir / "docker-compose.generated.yml")
+
+            log_path = run_dir / "flower.log"
+            started_at = time.time()
+            try:
+                rc = run_docker_compose(compose_path, log_path, env=env)
+            finally:
+                compose_path.unlink(missing_ok=True)
+            duration_seconds = f"{time.time() - started_at:.1f}"
+
+            archived = archive_run_outputs(run_dir, DOCKER_DIR, DOCKER_CONFIG_PATH, config)
+            status = "ok" if rc == 0 else f"failed({rc})"
+            append_stage_index_row(
+                index_csv_path,
+                {
+                    "Configuration": spec.runner_name,
+                    "Adaptation": spec.adaptation,
+                    "LLM": spec.llm,
+                    "Repeat": str(repeat_idx),
+                    "Label": label,
+                    "Status": status,
+                    "Duration Seconds": duration_seconds,
+                    "Output Dir": str(run_dir),
+                    "ML Summary CSV": archived["ml_summary_csv"],
+                    "Rationale CSV": archived["rationale_csv"],
+                },
+            )
+
+            if rc != 0:
+                failures += 1
+                print(f"[{idx}/{len(matrix)}] FAILED: {label} (exit={rc})", file=sys.stderr)
+            else:
+                print(f"[{idx}/{len(matrix)}] OK: {label} ({duration_seconds}s)")
+
+            refresh_exported_outputs(staging_dir, output_dir, pattern_run_id)
+
+            if rc != 0 and not continue_on_error:
+                break
+    finally:
+        restore_text_file(DOCKER_CONFIG_PATH, original_config_text)
+
+    return failures
 
 
 def read_stage_index(staging_dir: Path) -> pd.DataFrame:
@@ -1014,8 +1247,10 @@ def main() -> int:
         print("--repeat must be >= 1", file=sys.stderr)
         return 2
 
-    output_dir = DEFAULT_OUTPUT_DIR.resolve()
-    staging_dir = Path(args.staging_dir).resolve()
+    mode = args.mode.lower()
+    output_dir = default_output_dir_for_mode(mode).resolve()
+    staging_dir = Path(args.staging_dir).resolve() if args.staging_dir else default_staging_dir_for_mode(mode).resolve()
+    ollama_base_url = args.ollama_base_url or default_ollama_url_for_mode(mode)
 
     if args.force:
         if output_dir.exists():
@@ -1024,6 +1259,7 @@ def main() -> int:
             shutil.rmtree(staging_dir)
 
     output_dir.mkdir(parents=True, exist_ok=True)
+    sync_output_notebook(output_dir)
     if not args.skip_run:
         staging_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1032,8 +1268,10 @@ def main() -> int:
     planned = {
         "rounds": args.rounds,
         "repeat": args.repeat,
+        "mode": mode,
         "output_dir": str(output_dir),
         "staging_dir": str(staging_dir),
+        "ollama_base_url": ollama_base_url,
         "skip_run": bool(args.skip_run),
         "pattern_run": int(args.pattern_run),
         "scheduled_new_runs": len(matrix),
@@ -1044,25 +1282,40 @@ def main() -> int:
     if args.dry_run:
         return 0
 
+    failures = 0
     if not args.skip_run:
         if not matrix:
             print("All requested runs are already present. No new local experiments will be launched.")
         else:
-            run_local_campaign(
-                rounds=args.rounds,
-                matrix=matrix,
-                staging_dir=staging_dir,
-                ollama_base_url=args.ollama_base_url,
-                continue_on_error=args.continue_on_error,
-            )
+            if mode == "docker":
+                failures = run_docker_campaign(
+                    rounds=args.rounds,
+                    matrix=matrix,
+                    staging_dir=staging_dir,
+                    output_dir=output_dir,
+                    ollama_base_url=ollama_base_url,
+                    continue_on_error=args.continue_on_error,
+                    pattern_run_id=args.pattern_run,
+                )
+            else:
+                failures = run_local_campaign(
+                    rounds=args.rounds,
+                    matrix=matrix,
+                    staging_dir=staging_dir,
+                    output_dir=output_dir,
+                    ollama_base_url=ollama_base_url,
+                    continue_on_error=args.continue_on_error,
+                    pattern_run_id=args.pattern_run,
+                )
     elif not staging_dir.exists():
         raise FileNotFoundError(f"Staging directory does not exist: {staging_dir}")
 
-    stage_df = read_stage_index(staging_dir)
-    export_stage_to_experiments(stage_df, output_dir)
-    generate_outputs(output_dir, pattern_run_id=args.pattern_run)
+    refresh_exported_outputs(staging_dir, output_dir, args.pattern_run)
 
     print(f"Experiments-style output ready in {output_dir}")
+    if failures:
+        print(f"Campaign completed with {failures} failure(s).", file=sys.stderr)
+        return 1
     return 0
 
 

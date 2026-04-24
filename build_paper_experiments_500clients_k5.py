@@ -19,8 +19,10 @@ import build_paper_experiments as base
 
 TOTAL_CLIENTS = 500
 CLIENTS_PER_ROUND = 5
-DEFAULT_OUTPUT_DIR = base.ROOT / "Experiments_100r_k5"
-DEFAULT_STAGING_DIR = base.ROOT / "paper_results_local_100r_k5"
+LOCAL_OUTPUT_DIR = base.ROOT / "Experiments_100r_k5"
+LOCAL_STAGING_DIR = base.ROOT / "paper_results_local_100r_k5"
+DOCKER_OUTPUT_DIR = base.ROOT / "Experiments_100r_k5_docker"
+DOCKER_STAGING_DIR = base.ROOT / "paper_results_docker_100r_k5"
 
 
 def build_client_details(total_clients: int = TOTAL_CLIENTS) -> List[Dict[str, Any]]:
@@ -39,10 +41,11 @@ def build_local_config(
     rounds: int,
     repeat_idx: int,
     ollama_base_url: str,
+    simulation_type: str = "Local",
 ) -> Dict[str, Any]:
     client_details = build_client_details()
     return {
-        "simulation_type": "Local",
+        "simulation_type": simulation_type,
         "rounds": int(rounds),
         "clients": TOTAL_CLIENTS,
         "clients_per_round": CLIENTS_PER_ROUND,
@@ -59,8 +62,10 @@ def build_local_config(
 
 
 def main() -> int:
-    base.DEFAULT_OUTPUT_DIR = Path(DEFAULT_OUTPUT_DIR)
-    base.DEFAULT_STAGING_DIR = Path(DEFAULT_STAGING_DIR)
+    base.LOCAL_OUTPUT_DIR = Path(LOCAL_OUTPUT_DIR)
+    base.LOCAL_STAGING_DIR = Path(LOCAL_STAGING_DIR)
+    base.DOCKER_OUTPUT_DIR = Path(DOCKER_OUTPUT_DIR)
+    base.DOCKER_STAGING_DIR = Path(DOCKER_STAGING_DIR)
     base.build_local_config = build_local_config
     return base.main()
 

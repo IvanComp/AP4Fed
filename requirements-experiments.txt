@@ -1,9 +1,7 @@
-PyQt5==5.15.11
-matplotlib==3.9.2
-seaborn==0.13.2
-pandas==2.2.3
-numpy==1.26.4
 flwr[simulations]==1.12.0
+matplotlib==3.9.2
+numpy==1.26.4
+pandas==2.2.3
 rich==13.8.1
 torch==2.6.0
 torchvision==0.21.0
@@ -12,7 +10,7 @@ docker==7.1.0
 ray==2.36.0
 PyYAML>=6.0,<7
 scipy>=1.13,<2
-pyfiglet
+Pillow>=10,<12
 torchgan
 tqdm
 scikit-learn

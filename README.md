@@ -70,6 +70,28 @@ To run a Docker Project, ensure that the following prerequisites are met:
 - [Python (version 3.12.X or higher)](https://www.python.org/downloads/) 
 - [Docker](https://docs.docker.com/get-docker/)
 
+## Headless Experiments / Cluster Runs
+
+For the paper-oriented runners (`build_paper_experiments.py` and `build_paper_experiments_500clients_k5.py`) there is now a dedicated bootstrap flow for headless machines and supercomputers.
+This setup is meant to run the campaigns and generate CSV results only; notebook analysis can stay on your local PC.
+
+```bash
+./scripts/bootstrap_experiment_env.sh
+source .venv-experiments/bin/activate
+python scripts/verify_experiment_env.py --mode local
+```
+
+If you also want to run the Docker-backed experiments, verify the container runtime too:
+
+```bash
+python scripts/verify_experiment_env.py --mode docker
+```
+
+The full workflow is documented in [docs/HPC_EXPERIMENTS.md](docs/HPC_EXPERIMENTS.md).
+
+Important: the Python environment does not install or start the Ollama service itself.
+The LLM-based approaches (`Voting-based`, `Role-based`, `Debate-based`) call an Ollama-compatible HTTP endpoint configured through `--ollama-base-url`.
+
 
 # How To Run
 
