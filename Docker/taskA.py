@@ -37,7 +37,9 @@ class TensorLabelDataset(Dataset):
         return x, y
 
 
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# CPU-only experiments: keep client resource heterogeneity tied to CPU affinity.
+# DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cpu")
 GLOBAL_ROUND_COUNTER = 1
 HGAN_DONE = False
 global CLIENT_SELECTOR, CLIENT_CLUSTER, MESSAGE_COMPRESSOR, MULTI_TASK_MODEL_TRAINER, HETEROGENEOUS_DATA_HANDLER

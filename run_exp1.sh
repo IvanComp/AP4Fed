@@ -1,0 +1,25 @@
+#!/bin/bash
+#SBATCH --job-name=exp1
+#SBATCH --account=icompagn
+#SBATCH --partition=dcgp_usr_prod
+#SBATCH --qos=normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --time=12:00:00
+#SBATCH --output=slurm_exp1_%j.out
+#SBATCH --error=slurm_exp1_%j.err
+
+set -euo pipefail
+
+cd "$(dirname "$0")"
+module load python/3.11.7
+source .venv/bin/activate
+
+mkdir -p run_logs
+export AP4FED_QUIET=1
+ROUNDS="${AP4FED_ROUNDS:-2}"
+
+python build_paper_experiments.py --quiet --rounds "$ROUNDS" \
+  > /dev/null \
+  2> "run_logs/exp1_${SLURM_JOB_ID:-manual}.err"

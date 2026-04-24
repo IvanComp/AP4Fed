@@ -216,6 +216,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--continue-on-error", action="store_true")
     parser.add_argument("--pattern-run", type=int, default=1, help="Run id used for the pattern activation figure.")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        default=str(os.environ.get("AP4FED_QUIET", "0")).lower() in ("1", "true", "yes"),
+        help="Discard heavy per-run logs and suppress routine launcher output.",
+    )
     return parser.parse_args()
 
 
@@ -377,7 +383,24 @@ def reset_runtime_outputs(runtime_dir: Path) -> None:
                 entry.unlink(missing_ok=True)
 
 
-def run_command(cmd: List[str], cwd: Path, log_path: Path, env: Optional[Dict[str, str]] = None) -> int:
+def run_command(
+    cmd: List[str],
+    cwd: Path,
+    log_path: Path,
+    env: Optional[Dict[str, str]] = None,
+    quiet: bool = False,
+) -> int:
+    if quiet:
+        proc = subprocess.run(
+            cmd,
+            cwd=str(cwd),
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=env,
+        )
+        return int(proc.returncode)
+
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("w", encoding="utf-8") as handle:
         proc = subprocess.run(
@@ -495,7 +518,7 @@ def refresh_exported_outputs(staging_dir: Path, output_dir: Path, pattern_run_id
         pass
 
 
-def build_docker_compose(config: Dict[str, Any], compose_path: Path) -> None:
+def build_docker_compose(config: Dict[str, Any], compose_path: Path, quiet: bool = False) -> None:
     template_path = DOCKER_DIR / "docker-compose.yml"
     with template_path.open("r", encoding="utf-8") as handle:
         compose = yaml.safe_load(handle)
@@ -508,6 +531,9 @@ def build_docker_compose(config: Dict[str, Any], compose_path: Path) -> None:
     server_svc["image"] = "ap4fed_server:latest"
     server_env = server_svc.setdefault("environment", {})
     server_env["NUM_ROUNDS"] = str(config["rounds"])
+    if quiet:
+        server_env["AGENT_LOG_TO_FILE"] = "0"
+        server_env["AGENT_LOG_FILE"] = os.devnull
     extra_hosts = server_svc.setdefault("extra_hosts", [])
     host_gateway_entry = "host.docker.internal:host-gateway"
     if host_gateway_entry not in extra_hosts:
@@ -531,6 +557,9 @@ def build_docker_compose(config: Dict[str, Any], compose_path: Path) -> None:
         env["NUM_CPUS"] = str(cpu)
         env["NUM_RAM"] = f"{ram}g"
         env["CLIENT_ID"] = str(cid)
+        if quiet:
+            env["AGENT_LOG_TO_FILE"] = "0"
+            env["AGENT_LOG_FILE"] = os.devnull
 
         extra_hosts = svc.setdefault("extra_hosts", [])
         if host_gateway_entry not in extra_hosts:
@@ -543,7 +572,12 @@ def build_docker_compose(config: Dict[str, Any], compose_path: Path) -> None:
         yaml.safe_dump(compose, handle, sort_keys=False)
 
 
-def run_docker_compose(compose_path: Path, log_path: Path, env: Optional[Dict[str, str]] = None) -> int:
+def run_docker_compose(
+    compose_path: Path,
+    log_path: Path,
+    env: Optional[Dict[str, str]] = None,
+    quiet: bool = False,
+) -> int:
     down_cmd = ["docker", "compose", "-f", str(compose_path), "down", "--remove-orphans"]
     subprocess.run(
         down_cmd,
@@ -559,6 +593,7 @@ def run_docker_compose(compose_path: Path, log_path: Path, env: Optional[Dict[st
             cwd=DOCKER_DIR,
             log_path=log_path,
             env=env,
+            quiet=quiet,
         )
     finally:
         subprocess.run(
@@ -579,6 +614,7 @@ def run_local_campaign(
     ollama_base_url: str,
     continue_on_error: bool,
     pattern_run_id: int,
+    quiet: bool = False,
 ) -> int:
     staging_dir.mkdir(parents=True, exist_ok=True)
     index_csv_path = staging_dir / "index.csv"
@@ -598,7 +634,8 @@ def run_local_campaign(
             label = item["label"]
             run_dir = item["run_dir"]
 
-            print(f"[{idx}/{len(matrix)}] Running {label} ({spec.description})")
+            if not quiet:
+                print(f"[{idx}/{len(matrix)}] Running {label} ({spec.description})")
             reset_runtime_outputs(LOCAL_DIR)
 
             config = build_local_config(
@@ -612,7 +649,9 @@ def run_local_campaign(
 
             env = dict(os.environ)
             env["AP4FED_ROUNDS_OVERRIDE"] = str(rounds)
-            env["AGENT_LOG_TO_FILE"] = "1"
+            env["AGENT_LOG_TO_FILE"] = "0" if quiet else "1"
+            if quiet:
+                env["AGENT_LOG_FILE"] = os.devnull
             env["PYTHONUNBUFFERED"] = "1"
 
             log_path = run_dir / "flower.log"
@@ -622,6 +661,7 @@ def run_local_campaign(
                 cwd=LOCAL_DIR,
                 log_path=log_path,
                 env=env,
+                quiet=quiet,
             )
             duration_seconds = f"{time.time() - started_at:.1f}"
 
@@ -646,7 +686,7 @@ def run_local_campaign(
             if rc != 0:
                 failures += 1
                 print(f"[{idx}/{len(matrix)}] FAILED: {label} (exit={rc})", file=sys.stderr)
-            else:
+            elif not quiet:
                 print(f"[{idx}/{len(matrix)}] OK: {label} ({duration_seconds}s)")
 
             refresh_exported_outputs(staging_dir, output_dir, pattern_run_id)
@@ -668,6 +708,7 @@ def run_docker_campaign(
     ollama_base_url: str,
     continue_on_error: bool,
     pattern_run_id: int,
+    quiet: bool = False,
 ) -> int:
     staging_dir.mkdir(parents=True, exist_ok=True)
     index_csv_path = staging_dir / "index.csv"
@@ -681,7 +722,8 @@ def run_docker_campaign(
             label = item["label"]
             run_dir = item["run_dir"]
 
-            print(f"[{idx}/{len(matrix)}] Running {label} ({spec.description})")
+            if not quiet:
+                print(f"[{idx}/{len(matrix)}] Running {label} ({spec.description})")
             reset_runtime_outputs(DOCKER_DIR)
 
             config = build_local_config(
@@ -695,15 +737,18 @@ def run_docker_campaign(
 
             env = dict(os.environ)
             env["COMPOSE_BAKE"] = "true"
+            if quiet:
+                env["AGENT_LOG_TO_FILE"] = "0"
+                env["AGENT_LOG_FILE"] = os.devnull
 
             compose_path = DOCKER_DIR / f"docker-compose.generated.{label}.yml"
-            build_docker_compose(config, compose_path)
+            build_docker_compose(config, compose_path, quiet=quiet)
             safe_copy(compose_path, run_dir / "docker-compose.generated.yml")
 
             log_path = run_dir / "flower.log"
             started_at = time.time()
             try:
-                rc = run_docker_compose(compose_path, log_path, env=env)
+                rc = run_docker_compose(compose_path, log_path, env=env, quiet=quiet)
             finally:
                 compose_path.unlink(missing_ok=True)
             duration_seconds = f"{time.time() - started_at:.1f}"
@@ -729,7 +774,7 @@ def run_docker_campaign(
             if rc != 0:
                 failures += 1
                 print(f"[{idx}/{len(matrix)}] FAILED: {label} (exit={rc})", file=sys.stderr)
-            else:
+            elif not quiet:
                 print(f"[{idx}/{len(matrix)}] OK: {label} ({duration_seconds}s)")
 
             refresh_exported_outputs(staging_dir, output_dir, pattern_run_id)
@@ -1278,14 +1323,16 @@ def main() -> int:
         "approaches": [spec.display_name for spec in APPROACH_SPECS],
         "resume": resume_plan,
     }
-    print(json.dumps(planned, indent=2))
+    if not args.quiet or args.dry_run:
+        print(json.dumps(planned, indent=2))
     if args.dry_run:
         return 0
 
     failures = 0
     if not args.skip_run:
         if not matrix:
-            print("All requested runs are already present. No new local experiments will be launched.")
+            if not args.quiet:
+                print("All requested runs are already present. No new local experiments will be launched.")
         else:
             if mode == "docker":
                 failures = run_docker_campaign(
@@ -1296,6 +1343,7 @@ def main() -> int:
                     ollama_base_url=ollama_base_url,
                     continue_on_error=args.continue_on_error,
                     pattern_run_id=args.pattern_run,
+                    quiet=args.quiet,
                 )
             else:
                 failures = run_local_campaign(
@@ -1306,13 +1354,15 @@ def main() -> int:
                     ollama_base_url=ollama_base_url,
                     continue_on_error=args.continue_on_error,
                     pattern_run_id=args.pattern_run,
+                    quiet=args.quiet,
                 )
     elif not staging_dir.exists():
         raise FileNotFoundError(f"Staging directory does not exist: {staging_dir}")
 
     refresh_exported_outputs(staging_dir, output_dir, args.pattern_run)
 
-    print(f"Experiments-style output ready in {output_dir}")
+    if not args.quiet:
+        print(f"Experiments-style output ready in {output_dir}")
     if failures:
         print(f"Campaign completed with {failures} failure(s).", file=sys.stderr)
         return 1

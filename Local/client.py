@@ -181,7 +181,9 @@ def client_enabled_for_pattern(client_config: dict, enabled_clients) -> bool:
     return client_id in normalized_enabled or client_label in normalized_enabled
 
 DISTRIBUTED_MODEL_REPAIR = False
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+# CPU-only experiments: keep client resource heterogeneity tied to CPU affinity.
+# DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cpu")
 GLOBAL_ROUND_COUNTER = 1 
 SSIM = False
 
@@ -295,15 +297,15 @@ class FlowerClient(NumPyClient):
 
         self.net = NetA().to(DEVICE)
         self.DEVICE = DEVICE
-        if self.DEVICE.type == "cuda":
-            gpu_idx = torch.cuda.current_device()
-            gpu_name = torch.cuda.get_device_name(gpu_idx)
-            log(
-                INFO,
-                f"{self.cid} compute unit: CUDA (device={gpu_idx}, name={gpu_name}, pid={os.getpid()}, requested_cpus={self.n_cpu})",
-            )
-        else:
-            log(INFO, f"{self.cid} compute unit: CPU (pid={os.getpid()}, requested_cpus={self.n_cpu})")
+        # CUDA logging disabled with CPU-only execution.
+        # if self.DEVICE.type == "cuda":
+        #     gpu_idx = torch.cuda.current_device()
+        #     gpu_name = torch.cuda.get_device_name(gpu_idx)
+        #     log(
+        #         INFO,
+        #         f"{self.cid} compute unit: CUDA (device={gpu_idx}, name={gpu_name}, pid={os.getpid()}, requested_cpus={self.n_cpu})",
+        #     )
+        log(INFO, f"{self.cid} compute unit: CPU (pid={os.getpid()}, requested_cpus={self.n_cpu})")
 
     def fit(self, parameters, config):
         global GLOBAL_ROUND_COUNTER
