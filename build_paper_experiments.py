@@ -122,6 +122,8 @@ DISPLAY_HATCHES = {
 }
 
 PATTERN_NAMES = ("CS", "MC", "HDH")
+TASK_DATASET = "FashionMNIST"
+TASK_MODEL = "CNN 16k"
 
 CLIENT_TEMPLATE = [
     {
@@ -203,6 +205,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--mode", choices=("local", "docker"), default="local")
     parser.add_argument("--rounds", type=int, default=100)
+    parser.add_argument("--dataset", default=TASK_DATASET)
+    parser.add_argument("--model", default=TASK_MODEL)
     parser.add_argument(
         "--repeat",
         type=int,
@@ -210,6 +214,7 @@ def parse_args() -> argparse.Namespace:
         help="Target total number of runs per approach. Existing rN.csv files are reused and missing runs resume from the next index.",
     )
     parser.add_argument("--staging-dir")
+    parser.add_argument("--output-dir")
     parser.add_argument("--ollama-base-url")
     parser.add_argument("--skip-run", action="store_true", help="Reuse an existing staging directory.")
     parser.add_argument("--force", action="store_true", help="Reset both staging and exported outputs, then start again from r1.")
@@ -287,6 +292,16 @@ def build_patterns() -> Dict[str, Dict[str, Any]]:
     }
 
 
+def client_template_for_task(dataset: Optional[str] = None, model: Optional[str] = None) -> List[Dict[str, Any]]:
+    details = copy.deepcopy(CLIENT_TEMPLATE)
+    task_dataset = dataset or TASK_DATASET
+    task_model = model or TASK_MODEL
+    for client in details:
+        client["dataset"] = task_dataset
+        client["model"] = task_model
+    return details
+
+
 def default_output_dir_for_mode(mode: str) -> Path:
     return LOCAL_OUTPUT_DIR if mode == "local" else DOCKER_OUTPUT_DIR
 
@@ -336,12 +351,13 @@ def build_local_config(
     ollama_base_url: str,
     simulation_type: str = "Local",
 ) -> Dict[str, Any]:
+    client_details = client_template_for_task()
     return {
         "simulation_type": simulation_type,
         "rounds": int(rounds),
-        "clients": len(CLIENT_TEMPLATE),
-        "clients_per_round": len(CLIENT_TEMPLATE),
-        "dataset": "FashionMNIST",
+        "clients": len(client_details),
+        "clients_per_round": len(client_details),
+        "dataset": TASK_DATASET,
         "adaptation": spec.adaptation,
         "LLM": spec.llm,
         "ollama_base_url": ollama_base_url,
@@ -349,7 +365,7 @@ def build_local_config(
         "patterns": build_patterns(),
         "client_generation_mode": "manual",
         "client_profiles": [],
-        "client_details": copy.deepcopy(CLIENT_TEMPLATE),
+        "client_details": client_details,
     }
 
 
@@ -381,6 +397,10 @@ def reset_runtime_outputs(runtime_dir: Path) -> None:
                 shutil.rmtree(entry, ignore_errors=True)
             else:
                 entry.unlink(missing_ok=True)
+    client_idx_path = runtime_dir / ".client_idx"
+    if client_idx_path.exists():
+        client_idx_path.write_text("0", encoding="utf-8")
+    (runtime_dir / ".cpu_pool_state.json").unlink(missing_ok=True)
 
 
 def run_command(
@@ -1285,6 +1305,9 @@ def generate_outputs(output_dir: Path, pattern_run_id: int) -> None:
 
 def main() -> int:
     args = parse_args()
+    global TASK_DATASET, TASK_MODEL
+    TASK_DATASET = args.dataset
+    TASK_MODEL = args.model
     if args.rounds < 1:
         print("--rounds must be >= 1", file=sys.stderr)
         return 2
@@ -1293,7 +1316,7 @@ def main() -> int:
         return 2
 
     mode = args.mode.lower()
-    output_dir = default_output_dir_for_mode(mode).resolve()
+    output_dir = Path(args.output_dir).resolve() if args.output_dir else default_output_dir_for_mode(mode).resolve()
     staging_dir = Path(args.staging_dir).resolve() if args.staging_dir else default_staging_dir_for_mode(mode).resolve()
     ollama_base_url = args.ollama_base_url or default_ollama_url_for_mode(mode)
 
@@ -1319,6 +1342,8 @@ def main() -> int:
         "ollama_base_url": ollama_base_url,
         "skip_run": bool(args.skip_run),
         "pattern_run": int(args.pattern_run),
+        "dataset": TASK_DATASET,
+        "model": TASK_MODEL,
         "scheduled_new_runs": len(matrix),
         "approaches": [spec.display_name for spec in APPROACH_SPECS],
         "resume": resume_plan,

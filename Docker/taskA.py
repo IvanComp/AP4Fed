@@ -1,12 +1,17 @@
+import csv
 import json
 import os
 import random
+import re
 import time
+import urllib.request
+import zlib
 import math
 from collections import Counter
 from collections import OrderedDict
 from logging import INFO
 from pathlib import Path
+from typing import List
 import numpy as np
 import torch
 import torch.nn as nn
@@ -22,6 +27,12 @@ from torchgan.models import DCGANGenerator, DCGANDiscriminator
 from torchgan.trainer import Trainer
 from torchvision.datasets import CIFAR10, CIFAR100, MNIST, FashionMNIST, KMNIST, OxfordIIITPet, ImageFolder
 from torchvision.transforms import Resize, CenterCrop, ToTensor, Normalize, Compose, ToPILImage
+
+AGNEWS_VOCAB_SIZE = 50000
+AGNEWS_URLS = {
+    "train": "https://raw.githubusercontent.com/mhjabreel/CharCnn_Keras/master/data/ag_news_csv/train.csv",
+    "test": "https://raw.githubusercontent.com/mhjabreel/CharCnn_Keras/master/data/ag_news_csv/test.csv",
+}
 
 class TensorLabelDataset(Dataset):
     def __init__(self, dataset):
@@ -94,6 +105,12 @@ AVAILABLE_DATASETS = {
         "normalize": ((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
         "channels": 3,
         "num_classes": 37
+    },
+    "AGNEWS": {
+        "class": None,
+        "normalize": None,
+        "channels": 0,
+        "num_classes": 4
     }
 }
 
@@ -137,6 +154,8 @@ def normalize_dataset_name(name: str) -> str:
         return "KMNIST"
     elif name_clean == "OXFORDIIITPET":
         return "OXFORDIIITPET"
+    elif name_clean in ("AGNEWS", "AG_NEWS"):
+        return "AGNEWS"
     else:
         return name
 
@@ -162,6 +181,28 @@ if os.path.exists(config_file):
             "Il file di configurazione non specifica il dataset né tramite la chiave 'dataset' né in 'client_details'.")
     DATASET_NAME = normalize_dataset_name(ds)
     DATASET_TYPE = configJSON["client_details"][0].get("data_distribution_type", "")
+
+
+class SimpleMLP(nn.Module):
+    def __init__(self, vocab_size: int, embed_dim: int, hidden_dim: int, num_classes: int) -> None:
+        super(SimpleMLP, self).__init__()
+        self.embedding = nn.EmbeddingBag(vocab_size, embed_dim, sparse=False)
+        self.fc1 = nn.Linear(embed_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, num_classes)
+        self.init_weights()
+
+    def init_weights(self) -> None:
+        initrange = 0.5
+        self.embedding.weight.data.uniform_(-initrange, initrange)
+        self.fc1.weight.data.uniform_(-initrange, initrange)
+        self.fc1.bias.data.zero_()
+        self.fc2.weight.data.uniform_(-initrange, initrange)
+        self.fc2.bias.data.zero_()
+
+    def forward(self, text: torch.Tensor, offsets: torch.Tensor) -> torch.Tensor:
+        embedded = self.embedding(text, offsets)
+        x = F.relu(self.fc1(embedded))
+        return self.fc2(x)
 
 
 class CNN_Dynamic(nn.Module):
@@ -337,6 +378,14 @@ def get_dynamic_model(num_classes: int, model_name: str = None, pretrained: bool
             configJSON = json.load(f)
         model_name = configJSON["client_details"][0].get("model")
     name = model_name.strip().lower().replace("-", "_").replace(" ", "_")
+
+    if name in ("mlp", "simple_mlp", "simplemlp"):
+        return SimpleMLP(
+            vocab_size=AGNEWS_VOCAB_SIZE,
+            embed_dim=64,
+            hidden_dim=64,
+            num_classes=num_classes,
+        )
 
     # cnn 16k
     if name in ("cnn_16k", "cnn16k"):
@@ -675,6 +724,62 @@ def build_client_partition_map(trainset, client_details, dataset_name, alpha=0.5
     return client_allocations
 
 
+def _agnews_data_dir() -> Path:
+    path = Path(__file__).resolve().parent / "data" / "ag_news_csv"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _ensure_agnews_csv(split: str) -> Path:
+    path = _agnews_data_dir() / f"{split}.csv"
+    if not path.exists():
+        urllib.request.urlretrieve(AGNEWS_URLS[split], path)
+    return path
+
+
+def _tokenize_agnews(text: str) -> List[int]:
+    tokens = re.findall(r"[A-Za-z0-9]+(?:'[A-Za-z0-9]+)?", text.lower())
+    if not tokens:
+        return [0]
+    return [
+        (zlib.crc32(token.encode("utf-8")) % (AGNEWS_VOCAB_SIZE - 1)) + 1
+        for token in tokens
+    ]
+
+
+def agnews_collate_batch(batch):
+    label_list, text_list, offsets = [], [], [0]
+    for text, label in batch:
+        label_list.append(int(label))
+        token_ids = torch.tensor(_tokenize_agnews(text), dtype=torch.int64)
+        text_list.append(token_ids)
+        offsets.append(token_ids.size(0))
+    labels = torch.tensor(label_list, dtype=torch.int64)
+    offsets = torch.tensor(offsets[:-1], dtype=torch.int64).cumsum(dim=0)
+    text = torch.cat(text_list) if text_list else torch.empty(0, dtype=torch.int64)
+    return (text, offsets), labels
+
+
+class AGNewsDataset(Dataset):
+    def __init__(self, split: str) -> None:
+        path = _ensure_agnews_csv(split)
+        self.rows = []
+        with path.open("r", encoding="utf-8", newline="") as handle:
+            reader = csv.reader(handle)
+            for row in reader:
+                if len(row) < 2:
+                    continue
+                label = int(row[0]) - 1
+                text = " ".join(row[1:])
+                self.rows.append((text, label))
+
+    def __len__(self) -> int:
+        return len(self.rows)
+
+    def __getitem__(self, idx: int):
+        return self.rows[idx]
+
+
 def load_data(client_config, GLOBAL_ROUND_COUNTER, dataset_name_override=None):
     global DATASET_NAME, DATASET_TYPE, DATASET_PERSISTENCE
 
@@ -686,48 +791,54 @@ def load_data(client_config, GLOBAL_ROUND_COUNTER, dataset_name_override=None):
     if DATASET_NAME not in AVAILABLE_DATASETS:
         raise ValueError(f"[ERROR] Dataset '{DATASET_NAME}' non trovato in AVAILABLE_DATASETS.")
     config = AVAILABLE_DATASETS[DATASET_NAME]
-    normalize_params = config["normalize"]
 
-    # Dimensioni e batch
-    base_size = {
-        "CIFAR10": 32, "CIFAR100": 32, "MNIST": 28,
-        "FashionMNIST": 28, "KMNIST": 28,
-        "ImageNet100": 256, "OXFORDIIITPET": 256
-    }[DATASET_NAME]
-    model_name = client_config.get("model", "resnet18").lower()
-    target_size = 256 if model_name in ["alexnet", "vgg11", "vgg13", "vgg16", "vgg19"] else base_size
-
-    # Trasformazioni
-    transforms_list = []
-    if DATASET_NAME == "ImageNet100":
-        transforms_list = [Resize(224), CenterCrop(224)]
+    if DATASET_NAME == "AGNEWS":
+        trainset = AGNewsDataset("train")
+        testset = AGNewsDataset("test")
         batch_size = 64
     else:
-        if target_size != base_size:
-            transforms_list.append(Resize((target_size, target_size)))
-        batch_size = 64
-    transforms_list += [ToTensor(), Normalize(*normalize_params)]
-    trf = Compose(transforms_list)
+        normalize_params = config["normalize"]
 
-    # Caricamento trainset / testset
-    if DATASET_NAME == "ImageNet100":
-        DATA_ROOT = Path(__file__).resolve().parent / "data"
-        train_path = DATA_ROOT / "imagenet100-preprocessed" / "train"
-        test_path = DATA_ROOT / "imagenet100-preprocessed" / "test"
-        if not os.path.isdir(train_path) or not os.path.isdir(test_path):
-            raise FileNotFoundError(
-                f"Dataset ImageNet100 non trovato in {train_path} e {test_path}"
-            )
-        trainset = ImageFolder(train_path, transform=trf)
-        testset = ImageFolder(test_path, transform=trf)
-    else:
-        cls = config["class"]
-        if DATASET_NAME == "OXFORDIIITPET":
-            trainset = cls("./data", split="trainval", download=True, transform=trf)
-            testset = cls("./data", split="test", download=True, transform=trf)
+        # Dimensioni e batch
+        base_size = {
+            "CIFAR10": 32, "CIFAR100": 32, "MNIST": 28,
+            "FashionMNIST": 28, "KMNIST": 28,
+            "ImageNet100": 256, "OXFORDIIITPET": 256
+        }[DATASET_NAME]
+        model_name = client_config.get("model", "resnet18").lower()
+        target_size = 256 if model_name in ["alexnet", "vgg11", "vgg13", "vgg16", "vgg19"] else base_size
+
+        # Trasformazioni
+        transforms_list = []
+        if DATASET_NAME == "ImageNet100":
+            transforms_list = [Resize(224), CenterCrop(224)]
+            batch_size = 64
         else:
-            trainset = cls("./data", train=True, download=True, transform=trf)
-            testset = cls("./data", train=False, download=True, transform=trf)
+            if target_size != base_size:
+                transforms_list.append(Resize((target_size, target_size)))
+            batch_size = 64
+        transforms_list += [ToTensor(), Normalize(*normalize_params)]
+        trf = Compose(transforms_list)
+
+        # Caricamento trainset / testset
+        if DATASET_NAME == "ImageNet100":
+            DATA_ROOT = Path(__file__).resolve().parent / "data"
+            train_path = DATA_ROOT / "imagenet100-preprocessed" / "train"
+            test_path = DATA_ROOT / "imagenet100-preprocessed" / "test"
+            if not os.path.isdir(train_path) or not os.path.isdir(test_path):
+                raise FileNotFoundError(
+                    f"Dataset ImageNet100 non trovato in {train_path} e {test_path}"
+                )
+            trainset = ImageFolder(train_path, transform=trf)
+            testset = ImageFolder(test_path, transform=trf)
+        else:
+            cls = config["class"]
+            if DATASET_NAME == "OXFORDIIITPET":
+                trainset = cls("./data", split="trainval", download=True, transform=trf)
+                testset = cls("./data", split="test", download=True, transform=trf)
+            else:
+                trainset = cls("./data", train=True, download=True, transform=trf)
+                testset = cls("./data", train=False, download=True, transform=trf)
 
     config_path = os.path.join(os.path.dirname(__file__), 'configuration', 'config.json')
     with open(config_path, 'r') as f:
@@ -869,8 +980,12 @@ def load_data(client_config, GLOBAL_ROUND_COUNTER, dataset_name_override=None):
         f"train class distribution: {dict(sorted(class_distribution.items()))}",
     )
 
-    trainloader = DataLoader(TensorLabelDataset(trainset), batch_size=batch_size, shuffle=True)
-    testloader = DataLoader(testset, batch_size=batch_size, shuffle=False)
+    if DATASET_NAME == "AGNEWS":
+        trainloader = DataLoader(trainset, batch_size=batch_size, shuffle=True, collate_fn=agnews_collate_batch)
+        testloader = DataLoader(testset, batch_size=batch_size, shuffle=False, collate_fn=agnews_collate_batch)
+    else:
+        trainloader = DataLoader(TensorLabelDataset(trainset), batch_size=batch_size, shuffle=True)
+        testloader = DataLoader(testset, batch_size=batch_size, shuffle=False)
     return trainloader, testloader
 
 
@@ -994,6 +1109,9 @@ def rebalance_trainloader_with_gan(trainloader):
     global DATASET_NAME
     if DATASET_NAME not in AVAILABLE_DATASETS:
         raise ValueError(f"[ERROR] Dataset '{DATASET_NAME}' non trovato in AVAILABLE_DATASETS.")
+    if DATASET_NAME == "AGNEWS":
+        log(INFO, "HDH Data Handler skipped for AG_NEWS text data")
+        return trainloader, 0.0
     dataset_config = AVAILABLE_DATASETS[DATASET_NAME]
 
     batch_size = 32
@@ -1059,10 +1177,17 @@ def train(net, trainloader, valloader, epochs, DEVICE):
     optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
     net.train()
     for _ in range(epochs):
-        for images, labels in trainloader:
-            images, labels = images.to(DEVICE), labels.to(DEVICE)
+        for batch, labels in trainloader:
+            labels = labels.to(DEVICE)
             optimizer.zero_grad()
-            loss = criterion(net(images), labels)
+            if isinstance(batch, (tuple, list)):
+                text, offsets = batch
+                text, offsets = text.to(DEVICE), offsets.to(DEVICE)
+                outputs = net(text, offsets)
+            else:
+                images = batch.to(DEVICE)
+                outputs = net(images)
+            loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
     training_time = time.time() - start_time
@@ -1093,11 +1218,19 @@ def test(net, loader):
     total_loss = 0.0
     correct = 0
     with torch.no_grad():
-        for imgs, labels in loader:
-            imgs, labels = imgs.to(DEVICE), labels.to(DEVICE)
-            outputs = net(imgs)
+        for batch, labels in loader:
+            labels = labels.to(DEVICE)
+            if isinstance(batch, (tuple, list)):
+                text, offsets = batch
+                text, offsets = text.to(DEVICE), offsets.to(DEVICE)
+                outputs = net(text, offsets)
+                batch_size = labels.size(0)
+            else:
+                imgs = batch.to(DEVICE)
+                outputs = net(imgs)
+                batch_size = imgs.size(0)
             loss = criterion(outputs, labels)
-            total_loss += loss.item() * imgs.size(0)
+            total_loss += loss.item() * batch_size
             _, preds = torch.max(outputs, 1)
             correct += (preds == labels).sum().item()
             all_preds.extend(preds.cpu().numpy())

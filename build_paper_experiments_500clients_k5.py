@@ -32,6 +32,8 @@ def build_client_details(total_clients: int = TOTAL_CLIENTS) -> List[Dict[str, A
     for idx in range(total_clients):
         client = copy.deepcopy(template[idx % len(template)])
         client["client_id"] = idx + 1
+        client["dataset"] = base.TASK_DATASET
+        client["model"] = base.TASK_MODEL
         details.append(client)
     return details
 
@@ -49,7 +51,7 @@ def build_local_config(
         "rounds": int(rounds),
         "clients": TOTAL_CLIENTS,
         "clients_per_round": CLIENTS_PER_ROUND,
-        "dataset": "FashionMNIST",
+        "dataset": base.TASK_DATASET,
         "adaptation": spec.adaptation,
         "LLM": spec.llm,
         "ollama_base_url": ollama_base_url,
