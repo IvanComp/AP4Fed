@@ -1,0 +1,119 @@
+{
+    "simulation_type": "Docker",
+    "rounds": 10,
+    "clients": 5,
+    "clients_per_round": 5,
+    "dataset": "AG_NEWS",
+    "adaptation": "Random",
+    "LLM": "deepseek-r1:8b",
+    "ollama_base_url": "http://host.docker.internal:11434",
+    "partition_seed": 252074748,
+    "patterns": {
+        "client_registry": {
+            "enabled": true,
+            "params": {}
+        },
+        "client_selector": {
+            "enabled": false,
+            "params": {
+                "selection_strategy": "Resource-Based",
+                "selection_criteria": "CPU",
+                "selection_value": 2
+            }
+        },
+        "client_cluster": {
+            "enabled": false,
+            "params": {}
+        },
+        "message_compressor": {
+            "enabled": false,
+            "params": {}
+        },
+        "model_co-versioning_registry": {
+            "enabled": false,
+            "params": {}
+        },
+        "multi-task_model_trainer": {
+            "enabled": false,
+            "params": {}
+        },
+        "heterogeneous_data_handler": {
+            "enabled": false,
+            "params": {}
+        }
+    },
+    "client_generation_mode": "manual",
+    "client_profiles": [],
+    "client_details": [
+        {
+            "client_id": 1,
+            "cpu": 5,
+            "ram": 2,
+            "dataset": "AG_NEWS",
+            "data_distribution_type": "non-IID",
+            "non_iid_alpha": 0.9,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "delay_min_seconds": 0,
+            "delay_max_seconds": 0,
+            "model": "MLP",
+            "epochs": 1
+        },
+        {
+            "client_id": 2,
+            "cpu": 5,
+            "ram": 2,
+            "dataset": "AG_NEWS",
+            "data_distribution_type": "non-IID",
+            "non_iid_alpha": 0.9,
+            "data_persistence_type": "New Data",
+            "delay_combobox": "No",
+            "delay_min_seconds": 0,
+            "delay_max_seconds": 0,
+            "model": "MLP",
+            "epochs": 1
+        },
+        {
+            "client_id": 3,
+            "cpu": 5,
+            "ram": 2,
+            "dataset": "AG_NEWS",
+            "data_distribution_type": "IID",
+            "non_iid_alpha": 0.5,
+            "data_persistence_type": "New Data",
+            "delay_combobox": "Yes",
+            "delay_min_seconds": 20,
+            "delay_max_seconds": 50,
+            "model": "MLP",
+            "epochs": 1
+        },
+        {
+            "client_id": 4,
+            "cpu": 3,
+            "ram": 2,
+            "dataset": "AG_NEWS",
+            "data_distribution_type": "non-IID",
+            "non_iid_alpha": 0.9,
+            "data_persistence_type": "New Data",
+            "delay_combobox": "Yes",
+            "delay_min_seconds": 20,
+            "delay_max_seconds": 50,
+            "model": "MLP",
+            "epochs": 1
+        },
+        {
+            "client_id": 5,
+            "cpu": 3,
+            "ram": 2,
+            "dataset": "AG_NEWS",
+            "data_distribution_type": "IID",
+            "non_iid_alpha": 0.5,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "delay_min_seconds": 0,
+            "delay_max_seconds": 0,
+            "model": "MLP",
+            "epochs": 1
+        }
+    ]
+}

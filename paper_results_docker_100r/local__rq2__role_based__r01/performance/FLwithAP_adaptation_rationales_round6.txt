@@ -1,0 +1,13 @@
+Round: 6
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+Client Selector is OFF because the previous state was OFF and there is no strong evidence to activate it. The CPU distribution among clients (5,5,5,3,3) shows potential for the Straggler effect, but the Val F1 is stable and round times are not significantly affected. The decision to keep it OFF is based on the default configuration unless specific issues arise. CS=OFF; MC=ON; HDH=ON.
+
+[Rationale MC] | role=MC
+In the absence of clear bottleneck, Message Compressor remains ON based on previous state. Since the communication time has not shown a clear bottleneck and the potential overhead is present, keep MC ON until proven otherwise. CS and HDH remain unchanged from previous round.
+CS=OFF; MC=ON; HDH=ON
+
+[Rationale HDH] | role=HDH
+Given the system configuration with non-IID clients present, the Heterogeneous Data Handler should be activated to mitigate the effects of non-IID data on model accuracy. The previous round's Val F1 was 0.7433, and activating HDH could help improve this metric by addressing class imbalance and data heterogeneity. Additionally, the JSD of 0.2400 indicates a moderate level of data heterogeneity, making HDH a beneficial pattern to consider. HDH was previously ON in round 5 and has been OFF for rounds 6-10, so turning it ON again may help re-assess its impact on model performance. Since the conditions for using HDH are still met, it is advisable to keep it active for now. CS=OFF; MC=ON; HDH=ON
+

@@ -1,0 +1,60 @@
+{
+  "rounds": 10,
+  "repeat": 1,
+  "mode": "local",
+  "output_dir": "/Users/ivan/Desktop/AP4Fed/Experiments_100r",
+  "staging_dir": "/Users/ivan/Desktop/AP4Fed/paper_results_local_100r",
+  "ollama_base_url": "http://127.0.0.1:11434",
+  "skip_run": false,
+  "pattern_run": 1,
+  "dataset": "AG_NEWS",
+  "model": "MLP",
+  "scheduled_new_runs": 6,
+  "approaches": [
+    "Never",
+    "Random",
+    "Expert-Driven",
+    "Voting-based",
+    "Role-based",
+    "Debate-based"
+  ],
+  "resume": {
+    "never": {
+      "completed": [],
+      "missing": [
+        1
+      ]
+    },
+    "random": {
+      "completed": [],
+      "missing": [
+        1
+      ]
+    },
+    "expert_driven": {
+      "completed": [],
+      "missing": [
+        1
+      ]
+    },
+    "voting_based": {
+      "completed": [],
+      "missing": [
+        1
+      ]
+    },
+    "role_based": {
+      "completed": [],
+      "missing": [
+        1
+      ]
+    },
+    "debate_based": {
+      "completed": [],
+      "missing": [
+        1
+      ]
+    }
+  }
+}
+[1/6] Running local__rq2__never__r01 (Baseline Never)

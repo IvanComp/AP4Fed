@@ -1,0 +1,1021 @@
+ Image ap4fed_client:latest Building 
+ Image ap4fed_client:latest Building 
+ Image ap4fed_client:latest Building 
+ Image ap4fed_client:latest Building 
+ Image ap4fed_server:latest Building 
+ Image ap4fed_client:latest Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 2.76kB done
+#1 DONE 0.0s
+
+#2 [client2 internal] load build definition from Dockerfile.client
+#2 transferring dockerfile: 621B done
+#2 DONE 0.0s
+
+#3 [server internal] load build definition from Dockerfile.server
+#3 transferring dockerfile: 725B done
+#3 DONE 0.0s
+
+#4 [server internal] load metadata for docker.io/library/python:3.12-slim
+#4 DONE 0.6s
+
+#5 [client2 internal] load .dockerignore
+#5 transferring context: 2B done
+#5 DONE 0.0s
+
+#6 [client1 1/8] FROM docker.io/library/python:3.12-slim@sha256:46cb7cc2877e60fbd5e21a9ae6115c30ace7a077b9f8772da879e4590c18c2e3
+#6 resolve docker.io/library/python:3.12-slim@sha256:46cb7cc2877e60fbd5e21a9ae6115c30ace7a077b9f8772da879e4590c18c2e3 done
+#6 DONE 0.0s
+
+#7 [server internal] load build context
+#7 transferring context: 3.58kB done
+#7 DONE 0.0s
+
+#8 [client3 internal] load build context
+#8 transferring context: 3.55kB done
+#8 DONE 0.0s
+
+#9 [server  7/10] COPY taskA.py /app/taskA.py
+#9 CACHED
+
+#10 [server  2/10] RUN apt-get update &&     apt-get install -y --no-install-recommends libgl1 libglib2.0-0 &&     rm -rf /var/lib/apt/lists/*
+#10 CACHED
+
+#11 [server  5/10] COPY client.py /app/client.py
+#11 CACHED
+
+#12 [server  8/10] COPY configuration/ /app/configuration/
+#12 CACHED
+
+#13 [server  4/10] WORKDIR /app
+#13 CACHED
+
+#14 [server  3/10] RUN pip install --no-cache-dir     flwr[simulations]     docker     torch==2.2.1     torchvision==0.17.1     pandas     grpcio==1.66.1     numpy==1.26.2     psutil     torchgan     scikit-learn     scikit-image     grad-cam
+#14 CACHED
+
+#15 [server  6/10] COPY server.py /app/server.py
+#15 CACHED
+
+#16 [server  9/10] COPY adaptation.py /app/adaptation.py
+#16 CACHED
+
+#17 [server 10/10] RUN mkdir -p /app/performance
+#17 CACHED
+
+#18 [client2 4/8] COPY client.py /app/client.py
+#18 CACHED
+
+#19 [client2 2/8] RUN pip install flwr[simulations] torch==2.2.1 torchvision==0.17.1 grpcio==1.66.1 numpy==1.26.2 psutil torchgan scikit-learn
+#19 CACHED
+
+#20 [client2 5/8] COPY server.py /app/server.py
+#20 CACHED
+
+#21 [client2 3/8] WORKDIR /app
+#21 CACHED
+
+#22 [client2 6/8] COPY taskA.py /app/taskA.py
+#22 CACHED
+
+#23 [client2 7/8] COPY configuration/ /app/configuration/
+#23 CACHED
+
+#24 [client2 8/8] RUN mkdir -p data
+#24 CACHED
+
+#25 [server] exporting to image
+#25 exporting layers done
+#25 exporting manifest sha256:256d41de2a7718af7ce6d6d4379a1ea46eaa36b5f32b092479aba848e06db98e done
+#25 exporting config sha256:9a33aaf044308743def9945ae2dcf1a7c0d78582174e1862bc5cb63f80a4623f done
+#25 exporting attestation manifest sha256:0ec00f1a0e9780fa910b75cb3e9a50fdc3e116c2a39930df945d16e4ce7e1ad3 0.0s done
+#25 exporting manifest list sha256:3ce21215ee710667d50e80ca01f0f5a830f547ccf3588f621f92a60ed7d8e7f0
+#25 exporting manifest list sha256:3ce21215ee710667d50e80ca01f0f5a830f547ccf3588f621f92a60ed7d8e7f0 0.0s done
+#25 naming to docker.io/library/ap4fed_server:latest done
+#25 unpacking to docker.io/library/ap4fed_server:latest 0.0s done
+#25 DONE 0.1s
+
+#26 [client2] exporting to image
+#26 exporting layers done
+#26 exporting manifest sha256:aa623b856d3408204fffda303aba7e3910db55df1012120423298f190eb10828 done
+#26 exporting config sha256:97eac475ca4013b00d2a87cb4f5971e4b1e4c5e5d16db98d4003d197f1877f90 done
+#26 exporting attestation manifest sha256:bfb28d32ec04e91935700c22dc3d804e1b7041c6340fa4e1811578c3eefc66d8 0.0s done
+#26 exporting manifest list sha256:509f88bed54a313d30dbd135f9d807043586f5344a486cb8c7e492e5d3c03ff1 0.0s done
+#26 naming to docker.io/library/ap4fed_client:latest done
+#26 unpacking to docker.io/library/ap4fed_client:latest 0.0s done
+#26 DONE 0.1s
+
+#27 [client3] exporting to image
+#27 exporting layers done
+#27 exporting manifest sha256:9f6314f5ce248d487feccda378a8be9bf13bcac541cb4796c946300a3f794508 0.0s done
+#27 exporting config sha256:c2c0aa022aff2c19cd4ef06961f6f5f5e9d1914f9681bca10fe26b5180191a09 0.0s done
+#27 exporting attestation manifest sha256:25f826f859752cef16366990f434fdd02bd6aad1225a0a7848f31bcf3bb6e286 0.0s done
+#27 exporting manifest list sha256:73bb101862f905a2a0a9c09419be8ac7c306ff2725b23372af406f803df167bd 0.0s done
+#27 naming to docker.io/library/ap4fed_client:latest done
+#27 unpacking to docker.io/library/ap4fed_client:latest 0.0s done
+#27 DONE 0.1s
+
+#28 [client5] exporting to image
+#28 exporting layers done
+#28 exporting manifest sha256:9613df798015697e2f7d346cd19e834523a0ba0c36ad3aa26278c1f2770b8aa8 0.0s done
+#28 exporting config sha256:fe0c9410e8e0e574e1ee6c5be4fa17cefa2bc12b3b12f40ecfea5344576ff372 0.0s done
+#28 exporting attestation manifest sha256:ffecae5c261fb279df59948ab24b7251c8692063c53120d29c4c390d58cde062 0.0s done
+#28 exporting manifest list sha256:f9e01519818f8b9a06122b6b85ed521b26ad6aaa4de6d82bae48a4e7d33da911 0.0s done
+#28 naming to docker.io/library/ap4fed_client:latest done
+#28 unpacking to docker.io/library/ap4fed_client:latest 0.0s done
+#28 DONE 0.1s
+
+#29 [client1] exporting to image
+#29 exporting layers done
+#29 exporting manifest sha256:e1cf699ca16f28faadfb45e3af68f000e4f1f8cc1102b817e93f5a82bf26d13c 0.0s done
+#29 exporting config sha256:56b918fd1bd1f5b47d6cbc72500409b4a931005cb5abc9f34437eb6247d614c4 0.0s done
+#29 exporting attestation manifest sha256:c9a3abd72412edb7c2a723fe5cc9b16044bcdc1373d39aa2ec9cc73ec3160162 0.0s done
+#29 exporting manifest list sha256:2020bb6ff28b122e6a11e4b8576c08d50fc90765972fcb29cf31876a5cc8fd70 0.0s done
+#29 naming to docker.io/library/ap4fed_client:latest done
+#29 unpacking to docker.io/library/ap4fed_client:latest 0.0s done
+#29 DONE 0.1s
+
+#30 [client4] exporting to image
+#30 exporting layers done
+#30 exporting manifest sha256:fdcd19d42d35fce0c2c1f41649698f2ed50118347398da61bc7ca7f6b9d38c6b 0.0s done
+#30 exporting config sha256:9f2924a2fb145d7b5845b4fdb12b85bd07963d9fff160026e6e785ef599ee9d6 0.0s done
+#30 exporting attestation manifest sha256:75b8011b681c4c58260d1fdfec020faa67190d28aef49859fa6674f8f17dd299 0.0s done
+#30 exporting manifest list sha256:9052c0023121f4afba431a5d98886caeba4e68d2255aa2c4ba05264de89444f5 0.0s done
+#30 naming to docker.io/library/ap4fed_client:latest done
+#30 unpacking to docker.io/library/ap4fed_client:latest 0.0s done
+#30 DONE 0.2s
+
+#31 [client1] resolving provenance for metadata file
+#31 DONE 0.0s
+
+#32 [client5] resolving provenance for metadata file
+#32 DONE 0.0s
+
+#33 [client3] resolving provenance for metadata file
+#33 DONE 0.0s
+
+#34 [server] resolving provenance for metadata file
+#34 DONE 0.0s
+
+#35 [client2] resolving provenance for metadata file
+#35 DONE 0.0s
+
+#36 [client4] resolving provenance for metadata file
+#36 DONE 0.0s
+ Image ap4fed_client:latest Built 
+ Image ap4fed_server:latest Built 
+ Image ap4fed_client:latest Built 
+ Image ap4fed_client:latest Built 
+ Image ap4fed_client:latest Built 
+ Image ap4fed_client:latest Built 
+ Network docker_flwr_network Creating 
+ Network docker_flwr_network Created 
+ Container flwr_server Creating 
+ Container flwr_server Created 
+ Container Client1 Creating 
+ Container Client5 Creating 
+ Container Client4 Creating 
+ Container Client3 Creating 
+ Container Client2 Creating 
+ Container Client1 Created 
+ Container Client5 Created 
+ Container Client3 Created 
+ Container Client4 Created 
+ Container Client2 Created 
+Attaching to Client1, Client2, Client3, Client4, Client5, flwr_server
+ Container flwr_server Starting 
+ Container flwr_server Started 
+ Container Client4 Starting 
+ Container Client3 Starting 
+ Container Client5 Starting 
+ Container Client1 Starting 
+ Container Client2 Starting 
+ Container Client2 Started 
+ Container Client1 Started 
+ Container Client4 Started 
+ Container Client3 Started 
+ Container Client5 Started 
+flwr_server  | [92mINFO [0m:      ==========================================
+flwr_server  | [92mINFO [0m:        ___  ______  ___ ______       _ 
+flwr_server  | [92mINFO [0m:       / _ \ | ___ \/   ||  ___|     | |
+flwr_server  | [92mINFO [0m:      / /_\ \| |_/ / /| || |_ ___  __| |
+flwr_server  | [92mINFO [0m:      |  _  ||  __/ /_| ||  _/ _ \/ _` |
+flwr_server  | [92mINFO [0m:      | | | || |  \___  || ||  __/ (_| |
+flwr_server  | [92mINFO [0m:      \_| |_/\_|      |_/\_| \___|\__,_| v.1.5.0
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      ==========================================
+flwr_server  | [92mINFO [0m:      Simulation Started!
+flwr_server  | [92mINFO [0m:      List of the Architectural Patterns enabled:
+flwr_server  | [92mINFO [0m:      Client Registry ✅
+flwr_server  | [92mINFO [0m:      ==========================================
+flwr_server  | [92mINFO [0m:      Adaptation Enabled ✅ - Voting-Based
+flwr_server  | [93mWARNING [0m:   DEPRECATED FEATURE: flwr.server.start_server() is deprecated.
+flwr_server  | 	Instead, use the `flower-superlink` CLI command to start a SuperLink as shown below:
+flwr_server  | 
+flwr_server  | 		$ flower-superlink --insecure
+flwr_server  | 
+flwr_server  | 	To view usage and all available options, run:
+flwr_server  | 
+flwr_server  | 		$ flower-superlink --help
+flwr_server  | 
+flwr_server  | 	Using `start_server()` is deprecated.
+flwr_server  | 
+flwr_server  |             This is a deprecated feature. It will be removed
+flwr_server  |             entirely in future versions of Flower.
+flwr_server  |         
+flwr_server  | [92mINFO [0m:      Starting Flower server, config: num_rounds=10, no round_timeout
+flwr_server  | [92mINFO [0m:      Flower ECE: gRPC server running (10 rounds), SSL is disabled
+flwr_server  | [92mINFO [0m:      [INIT]
+flwr_server  | [92mINFO [0m:      Requesting initial parameters from one random client
+Client5      | [92mINFO [0m:      Client 5 compute unit: CPU (pid=8)
+Client5      | [93mWARNING [0m:   DEPRECATED FEATURE: flwr.client.start_client() is deprecated.
+Client5      | 	Instead, use the `flower-supernode` CLI command to start a SuperNode as shown below:
+Client5      | 
+Client5      | 		$ flower-supernode --insecure --superlink='<IP>:<PORT>'
+Client5      | 
+Client5      | 	To view all available options, run:
+Client5      | 
+Client5      | 		$ flower-supernode --help
+Client5      | 
+Client5      | 	Using `start_client()` is deprecated.
+Client5      | 
+Client5      |             This is a deprecated feature. It will be removed
+Client5      |             entirely in future versions of Flower.
+Client5      |         
+Client2      | [92mINFO [0m:      Client 2 compute unit: CPU (pid=8)
+Client2      | [93mWARNING [0m:   DEPRECATED FEATURE: flwr.client.start_client() is deprecated.
+Client2      | 	Instead, use the `flower-supernode` CLI command to start a SuperNode as shown below:
+Client2      | 
+Client2      | 		$ flower-supernode --insecure --superlink='<IP>:<PORT>'
+Client2      | 
+Client2      | 	To view all available options, run:
+Client2      | 
+Client2      | 		$ flower-supernode --help
+Client2      | 
+Client2      | 	Using `start_client()` is deprecated.
+Client2      | 
+Client2      |             This is a deprecated feature. It will be removed
+Client2      |             entirely in future versions of Flower.
+Client2      |         
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: get_parameters message 0048565b-5b95-4345-936f-468ff7857762
+Client3      | [92mINFO [0m:      Client 3 compute unit: CPU (pid=8)
+Client3      | [93mWARNING [0m:   DEPRECATED FEATURE: flwr.client.start_client() is deprecated.
+Client3      | 	Instead, use the `flower-supernode` CLI command to start a SuperNode as shown below:
+Client3      | 
+Client3      | 		$ flower-supernode --insecure --superlink='<IP>:<PORT>'
+Client3      | 
+Client3      | 	To view all available options, run:
+Client3      | 
+Client3      | 		$ flower-supernode --help
+Client3      | 
+Client3      | 	Using `start_client()` is deprecated.
+Client3      | 
+Client3      |             This is a deprecated feature. It will be removed
+Client3      |             entirely in future versions of Flower.
+Client3      |         
+Client2      | [92mINFO [0m:      Sent reply
+flwr_server  | [93mWARNING [0m:   Failed to receive initial parameters from the client. Empty initial parameters will be used.
+flwr_server  | [92mINFO [0m:      Starting evaluation of initial global parameters
+flwr_server  | [92mINFO [0m:      Evaluation returned no results (`None`)
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [ROUND 1]
+Client1      | [92mINFO [0m:      Client 1 compute unit: CPU (pid=8)
+Client1      | [93mWARNING [0m:   DEPRECATED FEATURE: flwr.client.start_client() is deprecated.
+Client1      | 	Instead, use the `flower-supernode` CLI command to start a SuperNode as shown below:
+Client1      | 
+Client1      | 		$ flower-supernode --insecure --superlink='<IP>:<PORT>'
+Client1      | 
+Client1      | 	To view all available options, run:
+Client1      | 
+Client1      | 		$ flower-supernode --help
+Client1      | 
+Client1      | 	Using `start_client()` is deprecated.
+Client1      | 
+Client1      |             This is a deprecated feature. It will be removed
+Client1      |             entirely in future versions of Flower.
+Client1      |         
+Client4      | [92mINFO [0m:      Client 4 compute unit: CPU (pid=8)
+Client4      | [93mWARNING [0m:   DEPRECATED FEATURE: flwr.client.start_client() is deprecated.
+Client4      | 	Instead, use the `flower-supernode` CLI command to start a SuperNode as shown below:
+Client4      | 
+Client4      | 		$ flower-supernode --insecure --superlink='<IP>:<PORT>'
+Client4      | 
+Client4      | 	To view all available options, run:
+Client4      | 
+Client4      | 		$ flower-supernode --help
+Client4      | 
+Client4      | 	Using `start_client()` is deprecated.
+Client4      | 
+Client4      |             This is a deprecated feature. It will be removed
+Client4      |             entirely in future versions of Flower.
+Client4      |         
+flwr_server  | [92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: train message 515702ff-b5a6-4bb3-8b42-a7c15a6f66b3
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: train message 7efa3e2a-9198-4076-97fc-84ff78a65e0a
+Client3      | [92mINFO [0m:      [DATA DEBUG] Client 3 round 1 train class distribution: {0: 728, 1: 1570, 2: 102}
+Client3      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      [DATA DEBUG] Client 4 round 1 train class distribution: {0: 741, 1: 493, 2: 583, 3: 583}
+Client4      | [92mINFO [0m:      Starting training...
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: train message 8c3320d4-4c11-46ca-be55-a474afa32df1
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: train message 4cce1233-82fc-4b75-8b3e-7c667f181ed5
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: train message 5148a986-9190-4dbd-bf06-5c071bc207af
+Client2      | [92mINFO [0m:      [DATA DEBUG] Client 2 round 1 train class distribution: {0: 3, 1: 77, 2: 150, 3: 2170}
+Client2      | [92mINFO [0m:      Starting training...
+Client1      | [92mINFO [0m:      [DATA DEBUG] Client 1 round 1 train class distribution: {0: 2996, 1: 3365, 2: 8990, 3: 8649}
+Client1      | [92mINFO [0m:      Starting training...
+Client5      | [92mINFO [0m:      [DATA DEBUG] Client 5 round 1 train class distribution: {0: 12473, 1: 10004, 2: 1523}
+Client5      | [92mINFO [0m:      Starting training...
+Client3      | [92mINFO [0m:      Training completed in 2.50 seconds
+Client4      | [92mINFO [0m:      Training completed in 2.81 seconds
+Client2      | [92mINFO [0m:      Training completed in 2.08 seconds
+Client4      | [92mINFO [0m:      Client 4 injecting delay of 35 seconds
+Client3      | [92mINFO [0m:      Client 3 injecting delay of 42 seconds
+Client2      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.37
+Client2      | [92mINFO [0m:      Sent reply
+Client1      | [92mINFO [0m:      Training completed in 12.70 seconds
+Client5      | [92mINFO [0m:      Training completed in 14.31 seconds
+Client1      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.04
+Client1      | [92mINFO [0m:      Sent reply
+Client5      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.22
+Client5      | [92mINFO [0m:      Sent reply
+Client4      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.00
+Client4      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.25
+Client3      | [92mINFO [0m:      Sent reply
+flwr_server  | [92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+flwr_server  | [92mINFO [0m:      Results Aggregated in 49.39 seconds.
+flwr_server  | [92mINFO [0m:      [Agent 1] Decision (deepseek-r1:8b, temp=0.7): CS: OFF→ON • MC: OFF→OFF • HDH: OFF→ON
+flwr_server  | [92mINFO [0m:      [Rationale A1] Based on the system configuration, we have 5 clients with CPUs [5,5,5,3,3]. The Client Selector is activated with selection_value=4 to exclude the two clients with CPU=3, reducing the impact of the Straggler effect and improving round time. The Heterogeneous Data Handler is turned ON to address non-IID data from clients 1,2,4, as indicated by the system configuration. The Message Compressor remains OFF because the Communication Time is high (mean 19.464s), but enabling MC might introduce overhead without clear evidence of improvement in the recent rounds. The decision to keep HDH ON is based on non-IID data presence, and CS ON is chosen to manage client heterogeneity. The selection_value=4 is safe as at least two clients (with CPU=5) are above it. CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Agent 2] Decision (deepseek-r1:8b, temp=0.8): CS: OFF→ON • MC: OFF→OFF • HDH: OFF→ON
+flwr_server  | [92mINFO [0m:      [Rationale A2] Based on the system configuration and metrics, I recommend activating the Client Selector with selection_value=3 to exclude the low-CPU clients (CPU=3) and improve round times. However, the Val F1 is not provided, so I am not sure if HDH is needed. HDH should be activated only for non-IID clients, and currently, three clients have non-IID data, so I will activate HDH to potentially improve Val F1. The previous round metrics show that CommunicationTime_s is high (mean 19.464, max 44.55), but TrainingTime_s is moderate (mean 6.88, max 14.31). With client_selector ON, we can reduce round time. The decision for MC remains OFF due to high CommunicationTime_s but small model size. The selection_value=3 is safe as it excludes the two CPU=3 clients while keeping three CPU=5 clients, ensuring at least two active. ICS=ON; MC=OFF; HDH=ON
+flwr_server  | CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Agent 3] Decision (deepseek-r1:8b, temp=0.9): CS: OFF→ON • MC: OFF→OFF • HDH: OFF→ON
+flwr_server  | [92mINFO [0m:      [Rationale A3] Based on the system configuration, there are clients with varying CPU capabilities and non-IID data. The Client Selector is activated to mitigate the straggler effect caused by lower-CPU clients. Given the CPU values [5,5,5,3,3], the selection_value is set to 4, which excludes the two clients with CPU=3 while keeping three clients active. This should reduce Total Round Time and Training Time. The Heterogeneous Data Handler is activated to address non-IID data, which could improve global model accuracy. The Message Compressor remains OFF due to potential overhead outweighing benefits in this small model context. CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Coordinator] Majority: CS: ·→ON • MC: ·→OFF • HDH: ·→ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Final Decision] CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Coordinator Rationale] Based on the majority vote from three architectural pattern decisions, the Client Selector is activated with selection_value=4 to exclude clients with lower CPU, reducing Total Round Time and Training Time. Message Compressor remains OFF due to potential overhead for small models. Heterogeneous Data Handler is activated to address non-IID data issues, improving Val F1 for non-IID clients. The selection_value=4 is safe as it keeps at least two clients active (the three with CPU=5).
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [ROUND 2]
+flwr_server  | [92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: train message 732180f4-bcd4-4c4b-8500-2a42f5e0d872
+Client3      | [92mINFO [0m:      [DATA DEBUG] Client 3 round 2 train class distribution: {0: 1488, 1: 3114, 2: 198}
+Client3      | [92mINFO [0m:      Client 3 participates in this round. (CPU: 5, RAM: 2)
+Client3      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: train message 30ba05aa-6388-4ac0-9ef5-b28ff5f4083d
+Client4      | [92mINFO [0m:      [DATA DEBUG] Client 4 round 2 train class distribution: {0: 385, 1: 3791, 2: 287, 3: 337}
+Client4      | [92mINFO [0m:      Client 4 has insufficient CPU (3). Will not participate in the next FL round.
+Client4      | [92mINFO [0m:      Sent reply
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: train message 35634c80-86e8-4a3b-8762-a5dfce487647
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: train message 0f68acc6-d8fd-45d2-b488-9097c3dfd103
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: train message 661a8715-3c55-46cd-b03c-0dd96a6d098c
+Client2      | [92mINFO [0m:      [DATA DEBUG] Client 2 round 2 train class distribution: {0: 39, 1: 178, 2: 571, 3: 4012}
+Client2      | [92mINFO [0m:      Client 2 participates in this round. (CPU: 5, RAM: 2)
+Client2      | [92mINFO [0m:      HDH Data Handler skipped for AG_NEWS text data
+Client2      | [92mINFO [0m:      Starting training...
+Client1      | [92mINFO [0m:      [DATA DEBUG] Client 1 round 2 train class distribution: {0: 2996, 1: 3365, 2: 8990, 3: 8649}
+Client1      | [92mINFO [0m:      Client 1 participates in this round. (CPU: 5, RAM: 2)
+Client1      | [92mINFO [0m:      HDH Data Handler skipped for AG_NEWS text data
+Client5      | [92mINFO [0m:      [DATA DEBUG] Client 5 round 2 train class distribution: {0: 12473, 1: 10004, 2: 1523}
+Client5      | [92mINFO [0m:      Client 5 has insufficient CPU (3). Will not participate in the next FL round.
+Client5      | [92mINFO [0m:      Sent reply
+Client1      | [92mINFO [0m:      Starting training...
+Client2      | [92mINFO [0m:      Training completed in 3.09 seconds
+Client3      | [92mINFO [0m:      Training completed in 5.24 seconds
+Client2      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.30
+Client2      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Client 3 injecting delay of 27 seconds
+Client1      | [92mINFO [0m:      Training completed in 14.63 seconds
+Client1      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.04
+Client1      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.25
+Client3      | [92mINFO [0m:      Sent reply
+flwr_server  | [92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+flwr_server  | [92mINFO [0m:      Results Aggregated in 38.31 seconds.
+flwr_server  | [92mINFO [0m:      [Agent 1] Decision (deepseek-r1:8b, temp=0.7): CS: OFF→ON • MC: OFF→OFF • HDH: OFF→OFF
+flwr_server  | [92mINFO [0m:      [Rationale A1] Based on the system configuration, we have clients with varying CPU capabilities: [5, 5, 5, 3, 3]. To mitigate the Straggler effect caused by clients with lower CPUs (3), we activate the Client Selector with selection_value=4. This ensures that only clients with CPU > 4 (i.e., the three clients with CPU=5) are included, reducing the risk of slowdowns and improving Total Round Time. Since the Val F1 remained stagnant (delta=0) and there are clear non-IID clients, we keep the other patterns OFF. However, we note that non-IID clients exist and their data might be affected by the Client Selector. We will monitor if excluding clients with lower CPUs improves Val F1 or if HDH should be re-enabled later. The decision to keep MC OFF is due to the absence of clear communication bottlenecks, as Communication Time mean remains high but we lack data on model size. The selection_value=4 is safe as it leaves at least two clients (the three 5-CPU clients) active, satisfying the guardrail. CS=ON; MC=OFF; HDH=OFF
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Agent 2] Decision (deepseek-r1:8b, temp=0.8): CS: OFF→ON • MC: OFF→OFF • HDH: OFF→ON
+flwr_server  | [92mINFO [0m:      [Rationale A2] Based on the system configuration and evaluation metrics, we need to address the non-IID data issue and potential straggler clients. The Val F1 score is 0.605, which is lower than typical performance, indicating that non-IID data might be affecting model accuracy. The dataset is AG_NEWS, and three clients (1, 2, and 4) have non-IID data, requiring mitigation. Therefore, we activate the Heterogeneous Data Handler (HDH) to improve global model accuracy. For client selection, the CPUs are [5,5,5,3,3], with a max of 5. The smallest safe threshold to exclude at least one lower-CPU client while keeping at least two with CPU > threshold is 3, but to ensure at least two clients remain, we choose 4, as CPUs above 4 are only the three 5-CPU clients, leaving two or more active. HDH is being activated despite previous OFF status to probe its effect, as non-IID data is present. The Training Time and Communication Time metrics show variability, but no clear bottleneck for compression, so Message Compressor remains OFF. Client Selector is ON to reduce the impact of slow clients. The signature line: CS=ON; MC=OFF; HDH=ON.
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Agent 3] Decision (deepseek-r1:8b, temp=0.9): CS: OFF→OFF • MC: OFF→OFF • HDH: OFF→OFF
+flwr_server  | [92mINFO [0m:      [Rationale A3] Given the current system configuration with 5 clients, CPUs [5,5,5,3,3], and Val F1 score of 0.605, there has been no improvement from the previous round (delta +0.0000). The Total Round Time remains high at 49.39s, but Training Time and Communication Time show variability. However, activating the Client Selector might exclude clients, potentially reducing round time but risking Val F1. There is no clear bottleneck in communication time or non-IID data (JSD=0.22), so no immediate need for Message Compressor or Heterogeneous Data Handler. Since patterns were OFF previously and show no benefit, they remain OFF. This decision adheres to the guardrails, especially ensuring the Client Selector remains OFF to maintain system stability. CS=OFF; MC=OFF; HDH=OFF
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Coordinator] Majority: CS: ·→ON • MC: ·→OFF • HDH: ·→OFF
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Final Decision] CS=ON; MC=OFF; HDH=OFF
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Coordinator Rationale] { "client_selector": "ON", "message_compressor": "OFF", "heterogeneous_data_handler": "ON", "selection_value": 4, "rationale": "Based on the voting summary, the majority decision is to turn ON the Client Selector and Heterogeneous Data Handler, and keep the Message Compressor OFF. The Client Selector is activated with a selection_value of 4 to exclude low-CPU clients (CPU=3) and improve round and training times. The Heterogeneous Data Handler is enabled to address non-IID data, as indicated by the presence of non-IID clients and potential performance gains. The Message Compressor remains OFF due to the lack of clear evidence for its benefits in this round. This decision aligns with optimizing global model accuracy and reducing round time, while avoiding unnecessary overhead."
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [ROUND 3]
+flwr_server  | [92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: train message b580b873-2e7d-4ff8-840a-12ae1e8038fa
+Client1      | [92mINFO [0m:      [DATA DEBUG] Client 1 round 3 train class distribution: {0: 2996, 1: 3365, 2: 8990, 3: 8649}
+Client1      | [92mINFO [0m:      Client 1 participates in this round. (CPU: 5, RAM: 2)
+Client1      | [92mINFO [0m:      Starting training...
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: train message dbad03d4-51ec-4e5a-822c-4b5c42ce8002
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: train message 4fef01ef-7569-4a0d-829e-1607befeb00f
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: train message 8bcb5d64-eecb-4e75-a10d-ea8553d35067
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: train message 2ccc7504-7d3e-4a51-bb83-56633387d092
+Client2      | [92mINFO [0m:      [DATA DEBUG] Client 2 round 3 train class distribution: {0: 149, 1: 172, 2: 3184, 3: 3695}
+Client5      | [92mINFO [0m:      [DATA DEBUG] Client 5 round 2 train class distribution: {0: 12473, 1: 10004, 2: 1523}
+Client2      | [92mINFO [0m:      Client 2 participates in this round. (CPU: 5, RAM: 2)
+Client2      | [92mINFO [0m:      Starting training...
+Client5      | [92mINFO [0m:      Client 5 has insufficient CPU (3). Will not participate in the next FL round.
+Client5      | [92mINFO [0m:      Sent reply
+Client4      | [92mINFO [0m:      [DATA DEBUG] Client 4 round 2 train class distribution: {0: 385, 1: 3791, 2: 287, 3: 337}
+Client3      | [92mINFO [0m:      [DATA DEBUG] Client 3 round 3 train class distribution: {0: 3057, 1: 3555, 2: 588}
+Client4      | [92mINFO [0m:      Client 4 has insufficient CPU (3). Will not participate in the next FL round.
+Client3      | [92mINFO [0m:      Client 3 participates in this round. (CPU: 5, RAM: 2)
+Client3      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      Sent reply
+Client2      | [92mINFO [0m:      Training completed in 4.01 seconds
+Client3      | [92mINFO [0m:      Training completed in 4.78 seconds
+Client2      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.21
+Client2      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Client 3 injecting delay of 22 seconds
+Client1      | [92mINFO [0m:      Training completed in 14.98 seconds
+Client1      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.04
+Client1      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.20
+Client3      | [92mINFO [0m:      Sent reply
+flwr_server  | [92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+flwr_server  | [92mINFO [0m:      Results Aggregated in 33.69 seconds.
+flwr_server  | [92mINFO [0m:      [Agent 1] Decision (deepseek-r1:8b, temp=0.7): CS: ON→ON • MC: OFF→OFF • HDH: ON→ON
+flwr_server  | [92mINFO [0m:      [Rationale A1] Based on the system configuration, the Client Selector is activated with a selection_value of 4 to exclude the low-CPU clients (CPU=3) and improve Total Round Time and Training Time. The Message Compressor remains OFF due to the lack of evidence that it improves Communication Time, and the Heterogeneous Data Handler is kept active to address the non-IID data distribution. This decision is based on the previous configuration and the need to maintain global model accuracy. CS=<ON>; MC=OFF; HDH=ON
+flwr_server  | CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Agent 2] Decision (deepseek-r1:8b, temp=0.8): CS: ON→ON • MC: OFF→OFF • HDH: ON→ON
+flwr_server  | [92mINFO [0m:      [Rationale A2] The Client Selector is kept ON from the previous round, and the selection_value remains 3 to exclude clients with CPU=3, reducing Total Round Time and Training Time. The Heterogeneous Data Handler is kept ON to mitigate non-IID effects on clients 1, 2, and 4, as the Val F1 stagnated slightly in the last round but non-IID data persists. Message Compressor remains OFF due to the small model size and potential overhead. The Val F1 delta is negligible, but the Communication Time is high, suggesting no immediate need for compression. The system configuration shows no change in client CPUs, so selection_value=3 is safe. Keep Client Selector ON to exclude low-CPU clients, and keep HDH ON to address non-IID data. Message Compressor is not activated to avoid unnecessary overhead.
+flwr_server  | CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Agent 3] Decision (deepseek-r1:8b, temp=0.9): CS: ON→ON • MC: OFF→OFF • HDH: ON→ON
+flwr_server  | [92mINFO [0m:      [Rationale A3] The system configuration shows 5 clients with varying CPUs: three with CPU=5 and two with CPU=3. The Client Selector can mitigate the straggler effect caused by the low-CPU clients. Previously, CS was ON with selection_value=3. Now, to improve round times, a stricter threshold is needed to drop the two 3-CPU clients. The safe threshold must keep at least two clients. With CPUs [5,5,5,3,3], the safe thresholds are between 0 and 4, but to exclude the 3-CPU clients, the threshold must be at least 4. Since min CPU is 3, t>=4 keeps only clients with CPU>4, which are the three 5s. With two or more clients, it's safe. However, the guardrail requires at least two clients, so t=4 keeps three active. Val F1 remained stable (+0.0000), so CS remains ON with a higher threshold. The Message Compressor is OFF because communication time is not a clear bottleneck, and enabling it would add overhead without clear benefit. HDH is kept ON as it mitigates non-IID effects, and Val F1 is stable. However, note that data_persistence_per_client shows some clients getting new data, so re-evaluate HDH later if necessary.
+flwr_server  | CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Coordinator] Majority: CS: ·→ON • MC: ·→OFF • HDH: ·→ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Final Decision] CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Coordinator Rationale] Based on the majority vote from the three architectural pattern decisions, the Client Selector is activated with a selection_value of 4 to exclude clients with lower CPU, the Message Compressor remains OFF as it was not recommended, and the Heterogeneous Data Handler is kept ON to address non-IID data issues. This configuration aims to balance model accuracy and system performance, ensuring at least two clients are active while mitigating heterogeneity. CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [ROUND 4]
+flwr_server  | [92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: train message 968cc46c-091f-4724-9470-ead192664d6b
+Client5      | [92mINFO [0m:      [DATA DEBUG] Client 5 round 2 train class distribution: {0: 12473, 1: 10004, 2: 1523}
+Client5      | [92mINFO [0m:      Client 5 has insufficient CPU (3). Will not participate in the next FL round.
+Client5      | [92mINFO [0m:      Sent reply
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: train message 9ad6a583-8b95-4862-a870-6cd55f0e3c9d
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: train message 7558b78f-6aae-48e5-8595-1976b2997a66
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: train message 10d4c972-89cf-4c0c-80c3-377e569de463
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: train message 0fe3e7d5-a0ef-43a4-bb76-223834d44b56
+Client4      | [92mINFO [0m:      [DATA DEBUG] Client 4 round 2 train class distribution: {0: 385, 1: 3791, 2: 287, 3: 337}
+Client1      | [92mINFO [0m:      [DATA DEBUG] Client 1 round 4 train class distribution: {0: 2996, 1: 3365, 2: 8990, 3: 8649}
+Client4      | [92mINFO [0m:      Client 4 has insufficient CPU (3). Will not participate in the next FL round.
+Client1      | [92mINFO [0m:      Client 1 participates in this round. (CPU: 5, RAM: 2)
+Client1      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      Sent reply
+Client2      | [92mINFO [0m:      [DATA DEBUG] Client 2 round 4 train class distribution: {0: 140, 1: 154, 2: 3589, 3: 5717}
+Client3      | [92mINFO [0m:      [DATA DEBUG] Client 3 round 4 train class distribution: {0: 4004, 1: 4811, 2: 785}
+Client2      | [92mINFO [0m:      Client 2 participates in this round. (CPU: 5, RAM: 2)
+Client3      | [92mINFO [0m:      Client 3 participates in this round. (CPU: 5, RAM: 2)
+Client2      | [92mINFO [0m:      Starting training...
+Client3      | [92mINFO [0m:      Starting training...
+Client2      | [92mINFO [0m:      Training completed in 4.70 seconds
+Client3      | [92mINFO [0m:      Training completed in 5.64 seconds
+Client2      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.24
+Client2      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Client 3 injecting delay of 42 seconds
+Client1      | [92mINFO [0m:      Training completed in 13.40 seconds
+Client1      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.04
+Client1      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.20
+Client3      | [92mINFO [0m:      Sent reply
+flwr_server  | [92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+flwr_server  | [92mINFO [0m:      Results Aggregated in 54.70 seconds.
+flwr_server  | [92mINFO [0m:      [Agent 1] Decision (deepseek-r1:8b, temp=0.7): CS: ON→ON • MC: OFF→OFF • HDH: OFF→OFF
+flwr_server  | [92mINFO [0m:      [Rationale A1] In the last round, the Val F1 score remained unchanged at 0.8287, indicating no improvement in model accuracy. The CPU configuration shows three clients with 5 CPUs and two with 3 CPUs. Activating the Client Selector with selection_value=4 ensures that only clients with 5 CPUs are included, excluding those with 3. This excludes the lower-capacity clients, reducing the risk of stragglers and improving round and training times. HDH is not needed as the Val F1 is stable, and there is no strong evidence for enabling it. MC is not enabled due to the lack of clear bottleneck in communication time. The system configuration indicates three non-IID clients, but since HDH was previously off and F1 is stable, it is not activated. The decision is based on maintaining system stability and optimizing for time metrics.
+flwr_server  | CS=ON; MC=OFF; HDH=OFF
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Agent 2] Decision (deepseek-r1:8b, temp=0.8): CS: ON→ON • MC: OFF→OFF • HDH: OFF→ON
+flwr_server  | [92mINFO [0m:      [Rationale A2] Based on the system configuration and evaluation metrics, the Client Selector is activated with selection_value=4 to exclude clients with lower CPU (3) and mitigate the Straggler effect, ensuring at least two high-capacity clients (CPU=5) are active. This should reduce Total Round Time and Training Time. The Message Compressor remains OFF as Communication Time metrics show no clear bottleneck, and enabling it might add overhead without benefit. The Heterogeneous Data Handler is activated to address non-IID clients (IDs 1,2,4) that have not been handled recently, as their Val F1 scores are lower (0.64–0.67) compared to IID clients (0.84–0.87), indicating potential performance issues from data heterogeneity. HDH is kept active to assess its impact on improving F1 scores. This decision aligns with Guardrails by keeping at least two clients active and activating patterns only when evidence is present.
+flwr_server  | CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Agent 3] Decision (deepseek-r1:8b, temp=0.9): CS: ON→ON • MC: OFF→OFF • HDH: OFF→ON
+flwr_server  | [92mINFO [0m:      [Rationale A3] Based on the current system configuration, we have 5 clients with CPUs: [5, 5, 5, 3, 3]. To mitigate the straggler effect caused by clients with lower CPUs (3), we activate the Client Selector with selection_value=4. This will exclude the clients with CPU=3 (since 3 <=4), leaving only the three clients with CPU=5 active for the next round. With three clients active, there will be no issue with round completion. However, note that the JSD score is 0.2000, indicating some data heterogeneity. Therefore, we also activate the Heterogeneous Data Handler to address potential non-IID effects. The Message Compressor remains OFF as there is no clear evidence of communication being a bottleneck and it might introduce overhead without benefits. This decision ensures we balance round time reduction and model accuracy improvement.
+flwr_server  | CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Coordinator] Majority: CS: ·→ON • MC: ·→OFF • HDH: ·→ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Final Decision] CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Coordinator Rationale] Based on the voting summary, the majority decision is to keep the Client Selector ON with selection_value=4, keep the Message Compressor OFF, and turn ON the Heterogeneous Data Handler. The Client Selector is active to mitigate straggler effects by excluding low-CPU clients (CPU=3). The Message Compressor remains OFF as there is no evidence of communication bottleneck. The Heterogeneous Data Handler is activated to address non-IID data, as indicated by the system configuration and previous rounds. This decision aims to improve global model accuracy while maintaining system stability. CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [ROUND 5]
+flwr_server  | [92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: train message 1eb90efa-f856-4631-8da4-74a92a9845f4
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: train message 160e6397-cb9b-4447-90ef-126bf37ee856
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: train message 36d4f661-2655-41df-999c-da13b62b6597
+Client4      | [92mINFO [0m:      [DATA DEBUG] Client 4 round 2 train class distribution: {0: 385, 1: 3791, 2: 287, 3: 337}
+Client4      | [92mINFO [0m:      Client 4 has insufficient CPU (3). Will not participate in the next FL round.
+Client1      | [92mINFO [0m:      [DATA DEBUG] Client 1 round 5 train class distribution: {0: 2996, 1: 3365, 2: 8990, 3: 8649}
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: train message cc7fd293-a577-44a2-b506-032a09afc5c9
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: train message 820ee769-0dc3-425d-b072-07753bf9b144
+Client1      | [92mINFO [0m:      Client 1 participates in this round. (CPU: 5, RAM: 2)
+Client4      | [92mINFO [0m:      Sent reply
+Client1      | [92mINFO [0m:      Starting training...
+Client5      | [92mINFO [0m:      [DATA DEBUG] Client 5 round 2 train class distribution: {0: 12473, 1: 10004, 2: 1523}
+Client5      | [92mINFO [0m:      Client 5 has insufficient CPU (3). Will not participate in the next FL round.
+Client5      | [92mINFO [0m:      Sent reply
+Client2      | [92mINFO [0m:      [DATA DEBUG] Client 2 round 5 train class distribution: {0: 135, 1: 154, 2: 5081, 3: 6630}
+Client2      | [92mINFO [0m:      Client 2 participates in this round. (CPU: 5, RAM: 2)
+Client3      | [92mINFO [0m:      [DATA DEBUG] Client 3 round 5 train class distribution: {0: 6209, 1: 5364, 2: 427}
+Client2      | [92mINFO [0m:      Starting training...
+Client3      | [92mINFO [0m:      Client 3 participates in this round. (CPU: 5, RAM: 2)
+Client3      | [92mINFO [0m:      Starting training...
+Client3      | [92mINFO [0m:      Training completed in 6.32 seconds
+Client2      | [92mINFO [0m:      Training completed in 6.52 seconds
+Client3      | [92mINFO [0m:      Client 3 injecting delay of 39 seconds
+Client2      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.25
+Client2      | [92mINFO [0m:      Sent reply
+Client1      | [92mINFO [0m:      Training completed in 15.34 seconds
+Client1      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.04
+Client1      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.25
+Client3      | [92mINFO [0m:      Sent reply
+flwr_server  | [92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+flwr_server  | [92mINFO [0m:      Results Aggregated in 51.58 seconds.
+flwr_server  | [92mINFO [0m:      [Agent 1] Decision (deepseek-r1:8b, temp=0.7): CS: ON→ON • MC: OFF→OFF • HDH: ON→ON
+flwr_server  | [92mINFO [0m:      [Rationale A1] The system has non-IID clients present, so the Heterogeneous Data Handler (HDH) should remain ON to mitigate non-IID effects and improve global model accuracy. The Client Selector (CS) is activated because there are clients with different CPU capabilities (CPUs: [5,5,5,3,3]). The smallest safe threshold is 3, as it excludes the two clients with 3 CPUs, leaving at least two clients (those with 5 CPUs). This ensures the system does not crash and reduces Total Round Time by excluding slower clients. The Message Compressor (MC) remains OFF because there is no clear bottleneck in communication time, and enabling it would add overhead without proven benefits. CS is ON to address the Straggler effect from the 3-CPU clients, which have been causing high Training Time in previous rounds. HDH is kept ON to support the non-IID clients, as their Val F1 was 0.67 without HDH and improved to 0.76 with HDH. MC is not activated due to the lack of evidence for communication bottlenecks, and the potential overhead is not justified. CS is maintained because it improves round times without harming model accuracy. The decision aligns with the system configuration and evaluation metrics. CS=<ON>; MC=OFF; HDH=ON
+flwr_server  | CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Agent 2] Decision (deepseek-r1:8b, temp=0.8): CS: ON→ON • MC: OFF→OFF • HDH: ON→ON
+flwr_server  | [92mINFO [0m:      [Rationale A2] The system configuration shows 5 clients with CPUs [5,5,5,3,3]. The Client Selector is activated to exclude low-CPU clients (CPU=3) by setting selection_value=4. This ensures at least two clients (CPU=5) are active, reducing the impact of the Straggler effect and improving round and training times. The Message Compressor remains OFF due to the small model size (MLP) and lack of evidence for communication bottleneck. The Heterogeneous Data Handler is kept ON because the system has non-IID clients and recent Val F1 has been improving slightly. However, HDH's overhead is acceptable given the potential for better accuracy on non-IID clients. The selection_value=4 is the smallest safe threshold (since CPUs max at 5, and setting t=4 keeps three 5-CPU clients active). CS is kept ON because it has been ON previously and improves performance without harming diversity. MC is OFF to avoid unnecessary overhead. HDH is ON to address non-IID data, even though F1 has stabilized, as it has been effective in earlier rounds. CS was previously ON and continues to be beneficial. MC is OFF due to small model size and no bottleneck. HDH is ON because of persistent non-IID data. CS kept ON for consistency and performance. Final signature: CS=ON; MC=OFF; HDH=ON.
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Agent 3] Decision (deepseek-r1:8b, temp=0.9): CS: ON→ON • MC: OFF→OFF • HDH: ON→ON
+flwr_server  | [92mINFO [0m:      [Rationale A3] The system configuration shows 5 clients with varying CPUs: [5,5,5,3,3]. The Client Selector can mitigate the Straggler effect by excluding clients with lower CPUs, which may cause high Training Time and Communication Time. The previous round had a Val F1 of 0.830, slightly better than round 3, but round 4 had a spike in Communication Time (max 45.35s) and Training Time (max 13.400s). A selection_value of 3 ensures that only clients with CPU=5 are active, dropping the two with CPU=3. This aligns with the recommendation to keep CS on if Val F1 stagnates or decreases, but here F1 improved slightly. However, note that the Communication Time trend slope is positive, suggesting increasing time, which might be exacerbated by the two slow clients. Therefore, activate CS with selection_value=3. For Message Compressor, although Communication Time is high, the trend slope is positive, indicating possible stabilization or improvement, but the model size is not specified; in previous rounds with similar models, MC was OFF and had mixed results. Since the primary bottleneck is CPU-based, MC may not be necessary. Heterogeneous Data Handler is already ON and should be kept to address non-IID clients (clients 1,2,4). Keep it active. The rationale line is CS=ON; MC=OFF; HDH=ON. Note: selection_value=3 is safe since at least two clients (those with CPU=5) have CPU>3.
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Coordinator] Majority: CS: ·→ON • MC: ·→OFF • HDH: ·→ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Final Decision] CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Coordinator Rationale] Based on the voting summary, the majority decision is to keep the Client Selector ON with selection_value=3, keep the Message Compressor OFF, and keep the Heterogeneous Data Handler ON. This configuration aligns with the previous round's settings and addresses the non-IID data issue. The Client Selector helps mitigate the straggler effect by excluding lower-CPU clients, while the Heterogeneous Data Handler improves model accuracy on non-IID data. The selection_value=3 is safe as it keeps at least two clients active (the three with CPU=5). The Message Compressor remains OFF due to potential overhead for the current model size. Overall, this decision maintains the previous configuration, which has shown stability in Val F1 and acceptable round times.
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [ROUND 6]
+flwr_server  | [92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: train message 98341245-5f39-4ea2-9eb0-141958e5da37
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: train message d3c4af57-817e-4ee9-9815-da01c620b5b2
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: train message 06346abf-2422-43a4-b212-e8bd4056a4a6
+Client1      | [92mINFO [0m:      [DATA DEBUG] Client 1 round 6 train class distribution: {0: 2996, 1: 3365, 2: 8990, 3: 8649}
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: train message 5d8f040e-6eee-4c2b-bb97-435ff605c60e
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: train message ca7056f7-1819-477e-814e-65777556ac58
+Client1      | [92mINFO [0m:      Client 1 participates in this round. (CPU: 5, RAM: 2)
+Client1      | [92mINFO [0m:      Starting training...
+Client2      | [92mINFO [0m:      [DATA DEBUG] Client 2 round 6 train class distribution: {0: 164, 1: 166, 2: 6745, 3: 7325}
+Client5      | [92mINFO [0m:      [DATA DEBUG] Client 5 round 2 train class distribution: {0: 12473, 1: 10004, 2: 1523}
+Client2      | [92mINFO [0m:      Client 2 participates in this round. (CPU: 5, RAM: 2)
+Client2      | [92mINFO [0m:      Starting training...
+Client5      | [92mINFO [0m:      Client 5 has insufficient CPU (3). Will not participate in the next FL round.
+Client5      | [92mINFO [0m:      Sent reply
+Client4      | [92mINFO [0m:      [DATA DEBUG] Client 4 round 2 train class distribution: {0: 385, 1: 3791, 2: 287, 3: 337}
+Client3      | [92mINFO [0m:      [DATA DEBUG] Client 3 round 6 train class distribution: {0: 6226, 1: 7758, 2: 416}
+Client4      | [92mINFO [0m:      Client 4 has insufficient CPU (3). Will not participate in the next FL round.
+Client4      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Client 3 participates in this round. (CPU: 5, RAM: 2)
+Client3      | [92mINFO [0m:      Starting training...
+Client3      | [92mINFO [0m:      Training completed in 4.48 seconds
+Client2      | [92mINFO [0m:      Training completed in 6.24 seconds
+Client3      | [92mINFO [0m:      Client 3 injecting delay of 37 seconds
+Client2      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.25
+Client2      | [92mINFO [0m:      Sent reply
+Client1      | [92mINFO [0m:      Training completed in 14.04 seconds
+Client1      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.04
+Client1      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.25
+Client3      | [92mINFO [0m:      Sent reply
+flwr_server  | [92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+flwr_server  | [92mINFO [0m:      Results Aggregated in 45.81 seconds.
+flwr_server  | [92mINFO [0m:      [Agent 1] Decision (deepseek-r1:8b, temp=0.7): CS: ON→ON • MC: OFF→OFF • HDH: ON→ON
+flwr_server  | [92mINFO [0m:      [Rationale A1] The Client Selector should remain ON to mitigate the Straggler effect caused by clients with lower CPUs (3). The selection_value must be set to 4, ensuring only clients with CPU >4 (which are the three with CPU=5) are active, thus keeping at least two clients active. The Message Compressor remains OFF as there is no evidence of communication time being a bottleneck, and enabling it might add unnecessary overhead without clear benefits. The Heterogeneous Data Handler is kept ON because there are non-IID clients (clients 1, 2, 4), and although the Val F1 has remained stable, it is still necessary to address potential non-IID issues. The previous round showed minimal changes in metrics, so maintaining the patterns is justified. CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Agent 2] Decision (deepseek-r1:8b, temp=0.8): CS: ON→ON • MC: OFF→OFF • HDH: ON→OFF
+flwr_server  | [92mINFO [0m:      [Rationale A2] The Val F1 score remained unchanged (+0.0000) compared to the previous round, indicating no improvement in model accuracy. The Client Selector is activated to exclude low-CPU clients (CPU=3) which may be contributing to the Straggler effect, potentially reducing Total Round Time and Training Time. With CPUs [5,5,5,3,3], the threshold 4 ensures that the three clients with CPU=5 are included (CPU>4) and at least two clients remain active. The Message Compressor and Heterogeneous Data Handler remain OFF, as there is no strong evidence for their activation. This decision aligns with the system configuration and recent performance metrics.
+flwr_server  | CS=ON; MC=OFF; HDH=OFF
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Agent 3] Decision (deepseek-r1:8b, temp=0.9): CS: ON→ON • MC: OFF→OFF • HDH: ON→ON
+flwr_server  | [92mINFO [0m:      [Rationale A3] The system configuration shows 5 clients with CPU values [5,5,5,3,3]. The Client Selector should be activated to mitigate the straggler effect from low-CPU clients (CPU=3). A selection_value of 4 ensures that only clients with CPU=5 are included, keeping three clients active. This should reduce Total Round Time and Training Time. The last round's Val F1 was 0.8246, which is stable compared to previous rounds, so excluding lower-CPU clients is acceptable to improve efficiency. The Message Compressor remains OFF as Communication Time has been the dominant factor, and enabling it could add overhead without clear benefit. HDH remains ON to address the non-IID data in clients 1,2,4, as this may improve global accuracy despite the local overhead. The selection_value=4 is the highest safe threshold to drop the three low-CPU clients, as any lower value would include some low-CPU clients. CS=ON; MC=OFF; HDH=ON.
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Coordinator] Majority: CS: ·→ON • MC: ·→OFF • HDH: ·→ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Final Decision] CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Coordinator Rationale] Based on the voting summary, the majority decision is to keep the Client Selector ON with selection_value=4, keep the Message Compressor OFF, and keep the Heterogeneous Data Handler ON. This aligns with optimizing for model accuracy and mitigating non-IID effects, while avoiding unnecessary overhead. The Client Selector helps reduce straggler effects by excluding lower-CPU clients, and the Heterogeneous Data Handler addresses non-IID data issues. The selection_value=4 is safe as it excludes clients with CPU=3, leaving the three clients with CPU=5 active, ensuring at least two clients remain. Communication time remains a concern, but the Message Compressor is kept OFF due to potential overhead without clear benefits. The rationale ends with CS=ON; MC=OFF; HDH=ON.
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [ROUND 7]
+flwr_server  | [92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: train message a5b9b68e-04b4-44aa-8ca4-12aa23a2cb5e
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: train message 88072bca-f2c4-484f-96cd-8605e0d29a54
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: train message f8d52af7-254f-4abb-bf58-89a60682c066
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: train message 5d2f8265-339b-4b86-bbe3-54e26bce8111
+Client2      | [92mINFO [0m:      [DATA DEBUG] Client 2 round 7 train class distribution: {0: 195, 1: 243, 2: 7705, 3: 8657}
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: train message 51ec9f72-c668-46ad-bdf8-568ec09f1c00
+Client2      | [92mINFO [0m:      Client 2 participates in this round. (CPU: 5, RAM: 2)
+Client2      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      [DATA DEBUG] Client 4 round 2 train class distribution: {0: 385, 1: 3791, 2: 287, 3: 337}
+Client3      | [92mINFO [0m:      [DATA DEBUG] Client 3 round 7 train class distribution: {0: 7325, 1: 8978, 2: 497}
+Client4      | [92mINFO [0m:      Client 4 has insufficient CPU (3). Will not participate in the next FL round.
+Client3      | [92mINFO [0m:      Client 3 participates in this round. (CPU: 5, RAM: 2)
+Client3      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      Sent reply
+Client5      | [92mINFO [0m:      [DATA DEBUG] Client 5 round 2 train class distribution: {0: 12473, 1: 10004, 2: 1523}
+Client5      | [92mINFO [0m:      Client 5 has insufficient CPU (3). Will not participate in the next FL round.
+Client5      | [92mINFO [0m:      Sent reply
+Client1      | [92mINFO [0m:      [DATA DEBUG] Client 1 round 7 train class distribution: {0: 2996, 1: 3365, 2: 8990, 3: 8649}
+Client1      | [92mINFO [0m:      Client 1 participates in this round. (CPU: 5, RAM: 2)
+Client1      | [92mINFO [0m:      Starting training...
+Client2      | [92mINFO [0m:      Training completed in 7.70 seconds
+Client3      | [92mINFO [0m:      Training completed in 8.75 seconds
+Client2      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.24
+Client2      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Client 3 injecting delay of 42 seconds
+Client1      | [92mINFO [0m:      Training completed in 12.96 seconds
+Client1      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.04
+Client1      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.25
+Client3      | [92mINFO [0m:      Sent reply
+flwr_server  | [92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+flwr_server  | [92mINFO [0m:      Results Aggregated in 57.20 seconds.
+flwr_server  | [92mINFO [0m:      [Agent 1] Decision (deepseek-r1:8b, temp=0.7): CS: ON→ON • MC: OFF→OFF • HDH: ON→ON
+flwr_server  | [92mINFO [0m:      [Rationale A1] Based on the system configuration and evaluation metrics, the Client Selector is activated to address the Straggler effect caused by clients with lower CPUs (3). By setting selection_value=4, we exclude clients with CPU=3, ensuring only clients with CPU=5 are active. This should reduce Total Round Time and Training Time. The Message Compressor remains OFF due to the absence of clear evidence of communication bottlenecks, as Training Time and Communication Time deltas are minimal. The Heterogeneous Data Handler is kept ON to mitigate non-IID effects, as indicated by the data distribution and JSD score. The Val F1 score remains stable, but the system configuration shows non-IID clients, so HDH is beneficial. CS is set to ON to exclude stragglers, improving efficiency without harming model accuracy. The selection_value=4 is safe as it ensures at least two clients (those with CPU=5) are active.
+flwr_server  | CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Agent 2] Decision (deepseek-r1:8b, temp=0.8): CS: ON→ON • MC: OFF→OFF • HDH: ON→ON
+flwr_server  | [92mINFO [0m:      [Rationale A2] Based on the system configuration and evaluation metrics, the Client Selector is activated to mitigate the straggler effect caused by clients with lower CPUs (CPU=3). By setting selection_value=4, only clients with CPU>4 (i.e., CPU=5) are selected, ensuring at least two clients (since there are three clients with CPU=5) are active. The Message Compressor remains OFF as the communication time has not shown a clear bottleneck, and compression might introduce overhead without sufficient benefit. The Heterogeneous Data Handler is kept ON to address non-IID data in clients 1,2,4, as it has been effective in improving F1 scores for non-IID clients. The Val F1 score is stable, and the benefits from HDH outweigh the additional local computation. CS=<ON>; MC=OFF; HDH=ON
+flwr_server  | CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Agent 3] Decision (deepseek-r1:8b, temp=0.9): CS: ON→ON • MC: OFF→OFF • HDH: ON→ON
+flwr_server  | [92mINFO [0m:      [Rationale A3] Based on the system configuration and metrics, the Client Selector is activated to mitigate the Straggler effect caused by low-CPU clients (CPU=3). A selection_value of 4 is chosen, ensuring at least two clients (with CPU=5) are included. The Message Compressor remains OFF to avoid any overhead given the current communication time is not a clear bottleneck. The Heterogeneous Data Handler remains ON as it has been active in previous rounds and there is evidence of non-IID clients (JSD=0.2500) affecting model performance (Val F1 stagnated in last round). HDH was effective in previous rounds and should be kept active to address non-IID issues. The rationale ends with the signature: CS=ON; MC=OFF; HDH=ON.
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Coordinator] Majority: CS: ·→ON • MC: ·→OFF • HDH: ·→ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Final Decision] CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Coordinator Rationale] Based on the voting summary, the majority of the architectural pattern decisions recommend keeping the Client Selector ON with a selection_value of 4, Message Compressor OFF, and Heterogeneous Data Handler ON. This configuration aligns with optimizing for model accuracy and mitigating non-IID effects, while avoiding unnecessary overhead. The rationale is derived from the collective input, ensuring consistency with the system's current needs. CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [ROUND 8]
+flwr_server  | [92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: train message 6d4f2a96-d567-436e-8c63-2e1903865f39
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: train message 306fd0f0-e541-4c78-bd88-48b044a1849e
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: train message eb4ab769-556d-4763-b011-1db99170009e
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: train message 85ad1316-1f09-4ec4-87c0-8a73d2d42a9f
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: train message 0c973b1c-e414-4058-b5f8-4e6e63a0b2a9
+Client3      | [92mINFO [0m:      [DATA DEBUG] Client 3 round 8 train class distribution: {0: 7977, 1: 9950, 2: 1273}
+Client3      | [92mINFO [0m:      Client 3 participates in this round. (CPU: 5, RAM: 2)
+Client3      | [92mINFO [0m:      Starting training...
+Client5      | [92mINFO [0m:      [DATA DEBUG] Client 5 round 2 train class distribution: {0: 12473, 1: 10004, 2: 1523}
+Client5      | [92mINFO [0m:      Client 5 has insufficient CPU (3). Will not participate in the next FL round.
+Client5      | [92mINFO [0m:      Sent reply
+Client2      | [92mINFO [0m:      [DATA DEBUG] Client 2 round 8 train class distribution: {0: 225, 1: 278, 2: 8552, 3: 10145}
+Client4      | [92mINFO [0m:      [DATA DEBUG] Client 4 round 2 train class distribution: {0: 385, 1: 3791, 2: 287, 3: 337}
+Client2      | [92mINFO [0m:      Client 2 participates in this round. (CPU: 5, RAM: 2)
+Client4      | [92mINFO [0m:      Client 4 has insufficient CPU (3). Will not participate in the next FL round.
+Client2      | [92mINFO [0m:      Starting training...
+Client1      | [92mINFO [0m:      [DATA DEBUG] Client 1 round 8 train class distribution: {0: 2996, 1: 3365, 2: 8990, 3: 8649}
+Client1      | [92mINFO [0m:      Client 1 participates in this round. (CPU: 5, RAM: 2)
+Client4      | [92mINFO [0m:      Sent reply
+Client1      | [92mINFO [0m:      Starting training...
+Client2      | [92mINFO [0m:      Training completed in 8.98 seconds
+Client1      | [92mINFO [0m:      Training completed in 10.56 seconds
+Client3      | [92mINFO [0m:      Training completed in 12.15 seconds
+Client2      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.24
+Client2      | [92mINFO [0m:      Sent reply
+Client1      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.04
+Client1      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Client 3 injecting delay of 32 seconds
+Client3      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.22
+Client3      | [92mINFO [0m:      Sent reply
+flwr_server  | [92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+flwr_server  | [92mINFO [0m:      Results Aggregated in 50.50 seconds.
+flwr_server  | [92mINFO [0m:      [Agent 1] Decision (deepseek-r1:8b, temp=0.7): CS: ON→ON • MC: OFF→OFF • HDH: ON→OFF
+flwr_server  | [92mINFO [0m:      [Rationale A1] Based on the system configuration, the Client Selector is active to mitigate the Straggler effect caused by clients with low CPUs (3). A selection_value of 4 ensures that only clients with CPU > 4 are included, which in this case are the three clients with CPU=5. This reduces the Total Round Time and Training Time. The Message Compressor is kept OFF as there is no clear bottleneck in communication time, and enabling it might not be beneficial given the potential overhead. The Heterogeneous Data Handler remains OFF as the Val F1 is stable and there is no indication of significant non-IID effects in the latest round. The decision is based on the previous configuration and current metrics. CS=<ON>; MC=OFF; HDH=OFF
+flwr_server  | CS=ON; MC=OFF; HDH=OFF
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Agent 2] Decision (deepseek-r1:8b, temp=0.8): CS: ON→ON • MC: OFF→OFF • HDH: ON→ON
+flwr_server  | [92mINFO [0m:      [Rationale A2] Based on the system configuration and evaluation metrics, the Client Selector is activated with selection_value=4 to exclude clients with fewer CPUs (CPU=3), which are causing slowdowns due to the Straggler effect. This should improve Total Round Time and Training Time. The Heterogeneous Data Handler remains active to address non-IID data issues, as indicated by the presence of non-IID clients and a JSD score of 0.2500. The Message Compressor remains off due to insufficient evidence of its benefits in this round, and to avoid unnecessary overhead. The decision to keep CS and HDH active, and deactivate MC, is based on optimizing for global model accuracy and reducing round time, while avoiding potential negative impacts on training efficiency. The selection_value=4 ensures that at least two clients (those with CPU=5) remain active. CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Agent 3] Decision (deepseek-r1:8b, temp=0.9): CS: ON→ON • MC: OFF→OFF • HDH: ON→ON
+flwr_server  | [92mINFO [0m:      [Rationale A3] Based on the current system configuration and evaluation metrics, I recommend keeping the Client Selector active with a selection_value of 4 to exclude the two clients with CPUs of 3. This is because the Val F1 score remained stable (delta=0) and Total Round Time increased slightly, indicating that excluding slower clients may be beneficial. However, I also keep the Heterogeneous Data Handler active to address the non-IID data issue, as JSD=0.25 suggests some heterogeneity. Message Compressor remains OFF due to potential overhead and no clear bottleneck in Communication Time. Note: selection_value=4 is safe as there are three clients with CPUs=5, which are greater than 4, ensuring at least two active clients. CS=ON; MC=OFF; HDH=ON.
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Coordinator] Majority: CS: ·→ON • MC: ·→OFF • HDH: ·→ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Final Decision] CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Coordinator Rationale] Based on the voting summary, the majority decision is to keep the Client Selector ON with selection_value=4, keep the Message Compressor OFF, and activate the Heterogeneous Data Handler. The Client Selector helps mitigate the straggler effect by excluding low-CPU clients, which aligns with the system's CPU configuration. The Message Compressor is kept OFF as there is no clear evidence of benefit, and it might introduce overhead. The Heterogeneous Data Handler is activated to address non-IID data issues, as indicated by the data distribution and previous rounds. This combination aims to improve global model accuracy while managing system overhead. CS=<ON>; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [ROUND 9]
+flwr_server  | [92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: train message e6938e09-7c30-4e16-9094-473d49d71793
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: train message 723db3b7-38ed-45d0-9bc1-f5c8274e6e80
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: train message 2a1d3c68-21bf-45a9-8bd9-9862eb61fa53
+Client3      | [92mINFO [0m:      [DATA DEBUG] Client 3 round 9 train class distribution: {0: 10404, 1: 9926, 2: 1270}
+Client3      | [92mINFO [0m:      Client 3 participates in this round. (CPU: 5, RAM: 2)
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: train message f695832b-d21c-449e-8b5d-056a86ea64d5
+Client3      | [92mINFO [0m:      Starting training...
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: train message e18c5a04-2619-47fd-b6dc-aac43af8a345
+Client1      | [92mINFO [0m:      [DATA DEBUG] Client 1 round 9 train class distribution: {0: 2996, 1: 3365, 2: 8990, 3: 8649}
+Client4      | [92mINFO [0m:      [DATA DEBUG] Client 4 round 2 train class distribution: {0: 385, 1: 3791, 2: 287, 3: 337}
+Client1      | [92mINFO [0m:      Client 1 participates in this round. (CPU: 5, RAM: 2)
+Client5      | [92mINFO [0m:      [DATA DEBUG] Client 5 round 2 train class distribution: {0: 12473, 1: 10004, 2: 1523}
+Client4      | [92mINFO [0m:      Client 4 has insufficient CPU (3). Will not participate in the next FL round.
+Client1      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      Sent reply
+Client5      | [92mINFO [0m:      Client 5 has insufficient CPU (3). Will not participate in the next FL round.
+Client5      | [92mINFO [0m:      Sent reply
+Client2      | [92mINFO [0m:      [DATA DEBUG] Client 2 round 9 train class distribution: {0: 309, 1: 274, 2: 9059, 3: 11958}
+Client2      | [92mINFO [0m:      Client 2 participates in this round. (CPU: 5, RAM: 2)
+Client2      | [92mINFO [0m:      Starting training...
+Client2      | [92mINFO [0m:      Training completed in 8.65 seconds
+Client1      | [92mINFO [0m:      Training completed in 11.26 seconds
+Client3      | [92mINFO [0m:      Training completed in 11.84 seconds
+Client2      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.24
+Client2      | [92mINFO [0m:      Sent reply
+Client1      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.04
+Client1      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Client 3 injecting delay of 48 seconds
+Client3      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.22
+Client3      | [92mINFO [0m:      Sent reply
+flwr_server  | [92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+flwr_server  | [92mINFO [0m:      Results Aggregated in 66.70 seconds.
+flwr_server  | [92mINFO [0m:      [Agent 1] Decision (deepseek-r1:8b, temp=0.7): CS: ON→ON • MC: OFF→OFF • HDH: ON→ON
+flwr_server  | [92mINFO [0m:      [Rationale A1] CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Agent 2] Decision (deepseek-r1:8b, temp=0.8): CS: ON→ON • MC: OFF→OFF • HDH: ON→ON
+flwr_server  | [92mINFO [0m:      [Rationale A2] The system has clients with varying CPU capabilities (5,5,5,3,3). The Client Selector is activated to exclude the lower-CPU clients (CPU=3) to mitigate the Straggler effect, reducing Total Round Time and Training Time. The Message Compressor remains OFF because Communication Time is not a clear bottleneck, and its activation introduces overhead without evident benefit. The Heterogeneous Data Handler is kept ON to address the non-IID data present in clients 1,2,4, which has been effective in improving Val F1 from recent rounds. The selection_value is set to 3, ensuring at least two clients (those with CPU=5) remain active. The performance metrics show no significant change in Val F1, but Total Round Time and Training Time are expected to decrease. This configuration maintains the benefits of the Client Selector and HDH while avoiding unnecessary overhead.
+flwr_server  | CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Agent 3] Decision (deepseek-r1:8b, temp=0.9): CS: ON→ON • MC: OFF→OFF • HDH: ON→ON
+flwr_server  | [92mINFO [0m:      [Rationale A3] Given the client CPU distribution [5, 5, 5, 3, 3], we activate the Client Selector to exclude low-CPU clients (CPU=3) and reduce the Straggler effect, which should improve Total Round Time and Training Time. The current Val F1 is 0.8091, same as the previous round, but Total Round Time has increased slightly (50.5 seconds). HDH is already active and was active in the previous round, so keep it on. MC remains OFF because there's no clear bottleneck in communication time. The selection_value=3 is safe as it keeps at least two clients (those with CPU=5) active. CS is enabled as there are clients with varying CPU capabilities and the evidence from the previous round suggests its benefits outweigh the risks. HDH is enabled because there are non-IID clients and it helps improve global accuracy, despite some Val F1 stagnation. MC is not activated due to the absence of a clear communication bottleneck.
+flwr_server  | CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Coordinator] Majority: CS: ·→ON • MC: ·→OFF • HDH: ·→ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Final Decision] CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [Coordinator Rationale] Based on the majority vote from three architectural pattern decisions, the Client Selector is activated with a selection_value of 3 to exclude clients with lower CPU, the Message Compressor remains OFF due to potential overhead for smaller models, and the Heterogeneous Data Handler is kept ON to address non-IID data issues. This configuration aims to balance round time reduction with model accuracy, leveraging the previous round's stable performance. CS=ON; MC=OFF; HDH=ON
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [ROUND 10]
+flwr_server  | [92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: train message f8e72ea7-df1f-4205-bb8a-1d4889676a35
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: train message 768c7018-ed16-444d-a723-054a737738e9
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: train message 7252f3b6-05ad-481d-8009-6acd2e67b5cd
+Client4      | [92mINFO [0m:      [DATA DEBUG] Client 4 round 2 train class distribution: {0: 385, 1: 3791, 2: 287, 3: 337}
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: train message c69101ef-81fc-4f0a-a099-84c637dfabbc
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: train message 704c6208-7e68-4f2f-b0ca-2c02aef70b9e
+Client4      | [92mINFO [0m:      Client 4 has insufficient CPU (3). Will not participate in the next FL round.
+Client4      | [92mINFO [0m:      Sent reply
+Client1      | [92mINFO [0m:      [DATA DEBUG] Client 1 round 10 train class distribution: {0: 2996, 1: 3365, 2: 8990, 3: 8649}
+Client3      | [92mINFO [0m:      [DATA DEBUG] Client 3 round 10 train class distribution: {0: 12473, 1: 10005, 2: 1522}
+Client1      | [92mINFO [0m:      Client 1 participates in this round. (CPU: 5, RAM: 2)
+Client3      | [92mINFO [0m:      Client 3 participates in this round. (CPU: 5, RAM: 2)
+Client3      | [92mINFO [0m:      Starting training...
+Client1      | [92mINFO [0m:      Starting training...
+Client5      | [92mINFO [0m:      [DATA DEBUG] Client 5 round 2 train class distribution: {0: 12473, 1: 10004, 2: 1523}
+Client2      | [92mINFO [0m:      [DATA DEBUG] Client 2 round 10 train class distribution: {0: 363, 1: 501, 2: 10596, 3: 12540}
+Client5      | [92mINFO [0m:      Client 5 has insufficient CPU (3). Will not participate in the next FL round.
+Client2      | [92mINFO [0m:      Client 2 participates in this round. (CPU: 5, RAM: 2)
+Client5      | [92mINFO [0m:      Sent reply
+Client2      | [92mINFO [0m:      Starting training...
+Client1      | [92mINFO [0m:      Training completed in 9.41 seconds
+Client3      | [92mINFO [0m:      Training completed in 11.21 seconds
+Client1      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.04
+Client1      | [92mINFO [0m:      Sent reply
+Client2      | [92mINFO [0m:      Training completed in 13.63 seconds
+Client3      | [92mINFO [0m:      Client 3 injecting delay of 35 seconds
+Client2      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.23
+Client2      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.22
+Client3      | [92mINFO [0m:      Sent reply
+flwr_server  | [92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+flwr_server  | [92mINFO [0m:      Results Aggregated in 53.79 seconds.
+flwr_server  | [92mINFO [0m:      [ROUND 10] Final round reached (10/10). No adaptation for next round.
+flwr_server  | [92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [SUMMARY]
+flwr_server  | [92mINFO [0m:      Run finished 10 round(s) in 1060.66s
+flwr_server  | [92mINFO [0m:      	History (metrics, distributed, fit):
+flwr_server  | [92mINFO [0m:      	{None: [(2,
+flwr_server  | [92mINFO [0m:      	         {'jsd': (0.042923790728021605,
+flwr_server  | [92mINFO [0m:      	                  0.30433174803777596,
+flwr_server  | [92mINFO [0m:      	                  0.2533349577845249),
+flwr_server  | [92mINFO [0m:      	          'train_accuracy': 0.9252678571428572,
+flwr_server  | [92mINFO [0m:      	          'train_f1': 0.8818590166668668,
+flwr_server  | [92mINFO [0m:      	          'train_loss': 0.23990363239532425,
+flwr_server  | [92mINFO [0m:      	          'train_mae': 0.10523809523809524,
+flwr_server  | [92mINFO [0m:      	          'val_accuracy': 0.7824436090225564,
+flwr_server  | [92mINFO [0m:      	          'val_f1': 0.7691616991365857,
+flwr_server  | [92mINFO [0m:      	          'val_loss': 0.6245676729643256,
+flwr_server  | [92mINFO [0m:      	          'val_mae': 0.39577067669172933}),
+flwr_server  | [92mINFO [0m:      	        (3,
+flwr_server  | [92mINFO [0m:      	         {'jsd': (0.042923790728021605,
+flwr_server  | [92mINFO [0m:      	                  0.21400139726746686,
+flwr_server  | [92mINFO [0m:      	                  0.2031307020915851),
+flwr_server  | [92mINFO [0m:      	          'train_accuracy': 0.9430989583333333,
+flwr_server  | [92mINFO [0m:      	          'train_f1': 0.8869818658574938,
+flwr_server  | [92mINFO [0m:      	          'train_loss': 0.18297565075879296,
+flwr_server  | [92mINFO [0m:      	          'train_mae': 0.07653645833333333,
+flwr_server  | [92mINFO [0m:      	          'val_accuracy': 0.8377631578947368,
+flwr_server  | [92mINFO [0m:      	          'val_f1': 0.8286731243616169,
+flwr_server  | [92mINFO [0m:      	          'val_loss': 0.495258064034738,
+flwr_server  | [92mINFO [0m:      	          'val_mae': 0.2801315789473684}),
+flwr_server  | [92mINFO [0m:      	        (4,
+flwr_server  | [92mINFO [0m:      	         {'jsd': (0.042923790728021605,
+flwr_server  | [92mINFO [0m:      	                  0.2422605723425364,
+flwr_server  | [92mINFO [0m:      	                  0.20337583320657582),
+flwr_server  | [92mINFO [0m:      	          'train_accuracy': 0.9537962962962963,
+flwr_server  | [92mINFO [0m:      	          'train_f1': 0.887110004107731,
+flwr_server  | [92mINFO [0m:      	          'train_loss': 0.14879538441145862,
+flwr_server  | [92mINFO [0m:      	          'train_mae': 0.06122685185185185,
+flwr_server  | [92mINFO [0m:      	          'val_accuracy': 0.8374707602339182,
+flwr_server  | [92mINFO [0m:      	          'val_f1': 0.8296099123341231,
+flwr_server  | [92mINFO [0m:      	          'val_loss': 0.5174127645241587,
+flwr_server  | [92mINFO [0m:      	          'val_mae': 0.28485380116959064}),
+flwr_server  | [92mINFO [0m:      	        (6,
+flwr_server  | [92mINFO [0m:      	         {'jsd': (0.042923790728021605,
+flwr_server  | [92mINFO [0m:      	                  0.2503833747541172,
+flwr_server  | [92mINFO [0m:      	                  0.25429478267233013),
+flwr_server  | [92mINFO [0m:      	          'train_accuracy': 0.9652272727272727,
+flwr_server  | [92mINFO [0m:      	          'train_f1': 0.8816520203347967,
+flwr_server  | [92mINFO [0m:      	          'train_loss': 0.11165611767633395,
+flwr_server  | [92mINFO [0m:      	          'train_mae': 0.04350378787878788,
+flwr_server  | [92mINFO [0m:      	          'val_accuracy': 0.8247248803827751,
+flwr_server  | [92mINFO [0m:      	          'val_f1': 0.8168865396973812,
+flwr_server  | [92mINFO [0m:      	          'val_loss': 0.5875143931813217,
+flwr_server  | [92mINFO [0m:      	          'val_mae': 0.3247368421052631}),
+flwr_server  | [92mINFO [0m:      	        (7,
+flwr_server  | [92mINFO [0m:      	         {'jsd': (0.042923790728021605,
+flwr_server  | [92mINFO [0m:      	                  0.24465910593827128,
+flwr_server  | [92mINFO [0m:      	                  0.2531655924607555),
+flwr_server  | [92mINFO [0m:      	          'train_accuracy': 0.96796875,
+flwr_server  | [92mINFO [0m:      	          'train_f1': 0.8819455989762576,
+flwr_server  | [92mINFO [0m:      	          'train_loss': 0.10283988443617191,
+flwr_server  | [92mINFO [0m:      	          'train_mae': 0.03972222222222222,
+flwr_server  | [92mINFO [0m:      	          'val_accuracy': 0.8208662280701755,
+flwr_server  | [92mINFO [0m:      	          'val_f1': 0.8122541989849237,
+flwr_server  | [92mINFO [0m:      	          'val_loss': 0.6111028548055573,
+flwr_server  | [92mINFO [0m:      	          'val_mae': 0.3385032894736842}),
+flwr_server  | [92mINFO [0m:      	        (9,
+flwr_server  | [92mINFO [0m:      	         {'jsd': (0.042923790728021605,
+flwr_server  | [92mINFO [0m:      	                  0.24475604138591467,
+flwr_server  | [92mINFO [0m:      	                  0.2205332562712785),
+flwr_server  | [92mINFO [0m:      	          'train_accuracy': 0.9704910714285714,
+flwr_server  | [92mINFO [0m:      	          'train_f1': 0.8817590606059343,
+flwr_server  | [92mINFO [0m:      	          'train_loss': 0.0931731837269451,
+flwr_server  | [92mINFO [0m:      	          'train_mae': 0.036830357142857144,
+flwr_server  | [92mINFO [0m:      	          'val_accuracy': 0.8173778195488721,
+flwr_server  | [92mINFO [0m:      	          'val_f1': 0.8000465352625571,
+flwr_server  | [92mINFO [0m:      	          'val_loss': 0.6715012519677779,
+flwr_server  | [92mINFO [0m:      	          'val_mae': 0.33536654135338345}),
+flwr_server  | [92mINFO [0m:      	        (10,
+flwr_server  | [92mINFO [0m:      	         {'jsd': (0.042923790728021605,
+flwr_server  | [92mINFO [0m:      	                  0.22791012882218564,
+flwr_server  | [92mINFO [0m:      	                  0.21788923242219216),
+flwr_server  | [92mINFO [0m:      	          'train_accuracy': 0.9708055555555556,
+flwr_server  | [92mINFO [0m:      	          'train_f1': 0.8811582668413175,
+flwr_server  | [92mINFO [0m:      	          'train_loss': 0.0924043298529254,
+flwr_server  | [92mINFO [0m:      	          'train_mae': 0.03627777777777778,
+flwr_server  | [92mINFO [0m:      	          'val_accuracy': 0.8182456140350878,
+flwr_server  | [92mINFO [0m:      	          'val_f1': 0.7994576186417073,
+flwr_server  | [92mINFO [0m:      	          'val_loss': 0.685108731775953,
+flwr_server  | [92mINFO [0m:      	          'val_mae': 0.33232456140350874})],
+flwr_server  | [92mINFO [0m:      	 'MLP': [(1,
+flwr_server  | [92mINFO [0m:      	          {'jsd': (0.042923790728021605,
+flwr_server  | [92mINFO [0m:      	                   0.37435684222970034,
+flwr_server  | [92mINFO [0m:      	                   0.25318229099556844,
+flwr_server  | [92mINFO [0m:      	                   0.0038822296603322954,
+flwr_server  | [92mINFO [0m:      	                   0.2178553378084707),
+flwr_server  | [92mINFO [0m:      	           'train_accuracy': 0.8844202898550725,
+flwr_server  | [92mINFO [0m:      	           'train_f1': 0.8007526639248479,
+flwr_server  | [92mINFO [0m:      	           'train_loss': 0.35591762074525807,
+flwr_server  | [92mINFO [0m:      	           'train_mae': 0.16978260869565218,
+flwr_server  | [92mINFO [0m:      	           'val_accuracy': 0.6588100686498857,
+flwr_server  | [92mINFO [0m:      	           'val_f1': 0.6050330142356766,
+flwr_server  | [92mINFO [0m:      	           'val_loss': 1.1767610871710001,
+flwr_server  | [92mINFO [0m:      	           'val_mae': 0.6450858123569795}),
+flwr_server  | [92mINFO [0m:      	         (5,
+flwr_server  | [92mINFO [0m:      	          {'jsd': (0.042923790728021605,
+flwr_server  | [92mINFO [0m:      	                   0.25005116281959877,
+flwr_server  | [92mINFO [0m:      	                   0.24501973266709465),
+flwr_server  | [92mINFO [0m:      	           'train_accuracy': 0.9613541666666666,
+flwr_server  | [92mINFO [0m:      	           'train_f1': 0.8844611925471939,
+flwr_server  | [92mINFO [0m:      	           'train_loss': 0.12566881574690342,
+flwr_server  | [92mINFO [0m:      	           'train_mae': 0.049833333333333334,
+flwr_server  | [92mINFO [0m:      	           'val_accuracy': 0.8308552631578947,
+flwr_server  | [92mINFO [0m:      	           'val_f1': 0.8245629390533211,
+flwr_server  | [92mINFO [0m:      	           'val_loss': 0.5460686430805608,
+flwr_server  | [92mINFO [0m:      	           'val_mae': 0.3132236842105263}),
+flwr_server  | [92mINFO [0m:      	         (8,
+flwr_server  | [92mINFO [0m:      	          {'jsd': (0.042923790728021605,
+flwr_server  | [92mINFO [0m:      	                   0.24487859414528124,
+flwr_server  | [92mINFO [0m:      	                   0.21549744401713272),
+flwr_server  | [92mINFO [0m:      	           'train_accuracy': 0.9692147435897436,
+flwr_server  | [92mINFO [0m:      	           'train_f1': 0.8836482325213506,
+flwr_server  | [92mINFO [0m:      	           'train_loss': 0.09693735057153763,
+flwr_server  | [92mINFO [0m:      	           'train_mae': 0.03828525641025641,
+flwr_server  | [92mINFO [0m:      	           'val_accuracy': 0.8239473684210525,
+flwr_server  | [92mINFO [0m:      	           'val_f1': 0.8090960170532364,
+flwr_server  | [92mINFO [0m:      	           'val_loss': 0.6310451605155883,
+flwr_server  | [92mINFO [0m:      	           'val_mae': 0.30932186234817816})]}
+flwr_server  | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: reconnect message 7f650a88-c441-4e42-8cfa-dbc1d14298d2
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: reconnect message 196aca7e-d0b3-4d22-8ebc-f792662a0572
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: reconnect message d17a3046-ea23-4b1b-b9e3-67b218e70da9
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: reconnect message 10ce4a3f-2918-4a54-a7af-8e07a2a7f0f9
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: reconnect message b16fe205-cb0b-4125-a855-49336ab8d5d1
+Client2      | [92mINFO [0m:      Disconnect and shut down
+Client3      | [92mINFO [0m:      Disconnect and shut down
+Client1      | [92mINFO [0m:      Disconnect and shut down
+Client4      | [92mINFO [0m:      Disconnect and shut down
+Client5      | [92mINFO [0m:      Disconnect and shut down
+[KClient4 exited with code 0
+[KClient5 exited with code 0
+[KClient1 exited with code 0
+[KClient2 exited with code 0
+[KClient3 exited with code 0
+[Kflwr_server exited with code 0

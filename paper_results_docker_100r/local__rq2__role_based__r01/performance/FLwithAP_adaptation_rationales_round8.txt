@@ -1,0 +1,14 @@
+Round: 8
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+The Client Selector pattern is disabled, as previous rounds show no clear improvement in round time or model accuracy from excluding low-CPU clients. The Val F1 score remained stable at 0.7586, and Total Round Time saw a minimal increase of +0.000 s, indicating no significant benefit from client selection. Excluding any clients could risk reducing model diversity, so it is safe to keep it off. CS=OFF; MC=ON; HDH=ON
+
+[Rationale MC] | role=MC
+The system configuration indicates a mix of data distributions, with some clients having non-IID data and batched data arrivals. The previous round had a Val F1 score of 0.7586, which is relatively stable. The communication time mean was 22.212 seconds, but there is no clear bottleneck identified. Given that the Message Compressor was previously ON and the conditions are not strongly indicating a need to compress messages, it is safer to keep it OFF. However, the data heterogeneity suggests HDH remains active to improve model accuracy. The Client Selector is kept OFF as there is no clear CPU-based exclusion strategy to improve performance without risking round time reduction. The decision maintains the current patterns except for Message Compressor, which is set to OFF for now. However, note that while Message Compressor was previously ON, its effect is not clearly beneficial here, so keeping it OFF minimizes overhead.
+CS=OFF; MC=OFF; HDH=ON
+
+[Rationale HDH] | role=HDH
+Despite the presence of non-IID data, the Heterogeneous Data Handler is OFF. Since this is a recent round and the pattern has been inactive for several rounds, I should consider turning it ON to probe its effect, especially given the low Val F1 stagnation. However, I am focusing only on the decision for heterogeneous_data_handler, and for other patterns, I am copying their previous states. Therefore, I set HDH to OFF, but I note the opportunity to activate it again if F1 remains poor. For other patterns, client_selector is OFF and message_compressor is ON, as per previous rounds. This is strictly the decision for HDH.
+CS=OFF; MC=ON; HDH=OFF
+

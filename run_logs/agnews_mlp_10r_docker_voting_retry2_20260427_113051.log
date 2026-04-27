@@ -1,0 +1,62 @@
+{
+  "rounds": 10,
+  "repeat": 1,
+  "mode": "docker",
+  "output_dir": "/Users/ivan/Desktop/AP4Fed/Experiments_100r_docker",
+  "staging_dir": "/Users/ivan/Desktop/AP4Fed/paper_results_docker_100r",
+  "ollama_base_url": "http://host.docker.internal:11434",
+  "skip_run": false,
+  "pattern_run": 1,
+  "dataset": "AG_NEWS",
+  "model": "MLP",
+  "scheduled_new_runs": 1,
+  "approaches": [
+    "Never",
+    "Random",
+    "Expert-Driven",
+    "Voting-based",
+    "Role-based",
+    "Debate-based"
+  ],
+  "resume": {
+    "never": {
+      "completed": [
+        1
+      ],
+      "missing": []
+    },
+    "random": {
+      "completed": [
+        1
+      ],
+      "missing": []
+    },
+    "expert_driven": {
+      "completed": [
+        1
+      ],
+      "missing": []
+    },
+    "voting_based": {
+      "completed": [],
+      "missing": [
+        1
+      ]
+    },
+    "role_based": {
+      "completed": [
+        1
+      ],
+      "missing": []
+    },
+    "debate_based": {
+      "completed": [
+        1
+      ],
+      "missing": []
+    }
+  }
+}
+[1/1] Running local__rq2__voting_based__r01 (Voting-based coordination)
+[1/1] OK: local__rq2__voting_based__r01 (1075.6s)
+Experiments-style output ready in /Users/ivan/Desktop/AP4Fed/Experiments_100r_docker

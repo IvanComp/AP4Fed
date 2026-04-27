@@ -1,0 +1,73 @@
+{
+  "rounds": 10,
+  "repeat": 1,
+  "mode": "docker",
+  "output_dir": "/Users/ivan/Desktop/AP4Fed/Experiments_100r_docker",
+  "staging_dir": "/Users/ivan/Desktop/AP4Fed/paper_results_docker_100r",
+  "ollama_base_url": "http://host.docker.internal:11434",
+  "skip_run": false,
+  "pattern_run": 1,
+  "dataset": "AG_NEWS",
+  "model": "MLP",
+  "scheduled_new_runs": 6,
+  "approaches": [
+    "Never",
+    "Random",
+    "Expert-Driven",
+    "Voting-based",
+    "Role-based",
+    "Debate-based"
+  ],
+  "resume": {
+    "never": {
+      "completed": [],
+      "missing": [
+        1
+      ]
+    },
+    "random": {
+      "completed": [],
+      "missing": [
+        1
+      ]
+    },
+    "expert_driven": {
+      "completed": [],
+      "missing": [
+        1
+      ]
+    },
+    "voting_based": {
+      "completed": [],
+      "missing": [
+        1
+      ]
+    },
+    "role_based": {
+      "completed": [],
+      "missing": [
+        1
+      ]
+    },
+    "debate_based": {
+      "completed": [],
+      "missing": [
+        1
+      ]
+    }
+  }
+}
+[1/6] Running local__rq2__never__r01 (Baseline Never)
+[1/6] OK: local__rq2__never__r01 (582.6s)
+[2/6] Running local__rq2__random__r01 (Baseline Random)
+[2/6] OK: local__rq2__random__r01 (497.0s)
+[3/6] Running local__rq2__expert_driven__r01 (Baseline Expert-Driven)
+[3/6] OK: local__rq2__expert_driven__r01 (551.9s)
+[4/6] Running local__rq2__voting_based__r01 (Voting-based coordination)
+[4/6] FAILED: local__rq2__voting_based__r01 (exit=1)
+[5/6] Running local__rq2__role_based__r01 (Role-based coordination)
+[5/6] OK: local__rq2__role_based__r01 (1109.5s)
+[6/6] Running local__rq2__debate_based__r01 (Debate-based coordination)
+[6/6] OK: local__rq2__debate_based__r01 (997.9s)
+Experiments-style output ready in /Users/ivan/Desktop/AP4Fed/Experiments_100r_docker
+Campaign completed with 1 failure(s).

@@ -1,7 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=exp2
 #SBATCH --account=icompagn
-#SBATCH --partition=compute
+#SBATCH --partition=dcgp_usr_prod
+#SBATCH --qos=normal
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32

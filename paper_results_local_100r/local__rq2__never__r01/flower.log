@@ -1,0 +1,180 @@
+[92mINFO [0m:      ==========================================
+[92mINFO [0m:        ___  ______  ___ ______       _ 
+[92mINFO [0m:       / _ \ | ___ \/   ||  ___|     | |
+[92mINFO [0m:      / /_\ \| |_/ / /| || |_ ___  __| |
+[92mINFO [0m:      |  _  ||  __/ /_| ||  _/ _ \/ _` |
+[92mINFO [0m:      | | | || |  \___  || ||  __/ (_| |
+[92mINFO [0m:      \_| |_/\_|      |_/\_| \___|\__,_| v.1.5.0
+[92mINFO [0m:      
+[92mINFO [0m:      ==========================================
+[92mINFO [0m:      Simulation Started!
+[92mINFO [0m:      List of the Architectural Patterns enabled:
+[92mINFO [0m:      Adaptation Disabled ❌
+[92mINFO [0m:      Client Registry ✅
+[92mINFO [0m:      ==========================================
+[92mINFO [0m:      Starting Flower ServerApp, config: num_rounds=10, no round_timeout
+[92mINFO [0m:      
+[92mINFO [0m:      [INIT]
+[92mINFO [0m:      Requesting initial parameters from one random client
+[36m(ClientAppActor pid=93646)[0m [92mINFO [0m:      Client 1 compute unit: CPU (pid=93646, requested_cpus=5)
+[93mWARNING [0m:   Failed to receive initial parameters from the client. Empty initial parameters will be used.
+[92mINFO [0m:      Starting evaluation of initial global parameters
+[92mINFO [0m:      Evaluation returned no results (`None`)
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 1]
+[92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+[36m(ClientAppActor pid=93646)[0m [92mINFO [0m:      Client 2 compute unit: CPU (pid=93646, requested_cpus=5)
+[36m(ClientAppActor pid=93646)[0m [92mINFO [0m:      [DATA DEBUG] Client 2 round 1 train class distribution: {0: 15, 1: 797, 2: 1582, 3: 6}
+[36m(ClientAppActor pid=93646)[0m [92mINFO [0m:      Client 2 round compute allocation: assigned_cores=[0, 1, 2, 3, 4], torch_threads=5
+[36m(ClientAppActor pid=93646)[0m [92mINFO [0m:      Starting training...
+[36m(ClientAppActor pid=93646)[0m [92mINFO [0m:      Training completed in 0.49 seconds
+[36m(ClientAppActor pid=93646)[0m [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.30
+[36m(ClientAppActor pid=93642)[0m [92mINFO [0m:      Client 1 round compute allocation: assigned_cores=[0, 1, 2, 3, 4], torch_threads=5 (overlap due to limited host CPUs)
+[36m(ClientAppActor pid=93645)[0m [92mINFO [0m:      client Client 3 injecting delay of 37 seconds
+[36m(ClientAppActor pid=93643)[0m [92mINFO [0m:      Client 5 compute unit: CPU (pid=93643, requested_cpus=3)[32m [repeated 4x across cluster] (Ray deduplicates logs by default. Set RAY_DEDUP_LOGS=0 to disable log deduplication, or see https://docs.ray.io/en/master/ray-observability/user-guides/configure-logging.html#log-deduplication for more options.)[0m
+[36m(ClientAppActor pid=93643)[0m [92mINFO [0m:      [DATA DEBUG] Client 5 round 1 train class distribution: {0: 14196, 1: 8882, 2: 922}[32m [repeated 4x across cluster][0m
+[36m(ClientAppActor pid=93643)[0m [92mINFO [0m:      Client 5 round compute allocation: assigned_cores=[5, 6, 7], torch_threads=3[32m [repeated 3x across cluster][0m
+[36m(ClientAppActor pid=93642)[0m [92mINFO [0m:      Starting training...[32m [repeated 4x across cluster][0m
+[36m(ClientAppActor pid=93642)[0m [92mINFO [0m:      Training completed in 3.12 seconds[32m [repeated 3x across cluster][0m
+[36m(ClientAppActor pid=93642)[0m [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.39
+[36m(ClientAppActor pid=93644)[0m [92mINFO [0m:      client Client 4 injecting delay of 31 seconds
+[36m(ClientAppActor pid=93643)[0m [92mINFO [0m:      Training completed in 3.48 seconds
+[36m(ClientAppActor pid=93644)[0m [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.14[32m [repeated 2x across cluster][0m
+[36m(ClientAppActor pid=93645)[0m [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.29
+[92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+[92mINFO [0m:      Results Aggregated in 41.82 seconds.
+[92mINFO [0m:      {'MLP': {'train_loss': [0.21670464254969704], 'train_accuracy': [0.9260326086956522], 'train_f1': [0.6352651811091959], 'train_mae': [0.09398550724637682], 'val_loss': [2.603233232116263], 'val_accuracy': [0.46684210526315784], 'val_f1': [0.3405626983089745], 'val_mae': [0.9458810068649887], 'jsd': [(0.39322484901283516, 0.2961133114741317, 0.2925545554335947, 0.13833035718468042, 0.2474627037873913)]}}
+[92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 2]
+[92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+[36m(ClientAppActor pid=93645)[0m [92mINFO [0m:      Client 2 compute unit: CPU (pid=93645, requested_cpus=5)
+[36m(ClientAppActor pid=93645)[0m [92mINFO [0m:      [DATA DEBUG] Client 2 round 2 train class distribution: {0: 11, 1: 550, 2: 1215, 3: 3024}
+[36m(ClientAppActor pid=93645)[0m [92mINFO [0m:      Client 2 round compute allocation: assigned_cores=[6, 7, 8, 9, 10], torch_threads=5
+[36m(ClientAppActor pid=93645)[0m [92mINFO [0m:      Starting training...
+[36m(ClientAppActor pid=93644)[0m [92mINFO [0m:      Client 3 round compute allocation: assigned_cores=[0, 1, 2, 3, 4], torch_threads=5 (overlap due to limited host CPUs)
+[36m(ClientAppActor pid=93645)[0m [92mINFO [0m:      Training completed in 0.99 seconds
+[36m(ClientAppActor pid=93645)[0m [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.20
+[36m(ClientAppActor pid=93644)[0m [92mINFO [0m:      client Client 3 injecting delay of 39 seconds
+[36m(ClientAppActor pid=93646)[0m [92mINFO [0m:      Client 1 compute unit: CPU (pid=93646, requested_cpus=5)[32m [repeated 4x across cluster][0m
+[36m(ClientAppActor pid=93646)[0m [92mINFO [0m:      [DATA DEBUG] Client 1 round 2 train class distribution: {0: 15, 1: 3067, 2: 20918}[32m [repeated 4x across cluster][0m
+[36m(ClientAppActor pid=93643)[0m [92mINFO [0m:      Client 4 round compute allocation: assigned_cores=[3, 4, 5], torch_threads=3[32m [repeated 2x across cluster][0m
+[36m(ClientAppActor pid=93646)[0m [92mINFO [0m:      Starting training...[32m [repeated 4x across cluster][0m
+[36m(ClientAppActor pid=93646)[0m [92mINFO [0m:      Client 1 round compute allocation: assigned_cores=[0, 1, 2, 3, 4], torch_threads=5 (overlap due to limited host CPUs)
+[36m(ClientAppActor pid=93642)[0m [92mINFO [0m:      Training completed in 3.24 seconds[32m [repeated 4x across cluster][0m
+[36m(ClientAppActor pid=93644)[0m [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.29[32m [repeated 3x across cluster][0m
+[36m(ClientAppActor pid=93643)[0m [92mINFO [0m:      client Client 4 injecting delay of 40 seconds
+[92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+[92mINFO [0m:      Results Aggregated in 42.37 seconds.
+[92mINFO [0m:      {'MLP': {'train_loss': [0.21670464254969704, 0.18856568571514426], 'train_accuracy': [0.9260326086956522, 0.9438301282051282], 'train_f1': [0.6352651811091959, 0.7499944131569739], 'train_mae': [0.09398550724637682, 0.08185897435897437], 'val_loss': [2.603233232116263, 2.6472488737975053], 'val_accuracy': [0.46684210526315784, 0.5441295546558704], 'val_f1': [0.3405626983089745, 0.4517620403439138], 'val_mae': [0.9458810068649887, 0.8514979757085022], 'jsd': [(0.39322484901283516, 0.2961133114741317, 0.2925545554335947, 0.13833035718468042, 0.2474627037873913), (0.39322484901283516, 0.19649392287237205, 0.29185838978782025, 0.047301134477239534, 0.2474627037873913)]}}
+[92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 3]
+[92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+[36m(ClientAppActor pid=93645)[0m [92mINFO [0m:      Client 1 round compute allocation: assigned_cores=[0, 1, 2, 3, 4], torch_threads=5 (overlap due to limited host CPUs)
+[36m(ClientAppActor pid=93643)[0m [92mINFO [0m:      client Client 3 injecting delay of 45 seconds
+[36m(ClientAppActor pid=93646)[0m [92mINFO [0m:      Client 5 compute unit: CPU (pid=93646, requested_cpus=3)[32m [repeated 5x across cluster][0m
+[36m(ClientAppActor pid=93643)[0m [92mINFO [0m:      [DATA DEBUG] Client 3 round 3 train class distribution: {0: 5599, 1: 1327, 2: 274}[32m [repeated 5x across cluster][0m
+[36m(ClientAppActor pid=93643)[0m [92mINFO [0m:      Client 3 round compute allocation: assigned_cores=[0, 1, 2, 3, 4], torch_threads=5[32m [repeated 2x across cluster][0m
+[36m(ClientAppActor pid=93645)[0m [92mINFO [0m:      Starting training...[32m [repeated 5x across cluster][0m
+[36m(ClientAppActor pid=93645)[0m [92mINFO [0m:      Training completed in 3.92 seconds[32m [repeated 4x across cluster][0m
+[36m(ClientAppActor pid=93644)[0m [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.24[32m [repeated 2x across cluster][0m
+[36m(ClientAppActor pid=93644)[0m [92mINFO [0m:      Client 2 round compute allocation: assigned_cores=[8, 9, 10, 0, 1], torch_threads=5 (overlap due to limited host CPUs)[32m [repeated 2x across cluster][0m
+[36m(ClientAppActor pid=93642)[0m [92mINFO [0m:      client Client 4 injecting delay of 26 seconds
+[36m(ClientAppActor pid=93646)[0m [92mINFO [0m:      Training completed in 4.18 seconds
+[36m(ClientAppActor pid=93642)[0m [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.09[32m [repeated 3x across cluster][0m
+[36m(ClientAppActor pid=93643)[0m [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.29
+[92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+[92mINFO [0m:      Results Aggregated in 48.45 seconds.
+[92mINFO [0m:      {'MLP': {'train_loss': [0.21670464254969704, 0.18856568571514426, 0.15740309841780997], 'train_accuracy': [0.9260326086956522, 0.9438301282051282, 0.9449281609195402], 'train_f1': [0.6352651811091959, 0.7499944131569739, 0.75958322693496], 'train_mae': [0.09398550724637682, 0.08185897435897437, 0.0819683908045977], 'val_loss': [2.603233232116263, 2.6472488737975053, 2.7002146645769236], 'val_accuracy': [0.46684210526315784, 0.5441295546558704, 0.5515744101633394], 'val_f1': [0.3405626983089745, 0.4517620403439138, 0.46671406970376605], 'val_mae': [0.9458810068649887, 0.8514979757085022, 0.8488384754990925], 'jsd': [(0.39322484901283516, 0.2961133114741317, 0.2925545554335947, 0.13833035718468042, 0.2474627037873913), (0.39322484901283516, 0.19649392287237205, 0.29185838978782025, 0.047301134477239534, 0.2474627037873913), (0.39322484901283516, 0.2365996429422205, 0.2940436663472612, 0.08846289690368003, 0.2474627037873913)]}}
+[92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 4]
+[92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+[36m(ClientAppActor pid=93645)[0m [92mINFO [0m:      Client 3 compute unit: CPU (pid=93645, requested_cpus=5)
+[36m(ClientAppActor pid=93645)[0m [92mINFO [0m:      [DATA DEBUG] Client 3 round 4 train class distribution: {0: 7057, 1: 2374, 2: 169}
+[36m(ClientAppActor pid=93646)[0m [92mINFO [0m:      Client 4 round compute allocation: assigned_cores=[0, 1, 2], torch_threads=3
+[36m(ClientAppActor pid=93643)[0m [92mINFO [0m:      Client 2 round compute allocation: assigned_cores=[0, 1, 2, 3, 4], torch_threads=5 (overlap due to limited host CPUs)
+[36m(ClientAppActor pid=93646)[0m [92mINFO [0m:      Starting training...
+[36m(ClientAppActor pid=93643)[0m [92mINFO [0m:      Training completed in 3.06 seconds
+[36m(ClientAppActor pid=93645)[0m [92mINFO [0m:      client Client 3 injecting delay of 22 seconds
+[36m(ClientAppActor pid=93643)[0m [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.17
+[36m(ClientAppActor pid=93643)[0m [92mINFO [0m:      Client 2 compute unit: CPU (pid=93643, requested_cpus=5)[32m [repeated 4x across cluster][0m
+[36m(ClientAppActor pid=93643)[0m [92mINFO [0m:      [DATA DEBUG] Client 2 round 4 train class distribution: {0: 28, 1: 2228, 2: 1717, 3: 5627}[32m [repeated 4x across cluster][0m
+[36m(ClientAppActor pid=93642)[0m [92mINFO [0m:      Client 1 round compute allocation: assigned_cores=[3, 4, 5, 6, 7], torch_threads=5
+[36m(ClientAppActor pid=93644)[0m [92mINFO [0m:      Client 5 round compute allocation: assigned_cores=[0, 1, 2], torch_threads=3 (overlap due to limited host CPUs)[32m [repeated 2x across cluster][0m
+[36m(ClientAppActor pid=93644)[0m [92mINFO [0m:      Starting training...[32m [repeated 4x across cluster][0m
+[36m(ClientAppActor pid=93644)[0m [92mINFO [0m:      Training completed in 5.10 seconds[32m [repeated 4x across cluster][0m
+[36m(ClientAppActor pid=93646)[0m [92mINFO [0m:      client Client 4 injecting delay of 21 seconds
+[36m(ClientAppActor pid=93646)[0m [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.04[32m [repeated 3x across cluster][0m
+[92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+[92mINFO [0m:      Results Aggregated in 26.88 seconds.
+[92mINFO [0m:      {'MLP': {'train_loss': [0.21670464254969704, 0.18856568571514426, 0.15740309841780997, 0.1344256964890034], 'train_accuracy': [0.9260326086956522, 0.9438301282051282, 0.9449281609195402, 0.9574088541666667], 'train_f1': [0.6352651811091959, 0.7499944131569739, 0.75958322693496, 0.8364114970722379], 'train_mae': [0.09398550724637682, 0.08185897435897437, 0.0819683908045977, 0.06067708333333333], 'val_loss': [2.603233232116263, 2.6472488737975053, 2.7002146645769236, 2.4759098529266685], 'val_accuracy': [0.46684210526315784, 0.5441295546558704, 0.5515744101633394, 0.6003700657894737], 'val_f1': [0.3405626983089745, 0.4517620403439138, 0.46671406970376605, 0.5168286783343811], 'val_mae': [0.9458810068649887, 0.8514979757085022, 0.8488384754990925, 0.7409786184210526], 'jsd': [(0.39322484901283516, 0.2961133114741317, 0.2925545554335947, 0.13833035718468042, 0.2474627037873913), (0.39322484901283516, 0.19649392287237205, 0.29185838978782025, 0.047301134477239534, 0.2474627037873913), (0.39322484901283516, 0.2365996429422205, 0.2940436663472612, 0.08846289690368003, 0.2474627037873913), (0.39322484901283516, 0.16964072876806008, 0.3020090551808766, 0.03523414636218843, 0.2474627037873913)]}}
+[92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+[92mINFO [0m:      
+[92mINFO [0m:      [ROUND 5]
+[92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+[36m(ClientAppActor pid=93645)[0m [92mINFO [0m:      Client 2 compute unit: CPU (pid=93645, requested_cpus=5)
+[36m(ClientAppActor pid=93645)[0m [92mINFO [0m:      [DATA DEBUG] Client 2 round 5 train class distribution: {0: 28, 1: 3150, 2: 1988, 3: 6834}
+[36m(ClientAppActor pid=93645)[0m [92mINFO [0m:      Client 2 round compute allocation: assigned_cores=[0, 1, 2, 3, 4], torch_threads=5 (overlap due to limited host CPUs)
+[36m(ClientAppActor pid=93645)[0m [92mINFO [0m:      Starting training...
+[36m(ClientAppActor pid=93642)[0m [92mINFO [0m:      Client 5 round compute allocation: assigned_cores=[0, 1, 2], torch_threads=3
+[36m(ClientAppActor pid=93644)[0m [92mINFO [0m:      Training completed in 2.92 seconds[32m [repeated 3x across cluster][0m
+[36m(ClientAppActor pid=93645)[0m [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.17[32m [repeated 2x across cluster][0m
+[36m(ClientAppActor pid=93646)[0m [92mINFO [0m:      client Client 3 injecting delay of 49 seconds
+[36m(ClientAppActor pid=93643)[0m [92mINFO [0m:      Client 1 compute unit: CPU (pid=93643, requested_cpus=5)[32m [repeated 4x across cluster][0m
+[36m(ClientAppActor pid=93643)[0m [92mINFO [0m:      [DATA DEBUG] Client 1 round 5 train class distribution: {0: 15, 1: 3067, 2: 20918}[32m [repeated 4x across cluster][0m
+[36m(ClientAppActor pid=93644)[0m [92mINFO [0m:      Client 4 round compute allocation: assigned_cores=[0, 1, 2], torch_threads=3 (overlap due to limited host CPUs)[32m [repeated 2x across cluster][0m
+[36m(ClientAppActor pid=93643)[0m [92mINFO [0m:      Starting training...[32m [repeated 4x across cluster][0m
+[36m(ClientAppActor pid=93643)[0m [92mINFO [0m:      Client 1 round compute allocation: assigned_cores=[3, 4, 5, 6, 7], torch_threads=5
+*** SIGTERM received at time=1777278187 ***
+PC: @        0x1833cc50c  (unknown)  __psynch_cvwait
+    @        0x3244ceb04  (unknown)  absl::lts_20230125::WriteFailureInfo()
+    @        0x3244ce850  (unknown)  absl::lts_20230125::AbslFailureSignalHandler()
+    @        0x183416744  (unknown)  _sigtramp
+    @        0x18340d128  (unknown)  _pthread_cond_wait
+    @        0x10374b08c  (unknown)  PyThread_acquire_lock_timed
+    @        0x1037d9f44  (unknown)  acquire_timed
+    @        0x1037d9b38  (unknown)  lock_PyThread_acquire_lock
+    @        0x10358c078  (unknown)  method_vectorcall_VARARGS_KEYWORDS
+    @        0x1036bf4f0  (unknown)  _PyEval_EvalFrameDefault
+    @        0x10357ee78  (unknown)  method_vectorcall
+    @        0x1036bf4f0  (unknown)  _PyEval_EvalFrameDefault
+    @        0x1036b39d4  (unknown)  PyEval_EvalCode
+    @        0x103734abc  (unknown)  run_mod
+    @        0x103733b24  (unknown)  pyrun_file
+    @        0x103732a80  (unknown)  _PyRun_SimpleFileObject
+    @        0x103732644  (unknown)  _PyRun_AnyFileObject
+    @        0x10376162c  (unknown)  pymain_run_file_obj
+    @        0x1037613a4  (unknown)  pymain_run_file
+    @        0x103760670  (unknown)  Py_RunMain
+    @        0x103760d50  (unknown)  pymain_main
+    @        0x103760e6c  (unknown)  Py_BytesMain
+    @        0x18304fe00  (unknown)  start
+[2026-04-27 10:23:07,140 E 93580 1519970] logging.cc:440: *** SIGTERM received at time=1777278187 ***
+[2026-04-27 10:23:07,140 E 93580 1519970] logging.cc:440: PC: @        0x1833cc50c  (unknown)  __psynch_cvwait
+[2026-04-27 10:23:07,140 E 93580 1519970] logging.cc:440:     @        0x3244ceb04  (unknown)  absl::lts_20230125::WriteFailureInfo()
+[2026-04-27 10:23:07,141 E 93580 1519970] logging.cc:440:     @        0x3244ce868  (unknown)  absl::lts_20230125::AbslFailureSignalHandler()
+[2026-04-27 10:23:07,141 E 93580 1519970] logging.cc:440:     @        0x183416744  (unknown)  _sigtramp
+[2026-04-27 10:23:07,141 E 93580 1519970] logging.cc:440:     @        0x18340d128  (unknown)  _pthread_cond_wait
+[2026-04-27 10:23:07,141 E 93580 1519970] logging.cc:440:     @        0x10374b08c  (unknown)  PyThread_acquire_lock_timed
+[2026-04-27 10:23:07,141 E 93580 1519970] logging.cc:440:     @        0x1037d9f44  (unknown)  acquire_timed
+[2026-04-27 10:23:07,141 E 93580 1519970] logging.cc:440:     @        0x1037d9b38  (unknown)  lock_PyThread_acquire_lock
+[2026-04-27 10:23:07,141 E 93580 1519970] logging.cc:440:     @        0x10358c078  (unknown)  method_vectorcall_VARARGS_KEYWORDS
+[2026-04-27 10:23:07,141 E 93580 1519970] logging.cc:440:     @        0x1036bf4f0  (unknown)  _PyEval_EvalFrameDefault
+[2026-04-27 10:23:07,141 E 93580 1519970] logging.cc:440:     @        0x10357ee78  (unknown)  method_vectorcall
+[2026-04-27 10:23:07,141 E 93580 1519970] logging.cc:440:     @        0x1036bf4f0  (unknown)  _PyEval_EvalFrameDefault
+[2026-04-27 10:23:07,141 E 93580 1519970] logging.cc:440:     @        0x1036b39d4  (unknown)  PyEval_EvalCode
+[2026-04-27 10:23:07,141 E 93580 1519970] logging.cc:440:     @        0x103734abc  (unknown)  run_mod
+[2026-04-27 10:23:07,141 E 93580 1519970] logging.cc:440:     @        0x103733b24  (unknown)  pyrun_file
+[2026-04-27 10:23:07,142 E 93580 1519970] logging.cc:440:     @        0x103732a80  (unknown)  _PyRun_SimpleFileObject
+[2026-04-27 10:23:07,142 E 93580 1519970] logging.cc:440:     @        0x103732644  (unknown)  _PyRun_AnyFileObject
+[2026-04-27 10:23:07,142 E 93580 1519970] logging.cc:440:     @        0x10376162c  (unknown)  pymain_run_file_obj
+[2026-04-27 10:23:07,142 E 93580 1519970] logging.cc:440:     @        0x1037613a4  (unknown)  pymain_run_file
+[2026-04-27 10:23:07,142 E 93580 1519970] logging.cc:440:     @        0x103760670  (unknown)  Py_RunMain
+[2026-04-27 10:23:07,142 E 93580 1519970] logging.cc:440:     @        0x103760d50  (unknown)  pymain_main
+[2026-04-27 10:23:07,142 E 93580 1519970] logging.cc:440:     @        0x103760e6c  (unknown)  Py_BytesMain
+[2026-04-27 10:23:07,142 E 93580 1519970] logging.cc:440:     @        0x18304fe00  (unknown)  start
+[36m(ClientAppActor pid=93642)[0m [92mINFO [0m:      Training completed in 4.57 seconds[32m [repeated 2x across cluster][0m
+[36m(ClientAppActor pid=93642)[0m [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.25[32m [repeated 2x across cluster][0m
+[36m(ClientAppActor pid=93644)[0m [92mINFO [0m:      client Client 4 injecting delay of 29 seconds

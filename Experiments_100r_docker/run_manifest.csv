@@ -1,0 +1,8 @@
+Configuration,Display Name,Repeat,Status,Stage Run Dir,Exported CSV,Exported Rationale CSV
+never,Never,1,ok,/Users/ivan/Desktop/AP4Fed/paper_results_docker_100r/local__rq2__never__r01,/Users/ivan/Desktop/AP4Fed/Experiments_100r_docker/never/r1.csv,
+random,Random,1,ok,/Users/ivan/Desktop/AP4Fed/paper_results_docker_100r/local__rq2__random__r01,/Users/ivan/Desktop/AP4Fed/Experiments_100r_docker/random/r1.csv,
+expert_driven,Expert-Driven,1,ok,/Users/ivan/Desktop/AP4Fed/paper_results_docker_100r/local__rq2__expert_driven__r01,/Users/ivan/Desktop/AP4Fed/Experiments_100r_docker/expert-driven/r1.csv,
+voting_based,Voting-based,1,failed(1),/Users/ivan/Desktop/AP4Fed/paper_results_docker_100r/local__rq2__voting_based__r01,/Users/ivan/Desktop/AP4Fed/Experiments_100r_docker/voting-based/r1.csv,/Users/ivan/Desktop/AP4Fed/Experiments_100r_docker/voting-based/r1_rationales.csv
+voting_based,Voting-based,1,ok,/Users/ivan/Desktop/AP4Fed/paper_results_docker_100r/local__rq2__voting_based__r01,/Users/ivan/Desktop/AP4Fed/Experiments_100r_docker/voting-based/r1.csv,/Users/ivan/Desktop/AP4Fed/Experiments_100r_docker/voting-based/r1_rationales.csv
+role_based,Role-based,1,ok,/Users/ivan/Desktop/AP4Fed/paper_results_docker_100r/local__rq2__role_based__r01,/Users/ivan/Desktop/AP4Fed/Experiments_100r_docker/role-based/r1.csv,/Users/ivan/Desktop/AP4Fed/Experiments_100r_docker/role-based/r1_rationales.csv
+debate_based,Debate-based,1,ok,/Users/ivan/Desktop/AP4Fed/paper_results_docker_100r/local__rq2__debate_based__r01,/Users/ivan/Desktop/AP4Fed/Experiments_100r_docker/debate-based/r1.csv,/Users/ivan/Desktop/AP4Fed/Experiments_100r_docker/debate-based/r1_rationales.csv

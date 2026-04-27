@@ -1,0 +1,14 @@
+Round: 5
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+Based on the system configuration, client_selector remains OFF to maintain model diversity. The CPUs are distributed as [5,5,5,3,3]. Previous rounds had Val F1 stability (delta=0) and no clear straggler effect detected. The Client Selector should be activated if round times are significantly improved or Val F1 shows stagnation; currently, conditions are not met. Only clients with CPU>4 would be active, leaving only three, which is too few; the threshold must ensure at least two clients remain. With max_cpu=5, the highest safe threshold is 3 (excludes CPUs 3 and below), but then three clients are kept. However, the previous AP has client_selector OFF, so it's not activated. Do not speculate about other patterns in the rationale. The last line must be: CS=OFF; MC=OFF; HDH=ON
+
+[Rationale MC] | role=MC
+Message compressor is OFF. In the context of the message_compressor role, the focus is on whether compression should be used to reduce communication time. The total round time is 55.77 seconds, and the communication time mean is 17.762 s. However, no specific information about model sizes or bandwidth limitations was provided in the system configuration. Typically, compression is useful for large models or bandwidth-constrained networks, but here the model size is not specified. Since there is no strong evidence or clear bottleneck, and the pattern has been OFF in the previous round, it is safer to keep it OFF without introducing overhead. The decision to keep it OFF is consistent with the guardrail rule to not keep it permanently OFF unless conditions change. The other patterns are carried over from previous round. Message compressor should be turned ON only when strong evidence of bottleneck is present, which is not the case here.
+CS=OFF; MC=OFF; HDH=ON
+
+[Rationale HDH] | role=HDH
+The Client Selector is activated with a selection_value of 3 to exclude clients with CPU=3, improving Total Round Time and Training Time. The Message Compressor remains OFF as there is insufficient evidence for its benefit. The Heterogeneous Data Handler is turned ON to address non-IID clients, despite being ON in the previous round, to maintain model accuracy for non-IID data and improve global F1 score.
+CS=ON; MC=OFF; HDH=ON
+
