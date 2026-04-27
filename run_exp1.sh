@@ -1,14 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=exp1
 #SBATCH --account=icompagn
-#SBATCH --partition=dcgp_usr_prod
-#SBATCH --qos=normal
+#SBATCH --partition=compute
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=32
 #SBATCH --time=12:00:00
-#SBATCH --output=slurm_exp1_%j.out
-#SBATCH --error=slurm_exp1_%j.err
 
 set -euo pipefail
 
