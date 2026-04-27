@@ -1,0 +1,37 @@
+Comparison Family,Metric,Metric Goal,Reference Configuration,Candidate Configuration,Reference Mean,Reference Std,Reference N,Candidate Mean,Candidate Std,Candidate N,Mann-Whitney U,P Value,Significant (p<0.05),A12 (candidate > reference),Effect Size,Favours
+agentic_vs_baseline,Final Validation F1,higher,Never,Voting-based,0.6228,0.0,1,0.7995,0.0,1,1.0,1.0,False,1.0,L,voting-based
+agentic_vs_baseline,Average Training Time,lower,Never,Voting-based,10.3754,0.0,1,9.038333333333334,0.0,1,0.0,1.0,False,0.0,L,voting-based
+agentic_vs_baseline,Average Communication Time,lower,Never,Voting-based,18.6204,0.0,1,16.4874,0.0,1,0.0,1.0,False,0.0,L,voting-based
+agentic_vs_baseline,Average Total Round Time,lower,Never,Voting-based,55.996,0.0,1,50.167,0.0,1,0.0,1.0,False,0.0,L,voting-based
+agentic_vs_baseline,Final Validation F1,higher,Never,Role-based,0.6228,0.0,1,0.7921,0.0,1,1.0,1.0,False,1.0,L,role-based
+agentic_vs_baseline,Average Training Time,lower,Never,Role-based,10.3754,0.0,1,12.142066666666668,0.0,1,1.0,1.0,False,1.0,L,never
+agentic_vs_baseline,Average Communication Time,lower,Never,Role-based,18.6204,0.0,1,19.147333333333332,0.0,1,1.0,1.0,False,1.0,L,never
+agentic_vs_baseline,Average Total Round Time,lower,Never,Role-based,55.996,0.0,1,57.126999999999995,0.0,1,1.0,1.0,False,1.0,L,never
+agentic_vs_baseline,Final Validation F1,higher,Never,Debate-based,0.6228,0.0,1,0.7896,0.0,1,1.0,1.0,False,1.0,L,debate-based
+agentic_vs_baseline,Average Training Time,lower,Never,Debate-based,10.3754,0.0,1,9.038666666666668,0.0,1,0.0,1.0,False,0.0,L,debate-based
+agentic_vs_baseline,Average Communication Time,lower,Never,Debate-based,18.6204,0.0,1,15.123466666666667,0.0,1,0.0,1.0,False,0.0,L,debate-based
+agentic_vs_baseline,Average Total Round Time,lower,Never,Debate-based,55.996,0.0,1,45.989000000000004,0.0,1,0.0,1.0,False,0.0,L,debate-based
+agentic_vs_baseline,Final Validation F1,higher,Random,Voting-based,0.7728,0.0,1,0.7995,0.0,1,1.0,1.0,False,1.0,L,voting-based
+agentic_vs_baseline,Average Training Time,lower,Random,Voting-based,7.2468,0.0,1,9.038333333333334,0.0,1,1.0,1.0,False,1.0,L,random
+agentic_vs_baseline,Average Communication Time,lower,Random,Voting-based,16.432399999999998,0.0,1,16.4874,0.0,1,1.0,1.0,False,1.0,L,random
+agentic_vs_baseline,Average Total Round Time,lower,Random,Voting-based,47.459,0.0,1,50.167,0.0,1,1.0,1.0,False,1.0,L,random
+agentic_vs_baseline,Final Validation F1,higher,Random,Role-based,0.7728,0.0,1,0.7921,0.0,1,1.0,1.0,False,1.0,L,role-based
+agentic_vs_baseline,Average Training Time,lower,Random,Role-based,7.2468,0.0,1,12.142066666666668,0.0,1,1.0,1.0,False,1.0,L,random
+agentic_vs_baseline,Average Communication Time,lower,Random,Role-based,16.432399999999998,0.0,1,19.147333333333332,0.0,1,1.0,1.0,False,1.0,L,random
+agentic_vs_baseline,Average Total Round Time,lower,Random,Role-based,47.459,0.0,1,57.126999999999995,0.0,1,1.0,1.0,False,1.0,L,random
+agentic_vs_baseline,Final Validation F1,higher,Random,Debate-based,0.7728,0.0,1,0.7896,0.0,1,1.0,1.0,False,1.0,L,debate-based
+agentic_vs_baseline,Average Training Time,lower,Random,Debate-based,7.2468,0.0,1,9.038666666666668,0.0,1,1.0,1.0,False,1.0,L,random
+agentic_vs_baseline,Average Communication Time,lower,Random,Debate-based,16.432399999999998,0.0,1,15.123466666666667,0.0,1,0.0,1.0,False,0.0,L,debate-based
+agentic_vs_baseline,Average Total Round Time,lower,Random,Debate-based,47.459,0.0,1,45.989000000000004,0.0,1,0.0,1.0,False,0.0,L,debate-based
+agentic_vs_baseline,Final Validation F1,higher,Expert-Driven,Voting-based,0.7807,0.0,1,0.7995,0.0,1,1.0,1.0,False,1.0,L,voting-based
+agentic_vs_baseline,Average Training Time,lower,Expert-Driven,Voting-based,12.374799999999999,0.0,1,9.038333333333334,0.0,1,0.0,1.0,False,0.0,L,voting-based
+agentic_vs_baseline,Average Communication Time,lower,Expert-Driven,Voting-based,17.910000000000004,0.0,1,16.4874,0.0,1,0.0,1.0,False,0.0,L,voting-based
+agentic_vs_baseline,Average Total Round Time,lower,Expert-Driven,Voting-based,52.927,0.0,1,50.167,0.0,1,0.0,1.0,False,0.0,L,voting-based
+agentic_vs_baseline,Final Validation F1,higher,Expert-Driven,Role-based,0.7807,0.0,1,0.7921,0.0,1,1.0,1.0,False,1.0,L,role-based
+agentic_vs_baseline,Average Training Time,lower,Expert-Driven,Role-based,12.374799999999999,0.0,1,12.142066666666668,0.0,1,0.0,1.0,False,0.0,L,role-based
+agentic_vs_baseline,Average Communication Time,lower,Expert-Driven,Role-based,17.910000000000004,0.0,1,19.147333333333332,0.0,1,1.0,1.0,False,1.0,L,expert-driven
+agentic_vs_baseline,Average Total Round Time,lower,Expert-Driven,Role-based,52.927,0.0,1,57.126999999999995,0.0,1,1.0,1.0,False,1.0,L,expert-driven
+agentic_vs_baseline,Final Validation F1,higher,Expert-Driven,Debate-based,0.7807,0.0,1,0.7896,0.0,1,1.0,1.0,False,1.0,L,debate-based
+agentic_vs_baseline,Average Training Time,lower,Expert-Driven,Debate-based,12.374799999999999,0.0,1,9.038666666666668,0.0,1,0.0,1.0,False,0.0,L,debate-based
+agentic_vs_baseline,Average Communication Time,lower,Expert-Driven,Debate-based,17.910000000000004,0.0,1,15.123466666666667,0.0,1,0.0,1.0,False,0.0,L,debate-based
+agentic_vs_baseline,Average Total Round Time,lower,Expert-Driven,Debate-based,52.927,0.0,1,45.989000000000004,0.0,1,0.0,1.0,False,0.0,L,debate-based

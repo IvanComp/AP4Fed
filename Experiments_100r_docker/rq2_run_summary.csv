@@ -1,0 +1,7 @@
+configuration,run,source_path,final_val_f1,best_val_f1,mean_training_time,mean_communication_time,mean_total_round_time,total_fl_time,mean_agent_time,total_agent_time,decision_rounds,efficiency_score,Configuration
+debate-based,r1,/Users/ivan/Desktop/AP4Fed/Experiments_100r_docker/debate-based/r1.csv,0.7896,0.8242,9.038666666666668,15.123466666666667,45.989000000000004,459.89000000000004,57.830000000000005,520.47,9,0.017169323099001932,Debate-based
+expert-driven,r1,/Users/ivan/Desktop/AP4Fed/Experiments_100r_docker/expert-driven/r1.csv,0.7807,0.7807,12.374799999999999,17.910000000000004,52.927,529.27,0.18285714285714286,1.28,7,0.014750505413116177,Expert-Driven
+never,r1,/Users/ivan/Desktop/AP4Fed/Experiments_100r_docker/never/r1.csv,0.6228,0.6228,10.3754,18.6204,55.996,559.96,0.0,0.0,0,0.01112222301592971,Never
+random,r1,/Users/ivan/Desktop/AP4Fed/Experiments_100r_docker/random/r1.csv,0.7728,0.7728,7.2468,16.432399999999998,47.459,474.59000000000003,0.22,1.54,7,0.01628352894076993,Random
+role-based,r1,/Users/ivan/Desktop/AP4Fed/Experiments_100r_docker/role-based/r1.csv,0.7921,0.7921,12.142066666666668,19.147333333333332,57.126999999999995,571.27,56.76571428571429,397.36,7,0.013865597703362684,Role-based
+voting-based,r1,/Users/ivan/Desktop/AP4Fed/Experiments_100r_docker/voting-based/r1.csv,0.7995,0.8296,9.038333333333334,16.4874,50.167,501.67,57.900000000000006,521.1,9,0.015936771184244622,Voting-based
