@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=exp2
-#SBATCH --account=icompagn
+#SBATCH --account=INF26_enesma
 #SBATCH --partition=dcgp_usr_prod
 #SBATCH --qos=normal
 #SBATCH --nodes=1
