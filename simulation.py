@@ -109,6 +109,38 @@ def detect_cuda_gpu_count():
 
     return 0
 
+
+def resolve_docker_compose_command():
+    """Return the Docker Compose command as a QProcess program and base args."""
+    docker_candidates = [
+        shutil.which("docker"),
+        "/opt/homebrew/bin/docker",
+        "/usr/local/bin/docker",
+        "/usr/bin/docker",
+        "/Applications/Docker.app/Contents/Resources/bin/docker",
+    ]
+    for docker_cmd in docker_candidates:
+        if not docker_cmd or not os.path.exists(docker_cmd):
+            continue
+        try:
+            result = subprocess.run(
+                [docker_cmd, "compose", "version"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+                timeout=5,
+            )
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if result.returncode == 0:
+            return docker_cmd, ["compose"]
+
+    legacy_compose = shutil.which("docker-compose")
+    if legacy_compose:
+        return legacy_compose, []
+
+    return None, None
+
 def agent_log_path():
     base = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base, "Docker", "logs", "ai_agent_decisions.txt")
@@ -748,8 +780,13 @@ class SimulationPage(QWidget):
             with open(dc_out, "w") as f:
                 yaml.safe_dump(compose, f)
 
-            cmd = "/opt/homebrew/bin/docker"
-            args = ["compose", "-f", dc_out, "up"]
+            cmd, compose_args = resolve_docker_compose_command()
+            if cmd is None:
+                self.output_area.appendPlainText(
+                    "Error: Docker Compose was not found. Install Docker Desktop or make sure docker is available in PATH."
+                )
+                return
+            args = compose_args + ["-f", dc_out, "up"]
 
             self.process = QProcess(self)
             self.process.setProcessChannelMode(QProcess.MergedChannels)

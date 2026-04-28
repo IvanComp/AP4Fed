@@ -1,0 +1,24 @@
+Round: 1
+Policy: Multiple AI-Agents (Voting-Based)
+
+[Rationale A1] | agent=1
+{
+
+
+  "client_selector": "ON",
+  "message_compressor": "OFF",
+  "heterogeneous_data_handler": "ON",
+  "selection_value": 3,
+  "rationale": "Based on the system configuration and performance metrics, the Client Selector is activated to address the straggler effect caused by clients with lower CPUs. The CPUs are [5,5,5,3,3], so a selection_value of 3 will keep the three clients with 5 CPUs and exclude the two with 3 CPUs. This should reduce Total Round Time and Training Time by excluding slower clients. The Heterogeneous Data Handler is activated because there are non-IID clients (clients 1,2,4), which can negatively impact global model accuracy. Activating HDH will help mitigate non-IID effects and improve Val F1. The Message Compressor is kept OFF as there is no clear evidence of communication being a bottleneck, and enabling it might add unnecessary overhead. CS is set to ON with selection_value=3 to ensure at least two clients (the three 5-CPU clients) remain active, and HDH is turned ON to address non-IID data. The previous state was all OFF, so we are introducing two new patterns. The Val F1 is not provided, but given the non-IID presence, HDH is recommended. The Communication Time and Training Time are high, but CS can help with round time, while HDH might help with accuracy."
+CS=OFF; MC=OFF; HDH=OFF
+
+[Rationale A2] | agent=2
+Based on the system configuration and evaluation metrics, the Client Selector is activated to address potential straggler clients. With CPU values [5,5,5,3,3], a selection_value of 4 ensures only the high-CPU clients (5) are included, reducing total round time. The Heterogeneous Data Handler is activated to mitigate non-IID effects, as three clients have non-IID data. The Message Compressor remains OFF due to potential overhead outweighing benefits, and the last round showed minimal communication time improvement. The rationale includes CS=ON; MC=OFF; HDH=ON.
+
+[Rationale A3] | agent=3
+Given the presence of non-IID clients and lower Val F1 scores, it is necessary to activate the Heterogeneous Data Handler to address potential data heterogeneity and improve global model accuracy. The Val F1 score in the last round is not explicitly provided, but given the system context, HDH should be enabled to test its effect on non-IID data. The Client Selector is activated with a selection_value of 4 to exclude clients with CPUs <=4, ensuring at least two clients (with CPU=5) remain active, thus mitigating the Straggler effect and reducing Total Round Time. Communication Time is currently high, but the Message Compressor is not enabled to avoid unnecessary overhead, as the system has small model sizes and the benefits of compression are not clearly evident from the metrics.
+CS=ON; MC=OFF; HDH=ON
+
+[Coordinator Rationale] | role=Coordinator
+Based on the voting summary, the majority decision is to turn ON the Client Selector and Heterogeneous Data Handler, and keep Message Compressor OFF. The Client Selector is activated with selection_value=4 to exclude clients with lower CPUs, specifically targeting the three clients with CPU=3, while ensuring at least two clients (the ones with CPU=5) remain active. This helps mitigate the straggler effect and improve round time. The Heterogeneous Data Handler is activated to address the non-IID data present in clients 1, 2, and 4, which could be hindering model accuracy. The previous configuration had all patterns OFF, and the decision to turn ON these patterns is based on the majority vote from the voters, who likely considered the potential benefits of reducing round time and improving accuracy. However, caution is advised as HDH may introduce overhead, but given the non-IID data, it is necessary to test its effect. The Message Compressor remains OFF as there is no clear bottleneck in communication time, and enabling it might not be beneficial given the model size. The selection_value=4 is derived from the CPU values [5,5,5,3,3], ensuring that only clients with CPU>4 are selected, which are the three with CPU=5, leaving at least two active. This configuration aims to balance between reducing round time and maintaining model accuracy. CS=ON; MC=OFF; HDH=ON
+

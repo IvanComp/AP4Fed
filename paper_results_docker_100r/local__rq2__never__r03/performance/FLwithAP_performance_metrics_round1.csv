@@ -1,0 +1,6 @@
+Client ID,FL Round,Training Time,JSD,HDH Time,Communication Time,Total Time of FL Round,# of CPU,CPU Usage (%),RAM Usage (%),Model Type,Data Distr. Type,Dataset,Train Loss,Train Accuracy,Train F1,Train MAE,Val Loss,Val Accuracy,Val F1,Val MAE,SSIM Overhead (indice),"AP List (client_selector,client_cluster,message_compressor,model_co-versioning_registry,multi-task_model_trainer,heterogeneous_data_handler)",Agent Time (s)
+Client 1,1,4.68,0.14,0.0,1.73,,5,416,21,MLP,non-IID,AG_NEWS,,,,,,,,,,,0.0
+Client 2,1,0.76,0.25,0.0,0.6,,5,194,21,MLP,non-IID,AG_NEWS,,,,,,,,,,,0.0
+Client 3,1,0.82,0.34,0.0,36.43,,5,13,22,MLP,IID,AG_NEWS,,,,,,,,,,,0.0
+Client 4,1,0.66,0.14,0.0,42.85,,3,9,22,MLP,non-IID,AG_NEWS,,,,,,,,,,,0.0
+Client 5,1,7.63,0.31,0.0,3.42,44.51,3,284,21,MLP,IID,AG_NEWS,0.31,0.9045,0.7486,0.1357,2.14,0.5133,0.3941,0.9251,,"{OFF,OFF,OFF,OFF,OFF,OFF}",

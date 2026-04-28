@@ -7,18 +7,18 @@
     "adaptation": "Multiple AI-Agents (Voting-Based)",
     "LLM": "deepseek-r1:8b",
     "ollama_base_url": "http://host.docker.internal:11434",
-    "partition_seed": 1212525816,
+    "partition_seed": 840724974,
     "patterns": {
         "client_registry": {
             "enabled": true,
             "params": {}
         },
         "client_selector": {
-            "enabled": false,
+            "enabled": true,
             "params": {
                 "selection_strategy": "Resource-Based",
                 "selection_criteria": "CPU",
-                "selection_value": 2
+                "selection_value": 3
             }
         },
         "client_cluster": {
