@@ -16,7 +16,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock 
     environment:
       DOCKER_HOST_IP: host.docker.internal
-      NUM_ROUNDS: ${NUM_ROUNDS}
+      NUM_ROUNDS: ${NUM_ROUNDS:-3}
     networks:
       - flwr_network
     deploy:
@@ -41,15 +41,15 @@ services:
       - ./configuration:/app/configuration
       - ./model_weights:/app/model_weights
     environment:
-      NUM_ROUNDS: ${NUM_ROUNDS}
-      NUM_CPUS: ${NUM_CPUS}
-      NUM_RAM: ${NUM_RAM}
+      NUM_ROUNDS: ${NUM_ROUNDS:-3}
+      NUM_CPUS: ${NUM_CPUS:-1}
+      NUM_RAM: ${NUM_RAM:-2}
       SERVER_ADDRESS: server:8080
     deploy:
       resources:
         limits:
-          cpus: ${NUM_CPUS}
-          memory: ${NUM_RAM}
+          cpus: ${NUM_CPUS:-1}
+          memory: ${NUM_RAM_LIMIT:-2g}
     command: sh -c "sleep 5 && python client.py"
 
 networks:

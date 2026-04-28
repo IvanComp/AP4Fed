@@ -1,21 +1,26 @@
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1
+ENV PIP_DEFAULT_TIMEOUT=300
+ENV PIP_RETRIES=10
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends libgl1 libglib2.0-0 && \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip install --no-cache-dir \
-    flwr[simulations] \
-    docker \
-    torch==2.2.1 \
-    torchvision==0.17.1 \
-    pandas \
-    grpcio==1.66.1 \
-    numpy==1.26.2 \
-    psutil \
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+    flwr==1.12.0 \
+    docker==7.1.0 \
+    torch==2.6.0 \
+    torchvision==0.21.0 \
+    pandas==2.2.3 \
+    matplotlib==3.9.2 \
+    grpcio==1.66.2 \
+    numpy==1.26.4 \
+    psutil==6.1.0 \
     torchgan \
+    tqdm \
     scikit-learn \
     scikit-image \
     grad-cam

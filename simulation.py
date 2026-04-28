@@ -761,7 +761,6 @@ class SimulationPage(QWidget):
                 ram = detail["ram"]
 
                 svc = copy.deepcopy(client_tpl)
-                svc.pop("image", None)
                 svc.pop("deploy", None)
 
                 svc["container_name"] = f"Client{cid}"
