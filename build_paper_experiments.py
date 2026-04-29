@@ -403,6 +403,93 @@ def reset_runtime_outputs(runtime_dir: Path) -> None:
     (runtime_dir / ".cpu_pool_state.json").unlink(missing_ok=True)
 
 
+def parse_cpu_set_spec(spec: str) -> List[int]:
+    cpu_ids: List[int] = []
+    seen = set()
+    for chunk in str(spec).split(","):
+        part = chunk.strip()
+        if not part:
+            continue
+        if "-" in part:
+            start_str, end_str = part.split("-", 1)
+            start_cpu = int(start_str)
+            end_cpu = int(end_str)
+            if end_cpu < start_cpu:
+                raise ValueError(f"Invalid CPU range '{part}' in CPU set '{spec}'")
+            values = range(start_cpu, end_cpu + 1)
+        else:
+            values = (int(part),)
+        for cpu_id in values:
+            if cpu_id not in seen:
+                seen.add(cpu_id)
+                cpu_ids.append(cpu_id)
+    if not cpu_ids:
+        raise ValueError(f"CPU set '{spec}' does not contain any CPU ids")
+    return cpu_ids
+
+
+def format_cpu_set_spec(cpu_ids: Sequence[int]) -> str:
+    ordered_ids = sorted({int(cpu_id) for cpu_id in cpu_ids})
+    if not ordered_ids:
+        raise ValueError("Cannot format an empty CPU set")
+
+    ranges: List[str] = []
+    start_cpu = prev_cpu = ordered_ids[0]
+    for cpu_id in ordered_ids[1:]:
+        if cpu_id == prev_cpu + 1:
+            prev_cpu = cpu_id
+            continue
+        ranges.append(f"{start_cpu}-{prev_cpu}" if start_cpu != prev_cpu else str(start_cpu))
+        start_cpu = prev_cpu = cpu_id
+    ranges.append(f"{start_cpu}-{prev_cpu}" if start_cpu != prev_cpu else str(start_cpu))
+    return ",".join(ranges)
+
+
+def detect_docker_cpu_ids() -> List[int]:
+    override = os.environ.get("AP4FED_DOCKER_CPUSET", "").strip()
+    if override:
+        return parse_cpu_set_spec(override)
+
+    try:
+        proc = subprocess.run(
+            ["docker", "info", "--format", "{{.NCPU}}"],
+            cwd=str(ROOT),
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode == 0:
+            reported = int(proc.stdout.strip())
+            if reported > 0:
+                return list(range(reported))
+    except Exception:
+        pass
+
+    fallback_total = os.cpu_count() or 1
+    return list(range(fallback_total))
+
+
+def allocate_distinct_docker_cpu_sets(config: Dict[str, Any]) -> Dict[int, List[int]]:
+    client_details = config.get("client_details", [])
+    available_cpu_ids = detect_docker_cpu_ids()
+    if not available_cpu_ids:
+        raise ValueError("No Docker-visible CPUs available for client allocation")
+
+    allocations: Dict[int, List[int]] = {}
+    next_idx = 0
+    for detail in client_details:
+        client_id = int(detail["client_id"])
+        requested = max(1, int(detail.get("cpu") or 1))
+        assigned = [
+            available_cpu_ids[(next_idx + offset) % len(available_cpu_ids)]
+            for offset in range(requested)
+        ]
+        allocations[client_id] = assigned
+        next_idx += requested
+
+    return allocations
+
+
 def run_command(
     cmd: List[str],
     cwd: Path,
@@ -559,22 +646,27 @@ def build_docker_compose(config: Dict[str, Any], compose_path: Path, quiet: bool
     if host_gateway_entry not in extra_hosts:
         extra_hosts.append(host_gateway_entry)
 
+    client_cpu_sets = allocate_distinct_docker_cpu_sets(config)
     new_svcs = {"server": server_svc}
     for detail in config["client_details"]:
         cid = detail["client_id"]
         cpu = detail["cpu"]
         ram = detail["ram"]
+        assigned_cpu_ids = client_cpu_sets[int(cid)]
+        assigned_cpu_spec = format_cpu_set_spec(assigned_cpu_ids)
 
         svc = copy.deepcopy(client_tpl)
         svc.pop("deploy", None)
         svc["image"] = "ap4fed_client:latest"
         svc["container_name"] = f"Client{cid}"
         svc["cpus"] = float(cpu)
+        svc["cpuset"] = assigned_cpu_spec
         svc["mem_limit"] = f"{ram}g"
 
         env = svc.setdefault("environment", {})
         env["NUM_ROUNDS"] = str(config["rounds"])
         env["NUM_CPUS"] = str(cpu)
+        env["CPUSET_CPUS"] = assigned_cpu_spec
         env["NUM_RAM"] = f"{ram}g"
         env["CLIENT_ID"] = str(cid)
         if quiet:

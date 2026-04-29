@@ -92,14 +92,55 @@ def client_enabled_for_pattern(client_config: dict, enabled_clients) -> bool:
 DEVICE = torch.device("cpu")
 GLOBAL_ROUND_COUNTER = 1
 
-def set_cpu_affinity(process_pid: int, num_cpus: int) -> bool:
+def parse_cpu_set_spec(spec: str) -> list[int]:
+    cpu_ids: list[int] = []
+    seen = set()
+    for chunk in str(spec).split(","):
+        part = chunk.strip()
+        if not part:
+            continue
+        if "-" in part:
+            start_str, end_str = part.split("-", 1)
+            start_cpu = int(start_str)
+            end_cpu = int(end_str)
+            if end_cpu < start_cpu:
+                raise ValueError(f"Invalid CPU range '{part}' in CPU set '{spec}'")
+            values = range(start_cpu, end_cpu + 1)
+        else:
+            values = (int(part),)
+        for cpu_id in values:
+            if cpu_id not in seen:
+                seen.add(cpu_id)
+                cpu_ids.append(cpu_id)
+    return cpu_ids
+
+
+def get_assigned_cpu_ids(num_cpus: int) -> list[int]:
+    requested = max(1, int(num_cpus or 1))
+    cpuset_env = os.environ.get("CPUSET_CPUS", "").strip()
+    if cpuset_env:
+        parsed = parse_cpu_set_spec(cpuset_env)
+        if parsed:
+            return parsed[:requested]
+
     try:
-        process = psutil.Process(process_pid)
-        total_cpus = os.cpu_count() or 1
-        cpus_to_use = min(num_cpus, total_cpus)
-        if cpus_to_use <= 0:
+        process = psutil.Process(os.getpid())
+        if hasattr(process, "cpu_affinity"):
+            cpu_ids = sorted(process.cpu_affinity())
+            if cpu_ids:
+                return cpu_ids[:requested]
+    except Exception:
+        pass
+
+    total_cpus = os.cpu_count() or 1
+    return list(range(min(requested, total_cpus)))
+
+
+def set_cpu_affinity(process_pid: int, target_cpus: list[int]) -> bool:
+    try:
+        if not target_cpus:
             return False
-        target_cpus = list(range(cpus_to_use))
+        process = psutil.Process(process_pid)
         if platform.system() in ("Linux", "Windows"):
             process.cpu_affinity(target_cpus)
         else:
@@ -107,6 +148,28 @@ def set_cpu_affinity(process_pid: int, num_cpus: int) -> bool:
         return True
     except Exception:
         return False
+
+
+def configure_torch_cpu_threads(assigned_cpu_ids: list[int]) -> int:
+    if not assigned_cpu_ids:
+        return max(1, int(torch.get_num_threads()))
+
+    num_threads = max(1, len(assigned_cpu_ids))
+    os.environ["OMP_NUM_THREADS"] = str(num_threads)
+    os.environ["MKL_NUM_THREADS"] = str(num_threads)
+
+    try:
+        torch.set_num_threads(num_threads)
+    except Exception:
+        pass
+
+    try:
+        interop_threads = 1 if num_threads == 1 else min(2, num_threads)
+        torch.set_num_interop_threads(interop_threads)
+    except Exception:
+        pass
+
+    return max(1, int(torch.get_num_threads()))
 
 
 def get_ram_percent_cgroup():
@@ -168,12 +231,16 @@ class FlowerClient(NumPyClient):
         self.delay_max_seconds = int(client_config.get("delay_max_seconds", 50) or 50)
         if self.delay_max_seconds < self.delay_min_seconds:
             self.delay_min_seconds, self.delay_max_seconds = self.delay_max_seconds, self.delay_min_seconds
+        self.assigned_cpu_ids = []
+        self.torch_cpu_threads = max(1, int(self.n_cpu or 1))
 
         if self.n_cpu is not None:
             try:
                 num_cpus_int = int(self.n_cpu)
                 if num_cpus_int > 0:
-                    set_cpu_affinity(os.getpid(), num_cpus_int)
+                    self.assigned_cpu_ids = get_assigned_cpu_ids(num_cpus_int)
+                    set_cpu_affinity(os.getpid(), self.assigned_cpu_ids)
+                    self.torch_cpu_threads = configure_torch_cpu_threads(self.assigned_cpu_ids)
             except Exception:
                 pass
 
@@ -187,7 +254,11 @@ class FlowerClient(NumPyClient):
         #         INFO,
         #         f"{self.cid} compute unit: CUDA (device={gpu_idx}, name={gpu_name}, pid={os.getpid()})",
         #     )
-        log(INFO, f"{self.cid} compute unit: CPU (pid={os.getpid()})")
+        log(
+            INFO,
+            f"{self.cid} compute unit: CPU (pid={os.getpid()}, assigned_cores={self.assigned_cpu_ids}, "
+            f"torch_threads={self.torch_cpu_threads})",
+        )
 
     def fit(self, parameters, config):
         global GLOBAL_ROUND_COUNTER
