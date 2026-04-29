@@ -1,0 +1,7 @@
+left_key,right_key,Comparison,Metric,p_value,A12,Effect
+Voting-based,Role-based,Voting-based vs Role-based,Mean Overhead per Round,0.0539,0.240,-
+Voting-based,Role-based,Voting-based vs Role-based,Total Overhead per Run,0.0539,0.240,-
+Voting-based,Debate-based,Voting-based vs Debate-based,Mean Overhead per Round,0.1212,0.290,-
+Voting-based,Debate-based,Voting-based vs Debate-based,Total Overhead per Run,0.0890,0.270,-
+Role-based,Debate-based,Role-based vs Debate-based,Mean Overhead per Round,0.7913,0.540,-
+Role-based,Debate-based,Role-based vs Debate-based,Total Overhead per Run,0.9698,0.490,-

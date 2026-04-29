@@ -46,10 +46,8 @@ LOCAL_CONFIG_PATH = LOCAL_DIR / "configuration" / "config.json"
 DOCKER_CONFIG_PATH = DOCKER_DIR / "configuration" / "config.json"
 LOCAL_ADAPTATION_PATH = LOCAL_DIR / "adaptation.py"
 DOCKER_ADAPTATION_PATH = ROOT / "Docker" / "adaptation.py"
-LOCAL_OUTPUT_DIR = ROOT / "Experiments_100r"
-LOCAL_STAGING_DIR = ROOT / "paper_results_local_100r"
-DOCKER_OUTPUT_DIR = ROOT / "Experiments_100r_docker"
-DOCKER_STAGING_DIR = ROOT / "paper_results_docker_100r"
+CAMPAIGNS_ROOT = ROOT / "paper_campaigns"
+NOTEBOOK_TEMPLATES_DIR = ROOT / "paper_notebook_templates"
 
 INDEX_FIELDS = [
     "Configuration",
@@ -124,6 +122,14 @@ DISPLAY_HATCHES = {
 PATTERN_NAMES = ("CS", "MC", "HDH")
 TASK_DATASET = "FashionMNIST"
 TASK_MODEL = "CNN 16k"
+KNOWN_TASK_SLUGS = {
+    ("fashionmnist", "cnn_16k"): "fashionmnist__cnn16k",
+    ("ag_news", "mlp"): "ag_news__mlp",
+}
+TASK_NOTEBOOK_TEMPLATES = {
+    ("fashionmnist", "cnn_16k"): NOTEBOOK_TEMPLATES_DIR / "fashionmnist__cnn16k" / "Paper Figures.ipynb",
+    ("ag_news", "mlp"): NOTEBOOK_TEMPLATES_DIR / "ag_news__mlp" / "Paper Figures.ipynb",
+}
 
 CLIENT_TEMPLATE = [
     {
@@ -203,7 +209,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build a fresh Experiments-style folder for the paper's 6 approaches."
     )
-    parser.add_argument("--mode", choices=("local", "docker"), default="local")
+    parser.add_argument("--mode", choices=("docker",), default="docker")
     parser.add_argument("--rounds", type=int, default=100)
     parser.add_argument("--dataset", default=TASK_DATASET)
     parser.add_argument("--model", default=TASK_MODEL)
@@ -254,8 +260,30 @@ def sanitize_name(value: str) -> str:
     return "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in value).strip("_")
 
 
+def normalize_task_token(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "_", str(value).strip().lower())
+    normalized = re.sub(r"_+", "_", normalized).strip("_")
+    return normalized or "unknown"
+
+
+def current_task_signature(dataset: Optional[str] = None, model: Optional[str] = None) -> Tuple[str, str]:
+    return (
+        normalize_task_token(dataset or TASK_DATASET),
+        normalize_task_token(model or TASK_MODEL),
+    )
+
+
+def current_task_slug(dataset: Optional[str] = None, model: Optional[str] = None) -> str:
+    signature = current_task_signature(dataset=dataset, model=model)
+    return KNOWN_TASK_SLUGS.get(signature, f"{signature[0]}__{signature[1]}")
+
+
+def campaign_root_for_task(dataset: Optional[str] = None, model: Optional[str] = None) -> Path:
+    return CAMPAIGNS_ROOT / current_task_slug(dataset=dataset, model=model)
+
+
 def build_label(spec: ApproachSpec, repeat_idx: int) -> str:
-    return f"local__rq2__{sanitize_name(spec.runner_name)}__r{repeat_idx:02d}"
+    return f"paper__rq2__{sanitize_name(spec.runner_name)}__r{repeat_idx:02d}"
 
 
 def build_partition_seed(spec: ApproachSpec, repeat_idx: int, rounds: int) -> int:
@@ -303,29 +331,49 @@ def client_template_for_task(dataset: Optional[str] = None, model: Optional[str]
 
 
 def default_output_dir_for_mode(mode: str) -> Path:
-    return LOCAL_OUTPUT_DIR if mode == "local" else DOCKER_OUTPUT_DIR
+    if mode.lower() != "docker":
+        raise ValueError("This paper workflow supports only docker campaign paths")
+    return campaign_root_for_task() / "experiments"
 
 
 def default_staging_dir_for_mode(mode: str) -> Path:
-    return LOCAL_STAGING_DIR if mode == "local" else DOCKER_STAGING_DIR
+    if mode.lower() != "docker":
+        raise ValueError("This paper workflow supports only docker campaign paths")
+    return campaign_root_for_task() / "staging"
 
 
 def default_ollama_url_for_mode(mode: str) -> str:
-    return "http://127.0.0.1:11434" if mode == "local" else "http://host.docker.internal:11434"
+    if mode.lower() != "docker":
+        raise ValueError("This paper workflow supports only docker mode")
+    return "http://host.docker.internal:11434"
 
 
-def notebook_template_for_output(output_dir: Path) -> Path:
-    base_name = output_dir.name.removesuffix("_docker")
-    k5_variant = "k5" in base_name
-    template_dir = ROOT / ("Experiments_100r_k5" if k5_variant else "Experiments_100r")
-    return template_dir / "Paper Figures.ipynb"
+def notebook_template_for_output() -> Optional[Path]:
+    signature = current_task_signature()
+    candidate = TASK_NOTEBOOK_TEMPLATES.get(signature)
+    if candidate and candidate.exists():
+        return candidate
+    return None
+
+
+def write_campaign_metadata(base_dir: Path, kind: str) -> None:
+    write_json(
+        base_dir / "campaign_info.json",
+        {
+            "task_slug": current_task_slug(),
+            "dataset": TASK_DATASET,
+            "model": TASK_MODEL,
+            "mode": "docker",
+            "kind": kind,
+        },
+    )
 
 
 def sync_output_notebook(output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     destination = output_dir / "Paper Figures.ipynb"
-    template = notebook_template_for_output(output_dir)
-    if not template.exists():
+    template = notebook_template_for_output()
+    if template is None or not template.exists():
         return
 
     if template.resolve() == destination.resolve():
@@ -1408,6 +1456,9 @@ def main() -> int:
         return 2
 
     mode = args.mode.lower()
+    if mode != "docker":
+        print("This paper workflow supports only --mode docker.", file=sys.stderr)
+        return 2
     output_dir = Path(args.output_dir).resolve() if args.output_dir else default_output_dir_for_mode(mode).resolve()
     staging_dir = Path(args.staging_dir).resolve() if args.staging_dir else default_staging_dir_for_mode(mode).resolve()
     ollama_base_url = args.ollama_base_url or default_ollama_url_for_mode(mode)
@@ -1420,14 +1471,19 @@ def main() -> int:
 
     output_dir.mkdir(parents=True, exist_ok=True)
     sync_output_notebook(output_dir)
+    write_campaign_metadata(output_dir, kind="experiments")
     if not args.skip_run:
         staging_dir.mkdir(parents=True, exist_ok=True)
+        write_campaign_metadata(staging_dir, kind="staging")
+    elif staging_dir.exists():
+        write_campaign_metadata(staging_dir, kind="staging")
 
     matrix, resume_plan = plan_resume_matrix(args.repeat, staging_dir, output_dir)
 
     planned = {
         "rounds": args.rounds,
         "repeat": args.repeat,
+        "task_slug": current_task_slug(),
         "mode": mode,
         "output_dir": str(output_dir),
         "staging_dir": str(staging_dir),
@@ -1449,30 +1505,18 @@ def main() -> int:
     if not args.skip_run:
         if not matrix:
             if not args.quiet:
-                print("All requested runs are already present. No new local experiments will be launched.")
+                print("All requested runs are already present. No new docker experiments will be launched.")
         else:
-            if mode == "docker":
-                failures = run_docker_campaign(
-                    rounds=args.rounds,
-                    matrix=matrix,
-                    staging_dir=staging_dir,
-                    output_dir=output_dir,
-                    ollama_base_url=ollama_base_url,
-                    continue_on_error=args.continue_on_error,
-                    pattern_run_id=args.pattern_run,
-                    quiet=args.quiet,
-                )
-            else:
-                failures = run_local_campaign(
-                    rounds=args.rounds,
-                    matrix=matrix,
-                    staging_dir=staging_dir,
-                    output_dir=output_dir,
-                    ollama_base_url=ollama_base_url,
-                    continue_on_error=args.continue_on_error,
-                    pattern_run_id=args.pattern_run,
-                    quiet=args.quiet,
-                )
+            failures = run_docker_campaign(
+                rounds=args.rounds,
+                matrix=matrix,
+                staging_dir=staging_dir,
+                output_dir=output_dir,
+                ollama_base_url=ollama_base_url,
+                continue_on_error=args.continue_on_error,
+                pattern_run_id=args.pattern_run,
+                quiet=args.quiet,
+            )
     elif not staging_dir.exists():
         raise FileNotFoundError(f"Staging directory does not exist: {staging_dir}")
 

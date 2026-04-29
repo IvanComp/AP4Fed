@@ -1,0 +1,37 @@
+agent_key,baseline_key,Metric,Agent,Baseline,p_value,A12,Effect
+Voting-based,Never,Model Accuracy,Voting-based,Never,0.6923,0.600,-
+Voting-based,Random,Model Accuracy,Voting-based,Random,0.6923,0.400,-
+Voting-based,Expert-Driven,Model Accuracy,Voting-based,Expert-Driven,1.0000,0.500,-
+Role-based,Never,Model Accuracy,Role-based,Never,0.1818,1.000,-
+Role-based,Random,Model Accuracy,Role-based,Random,0.1818,1.000,-
+Role-based,Expert-Driven,Model Accuracy,Role-based,Expert-Driven,0.3636,0.900,-
+Debate-based,Never,Model Accuracy,Debate-based,Never,0.1818,1.000,-
+Debate-based,Random,Model Accuracy,Debate-based,Random,0.1818,1.000,-
+Debate-based,Expert-Driven,Model Accuracy,Debate-based,Expert-Driven,0.3636,0.900,-
+Voting-based,Never,Training Time,Voting-based,Never,0.3706,0.700,-
+Voting-based,Random,Training Time,Voting-based,Random,0.3706,0.700,-
+Voting-based,Expert-Driven,Training Time,Voting-based,Expert-Driven,0.3706,0.700,-
+Role-based,Never,Training Time,Role-based,Never,0.1818,0.000,-
+Role-based,Random,Training Time,Role-based,Random,0.1818,0.000,-
+Role-based,Expert-Driven,Training Time,Role-based,Expert-Driven,0.3636,0.100,-
+Debate-based,Never,Training Time,Debate-based,Never,0.9091,0.400,-
+Debate-based,Random,Training Time,Debate-based,Random,0.7273,0.300,-
+Debate-based,Expert-Driven,Training Time,Debate-based,Expert-Driven,0.5455,0.200,-
+Voting-based,Never,Communication Time,Voting-based,Never,0.0070,0.000,✗✗✗
+Voting-based,Random,Communication Time,Voting-based,Random,0.0070,0.000,✗✗✗
+Voting-based,Expert-Driven,Communication Time,Voting-based,Expert-Driven,0.0070,0.000,✗✗✗
+Role-based,Never,Communication Time,Role-based,Never,0.1818,0.000,-
+Role-based,Random,Communication Time,Role-based,Random,0.1818,0.000,-
+Role-based,Expert-Driven,Communication Time,Role-based,Expert-Driven,0.1818,0.000,-
+Debate-based,Never,Communication Time,Debate-based,Never,0.1818,0.000,-
+Debate-based,Random,Communication Time,Debate-based,Random,0.1818,0.000,-
+Debate-based,Expert-Driven,Communication Time,Debate-based,Expert-Driven,0.1818,0.000,-
+Voting-based,Never,Total Round Time,Voting-based,Never,0.8112,0.567,-
+Voting-based,Random,Total Round Time,Voting-based,Random,0.8112,0.567,-
+Voting-based,Expert-Driven,Total Round Time,Voting-based,Expert-Driven,0.2867,0.733,-
+Role-based,Never,Total Round Time,Role-based,Never,0.1818,0.000,-
+Role-based,Random,Total Round Time,Role-based,Random,0.1818,0.000,-
+Role-based,Expert-Driven,Total Round Time,Role-based,Expert-Driven,0.1818,0.000,-
+Debate-based,Never,Total Round Time,Debate-based,Never,0.9091,0.400,-
+Debate-based,Random,Total Round Time,Debate-based,Random,0.9091,0.600,-
+Debate-based,Expert-Driven,Total Round Time,Debate-based,Expert-Driven,0.7273,0.700,-
