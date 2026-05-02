@@ -1,0 +1,14 @@
+Round: 1
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+Based on the system configuration, the client CPUs are [5, 5, 5, 3, 3]. To address the straggler effect, activate Client Selector. I choose selection_value=3, which excludes clients with CPU=3. This ensures at least three high-CPU clients (5) are active, improving round time while maintaining robustness. By keeping the Client Selector ON, we reduce slowdowns from slow clients. Note that previous rounds had CS OFF, so I am intentionally reactivating it to probe its effect, given the presence of low-CPU clients and potential for round-time improvement.
+CS=ON; MC=OFF; HDH=OFF
+
+[Rationale MC] | role=MC
+As the specialist for the Message Compressor, I must decide its state. Based on the system configuration and performance metrics, the CommunicationTime_s showed a mean of 17.13 seconds and a maximum of 45.57 seconds, indicating significant communication overhead. Although recent trends show a downward slope and short tail, the current communication time remains substantial. Activating the Message Compressor should help reduce this overhead, particularly since the model sizes are not trivial. However, due to the potential computational overhead, it should be used sparingly. Since the pattern was OFF in the previous round and the evidence for improvement is present, I activate it now. CS=OFF; MC=ON; HDH=OFF.
+
+[Rationale HDH] | role=HDH
+In this case, the heterogeneous_data_handler was previously OFF, but there are non-IID clients present. The system configuration shows data_persistence_per_client for client 1 is 'New Data', client 2 and 3 are 'New Data', and client 4 is 'Same Data'. However, the performance report indicates that the communication time and training times are stable, and Val F1 is not provided. Since there is no strong evidence to suggest that enabling HDH would improve global model accuracy, and the current evaluation metrics are not available to compare, it remains OFF. However, considering non-IID clients are present and HDH is designed for such cases, it might be worth trying. But without clear degradation or improvement data, keeping it OFF is the cautious approach.
+CS=OFF; MC=OFF; HDH=OFF
+

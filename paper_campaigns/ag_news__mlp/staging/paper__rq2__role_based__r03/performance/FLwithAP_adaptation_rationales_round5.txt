@@ -1,0 +1,15 @@
+Round: 5
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+The Client Selector is activated to mitigate the Straggler effect. There are five clients with CPUs [5,5,5,3,3]. The maximum CPU is 5. To exclude at least one low-CPU client (CPU=3) while keeping at least two clients, the safe threshold is between 3 and 4. Choosing 3 excludes the two clients with CPU=3, leaving three clients with CPU=5 active. This reduces Training Time and Total Round Time. Since Val F1 remained stable (+0.0000), it is safe to exclude the low-capacity clients. The previous state of Client Selector was OFF, so this change is new.
+CS=ON; MC=OFF; HDH=ON
+
+[Rationale MC] | role=MC
+Given the recent round's metrics, CommunicationTime_s has been high (mean: 14.327 s, max: 46.82 s) with a positive trend_slope. However, the model is not specified, and previous rounds did not show clear benefit from MC. MC could reduce communication time, but its overhead might not be worth it, especially with a low trend_slope and recent stability in communication time. Therefore, keep MC off. Client_selector remains off as previous APs were off, and no strong evidence for its activation. HDH remains on.
+CS=OFF; MC=OFF; HDH=ON
+
+[Rationale HDH] | role=HDH
+The Heterogeneous Data Handler addresses non-IID issues by using class reweighting and augmentation. Since the system has 3 non-IID clients, which can degrade model performance, activating HDH is advisable to improve global accuracy. This pattern helps mitigate class imbalance and enhances diversity in the data. There is evidence from previous rounds that HDH improves F1 scores despite the overhead, making it beneficial here. Note that the Val F1 stagnated in the last round, but the F1 trend shows a positive slope, suggesting ongoing improvement. The pattern should be kept active to counteract non-IID effects. CS and MC remain OFF based on their previous state. CS requires client CPU data and is inactive. MC's activation depends on model size and communication, which is not the primary issue here. The decision to keep HDH ON is consistent with the need for data heterogeneity mitigation. CS:OFF; MC:OFF; HDH:ON
+CS=OFF; MC=OFF; HDH=ON
+

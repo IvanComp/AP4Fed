@@ -1,0 +1,19 @@
+Round: 3
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+The Client Selector is turned ON to mitigate the impact of slower clients. The client CPUs are [5,5,5,3,3]. A selection_value of 4 is chosen, ensuring that the three clients with 5 CPUs (which are faster) are kept active, while the two clients with 3 CPUs are excluded. This decision is based on the need to reduce straggler effects and improve round performance, as excluding lower-CPU clients can significantly decrease Total Round Time and Training Time. The selection_value is the highest safe integer less than the max CPU (5) but not exceeding it, and it leaves exactly three clients (more than two), ensuring system stability. HDH is kept ON for non-IID clients, and MC remains OFF. The rationale is solely about the Client Selector, focusing on its impact on performance metrics, especially by reducing Total Round Time and Training Time without affecting Val F1 negatively, as HDH addresses other issues. CS=<ON>; MC=OFF; HDH=ON
+CS=ON; MC=OFF; HDH=ON
+
+[Rationale MC] | role=MC
+Based on the system configuration and metrics, I am focusing solely on the Message Compressor. The previous round had a Communication Time of 13.07 seconds (mean), and the trend slope indicates an increase, which suggests compression may be beneficial. Additionally, the Communication Time remains high and model sizes are likely larger than the smallest, making compression advantageous. I decide to turn ON the Message Compressor. Other patterns are inherited from previous state. Note: The reasoning is only about the focused pattern as instructed.
+CS=OFF; MC=ON; HDH=ON
+
+[Rationale HDH] | role=HDH
+Given the presence of non-IID clients (client IDs 1, 2, and 4) in the system, and since Val F1 has been low (0.4512 in the last round), there is an opportunity to improve model performance by activating the Heterogeneous Data Handler. HDH is designed to mitigate non-IID effects through techniques like class reweighting or data augmentation, which should help increase the F1 score in the next round. Despite a potential increase in local computation time, the benefits in terms of global model accuracy are worth exploring. Therefore, I keep HDH ON as it is currently and maintain the previous state for other patterns. CS is ON with selection_value=4 to ensure at least two high-CPU clients are active, and MC remains OFF.
+
+However, note that the decision to keep HDH ON must be evaluated carefully because it may not always provide consistent improvements and could be computationally expensive. But given the recent Val F1 stagnation and the existence of non-IID clients, it is justified to retain it.
+
+CS=<ON>; MC=OFF; HDH=ON
+CS=ON; MC=OFF; HDH=ON
+

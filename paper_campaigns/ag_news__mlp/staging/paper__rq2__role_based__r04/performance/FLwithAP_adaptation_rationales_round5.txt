@@ -1,0 +1,13 @@
+Round: 5
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+Given the system configuration and evaluation metrics, the Client Selector should remain OFF. There are no indications of stragglers or performance issues from low-CPU clients, and the recent rounds show stable F1 scores without degradation. Activating the Client Selector would require excluding some clients, but the data shows all clients are contributing similarly, so the benefits of reducing round time may not outweigh the risks to model diversity. The CPUs are evenly distributed (5,5,5,3,3), and with five clients, the straggler effect might be minimal without excluding any. Thus, it is safe to keep Client Selector OFF.  CS=OFF; MC=OFF; HDH=ON
+
+[Rationale MC] | role=MC
+The Message Compressor (MC) is being activated to address high communication overhead, as indicated by the Communication Time mean of 13.123 s. By compressing model updates, MC can significantly reduce this time, especially given the large model sizes. Previous rounds show increasing trend in comm time; activation is expected to mitigate this. However, MC introduces decompression overhead, which is acceptable here. The other patterns are kept active as per previous configuration.
+CS=ON; MC=ON; HDH=ON
+
+[Rationale HDH] | role=HDH
+The Heterogeneous Data Handler is expected to improve global model accuracy by mitigating non-IID effects, especially since there are non-IID clients present. Activating HDH can help address class imbalance and data heterogeneity. However, it introduces local computation overhead, which must be balanced against potential gains. Based on the observed Val F1 stagnation or slow improvement, it is prudent to keep HDH active to reassess its impact. CS and MC remain OFF as previous settings were effective, but note that client_selector could be considered for ON in future rounds if needed. This decision focuses solely on the heterogeneous_data_handler as per the role focus. Signature: CS=OFF; MC=OFF; HDH=ON
+

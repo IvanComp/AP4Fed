@@ -1,0 +1,14 @@
+Round: 5
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+Based on the system configuration, clients have varying CPU capabilities: [5,5,5,3,3]. Activating the Client Selector to exclude low-CPU clients and mitigate the Straggler effect. The threshold is set to 4, as it is the second highest CPU value, ensuring at least two clients (with CPU=5) remain active. This decision is supported by a recent round where Communication Time and Training Time showed variability, indicating potential slowdowns from lower-CPU clients. The pattern was OFF previously, so consider its effect. CS=ON; MC=ON; HDH=OFF.
+
+[Rationale MC] | role=MC
+Given that the system configuration shows that client_selector was previously OFF and there are no CPU-related issues to address, it should remain OFF. The heterogeneous_data_handler is also OFF and has no immediate need based on the data. However, for message_compressor, it has been active for some rounds but the CommunicationTime_s min/max shows a wide range, with a last value of 0.6 s and a max of 35.72 s. Considering that communication time can be high due to varying client conditions or model size, keeping message_compressor ON might help stabilize communication time. However, the trend_slope is very small (0.001), indicating minimal recent improvement. A careful balance must be maintained, but since it was previously ON and the conditions for high communication overhead are still present (non-IID data and slow clients), message_compressor remains ON as it provides a possible benefit with little overhead in this context. It was OFF in previous rounds and not because conditions were absent, so reactivating it is justified. For the other patterns, they are kept at their previous state. Note: The Client Selector is OFF, so no selection_value is needed. Finally, to summarize the overall decision: client_selector OFF, message_compressor ON, heterogeneous_data_handler OFF.
+CS=OFF; MC=ON; HDH=OFF
+
+[Rationale HDH] | role=HDH
+The heterogeneous_data_handler should be activated to address the non-IID data distribution, as there are three non-IID clients (client IDs 1, 2, and 4) present. While it increases local computation, it can improve global model accuracy, especially for non-IID data. Based on previous rounds, activating HDH has improved Val F1 scores. Since the data remains non-IID and HDH has not been used recently, it is appropriate to turn it on again to enhance model performance. No other patterns are changed; client_selector remains off, and message_compressor stays on. This decision prioritizes improving model accuracy.
+CS=OFF; MC=ON; HDH=ON
+

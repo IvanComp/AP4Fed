@@ -1,0 +1,24 @@
+Round: 13
+Policy: Multiple AI-Agents (Voting-Based)
+
+[Rationale A1] | agent=1
+Based on the system configuration, there are clients with varying CPU capabilities. The highest CPU is 5, with three clients having 5 CPUs and two having 3 CPUs. To mitigate the straggler effect, the Client Selector is activated with a selection_value of 4. This ensures that only clients with CPU > 4 are included, which in this case are the three clients with CPU=5. The threshold of 4 is safe because at least two clients (the three with 5 CPUs) satisfy CPU > 4. The Message Compressor and Heterogeneous Data Handler remain OFF, as there is no clear evidence of communication bottlenecks or non-IID issues affecting the metrics. The Val F1 score remained stagnant, and round times did not show significant improvement from previous rounds. However, by excluding the lower-CPU clients, we aim to reduce Total Round Time and Training Time. This decision is consistent with previous rounds where the Client Selector was active. Note: The threshold is derived from the observed CPU values and adheres to the safety constraints.
+CS=ON; MC=OFF; HDH=OFF
+
+[Rationale A2] | agent=2
+{
+
+
+  "client_selector": "ON",
+  "message_compressor": "OFF",
+  "heterogeneous_data_handler": "OFF",
+  "selection_value": 3,
+  "rationale": "Based on the system configuration, there are 5 clients with CPUs [5,5,5,3,3]. The Client Selector should be activated to mitigate the straggler effect caused by low-CPU clients. The threshold is set to 3 to exclude clients with CPU=3, keeping the three clients with CPU=5 active. This reduces total round time and training time without violating the minimum two-client requirement. The Message Compressor remains OFF due to potential overhead and insufficient evidence of improvement in communication time. The Heterogeneous Data Handler remains OFF as the non-IID clients are already accounted for, and there is no clear indication of needing to mitigate non-IID effects. The Val F1 score remains stable at 0.8112, and the JSD score is low at 0.2500, indicating relatively homogeneous distribution. The previous round showed no significant changes in metrics, but activating CS ensures faster aggregation by selecting faster clients. Communication time shows high variability (min 0.2, max 25.38), suggesting that CS might help reduce the impact of slow clients. Training time also varies, with a mean of 0.88 and max of 1.77, further supporting CS activation. However, given the stable Val F1 and the fact that CS was ON in the previous round, it is kept active. The HDH could be considered if non-IID effects were more pronounced, but the JSD is low and F1 stable, so no need to activate. MC is kept off due to the potential negative impact on small models and no clear bottleneck in communication. Overall, the decision keeps CS active to improve round time, while keeping other patterns off to avoid unnecessary overhead."
+CS=OFF; MC=OFF; HDH=OFF
+
+[Rationale A3] | agent=3
+The system is using the AG_NEWS dataset with 5 clients, all of which have similar CPU and RAM specifications. The training and communication times are stable. The JSD score is 0.2500, indicating some heterogeneity but not severe. Val F1 is 0.8112, which is consistent with previous rounds. No clear bottlenecks or performance issues are apparent. Given that the client_selector was ON previously but now may not be necessary, and given the stable metrics, keeping it OFF ensures minimal overhead. Similarly, the Message Compressor and Heterogeneous Data Handler are not activated as there is no strong evidence to suggest they would provide benefits without introducing overhead. The client_selector was previously ON and we are considering turning it OFF to reduce complexity. However, the system configuration shows a mix of high and low CPU clients (5,5,5,3,3) but the Val F1 is stable. Since Val F1 has not improved, and the system is stable, it is safer to keep architectural patterns off for now. If in future rounds non-IID data becomes more prominent, we can reconsider turning on HDH. For now, the overhead is minimized.  CS=OFF; MC=OFF; HDH=OFF
+
+[Coordinator Rationale] | role=Coordinator
+Based on the voting summary, the majority of architectural pattern decisions recommend keeping all patterns OFF. The system configuration shows no strong evidence for enabling any pattern, and the previous round had no significant changes in metrics. Keeping all patterns OFF minimizes overhead and aligns with the default configuration. CS remains OFF to avoid potential straggler issues without clear benefit, MC is OFF due to no communication bottleneck, and HDH is OFF as non-IID data is already handled or not critical. The rationale ends with CS=OFF; MC=OFF; HDH=OFF.
+

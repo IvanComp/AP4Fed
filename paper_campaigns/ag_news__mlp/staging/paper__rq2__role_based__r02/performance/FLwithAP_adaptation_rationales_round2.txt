@@ -1,0 +1,13 @@
+Round: 2
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+Client_selector is kept OFF, as the previous state and recent rounds show no need to address stragglers. All clients have consistent CPU values (5,5,5,3,3), and the current Val F1 (0.4876) is stable. The presence of non-IID clients is handled by previous HDH settings. No changes are proposed.
+CS=OFF; MC=OFF; HDH=OFF
+
+[Rationale MC] | role=MC
+In this round, the communication time remains high, but there is no clear bottleneck or bottleneck condition that would require enabling compression. Given that the compression is only effective for large models and our model is not specified to be large, maintaining MC OFF is safe. The decision to keep MC OFF is based on recent evaluations where enabling it did not consistently improve communication time and may introduce overhead. Considering the current Val F1 score is 0.4876, there is no direct evidence that communication bottlenecks are affecting global performance. Therefore, keep MC OFF. CS=OFF; MC=OFF; HDH=OFF.
+
+[Rationale HDH] | role=HDH
+The Heterogeneous Data Handler is being activated to address non-IID data across clients, as evidenced by the system configuration and evaluation metrics. Given that the Val F1 score stagnated and the presence of non-IID clients, enabling HDH may help improve global model accuracy. The decision is based on the need to mitigate the impact of heterogeneous data, especially with the second highest CPU being 5 and clients having varying CPU capabilities. CS and MC are maintained OFF as the primary focus is on HDH in this round. This change is made to test the effect on non-IID clients and potentially boost Val F1 in future rounds. CS and MC are kept OFF for now based on their previous state and limited evidence for their activation. HDH is turned ON, and no other patterns are changed.  CS=OFF; MC=OFF; HDH=ON
+

@@ -1,0 +1,14 @@
+Round: 3
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+As the specialist for client_selector, I focus solely on this pattern. Based on the system configuration and the fact that it was previously ON, I decide to keep it OFF because there is no clear improvement in metrics to justify its use. The previous round showed no significant change in Val F1, Total Round Time, or Training Time. Additionally, keeping client_selector ON requires specifying a selection_value that might unnecessarily exclude clients, given the lack of evidence of stragglers. Since I am not to mention other patterns, I stick to the OFF decision. CS=OFF; MC=OFF; HDH=ON.
+
+[Rationale MC] | role=MC
+The Client Selector is turned ON with selection_value=3 to exclude clients with CPUs=3, preserving three clients (with CPUs=5) to avoid the straggler effect. Message Compressor remains OFF due to ambiguous evidence and potential overhead for the models present. Heterogeneous Data Handler is kept active as it has been effective for non-IID clients. Communication time is high, but compressor might not be necessary given current client distribution.
+CS=ON; MC=OFF; HDH=ON
+
+[Rationale HDH] | role=HDH
+Considering the Client Selector, the CPUs are [5,5,5,3,3]. The highest CPU is 5, so selection_value must be between 0 and 4. Since there are three clients with CPU=5 and two with CPU=3, to keep at least two clients with higher CPU, the smallest safe threshold is 4. This threshold ensures at least three clients are active (CPU>4), which is more than the minimum required two. Additionally, HDH is already ON and active, which is appropriate for non-IID data. The previous round showed no improvement in F1, but HDH is still ON, so we maintain it. Since MC is OFF and the Communication Time is not a clear bottleneck, it remains OFF. CS is activated to mitigate stragglers from the low-CPU clients. The Val F1 is 0.4677, which is slightly higher than round 2, but Training and Communication times are not improving, so CS helps with timing and HDH with accuracy.
+CS=ON; MC=OFF; HDH=ON
+

@@ -1,0 +1,14 @@
+Round: 7
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+Based solely on the client_selector pattern, no change from the previous round is recommended. The Client Selector was previously ON with selection_value=4. This round, since the CPU distribution remains similar to last round (five clients with CPUs [5,5,5,3,3]), and the performance metrics show no significant improvement in F1, no benefit from excluding low-CPU clients is evident. The Val F1 stagnated slightly, and Total Round Time increased slightly. Keeping client_selector OFF avoids unnecessary exclusion, and since there are no compelling reasons to activate it now, it is safe to maintain the previous state. CS=OFF; MC=ON; HDH=ON.
+
+[Rationale MC] | role=MC
+The training time and communication time metrics from the last round show that Training Time mean was 2.73 seconds, Communication Time mean was 11.40 seconds, and Val F1 score was 0.796, which is stable. Given that Communication Time is still high, and considering the large model sizes (models: ["MLP"]), there might be an opportunity to reduce communication overhead. However, the Message Compressor may introduce overhead and should only be enabled if it demonstrably benefits performance. In this case, the Communication Time remains high, so enabling the Message Compressor could be considered to mitigate this bottleneck, especially for models with multiple parameters. The decision is to turn ON the Message Compressor for this round to test its effect on Communication Time reduction. Note: This pattern has been ON previously, but the effect may vary by model size.
+CS=ON; MC=ON; HDH=ON
+
+[Rationale HDH] | role=HDH
+Based on the system configuration, the dataset is AG_NEWS with clients having CPU values [5,5,5,3,3]. Activating Client Selector with selection_value=4 ensures at least two clients (CPU=5) are active, excluding the lower CPU clients (CPU=3) to mitigate straggler effect and improve round times. Given that non-IID clients are present and Val F1 has plateaued, re-enabling Heterogeneous Data Handler might help improve model accuracy. Message Compressor remains ON due to high communication time observed. The previous configuration had all patterns ON, and despite no change in Val F1, the possibility exists that HDH could contribute to improving accuracy if re-enabled, especially considering recent rounds where performance metrics suggest marginal gains might be missed by keeping it OFF. Thus, keep all patterns ON for now to maintain potential benefits without significant overhead, especially since recent performance reports indicate stability in F1 with varying round times.
+CS=ON; MC=ON; HDH=ON
+

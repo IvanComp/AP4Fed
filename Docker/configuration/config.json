@@ -4,21 +4,21 @@
     "clients": 5,
     "clients_per_round": 5,
     "dataset": "AG_NEWS",
-    "adaptation": "Multiple AI-Agents (Voting-Based)",
+    "adaptation": "None",
     "LLM": "deepseek-r1:8b",
     "ollama_base_url": "http://host.docker.internal:11434",
-    "partition_seed": 840724974,
+    "partition_seed": 1111376584,
     "patterns": {
         "client_registry": {
             "enabled": true,
             "params": {}
         },
         "client_selector": {
-            "enabled": true,
+            "enabled": false,
             "params": {
                 "selection_strategy": "Resource-Based",
                 "selection_criteria": "CPU",
-                "selection_value": 3
+                "selection_value": 2
             }
         },
         "client_cluster": {
@@ -82,7 +82,7 @@
             "non_iid_alpha": 0.5,
             "data_persistence_type": "New Data",
             "delay_combobox": "Yes",
-            "delay_min_seconds": 20,
+            "delay_min_seconds": 50,
             "delay_max_seconds": 50,
             "model": "MLP",
             "epochs": 1
@@ -96,7 +96,7 @@
             "non_iid_alpha": 0.9,
             "data_persistence_type": "New Data",
             "delay_combobox": "Yes",
-            "delay_min_seconds": 20,
+            "delay_min_seconds": 50,
             "delay_max_seconds": 50,
             "model": "MLP",
             "epochs": 1

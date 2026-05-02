@@ -1,0 +1,14 @@
+Round: 6
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+There are no changes in CPU distribution compared to the previous rounds. The Client Selector remains OFF. This decision is based solely on the focused pattern of client_selector, which has been OFF for several rounds. No improvement in Val F1 or round times is observed to justify its activation. Hence, it stays OFF. CS=OFF; MC=ON; HDH=OFF.
+
+[Rationale MC] | role=MC
+Based on the system configuration and evaluation metrics, the Message Compressor should be kept active. The communication time has shown a positive trend (slope 0.009999999999999998) with the last round showing 0.74 seconds, which indicates potential improvement opportunities. While the Message Compressor introduces additional overhead, the consistent high communication time suggests that enabling compression could further reduce communication time without excessive penalty. However, given that it was previously active and the conditions still apply, keeping it ON is justified to maintain performance gains.
+CS=OFF; MC=ON; HDH=OFF
+
+[Rationale HDH] | role=HDH
+As the specialist for Heterogeneous Data Handler, I focus solely on its activation decision based on the presence of non-IID data. The system configuration indicates three clients with NON-IID data, and the validation F1 score remains stable despite recent training. HDH has been OFF for several rounds, and the JSD score is 0.2600, indicating some heterogeneity but not extreme. Given that the pattern was not effective in previous rounds, I recommend keeping it OFF to avoid unnecessary overhead. Rationale: HDH addresses non-IID issues, but its activation did not show clear benefits in past rounds, and F1 score is stable at 0.7485, so no need to turn it ON. HDH=OFF; MC=ON; CS=OFF
+CS=OFF; MC=ON; HDH=OFF
+

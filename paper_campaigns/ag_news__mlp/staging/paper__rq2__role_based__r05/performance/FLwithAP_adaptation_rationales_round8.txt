@@ -1,0 +1,14 @@
+Round: 8
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+Based on the client CPU configurations (all have CPUs either 5 or 3), activating the Client Selector to 'ON' with 'selection_value'=4 is appropriate to exclude clients with CPUs <=4. Since the highest CPU is 5, a threshold of 4 excludes the two clients with 3 CPUs, leaving only the three clients with 5 CPUs. This ensures at least two clients remain active, mitigating the straggler effect and potentially reducing Total Round Time. Other patterns are kept active based on previous configuration and their effectiveness for non-IID data and communication, despite the overhead. CS=ON; MC=ON; HDH=ON
+
+[Rationale MC] | role=MC
+In this round, the communication time has a mean of 18.338 seconds, which is a significant portion of the round time. Given that the message compressor can reduce this overhead, and despite previous rounds having communication time deltas of zero, the communication time remains high. Activating the Message Compressor should be considered to reduce communication time. However, I must copy the states of the other patterns exactly as in the previous round because I am focusing solely on message_compressor. Thus, client_selector remains OFF and heterogeneous_data_handler remains ON. The rationale is focused solely on message_compressor. The decision to keep message_compressor ON is due to the persistent high communication time and the potential for reduction without significant overhead, as the model size is not small. The other patterns are copied from the previous round configuration.
+CS=OFF; MC=ON; HDH=ON
+
+[Rationale HDH] | role=HDH
+Given that the dataset has 3 non-IID clients and 2 IID clients, it is appropriate to activate the Heterogeneous Data Handler to address the non-IID data issue and improve model accuracy. HDH is recommended even if previously active, due to ongoing data heterogeneity. By enabling HDH, we can implement class reweighting or augmentation to mitigate the non-IID effect, which aligns with the system's needs for better global F1 score. The decision is based on the presence of non-IID data and the potential to enhance performance without immediately increasing computational overhead unnecessarily. CS and MC remain unchanged from previous round as their previous state. HDH is turned ON for the next round to reassess its effect on model performance, especially given the recent Val F1 of 0.783, which is consistent with non-IID challenges. Overall, activating HDH is expected to provide benefits in global model accuracy and should be evaluated carefully.
+CS=OFF; MC=ON; HDH=ON
+

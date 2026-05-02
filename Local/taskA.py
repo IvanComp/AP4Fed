@@ -1051,8 +1051,39 @@ def rebalance_trainloader_with_gan(trainloader):
     if DATASET_NAME not in AVAILABLE_DATASETS:
         raise ValueError(f"[ERROR] Dataset '{DATASET_NAME}' non trovato in AVAILABLE_DATASETS.")
     if DATASET_NAME == "AGNEWS":
-        log(INFO, "HDH Data Handler skipped for AG_NEWS text data")
-        return trainloader, 0.0
+        base = []
+        counts = Counter()
+        for text, label in trainloader.dataset:
+            label_int = int(label.item()) if torch.is_tensor(label) else int(label)
+            base.append((text, label_int))
+            counts[label_int] += 1
+
+        num_classes = AVAILABLE_DATASETS[DATASET_NAME]["num_classes"]
+        target_per_class = max(counts.values()) if counts else 1
+        if not base:
+            return trainloader, 0.0
+
+        rng = random.Random(1234 + int(GLOBAL_ROUND_COUNTER))
+        balanced = list(base)
+        added = 0
+        for class_id in range(num_classes):
+            class_samples = [sample for sample in base if sample[1] == class_id]
+            if 0 < len(class_samples) < target_per_class:
+                needed = target_per_class - len(class_samples)
+                balanced.extend(rng.choice(class_samples) for _ in range(needed))
+                added += needed
+
+        rng.shuffle(balanced)
+        hdh_ms = (time.time() - _t0_hdh)
+        log(INFO, f"HDH Data Handler rebalanced AG_NEWS text data (added {added} samples)")
+        log(INFO, f"HDH Data Handler (AG_NEWS oversampling) Total Processing time: {hdh_ms:.2f} seconds")
+        batch_size = trainloader.batch_size or 64
+        return DataLoader(
+            TensorLabelDataset(balanced),
+            batch_size=batch_size,
+            shuffle=True,
+            collate_fn=agnews_collate_batch,
+        ), hdh_ms
     dataset_config = AVAILABLE_DATASETS[DATASET_NAME]
 
     batch_size = 32

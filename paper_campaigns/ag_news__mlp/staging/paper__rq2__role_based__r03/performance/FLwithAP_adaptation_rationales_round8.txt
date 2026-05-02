@@ -1,0 +1,17 @@
+Round: 8
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+Given the client_selector is OFF previously and the presence of slow clients (CPUs 3) causing potential straggler effect, activate the Client Selector to exclude these lower-spec clients. With CPUs [5,5,5,3,3], the highest CPU is 5. The safe selection_value must be below the max CPU (5) and ensure at least two clients have CPU greater than it. A threshold of 4 will include clients with CPU 5 (which are three clients) and exclude those with CPU 3. Since three clients have CPU 5, the system will have three active clients, which is more than the minimum two required, ensuring stability. This change should reduce Total Round Time and Training Time by excluding clients that may be slower, as seen in previous rounds where round times were higher when including these clients. However, we should monitor Val F1 to ensure diversity is maintained. Note: The system configuration shows that HDH is active and has been active previously, and MC is OFF as it was in previous rounds and no strong evidence for enabling it. This decision focuses solely on Client Selector.
+CS=ON; MC=OFF; HDH=ON
+
+[Rationale MC] | role=MC
+The decision for Message Compressor is made solely, while other patterns are set to previous states. In this round, communication time has not seen a significant improvement, and the previous rounds have shown that activating MC for the given model size does not yield benefits. Therefore, Message Compressor remains OFF to avoid any potential overhead without necessity. CS and HDH remain as in the previous round. Note: Since the system configuration has non-IID clients, but HDH is currently ON, we do not alter that. The pattern decision for MC is based solely on the absence of clear bottleneck in communication time for the given model size.
+CS=OFF; MC=OFF; HDH=ON
+
+[Rationale HDH] | role=HDH
+In this round, the heterogeneous_data_handler remains OFF. The primary reason is the absence of significant evidence suggesting a need to re-enable it. The Val F1 has slightly decreased, but this could be attributed to other factors. The JSD value indicates mild non-IID distribution, but HDH was previously active and then turned off in the last round. Given that HDH is resource-intensive, it should be re-enabled only if the performance degradation is clearly linked to non-IID issues. Currently, the system's F1 is stable, and the round time metrics are acceptable. Therefore, keeping HDH OFF is preferable to avoid unnecessary overhead. CS and MC remain OFF as their previous states are not overridden, and there is no strong indicator to change them.
+
+CS=<OFF>; MC=<OFF>; HDH=<OFF>
+CS=OFF; MC=OFF; HDH=OFF
+

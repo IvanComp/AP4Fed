@@ -1,0 +1,22 @@
+Round: 8
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+In this round, the system configuration shows five clients with CPU values [5, 5, 5, 3, 3]. Given that the client_selector has been ON in the previous round and the Val F1 score has remained stable, the Client Selector should be kept active to mitigate the straggler effect, ensuring faster round completion by excluding lower-CPU clients. The threshold must exclude only the clients with CPU=3. With a threshold of 4, only the three clients with CPU=5 are included, while the two with CPU=3 are excluded. This meets the requirement of having at least two active clients. The rationale is focused solely on the client_selector, as per the role focus.
+CS=ON; MC=OFF; HDH=ON
+
+[Rationale MC] | role=MC
+The dataset is AG_NEWS, with 5 clients having CPU values [5,5,5,3,3]. Based on the Client Selector rules, the maximum CPU is 5, so safe thresholds are between 0 and 4, but we need to keep at least two clients. The Client Selector should be ON because clients have different CPU capabilities (5 vs 3). The smallest safe selection_value that ensures at least two clients are active (since the two highest CPU clients are 5) is 3, as it excludes the clients with 3 CPU and keeps three clients with 5 CPUs. This should reduce Total Round Time and Training Time. For the Message Compressor, CommunicationTime_s in the last round was 48.97 seconds (mean 14.28s, min 0.38s, max 50.44s) and TrainingTime_s was 2.56s (mean 2.09s, min 0.53s, max 3.64s). The CommunicationTime is the highest component of Total Round Time (53.31s), so reducing it with compression could significantly save time. However, compression adds overhead, but in this case, the potential gain from reducing high communication time outweighs the cost. The JSD is 0.30, indicating some non-IID data, but the F1 score didn't change much. Message Compressor is turned ON to improve communication time.
+
+Note: Since the client_selector was already ON in the previous round with the same selection_value, it is kept active with the same configuration. Heterogeneous Data Handler is turned ON to address non-IID clients (three clients have non-IID data). Previous AP had it ON, and even though F1 didn't change, it was used in previous rounds to mitigate non-IID effects, so keep it ON. For the heterogeneous_data_handler, non-IID clients exist, so it should remain ON to handle potential non-IID issues.
+
+All three architectural patterns are set to ON for this round to optimize performance.
+
+CS=ON; MC=ON; HDH=ON
+
+[Rationale HDH] | role=HDH
+Based on the system configuration, heterogeneous_data_handler is activated to address non-IID data in clients 1, 2, and 4. Despite previous activation, HDH is necessary to mitigate potential performance degradation. The Val F1 remains stable at 0.7079, and while round times are acceptable, HDH can provide ongoing benefits for non-IID clients. The decision to keep it ON is consistent with the observed need for data augmentation on non-IID datasets. CS and MC remain OFF, as there is no clear bottleneck indicated by the metrics. 
+
+HDH=ON; CS=OFF; MC=OFF
+CS=OFF; MC=OFF; HDH=ON
+

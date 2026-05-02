@@ -1,0 +1,23 @@
+Round: 75
+Policy: Multiple AI-Agents (Voting-Based)
+
+[Rationale A1] | agent=1
+Based on the system configuration and evaluation metrics, the Client Selector is activated to exclude lower-CPU clients and reduce Total Round Time and Training Time. The Message Compressor remains OFF due to potential overhead outweighing benefits for small model sizes. The Heterogeneous Data Handler is kept ON to address non-IID data, as Val F1 remains stable despite a stagnation in recent rounds. The selection_value is set to 3 to include clients with CPU >3, ensuring at least two clients (with CPU=5) are active, while excluding the two with CPU=3. This decision is consistent with previous configurations, except for client_selector which is reactivated. CS=ON; MC=OFF; HDH=ON
+
+[Rationale A2] | agent=2
+{
+
+
+  "client_selector": "ON",
+  "message_compressor": "OFF",
+  "heterogeneous_data_handler": "ON",
+  "selection_value": 4,
+  "rationale": "The system configuration shows that three clients have high CPU (5) and two have low CPU (3). The Client Selector should be activated to mitigate the Straggler effect. The selection_value is set to 4, which is between the CPU values. This ensures that only clients with CPU > 4 are included, meaning the three high-CPU clients are selected. The Message Compressor remains OFF because Communication Time is not a bottleneck, and it would add overhead. The Heterogeneous Data Handler is kept ON as there are non-IID clients and it has been active in the previous rounds. Activating CS reduces Total Round Time and Training Time, while HDH helps with non-IID data. The Val F1 score remains stable at 0.795, and round times are acceptable. The selection_value=4 is safe as it allows at least two clients (the three with CPU=5) to be active."
+CS=OFF; MC=OFF; HDH=OFF
+
+[Rationale A3] | agent=3
+Based on the system configuration, the Client Selector is activated with selection_value=4 to exclude clients with lower CPU values (CPU=3) and reduce the impact of straggler clients. This is because the Val F1 remained consistent in recent rounds (r72:0.799, r73:0.788, r74:0.795) and the Total Round Time was 38.15 seconds, which is high. By limiting participation to clients with CPU>4, we can decrease the round time without affecting model diversity as long as at least two clients remain active. The Message Compressor is kept OFF because Communication Time is not the primary bottleneck (max 33.94 seconds) and the model size is not specified but likely not large enough for compression to be beneficial. The Heterogeneous Data Handler is kept ON to address the non-IID data present in some clients (3 clients), which could be impacting model accuracy, as evidenced by the JSD score of 0.1800, indicating non-IID data heterogeneity. The decision to keep HDH ON is based on the recent F1 scores showing no improvement or slight degradation, but the pattern has been active in previous rounds. We are maintaining HDH due to the presence of non-IID data and the potential for stabilization if new data arrives in later rounds. The Client Selector is activated because it can reduce round time, but its impact on model accuracy must be monitored closely. Note that the selection_value=4 ensures at least two clients (those with CPU=5) are active. The trend_slope for CommunicationTime_s is positive, indicating increasing communication time, but it's unclear if compression would help given the model context. Overall, this configuration aims to minimize round time while addressing non-IID issues. CS=ON; MC=OFF; HDH=ON
+
+[Coordinator Rationale] | role=Coordinator
+Based on the majority vote from the three architectural pattern decisions, the Client Selector is activated with a selection_value of 3 to exclude clients with lower CPU, the Message Compressor remains OFF to avoid unnecessary overhead, and the Heterogeneous Data Handler is kept ON to address non-IID data issues. This configuration aims to balance round time reduction with model accuracy, given the presence of non-IID clients and stable F1 scores. CS=ON; MC=OFF; HDH=ON
+

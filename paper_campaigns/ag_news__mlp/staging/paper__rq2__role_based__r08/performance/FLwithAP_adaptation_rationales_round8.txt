@@ -1,0 +1,14 @@
+Round: 8
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+Given the system configuration, the client_selector is currently OFF. There are 5 clients with CPU values [5, 5, 5, 3, 3]. The max CPU is 5, and the second highest is 5. Considering the previous round's data, the Val F1 was 0.781, which is slightly lower than round 6's 0.827, but not a significant drop. Total Round Time was 41.2 seconds, Training Time mean was 3.522, Communication Time mean was 14.484. The client_selector can be activated to reduce the impact of stragglers, but based on the previous round's metrics, it is not strictly necessary. Since client_selector has been OFF recently, and there are clients with lower CPU (3), it may be worth considering turning it ON to improve performance. However, the Val F1 delta is zero, and there are no clear improvements to be gained, so it remains OFF for now. CS=OFF; MC=OFF; HDH=ON
+
+[Rationale MC] | role=MC
+Focus solely on Message Compressor. The decision is limited to this pattern only. According to the system configuration, there are 5 clients with varying CPUs, but we are only concerned with message compressor. From the Performance Report, CommunicationTime_s has a mean of 13.13 seconds, which is high, and the trend_slope is positive, indicating increasing communication time. This suggests that reducing communication time could be beneficial. Activating Message Compressor may help reduce communication time, especially since the previous state was OFF. However, it introduces overhead. Given the high communication time, it is reasonable to turn ON the Message Compressor to mitigate this bottleneck. The other patterns are kept as in the previous round based on their own logic, but I must not discuss them here as per instructions. Only message compressor is under consideration. Final decision: activate Message Compressor.
+CS=OFF; MC=ON; HDH=ON
+
+[Rationale HDH] | role=HDH
+The Heterogeneous Data Handler (HDH) is crucial for addressing non-IID data, which is present in three clients based on the system configuration. The Val F1 score has remained stable at 0.781, but the presence of non-IID data and the possibility of ongoing data distribution shifts warrant keeping HDH active to maintain model accuracy. HDH has been ON in the previous round and continues to be necessary for the three non-IID clients. HDH does not impact round time metrics, as Training Time and Communication Time remain unchanged from the last round. The decision to keep it on is driven by the persistent non-IID data issue and the potential for class imbalance without intervention. CS remains OFF, and MC remains OFF based on previous configuration and lack of evidence for their necessity. CS and MC decisions are based on the guardrails and previous settings, but the focus here is solely on HDH.
+CS=OFF; MC=OFF; HDH=ON
+

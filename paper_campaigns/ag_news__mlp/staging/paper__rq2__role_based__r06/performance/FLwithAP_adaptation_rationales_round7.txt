@@ -1,0 +1,14 @@
+Round: 7
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+Based on the CPU values of the clients [5,5,5,3,3], the highest CPU is 5. To activate Client Selector, the threshold must be chosen such that at least two clients have CPU > threshold. The maximum CPU is 5, so the selection_value can be between 0 and 4. The safe thresholds are integers where at least two clients have CPU > t. The CPUs sorted are [3,3,5,5,5]. The highest safe threshold ensuring at least two clients above t is when t=4, because two clients (with CPU 5) have CPU >4, and one (with CPU 3) has <=4. Higher thresholds (t=5) would exclude all clients except one, which is invalid. Thus, selection_value=4 is chosen to keep only three high-CPU clients (CPU=5) active, minimizing the impact of stragglers and potentially reducing round time. HDH and MC remain unchanged from previous round. The rationale is solely focused on Client Selector as per the role focus.
+CS=ON; MC=OFF; HDH=ON
+
+[Rationale MC] | role=MC
+Previous configurations show Val F1 at 0.6769, CommunicationTime mean at 12.602 s. Message Compressor has not been active in recent rounds, but communication time remains unchanged. Given the lack of clear bottleneck or performance degradation, keeping it OFF minimizes overhead. Further evaluation can be done in future rounds if needed.  CS=OFF; MC=OFF; HDH=ON
+
+[Rationale HDH] | role=HDH
+I focus only on the Heterogeneous Data Handler. In this round, the Val F1 score is 0.6769, and the JSD is 0.2300, indicating moderate data heterogeneity. There are three non-IID clients, and the model performance has remained stable despite the heterogeneity. The HDH was previously ON in round 6 and turned OFF in round 7. Given that the Val F1 did not show a significant improvement and there is no clear indication of ongoing data heterogeneity issues, I decide to keep HDH OFF. This reduces local computation overhead without sacrificing performance, as the model is already performing reasonably well. It might be worth re-evaluating in the next rounds if heterogeneity changes. However, I prioritize system efficiency over marginal gains from HDH in this case.
+CS=OFF; MC=OFF; HDH=OFF
+

@@ -1,0 +1,16 @@
+Round: 47
+Policy: Multiple AI-Agents (Voting-Based)
+
+[Rationale A1] | agent=1
+Based on the system configuration and evaluation metrics, the Client Selector should be activated to mitigate the straggler effect from clients with low CPU resources. The CPUs are [5,5,5,3,3], so a selection_value of 4 will include clients with CPU >4, i.e., the three clients with CPU 5, excluding the two with CPU 3. This ensures at least two clients are active (the three with CPU 5 are all >4). The Heterogeneous Data Handler should remain active because there are non-IID clients present, and reactivating it can help improve the Val F1 score, which has been stable at 0.787. The Message Compressor is kept off because there is no clear bottleneck in communication time, and activating it could add unnecessary overhead. The rationale ends with CS=ON; MC=OFF; HDH=ON.
+
+[Rationale A2] | agent=2
+Based on the system configuration and metrics, the Client Selector is activated to address the straggler effect caused by clients with low CPU (3). The selection_value is set to 4, which is safe because at least two clients have CPU=5 (greater than 4). The Message Compressor is kept OFF as communication time is not a clear bottleneck, and the training time overhead is not justified. The Heterogeneous Data Handler remains OFF, as the non-IID issue may not be severe enough to warrant activation. The Val F1 remained stable, and there is no clear evidence of data heterogeneity requiring HDH. Communication time is not significantly high, so MC is not activated. This configuration aims to maintain model accuracy while reducing round time.
+CS=ON; MC=OFF; HDH=OFF
+
+[Rationale A3] | agent=3
+CS=ON; MC=OFF; HDH=OFF
+
+[Coordinator Rationale] | role=Coordinator
+Based on the voting summary, the majority decision is to keep the Client Selector ON with selection_value=4, Message Compressor OFF, and Heterogeneous Data Handler OFF. This aligns with optimizing for Total Round Time and Training Time by excluding low-CPU clients, while avoiding overhead from compression and data handling. The Val F1 score remains stable, and there is no clear bottleneck in communication time. HDH is not needed as non-IID clients are already addressed, and reactivating it is not indicated by recent performance. The selection_value=4 is safe as it excludes clients with CPU=3, leaving three clients with CPU=5 active, ensuring at least two remain.
+

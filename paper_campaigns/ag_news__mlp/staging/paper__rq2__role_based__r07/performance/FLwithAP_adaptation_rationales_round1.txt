@@ -1,0 +1,14 @@
+Round: 1
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+In this round, the Client Selector is not activated. All five clients are participating, and the Val F1 metrics are not provided, so I cannot assess performance degradation. The system configuration shows non-IID clients, but the baseline for activation is unclear. Since the Client Selector was off previously and no straggler effect is evident, keeping it off is prudent. Consult the CSV for detailed TrainingTime and CommTime metrics if available.
+CS=OFF; MC=OFF; HDH=OFF
+
+[Rationale MC] | role=MC
+In this round, communication time has been consistently high, with a maximum of 50.44 seconds, and it is likely due to large model sizes or bandwidth issues. Enabling the Message Compressor should significantly reduce communication time without adding much overhead, especially considering the model sizes in the performance report. Although previous rounds had MC off, the recent trend in communication time shows an increase, so activating MC now is justified to mitigate this bottleneck.
+CS=OFF; MC=ON; HDH=OFF
+
+[Rationale HDH] | role=HDH
+The heterogeneous_data_handler is activated to address the non-IID data distribution. In this round, three clients (IDs 1, 2, and 4) have non-IID data, as indicated by the system configuration. Despite previous rounds where it was off, the data distribution shows a clear presence of non-IID clients. Activating HDH will mitigate class imbalance and improve global model accuracy. Even though round times might be acceptable, the improvement in F1 score justifies its activation. The decision is based on the system configuration and the non-IID data presence, which is a strong indicator for using HDH. The system configuration also shows three non-IID clients, supporting the use of HDH to enhance model performance. It was previously off, so this is a probe to reassess its impact after some rounds. Note that activating HDH adds local computation overhead, but the potential improvement in model accuracy outweighs this in non-IID scenarios. Since the trend slope of CommunicationTime_s is positive, indicating increasing communication times, which might be a bottleneck, but the primary focus here is the data heterogeneity. CS and MC remain off. CS is off because there is no clear CPU-based straggler effect in the current round, and MC is off due to stable communication times. CS was previously off and remains so, while MC was off and unchanged. The selection_value for CS is irrelevant here, as CS is off. The rationale ends with CS=OFF; MC=OFF; HDH=ON
+

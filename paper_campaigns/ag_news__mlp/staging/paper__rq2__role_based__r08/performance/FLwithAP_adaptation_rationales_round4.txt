@@ -1,0 +1,14 @@
+Round: 4
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+Activate the Client Selector with selection_value=4 to exclude clients with CPU=3, reducing the impact of slow clients and improving Total Round Time. The system has CPUs [5,5,5,3,3], so a threshold of 4 ensures at least two clients (CPU=5) are active. HDH remains ON, and MC remains OFF. CS=ON; MC=OFF; HDH=ON;
+
+[Rationale MC] | role=MC
+In this round, the client_selector remains off, the heterogeneous_data_handler is kept on as per previous, and the message_compressor is kept off. The decision is based on the previous AP settings where message_compressor was off, and there is no clear evidence for turning it on. However, the focus is solely on message_compressor as per the role.
+CS=OFF; MC=OFF; HDH=ON
+
+[Rationale HDH] | role=HDH
+The heterogeneous data handler was previously OFF, and there are 3 clients with non-IID data. The Val F1 stagnated slightly (delta 0.0000) in the last round. It's recommended to re-enable HDH to mitigate the non-IID effect and improve global model accuracy. The potential overhead is acceptable for now since round times are stable. HDH can be turned OFF in later rounds if F1 improves without it. The decision is based on the need to address non-IID data effectively. CS and MC remain OFF as their previous states were effective. CS was OFF because CPU thresholds were not needed, and MC was OFF to prevent overhead from compression for small models. CS remains OFF because there was no clear improvement from client selection, and dropping clients might hurt diversity. The Val F1 plateau might indicate HDH could help. CS was OFF last round because CPU values were similar, so no straggler effect was evident. MC was OFF despite non-IID data because it's not related to communication. The CS threshold guardrails require at least two clients active, but CPU values are [5,5,5,3,3], so if activated, the smallest safe threshold is 3 to keep at least three clients, but since it's kept OFF, no threshold is set. HDH remains ON to handle non-IID data, and the system shows minimal communication overhead. The last round's Val F1 delta was 0.0000, indicating no change, but re-enabling HDH can test if it helps. CS and MC states are kept as previous (OFF) because there was no strong evidence to change them.  CS: OFF, MC: OFF, HDH: ON
+CS=OFF; MC=OFF; HDH=ON
+

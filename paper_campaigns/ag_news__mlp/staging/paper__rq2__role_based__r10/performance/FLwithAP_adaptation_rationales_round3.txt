@@ -1,0 +1,15 @@
+Round: 3
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+Client Selector remains OFF despite being ON previously, as there is no evidence of stragglers or performance gains from excluding clients. All clients have comparable CPU (three with 5, two with 3), and no clear bottleneck exists. Since clients with lower CPUs (3) do not consistently degrade performance, maintaining all clients reduces diversity but minimizes potential exclusion bias. Activating CS could introduce unnecessary overhead without proven benefits. Hence, keeping it off aligns with preferring minimal activation unless performance issues arise.
+CS=OFF; MC=ON; HDH=ON
+
+[Rationale MC] | role=MC
+Based on recent performance, enabling Message Compressor can reduce communication time. Currently, CommunicationTime_s last round was 28.53 s with a high trend_slope. Message Compressor might help reduce this. However, ensure compression overhead is minimal. Given the model size (models include "MLP", possibly medium-sized, compression is acceptable. Therefore, keep MC active.
+CS=ON; MC=ON; HDH=ON
+
+[Rationale HDH] | role=HDH
+Given the presence of non-IID data on clients 1, 2, and 4, as indicated in the system configuration, the Heterogeneous Data Handler is essential to mitigate non-IID effects and improve Val F1. Since HDH has been OFF in the previous round, it should be reactivated to reassess its impact on model accuracy. There is a clear trend in Val F1 improvements when HDH is active, as evidenced by recent rounds. HDH activation also addresses class imbalance on non-IID clients, which is a known issue. This decision is based solely on the requirement to handle non-IID data, focusing on enhancing global model accuracy. CS is kept ON to manage stragglers, and MC is ON to reduce communication time, as both are already active in the previous round. HDH is turned ON to ensure continuous improvement in model performance, especially since non-IID data is present and Val F1 stagnation could occur if not addressed. The focus is strictly on HDH activation, while other patterns remain unchanged. The final signature line will reflect the decisions made.
+CS=ON; MC=ON; HDH=ON
+

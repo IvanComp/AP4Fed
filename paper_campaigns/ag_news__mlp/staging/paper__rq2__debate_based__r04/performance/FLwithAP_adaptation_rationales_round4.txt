@@ -1,0 +1,13 @@
+Round: 4
+Policy: Multiple AI-Agents (Debate-Based)
+
+[Debate][Turn 1] Rationale A1 | turn=1 | agent=1
+In the current system, we observe 5 clients with CPUs [5,5,5,3,3] and non-IID data in clients 1,2,4. The Client Selector should be activated to mitigate the Straggler effect from low-CPU clients. The safest threshold is 4, which ensures at least two clients (those with CPU=5) are active. The previous round had Val F1 stagnation, so activating CS may help reduce round times. HDH remains active because non-IID data is present, and enabling it can improve F1, even though the previous F1 delta was neutral. MC is kept OFF due to potential overhead outweighing benefits, especially with communication time being high in the last round. The decision is based on client CPU thresholds and data distribution.
+CS=ON; MC=OFF; HDH=ON
+
+[Debate][Turn 1] Rationale A2 | turn=1 | agent=2
+The system has clients with varying CPU counts [5,5,5,3,3] and non-IID data in clients 1,2,4. The Client Selector is activated to mitigate the straggler effect from low-CPU clients. A selection_value of 4 ensures only the three high-CPU clients (CPU=5) are active, reducing Total Round Time and Training Time. The previous round showed no change in Val F1 (delta=0), but activating CS may still help if stragglers persist. HDH remains active due to non-IID data, and its effect should be monitored. MC is kept OFF due to potential overhead with current model sizes and communication times. CS=ON; MC=OFF; HDH=ON
+
+[Debate][Turn 1] Rationale A3 | turn=1 | agent=3
+The system has clients with varying CPU counts [5,5,5,3,3] and non-IID data in clients 1,2,4. The Client Selector is activated to mitigate the Straggler effect from low-CPU clients. The safest threshold is 4, ensuring at least two clients (those with CPU=5) are active. The previous round showed no change in Val F1 (delta=0), but activating CS may still help if stragglers persist. HDH remains active due to non-IID data, and its effect should be monitored. MC is kept OFF due to potential overhead with current model sizes and communication times. CS=ON; MC=OFF; HDH=ON;
+

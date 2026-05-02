@@ -1,0 +1,15 @@
+Round: 73
+Policy: Multiple AI-Agents (Voting-Based)
+
+[Rationale A1] | agent=1
+Given the client CPU values [5,5,5,3,3] and the presence of non-IID clients, the Client Selector is activated to exclude low-CPU clients and mitigate the Straggler effect. This reduces Total Round Time and Training Time by ensuring faster clients dominate the aggregation. The Message Compressor is kept OFF as the communication time is not the primary bottleneck, and enabling it may add overhead without clear benefit. The Heterogeneous Data Handler is OFF as the Val F1 is stable, and there is no strong evidence to activate it again despite the non-IID data. The selection_value is set to 4, which is safe as it excludes the two clients with CPU=3 while keeping three clients with CPU=5 active. The previous configuration had CS=ON, so it is kept active. The rationale ends with CS=ON; MC=OFF; HDH=OFF.
+
+[Rationale A2] | agent=2
+Based on the current configuration, the Client Selector should be activated to mitigate the Straggler effect caused by clients with lower CPU. With client CPUs [5,5,5,3,3], a selection_value of 4 will exclude the clients with CPU=3, keeping only the three high-CPU clients (5). This reduces Total Round Time and Training Time. The Message Compressor is kept OFF due to no clear bottleneck in Communication Time. The Heterogeneous Data Handler remains OFF as there is no strong evidence to indicate non-IID issues affecting F1 scores significantly; Val F1 has remained stable or slightly improved in recent rounds. The selection_value must be an integer, and 4 is the smallest safe value that keeps at least two clients active (since the highest CPU is 5, and there are three clients with 5, so threshold 4 ensures at least two clients are included). CS=ON; MC=OFF; HDH=OFF
+
+[Rationale A3] | agent=3
+The system configuration indicates no strong changes in evaluation metrics. The Val F1 score remained unchanged, Total Round Time and Communication Time showed minimal increases, Training Time has variability, but the delta vs previous round is zero for Val F1, and there is no clear bottleneck for communication or training. Additionally, the system has both IID and non-IID clients, but the recent F1 score has stabilized, so no immediate need to activate additional patterns. Therefore, keeping all architectural patterns OFF to maintain minimal overhead. However, if Val F1 continues to stagnate, we should consider enabling the Heterogeneous Data Handler to re-evaluate non-IID effects. But for now, no changes. CS=OFF; MC=OFF; HDH=OFF.
+
+[Coordinator Rationale] | role=Coordinator
+Based on the system configuration and evaluation metrics, the Client Selector is activated with a selection_value of 4 to exclude the low-CPU clients (CPU=3) and reduce Total Round Time and Training Time. The Message Compressor remains OFF due to the absence of clear evidence for communication bottlenecks. The Heterogeneous Data Handler is activated to address the non-IID data distribution, as three clients have non-IID data, and the Val F1 score has remained stable. This decision aligns with the need to improve global model accuracy. CS=ON; MC=OFF; HDH=ON
+

@@ -1,0 +1,13 @@
+Round: 6
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+The system has five clients with CPU values [5,5,5,3,3]. To mitigate the straggler effect, activate the Client Selector with selection_value=4, which excludes the two clients with 3 CPUs (since 3 ≤ 4). This ensures that only clients with CPU > 4 (i.e., the three 5-CPU clients) are selected, keeping at least two active clients. This reduces training and communication overhead, improving round time without impacting model diversity excessively. As the previous state was ON, it is kept active for this round. CS=ON; MC=OFF; HDH=ON
+
+[Rationale MC] | role=MC
+In this round, the Client Selector is activated with a selection_value of 3 to exclude clients with lower CPU values (3) and retain clients with higher CPU (5). This reduces Total Round Time and Training Time, as lower CPU clients contribute to the Straggler effect. The Val F1 remains stable at 0.7630, indicating no negative impact on model accuracy. The Communication Time and Training Time data show that excluding slow clients is effective. The previous state for the Message Compressor is OFF, and no strong evidence suggests turning it ON, given that Communication Time has not been a bottleneck and Training Time overhead might not be justified. The Heterogeneous Data Handler is kept ON due to the presence of non-IID clients, as evidenced by previous rounds and the system configuration, which shows non-IID data in clients 1, 2, 4. HDH has helped stabilize Val F1 despite non-IID effects, and the evidence is sufficient to keep it active. Since HDH was ON in the previous round, it is kept active.
+CS=ON; MC=OFF; HDH=ON
+
+[Rationale HDH] | role=HDH
+I am focusing solely on the heterogeneous_data_handler pattern. Given the presence of non-IID clients and the persistent issue of low Val F1 scores, despite previous activation attempts, reactivating HDH is warranted to mitigate non-IID effects and improve model accuracy. The Val F1 has shown minimal improvement in recent rounds (last round: 0.763, with no clear trend), and non-IID clients remain a concern. HDH introduces local computation overhead but can enhance global accuracy. Therefore, HDH should remain ON for continued monitoring. The rationale ends with: CS=OFF; MC=OFF; HDH=ON.
+

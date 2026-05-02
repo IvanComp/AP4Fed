@@ -1,0 +1,20 @@
+Round: 3
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+Given that the Client Selector was previously OFF, and there is no clear evidence from the system configuration or performance metrics that it would improve the situation, it is safe to keep it OFF. The CPUs are {5,5,5,3,3}, so excluding clients with lower CPUs might not be necessary since the F1 score is stable and round times are not unusually high. Furthermore, the decision to turn CS ON is avoided to prevent unnecessarily increasing complexity, and the potential overhead is not justified in this case.
+CS=OFF; MC=OFF; HDH=OFF
+
+[Rationale MC] | role=MC
+Given that the previous configuration had client_selector OFF, I have decided to turn it ON for the next round. The system has three clients with CPU=5 and two with CPU=3. By setting selection_value to 3, I ensure that only clients with CPU > 3 are active. This excludes the clients with CPU=3, reducing the Total Round Time. Training time mean is 1.147, which is acceptable. Communication Time is 14.073, which may benefit from compression, but I have kept message_compressor OFF. HDH is OFF. HDH should be considered because of non-IID clients, but I rely on previous configuration. Rationale: CS should be ON to mitigate straggler effect, MC and HDH remain OFF for now. CS=ON; MC=OFF; HDH=OFF.
+
+[Rationale HDH] | role=HDH
+Given the presence of non-IID data in clients, I am considering activating the heterogeneous_data_handler to improve model performance. However, I must evaluate its potential impact on the system metrics. 
+
+Upon reviewing the last round's metrics, the Val F1 score was 0.7993, which shows improvement from the previous round. The communication time varied significantly, and there were no clear signs of data heterogeneity. 
+
+Despite the presence of non-IID clients, the recent performance suggests that the model is already performing reasonably well. Since the heterogeneous_data_handler introduces overhead, I will keep it OFF to avoid unnecessary computational load. CS is kept ON to manage client performance. MC remains OFF.
+
+This decision maintains system efficiency and avoids unnecessary overhead for now.
+CS=ON; MC=OFF; HDH=OFF
+

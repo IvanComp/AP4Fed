@@ -1,0 +1,13 @@
+Round: 9
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+Given the current system configuration, the Client Selector should be kept OFF. The client CPUs are {5,5,5,3,3}. With client_selector OFF, all five clients are included, ensuring diversity and preventing potential bias from excluding lower-CPU clients. The Val F1 is stable at 0.7637, and there's no significant straggler effect indicated by the round times. The Communication Time and Training Time metrics are acceptable. Keeping the Client Selector OFF aligns with the recommendation for stable conditions. CS=OFF; MC=ON; HDH=ON.
+
+[Rationale MC] | role=MC
+In this scenario, the Message Compressor is being evaluated for activation. Given the recent increase in Communication Time mean and the presence of a communication time of 0.81 seconds, which is unusually low and possibly indicative of varying conditions, the compressor could be beneficial. However, previous rounds have shown communication time trends with small variations. Considering the model size and the trend of Communication Time not showing a clear bottleneck despite the potential for compression benefits, I keep the Message Compressor active for consistency, but note that its effect remains marginal. HDH remains active per previous configuration. Client Selector remains off. This decision keeps all patterns except CS unchanged. Note: The communication time values show a wide range, from 0.25 to 50.64 seconds. The compressor might be necessary if communication time consistently dominates. Currently, communication time is not the primary concern, but not completely negligible. Overall, the compressor is kept active. Client Selector is off as per previous state. HDH is maintained. The rationale is focused on message_compressor only.
+CS=OFF; MC=ON; HDH=ON
+
+[Rationale HDH] | role=HDH
+Despite the system configuration showing that the previous round had Val F1 stagnation with a delta of 0, and the presence of non-IID clients, I decide to keep the Heterogeneous Data Handler OFF due to its high computational overhead. Activating HDH might improve F1 but at the cost of increased local computation, which is not justified here as round times are acceptable. The previous performance of message_compressor is still ON, and client_selector is OFF to avoid straggler issues. HDH remains off in this round. The main objective is to maintain stability and not introduce unnecessary overhead. The rationale ends with CS=OFF; MC=ON; HDH=OFF.
+

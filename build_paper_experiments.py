@@ -62,6 +62,8 @@ INDEX_FIELDS = [
     "Rationale CSV",
 ]
 
+DEFAULT_DOCKER_RETRY_DELAY_SECONDS = 10
+
 plt.rcParams["font.family"] = "CMU Serif"
 plt.rcParams["axes.labelsize"] = 12
 plt.rcParams["xtick.labelsize"] = 11
@@ -222,9 +224,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--staging-dir")
     parser.add_argument("--output-dir")
     parser.add_argument("--ollama-base-url")
+    parser.add_argument(
+        "--approaches",
+        help="Comma-separated runner names to execute (for example: never,random,expert_driven). Defaults to all 6 approaches.",
+    )
+    parser.add_argument(
+        "--fixed-delay-seconds",
+        type=int,
+        help="If set, every delayed client uses this exact delay for both min and max seconds.",
+    )
     parser.add_argument("--skip-run", action="store_true", help="Reuse an existing staging directory.")
     parser.add_argument("--force", action="store_true", help="Reset both staging and exported outputs, then start again from r1.")
     parser.add_argument("--continue-on-error", action="store_true")
+    parser.add_argument(
+        "--docker-retry-delay",
+        type=int,
+        default=DEFAULT_DOCKER_RETRY_DELAY_SECONDS,
+        help="Seconds to wait before retrying a failed Docker experiment run.",
+    )
     parser.add_argument("--pattern-run", type=int, default=1, help="Run id used for the pattern activation figure.")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
@@ -234,6 +251,29 @@ def parse_args() -> argparse.Namespace:
         help="Discard heavy per-run logs and suppress routine launcher output.",
     )
     return parser.parse_args()
+
+
+def resolve_approach_specs(selected: Optional[str]) -> Tuple[ApproachSpec, ...]:
+    if not selected:
+        return APPROACH_SPECS
+
+    normalized = []
+    unknown = []
+    for raw in str(selected).split(","):
+        token = sanitize_name(raw.strip().lower())
+        if not token:
+            continue
+        spec = RUNNER_TO_SPEC.get(token)
+        if spec is None:
+            unknown.append(raw.strip())
+            continue
+        normalized.append(spec)
+
+    if unknown:
+        raise ValueError(f"Unknown approaches: {', '.join(unknown)}")
+    if not normalized:
+        raise ValueError("--approaches did not resolve to any known approach")
+    return tuple(normalized)
 
 
 def ensure_empty_dir(path: Path, force: bool) -> None:
@@ -330,6 +370,21 @@ def client_template_for_task(dataset: Optional[str] = None, model: Optional[str]
     return details
 
 
+def apply_fixed_delay_to_clients(client_details: List[Dict[str, Any]], fixed_delay_seconds: Optional[int]) -> List[Dict[str, Any]]:
+    if fixed_delay_seconds is None:
+        return client_details
+
+    if fixed_delay_seconds < 0:
+        raise ValueError("--fixed-delay-seconds must be >= 0")
+
+    for client in client_details:
+        if str(client.get("delay_combobox", "No")).strip().lower() != "yes":
+            continue
+        client["delay_min_seconds"] = int(fixed_delay_seconds)
+        client["delay_max_seconds"] = int(fixed_delay_seconds)
+    return client_details
+
+
 def default_output_dir_for_mode(mode: str) -> Path:
     if mode.lower() != "docker":
         raise ValueError("This paper workflow supports only docker campaign paths")
@@ -398,8 +453,12 @@ def build_local_config(
     repeat_idx: int,
     ollama_base_url: str,
     simulation_type: str = "Local",
+    fixed_delay_seconds: Optional[int] = None,
 ) -> Dict[str, Any]:
-    client_details = client_template_for_task()
+    client_details = apply_fixed_delay_to_clients(
+        client_template_for_task(),
+        fixed_delay_seconds=fixed_delay_seconds,
+    )
     return {
         "simulation_type": simulation_type,
         "rounds": int(rounds),
@@ -451,6 +510,36 @@ def reset_runtime_outputs(runtime_dir: Path) -> None:
     (runtime_dir / ".cpu_pool_state.json").unlink(missing_ok=True)
 
 
+def resolve_docker_cli() -> str:
+    override = os.environ.get("AP4FED_DOCKER_BIN", "").strip()
+    if override:
+        return override
+
+    detected = shutil.which("docker")
+    if detected:
+        return detected
+
+    fallbacks = (
+        "/Applications/Docker.app/Contents/Resources/bin/docker",
+        "/usr/local/bin/docker",
+        "/opt/homebrew/bin/docker",
+    )
+    for candidate in fallbacks:
+        if Path(candidate).exists():
+            return candidate
+    return "docker"
+
+
+def prepare_docker_env(env: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    merged = dict(os.environ if env is None else env)
+    docker_cli = resolve_docker_cli()
+    docker_dir = str(Path(docker_cli).resolve().parent)
+    path_entries = [entry for entry in merged.get("PATH", "").split(os.pathsep) if entry]
+    if docker_dir not in path_entries:
+        merged["PATH"] = os.pathsep.join([docker_dir, *path_entries]) if path_entries else docker_dir
+    return merged
+
+
 def parse_cpu_set_spec(spec: str) -> List[int]:
     cpu_ids: List[int] = []
     seen = set()
@@ -498,9 +587,10 @@ def detect_docker_cpu_ids() -> List[int]:
     if override:
         return parse_cpu_set_spec(override)
 
+    docker_cli = resolve_docker_cli()
     try:
         proc = subprocess.run(
-            ["docker", "info", "--format", "{{.NCPU}}"],
+            [docker_cli, "info", "--format", "{{.NCPU}}"],
             cwd=str(ROOT),
             check=False,
             capture_output=True,
@@ -569,6 +659,13 @@ def run_command(
     return int(proc.returncode)
 
 
+def notify_retry(message: str, quiet: bool = False) -> None:
+    if quiet:
+        print(message, file=sys.stderr, flush=True)
+    else:
+        print(message, flush=True)
+
+
 def copy_if_exists(src: Path, dst: Path) -> None:
     if not src.exists():
         return
@@ -605,9 +702,9 @@ def append_stage_index_row(index_csv_path: Path, row: Dict[str, str]) -> None:
         writer.writerow({field: row.get(field, "") for field in INDEX_FIELDS})
 
 
-def existing_exported_repeats(output_dir: Path) -> Dict[str, set[int]]:
-    repeats: Dict[str, set[int]] = {spec.runner_name: set() for spec in APPROACH_SPECS}
-    for spec in APPROACH_SPECS:
+def existing_exported_repeats(output_dir: Path, specs: Sequence[ApproachSpec]) -> Dict[str, set[int]]:
+    repeats: Dict[str, set[int]] = {spec.runner_name: set() for spec in specs}
+    for spec in specs:
         folder = output_dir / spec.folder_name
         if not folder.exists():
             continue
@@ -618,8 +715,8 @@ def existing_exported_repeats(output_dir: Path) -> Dict[str, set[int]]:
     return repeats
 
 
-def existing_staging_repeats(staging_dir: Path) -> Dict[str, set[int]]:
-    repeats: Dict[str, set[int]] = {spec.runner_name: set() for spec in APPROACH_SPECS}
+def existing_staging_repeats(staging_dir: Path, specs: Sequence[ApproachSpec]) -> Dict[str, set[int]]:
+    repeats: Dict[str, set[int]] = {spec.runner_name: set() for spec in specs}
     index_path = staging_dir / "index.csv"
     if not index_path.exists():
         return repeats
@@ -631,7 +728,7 @@ def existing_staging_repeats(staging_dir: Path) -> Dict[str, set[int]]:
     if "Repeat" in df.columns:
         df["Repeat"] = pd.to_numeric(df["Repeat"], errors="coerce")
 
-    for spec in APPROACH_SPECS:
+    for spec in specs:
         subset = df.loc[
             (df["Configuration"] == spec.runner_name)
             & (df["Status"].astype(str).str.startswith("ok"))
@@ -641,13 +738,18 @@ def existing_staging_repeats(staging_dir: Path) -> Dict[str, set[int]]:
     return repeats
 
 
-def plan_resume_matrix(target_repeat: int, staging_dir: Path, output_dir: Path) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, List[int]]]]:
-    staged = existing_staging_repeats(staging_dir)
-    exported = existing_exported_repeats(output_dir)
+def plan_resume_matrix(
+    target_repeat: int,
+    staging_dir: Path,
+    output_dir: Path,
+    specs: Sequence[ApproachSpec],
+) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, List[int]]]]:
+    staged = existing_staging_repeats(staging_dir, specs)
+    exported = existing_exported_repeats(output_dir, specs)
 
     matrix: List[Dict[str, Any]] = []
     plan: Dict[str, Dict[str, List[int]]] = {}
-    for spec in APPROACH_SPECS:
+    for spec in specs:
         completed = sorted(staged.get(spec.runner_name, set()) | exported.get(spec.runner_name, set()))
         missing = [repeat_idx for repeat_idx in range(1, target_repeat + 1) if repeat_idx not in completed]
         plan[spec.runner_name] = {
@@ -673,6 +775,50 @@ def refresh_exported_outputs(staging_dir: Path, output_dir: Path, pattern_run_id
         pass
 
 
+def absolutize_compose_build(service: Dict[str, Any], base_dir: Path) -> None:
+    build = service.get("build")
+    if not isinstance(build, dict):
+        return
+
+    context = str(build.get("context", ".")).strip() or "."
+    context_path = Path(context)
+    if not context_path.is_absolute():
+        build["context"] = str((base_dir / context_path).resolve())
+
+    dockerfile = str(build.get("dockerfile", "")).strip()
+    if dockerfile:
+        dockerfile_path = Path(dockerfile)
+        if not dockerfile_path.is_absolute():
+            build["dockerfile"] = str((base_dir / dockerfile_path).resolve())
+
+
+def absolutize_compose_volumes(service: Dict[str, Any], base_dir: Path) -> None:
+    volumes = service.get("volumes")
+    if not isinstance(volumes, list):
+        return
+
+    normalized: List[Any] = []
+    for entry in volumes:
+        if not isinstance(entry, str):
+            normalized.append(entry)
+            continue
+
+        parts = entry.split(":")
+        if len(parts) < 2:
+            normalized.append(entry)
+            continue
+
+        source = parts[0].strip()
+        if source and not source.startswith("/") and source not in {"host.docker.internal"}:
+            if source == ".":
+                parts[0] = str(base_dir.resolve())
+            elif source.startswith("./") or source.startswith("../"):
+                parts[0] = str((base_dir / source).resolve())
+        normalized.append(":".join(parts))
+
+    service["volumes"] = normalized
+
+
 def build_docker_compose(config: Dict[str, Any], compose_path: Path, quiet: bool = False) -> None:
     template_path = DOCKER_DIR / "docker-compose.yml"
     with template_path.open("r", encoding="utf-8") as handle:
@@ -689,6 +835,8 @@ def build_docker_compose(config: Dict[str, Any], compose_path: Path, quiet: bool
     if quiet:
         server_env["AGENT_LOG_TO_FILE"] = "0"
         server_env["AGENT_LOG_FILE"] = os.devnull
+    absolutize_compose_build(server_svc, DOCKER_DIR)
+    absolutize_compose_volumes(server_svc, DOCKER_DIR)
     extra_hosts = server_svc.setdefault("extra_hosts", [])
     host_gateway_entry = "host.docker.internal:host-gateway"
     if host_gateway_entry not in extra_hosts:
@@ -721,6 +869,8 @@ def build_docker_compose(config: Dict[str, Any], compose_path: Path, quiet: bool
             env["AGENT_LOG_TO_FILE"] = "0"
             env["AGENT_LOG_FILE"] = os.devnull
 
+        absolutize_compose_build(svc, DOCKER_DIR)
+        absolutize_compose_volumes(svc, DOCKER_DIR)
         extra_hosts = svc.setdefault("extra_hosts", [])
         if host_gateway_entry not in extra_hosts:
             extra_hosts.append(host_gateway_entry)
@@ -738,7 +888,9 @@ def run_docker_compose(
     env: Optional[Dict[str, str]] = None,
     quiet: bool = False,
 ) -> int:
-    down_cmd = ["docker", "compose", "-f", str(compose_path), "down", "--remove-orphans"]
+    env = prepare_docker_env(env)
+    docker_cli = resolve_docker_cli()
+    down_cmd = [docker_cli, "compose", "-f", str(compose_path), "down", "--remove-orphans"]
     subprocess.run(
         down_cmd,
         cwd=str(DOCKER_DIR),
@@ -749,7 +901,15 @@ def run_docker_compose(
     )
     try:
         return run_command(
-            ["docker", "compose", "-f", str(compose_path), "up", "--build"],
+            [
+                docker_cli,
+                "compose",
+                "-f",
+                str(compose_path),
+                "up",
+                "--build",
+                "--abort-on-container-failure",
+            ],
             cwd=DOCKER_DIR,
             log_path=log_path,
             env=env,
@@ -774,6 +934,7 @@ def run_local_campaign(
     ollama_base_url: str,
     continue_on_error: bool,
     pattern_run_id: int,
+    fixed_delay_seconds: Optional[int] = None,
     quiet: bool = False,
 ) -> int:
     staging_dir.mkdir(parents=True, exist_ok=True)
@@ -804,6 +965,7 @@ def run_local_campaign(
                 repeat_idx=repeat_idx,
                 ollama_base_url=ollama_base_url,
                 simulation_type="Local",
+                fixed_delay_seconds=fixed_delay_seconds,
             )
             write_json(LOCAL_CONFIG_PATH, config)
 
@@ -868,6 +1030,8 @@ def run_docker_campaign(
     ollama_base_url: str,
     continue_on_error: bool,
     pattern_run_id: int,
+    docker_retry_delay: int,
+    fixed_delay_seconds: Optional[int] = None,
     quiet: bool = False,
 ) -> int:
     staging_dir.mkdir(parents=True, exist_ok=True)
@@ -892,6 +1056,7 @@ def run_docker_campaign(
                 repeat_idx=repeat_idx,
                 ollama_base_url=ollama_base_url,
                 simulation_type="Docker",
+                fixed_delay_seconds=fixed_delay_seconds,
             )
             write_json(DOCKER_CONFIG_PATH, config)
 
@@ -900,47 +1065,58 @@ def run_docker_campaign(
             if quiet:
                 env["AGENT_LOG_TO_FILE"] = "0"
                 env["AGENT_LOG_FILE"] = os.devnull
+            attempt_idx = 1
+            while True:
+                reset_runtime_outputs(DOCKER_DIR)
+                compose_path = DOCKER_DIR / f"docker-compose.generated.{label}.yml"
+                build_docker_compose(config, compose_path, quiet=quiet)
+                safe_copy(compose_path, run_dir / "docker-compose.generated.yml")
 
-            compose_path = DOCKER_DIR / f"docker-compose.generated.{label}.yml"
-            build_docker_compose(config, compose_path, quiet=quiet)
-            safe_copy(compose_path, run_dir / "docker-compose.generated.yml")
+                log_path = run_dir / "flower.log"
+                started_at = time.time()
+                try:
+                    rc = run_docker_compose(compose_path, log_path, env=env, quiet=quiet)
+                finally:
+                    compose_path.unlink(missing_ok=True)
+                duration_seconds = f"{time.time() - started_at:.1f}"
 
-            log_path = run_dir / "flower.log"
-            started_at = time.time()
-            try:
-                rc = run_docker_compose(compose_path, log_path, env=env, quiet=quiet)
-            finally:
-                compose_path.unlink(missing_ok=True)
-            duration_seconds = f"{time.time() - started_at:.1f}"
+                archived = archive_run_outputs(run_dir, DOCKER_DIR, DOCKER_CONFIG_PATH, config)
+                status = "ok" if rc == 0 else f"failed({rc})"
+                append_stage_index_row(
+                    index_csv_path,
+                    {
+                        "Configuration": spec.runner_name,
+                        "Adaptation": spec.adaptation,
+                        "LLM": spec.llm,
+                        "Repeat": str(repeat_idx),
+                        "Label": label,
+                        "Status": status,
+                        "Duration Seconds": duration_seconds,
+                        "Output Dir": str(run_dir),
+                        "ML Summary CSV": archived["ml_summary_csv"],
+                        "Rationale CSV": archived["rationale_csv"],
+                    },
+                )
 
-            archived = archive_run_outputs(run_dir, DOCKER_DIR, DOCKER_CONFIG_PATH, config)
-            status = "ok" if rc == 0 else f"failed({rc})"
-            append_stage_index_row(
-                index_csv_path,
-                {
-                    "Configuration": spec.runner_name,
-                    "Adaptation": spec.adaptation,
-                    "LLM": spec.llm,
-                    "Repeat": str(repeat_idx),
-                    "Label": label,
-                    "Status": status,
-                    "Duration Seconds": duration_seconds,
-                    "Output Dir": str(run_dir),
-                    "ML Summary CSV": archived["ml_summary_csv"],
-                    "Rationale CSV": archived["rationale_csv"],
-                },
-            )
+                refresh_exported_outputs(staging_dir, output_dir, pattern_run_id)
+
+                if rc == 0:
+                    if not quiet:
+                        print(f"[{idx}/{len(matrix)}] OK: {label} ({duration_seconds}s, attempt {attempt_idx})")
+                    break
+
+                retry_message = (
+                    f"[{idx}/{len(matrix)}] FAILED: {label} (attempt {attempt_idx}, exit={rc}). "
+                    f"Retrying in {docker_retry_delay}s until this repeat completes successfully."
+                )
+                notify_retry(retry_message, quiet=quiet)
+                attempt_idx += 1
+                time.sleep(max(0, docker_retry_delay))
 
             if rc != 0:
                 failures += 1
-                print(f"[{idx}/{len(matrix)}] FAILED: {label} (exit={rc})", file=sys.stderr)
-            elif not quiet:
-                print(f"[{idx}/{len(matrix)}] OK: {label} ({duration_seconds}s)")
-
-            refresh_exported_outputs(staging_dir, output_dir, pattern_run_id)
-
-            if rc != 0 and not continue_on_error:
-                break
+                if not continue_on_error:
+                    break
     finally:
         restore_text_file(DOCKER_CONFIG_PATH, original_config_text)
 
@@ -974,6 +1150,9 @@ def export_stage_to_experiments(staging_df: pd.DataFrame, output_dir: Path) -> p
         if rows.empty:
             continue
         rows["Repeat"] = pd.to_numeric(rows["Repeat"], errors="coerce")
+        rows = rows.dropna(subset=["Repeat"]).copy()
+        rows["Repeat"] = rows["Repeat"].astype(int)
+        rows = rows.drop_duplicates(subset=["Repeat"], keep="last")
         rows.sort_values("Repeat", inplace=True)
 
         first_config_written = False
@@ -1448,6 +1627,11 @@ def main() -> int:
     global TASK_DATASET, TASK_MODEL
     TASK_DATASET = args.dataset
     TASK_MODEL = args.model
+    try:
+        selected_specs = resolve_approach_specs(args.approaches)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
     if args.rounds < 1:
         print("--rounds must be >= 1", file=sys.stderr)
         return 2
@@ -1478,7 +1662,7 @@ def main() -> int:
     elif staging_dir.exists():
         write_campaign_metadata(staging_dir, kind="staging")
 
-    matrix, resume_plan = plan_resume_matrix(args.repeat, staging_dir, output_dir)
+    matrix, resume_plan = plan_resume_matrix(args.repeat, staging_dir, output_dir, selected_specs)
 
     planned = {
         "rounds": args.rounds,
@@ -1493,7 +1677,8 @@ def main() -> int:
         "dataset": TASK_DATASET,
         "model": TASK_MODEL,
         "scheduled_new_runs": len(matrix),
-        "approaches": [spec.display_name for spec in APPROACH_SPECS],
+        "approaches": [spec.display_name for spec in selected_specs],
+        "fixed_delay_seconds": args.fixed_delay_seconds,
         "resume": resume_plan,
     }
     if not args.quiet or args.dry_run:
@@ -1515,6 +1700,8 @@ def main() -> int:
                 ollama_base_url=ollama_base_url,
                 continue_on_error=args.continue_on_error,
                 pattern_run_id=args.pattern_run,
+                docker_retry_delay=args.docker_retry_delay,
+                fixed_delay_seconds=args.fixed_delay_seconds,
                 quiet=args.quiet,
             )
     elif not staging_dir.exists():

@@ -1,0 +1,14 @@
+Round: 1
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+Based on the client CPU values [5, 5, 5, 3, 3], activating the Client Selector with selection_value=3 excludes clients with CPU<=3. This ensures that at least three clients (with CPU=5) are active, which is above the minimum required of two. This should reduce Total Round Time and Training Time by mitigating the Straggler effect from slow clients, without risking round failure. However, note that the client_selector has been OFF recently, but the presence of low-CPU clients (3) suggests that turning it ON could improve performance. Since the selection_value is safe (3), the pattern is activated. CS=ON; MC=OFF; HDH=OFF
+
+[Rationale MC] | role=MC
+The primary focus is on the Message Compressor. Since the previous rounds have it off, and the system shows that communication time remains high, but the Message Compressor is only effective for larger models. The last round's CommunicationTime_s max was 23.67 seconds, which is high, but MC would add overhead. Considering that models are 'MLP' and typically small, MC might not be necessary. In fact, for small models, compression may worsen communication time, as seen in example 4 for a model of size n/2. Given that the model size is not specified and assuming it's not very large, it's better to keep MC off for now. However, if later data indicates larger model sizes or persistent high communication times, MC could be reconsidered. For completeness, client_selector remains off and HDH remains off based on previous AP states and lack of non-IID issues. CS: OFF; MC: OFF; HDH: OFF.
+CS=OFF; MC=OFF; HDH=OFF
+
+[Rationale HDH] | role=HDH
+The focus is on deciding the heterogenous_data_handler. There are three non-IID clients (indices 1,2,4) in the system, and their data distributions are considered critical for non-IID effects. Activating HDH can help mitigate these effects by employing data augmentation or class reweighting. Given the potential for improving global model accuracy, especially for non-IID clients, it is advisable to activate HDH now. However, HDH introduces an additional computational overhead per client. The previous rounds have not used HDH, and the non-IID clients are still present. The Val F1 score is not provided, but if it is improving with other patterns OFF, activating HDH might help. Considering the guardrail, HDH should be activated only if conditions are clear. Here, non-IID data is present, so turning it ON is recommended for testing. CS and MC should remain OFF per previous settings. The decision is based on the need to address non-IID data.
+CS=OFF; MC=OFF; HDH=OFF
+

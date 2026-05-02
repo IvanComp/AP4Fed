@@ -1,0 +1,14 @@
+Round: 2
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+Client Selector is turned ON to address the straggler effect from slow clients with CPU=3. This selection_value=3 excludes clients with CPU=3, leaving only the five clients with CPU=5 active. This ensures at least two active clients and reduces round time without causing a crash. Other patterns remain OFF as previously set.
+CS=ON; MC=OFF; HDH=OFF
+
+[Rationale MC] | role=MC
+Given that the Message Compressor was previously OFF and its performance implications are not clearly evident from the provided metrics, I decide to keep it OFF for the next round. The Communication Time has not shown a clear trend, and the model size has not been indicated as large. Turning it ON now would introduce overhead without clear benefit. Since the decision is to copy other patterns from previous state, I maintain OFF status for Message Compressor. The system configuration shows no immediate need for compression. The last-round snapshot shows Communication Time mean of 12.552s, which is acceptable, and no strong evidence for compression. Hence, MC remains OFF.
+CS=OFF; MC=OFF; HDH=OFF
+
+[Rationale HDH] | role=HDH
+Given the presence of non-IID clients (clients 1, 2, 4) in the current round, and considering that HDH has been OFF for the last two rounds, it is reasonable to activate it to mitigate non-IID data issues which could be causing suboptimal F1 scores. The Val F1 of 0.3365 is low, and with high JSD (0.2400), it indicates significant data heterogeneity. Activating HDH should be done only if the conditions warrant it. Since HDH was previously OFF and the F1 delta is minimal (+0.0000 from previous round), we might want to re-evaluate if HDH is beneficial. However, given the non-IID data, HDH should be activated now to test its impact. The recommendation is to set HDH to 'ON'. CS and MC are OFF to keep the focus on data heterogeneity. The rationale ends with CS=OFF; MC=OFF; HDH=ON.
+

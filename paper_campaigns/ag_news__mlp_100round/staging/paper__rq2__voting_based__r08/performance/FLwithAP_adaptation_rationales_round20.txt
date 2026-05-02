@@ -1,0 +1,15 @@
+Round: 20
+Policy: Multiple AI-Agents (Voting-Based)
+
+[Rationale A1] | agent=1
+Based on the system configuration, there are 5 clients with CPUs [5,5,5,3,3]. The Client Selector can be activated to exclude the low-CPU clients (CPU=3) to reduce the Straggler effect, thereby improving Total Round Time and Training Time. The safe threshold is 4, as it ensures at least two clients (CPU=5) are active. The Message Compressor is currently OFF, and there is no strong evidence to activate it since the Communication Time has not shown significant improvement. The Heterogeneous Data Handler remains OFF, as there is no clear need to address non-IID effects in this round, and it has not been used recently. Overall, the focus is on optimizing round time by excluding slow clients. CS=ON; MC=OFF; HDH=OFF
+
+[Rationale A2] | agent=2
+The system has a mix of clients with CPUs (5,5,5,3,3). The Client Selector should be activated to avoid stragglers and improve round times. Set selection_value=4 to include only the three clients with 5 CPUs, ensuring at least two remain active. The Val F1 score remains stable, so HDH should be kept active to maintain or improve accuracy on non-IID data. Communication time is high, but MC is off due to potential overhead. Final decision: CS=ON; MC=OFF; HDH=ON.
+
+[Rationale A3] | agent=3
+Based on the system configuration and evaluation metrics, the Client Selector is activated to address the straggler effect from clients with low CPU (3). A selection_value of 4 is chosen to exclude clients with CPU=3, ensuring at least two high-CPU clients (CPU=5) remain active. HDH is turned on to handle the non-IID data present in clients 1, 2, and 4. The Message Compressor remains OFF, as the communication time is not the primary bottleneck, and enabling it may introduce overhead without clear benefits. Overall, these changes aim to balance reduced round time and model accuracy. CS=ON; MC=OFF; HDH=ON
+
+[Coordinator Rationale] | role=Coordinator
+{ "client_selector": "ON", "message_compressor": "OFF", "heterogeneous_data_handler": "ON", "selection_value": 4, "rationale": "Based on the voting summary, the majority decision is to keep the Client Selector ON with selection_value=4, keep the Message Compressor OFF, and turn ON the Heterogeneous Data Handler. This aligns with optimizing for model accuracy and addressing non-IID data, while avoiding unnecessary overhead from compression. The rationale is derived from the aggregated expert opinions, ensuring system stability and performance improvements."
+

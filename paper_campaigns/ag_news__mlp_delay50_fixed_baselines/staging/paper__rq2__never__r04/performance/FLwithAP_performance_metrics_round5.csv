@@ -1,0 +1,26 @@
+Client ID,FL Round,Training Time,JSD,HDH Time,Communication Time,Total Time of FL Round,# of CPU,CPU Usage (%),RAM Usage (%),Model Type,Data Distr. Type,Dataset,Train Loss,Train Accuracy,Train F1,Train MAE,Val Loss,Val Accuracy,Val F1,Val MAE,SSIM Overhead (indice),"AP List (client_selector,client_cluster,message_compressor,model_co-versioning_registry,multi-task_model_trainer,heterogeneous_data_handler)",Agent Time (s)
+Client 1,1,4.68,0.23,0.0,1.45,,5,380,21,MLP,non-IID,AG_NEWS,,,,,,,,,,,0.0
+Client 2,1,0.83,0.3,0.0,0.84,,5,191,21,MLP,non-IID,AG_NEWS,,,,,,,,,,,0.0
+Client 3,1,0.78,0.22,0.0,22.47,,5,27,21,MLP,IID,AG_NEWS,,,,,,,,,,,0.0
+Client 4,1,1.33,0.03,0.0,35.19,,3,20,21,MLP,non-IID,AG_NEWS,,,,,,,,,,,0.0
+Client 5,1,6.39,0.2,0.0,3.19,37.63,3,277,22,MLP,IID,AG_NEWS,0.33,0.8888,0.7168,0.1629,1.52,0.5826,0.4954,0.7481,,"{OFF,OFF,OFF,OFF,OFF,OFF}",0.0
+Client 1,2,6.45,0.23,0.0,1.9,,5,360,26,MLP,non-IID,AG_NEWS,,,,,,,,,,,0.0
+Client 2,2,1.76,0.23,0.0,1.73,,5,210,25,MLP,non-IID,AG_NEWS,,,,,,,,,,,0.0
+Client 3,2,1.99,0.22,0.0,24.97,,5,36,25,MLP,IID,AG_NEWS,,,,,,,,,,,0.0
+Client 4,2,1.82,0.24,0.0,48.72,,3,18,25,MLP,non-IID,AG_NEWS,,,,,,,,,,,0.0
+Client 5,2,7.85,0.2,0.0,3.61,51.87,3,272,24,MLP,IID,AG_NEWS,0.17,0.9457,0.8447,0.0775,1.21,0.6579,0.5986,0.6498,,"{OFF,OFF,OFF,OFF,OFF,OFF}",0.0
+Client 1,3,6.4,0.23,0.0,1.94,,5,367,30,MLP,non-IID,AG_NEWS,,,,,,,,,,,0.0
+Client 2,3,1.83,0.09,0.0,0.99,,5,193,30,MLP,non-IID,AG_NEWS,,,,,,,,,,,0.0
+Client 3,3,2.27,0.18,0.0,35.48,,5,25,30,MLP,IID,AG_NEWS,,,,,,,,,,,0.0
+Client 4,3,3.22,0.12,0.0,44.1,,3,31,29,MLP,non-IID,AG_NEWS,,,,,,,,,,,0.0
+Client 5,3,6.72,0.2,0.0,3.32,48.43,3,272,29,MLP,IID,AG_NEWS,0.15,0.953,0.9121,0.0697,1.02,0.7291,0.6861,0.5147,,"{OFF,OFF,OFF,OFF,OFF,OFF}",0.0
+Client 1,4,6.93,0.23,0.0,1.86,,5,320,28,MLP,non-IID,AG_NEWS,,,,,,,,,,,0.0
+Client 2,4,3.0,0.15,0.0,2.35,,5,218,26,MLP,non-IID,AG_NEWS,,,,,,,,,,,0.0
+Client 3,4,3.71,0.18,0.0,35.67,,5,33,29,MLP,IID,AG_NEWS,,,,,,,,,,,0.0
+Client 4,4,3.26,0.1,0.0,39.72,,3,27,29,MLP,non-IID,AG_NEWS,,,,,,,,,,,0.0
+Client 5,4,8.45,0.2,0.0,3.71,44.08,3,264,27,MLP,IID,AG_NEWS,0.13,0.9614,0.9303,0.0584,0.93,0.7518,0.7121,0.4725,,"{OFF,OFF,OFF,OFF,OFF,OFF}",0.0
+Client 1,5,6.54,0.23,0.0,1.91,,5,228,29,MLP,non-IID,AG_NEWS,,,,,,,,,,,0.0
+Client 2,5,5.78,0.15,0.0,2.65,,5,242,31,MLP,non-IID,AG_NEWS,,,,,,,,,,,0.0
+Client 3,5,4.91,0.23,0.0,35.15,,5,48,30,MLP,IID,AG_NEWS,,,,,,,,,,,0.0
+Client 4,5,4.04,0.1,0.0,30.13,,3,43,30,MLP,non-IID,AG_NEWS,,,,,,,,,,,0.0
+Client 5,5,9.01,0.2,0.0,4.2,41.15,3,255,30,MLP,IID,AG_NEWS,0.11,0.9662,0.9049,0.0493,0.87,0.7642,0.7269,0.4498,,"{OFF,OFF,OFF,OFF,OFF,OFF}",

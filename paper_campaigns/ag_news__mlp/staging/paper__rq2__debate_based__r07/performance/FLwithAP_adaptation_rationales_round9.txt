@@ -1,0 +1,14 @@
+Round: 9
+Policy: Multiple AI-Agents (Debate-Based)
+
+[Debate][Turn 1] Rationale A1 | turn=1 | agent=1
+The system has 5 clients with CPUs {5,5,5,3,3}. To mitigate the Straggler effect, activate the Client Selector with selection_value=4 to exclude the two clients with CPU=3. This should improve Total Round Time and Training Time without affecting the model diversity too much, as we keep three high-CPU clients. HDH is already ON and has been active for several rounds. The Val F1 remains stable, so no change is needed there. Communication Time is high, but MC is OFF and not recommended for small models. The previous configuration had CS=ON and HDH=ON, so we keep them active. The selection_value=4 is safe as it keeps at least two clients (the three with CPU=5).
+CS=ON; MC=OFF; HDH=ON
+
+[Debate][Turn 1] Rationale A2 | turn=1 | agent=2
+The system has 5 clients with CPUs {5,5,5,3,3}. To mitigate the Straggler effect, activate the Client Selector with selection_value=4 to exclude the two clients with CPU=3. This should improve Total Round Time and Training Time without affecting the model diversity too much, as we keep three high-CPU clients. HDH is already ON and has been active for several rounds. The Val F1 remains stable, so no change is needed there. Communication Time is high, but MC is OFF and not recommended for small models. The previous configuration had CS=ON and HDH=ON, so we keep them active. The selection_value=4 is safe as it ensures at least two clients remain active (those with 5 CPUs).
+CS=ON; MC=OFF; HDH=ON
+
+[Debate][Turn 1] Rationale A3 | turn=1 | agent=3
+CS=ON; MC=OFF; HDH=ON
+

@@ -1,0 +1,17 @@
+Round: 95
+Policy: Multiple AI-Agents (Voting-Based)
+
+[Rationale A1] | agent=1
+Given the system configuration with clients having CPUs [5,5,5,3,3] and non-IID clients at indices 1,2,4, the Client Selector is activated to exclude low-CPU clients. A selection_value of 4 is chosen to drop clients with CPU=3, ensuring at least three high-CPU clients are active. This helps mitigate the Straggler effect, reducing Total Round Time and Training Time. The Message Compressor remains OFF as there is no clear bottleneck in communication time. The Heterogeneous Data Handler is kept ON to address non-IID data issues, as the Val F1 has been stable around 0.75 and non-IID clients are present. Further analysis shows that enabling HDH has a positive effect on F1 scores, despite the local overhead. The selection_value=4 is safe as it ensures at least two clients (CPU=5) are active. CS=ON; MC=OFF; HDH=ON
+
+[Rationale A2] | agent=2
+The Client Selector is activated to mitigate the straggler effect from low-CPU clients. The CPUs are [5,5,5,3,3], so setting selection_value=3 excludes the two clients with CPU=3, keeping the three high-CPU clients (5). This ensures faster training and communication times. The Message Compressor remains OFF because the Communication Time is currently high, and enabling it might not be beneficial without clear evidence. The Heterogeneous Data Handler is kept ON as it improves global model accuracy for non-IID clients, which are present in the system. Overall, these settings aim to maintain high F1 while reducing Total Round Time and Training Time.
+CS=ON; MC=OFF; HDH=ON
+
+[Rationale A3] | agent=3
+Based on the system configuration, there are clients with varying CPU capabilities, specifically three with CPU=5 and two with CPU=3. Activating the Client Selector with a threshold of 4 will exclude the two low-CPU clients (CPU=3), ensuring only clients with CPU=5 participate. This mitigates the straggler effect, potentially reducing Total Round Time and Training Time. The Val F1 remains stable, indicating that excluding weaker clients does not harm global performance. The Message Compressor is kept OFF, as communication time is not a clear bottleneck (mean 14.583s, but Training Time is 3.127s to 3.610s), and MC could introduce overhead without clear benefit. The Heterogeneous Data Handler is maintained ON because the dataset is non-IID (JSD=0.2000), and reactivating it periodically is recommended if F1 stagnates. However, the Val F1 has slightly increased, but HDH's effect should still be assessed. Client Selector is set ON to preserve at least two clients active (the threshold 4 ensures three clients are above 4, so no crash). CS:ON; MC:OFF; HDH:ON
+CS=ON; MC=OFF; HDH=ON
+
+[Coordinator Rationale] | role=Coordinator
+Based on the voting summary, the majority decision is to keep the Client Selector ON with selection_value=4, Message Compressor OFF, and Heterogeneous Data Handler ON. This aligns with optimizing for model accuracy and mitigating non-IID effects, while avoiding unnecessary overhead from compression or reactivating HDH prematurely. The selection_value=4 ensures at least two clients (those with CPU=5) are active, excluding the lower-CPU clients (CPU=3) to reduce straggler effects and improve round times. HDH remains active to address non-IID data, as evidenced by the data distribution and previous rounds. MC is kept OFF due to potential overhead without clear benefits in this round. The rationale ends with CS=ON; MC=OFF; HDH=ON.
+

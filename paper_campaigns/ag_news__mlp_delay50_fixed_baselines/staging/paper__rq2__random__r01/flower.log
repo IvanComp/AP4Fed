@@ -1,0 +1,964 @@
+ Image ap4fed_client:latest Building 
+ Image ap4fed_client:latest Building 
+ Image ap4fed_client:latest Building 
+ Image ap4fed_client:latest Building 
+ Image ap4fed_server:latest Building 
+ Image ap4fed_client:latest Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 2.76kB done
+#1 DONE 0.0s
+
+#2 [client1 internal] load build definition from Dockerfile.client
+#2 transferring dockerfile: 621B done
+#2 DONE 0.0s
+
+#3 [server internal] load build definition from Dockerfile.server
+#3 transferring dockerfile: 725B done
+#3 DONE 0.0s
+
+#4 [server internal] load metadata for docker.io/library/python:3.12-slim
+#4 DONE 1.0s
+
+#5 [client5 internal] load .dockerignore
+#5 transferring context: 2B done
+#5 DONE 0.0s
+
+#6 [client4 1/8] FROM docker.io/library/python:3.12-slim@sha256:46cb7cc2877e60fbd5e21a9ae6115c30ace7a077b9f8772da879e4590c18c2e3
+#6 resolve docker.io/library/python:3.12-slim@sha256:46cb7cc2877e60fbd5e21a9ae6115c30ace7a077b9f8772da879e4590c18c2e3 done
+#6 DONE 0.0s
+
+#7 [server internal] load build context
+#7 transferring context: 3.56kB done
+#7 DONE 0.0s
+
+#8 [client3 internal] load build context
+#8 transferring context: 3.52kB done
+#8 DONE 0.0s
+
+#9 [server  5/10] COPY client.py /app/client.py
+#9 CACHED
+
+#10 [server  2/10] RUN apt-get update &&     apt-get install -y --no-install-recommends libgl1 libglib2.0-0 &&     rm -rf /var/lib/apt/lists/*
+#10 CACHED
+
+#11 [server  3/10] RUN pip install --no-cache-dir     flwr[simulations]     docker     torch==2.2.1     torchvision==0.17.1     pandas     grpcio==1.66.1     numpy==1.26.2     psutil     torchgan     scikit-learn     scikit-image     grad-cam
+#11 CACHED
+
+#12 [server  4/10] WORKDIR /app
+#12 CACHED
+
+#13 [server  6/10] COPY server.py /app/server.py
+#13 CACHED
+
+#14 [server  7/10] COPY taskA.py /app/taskA.py
+#14 CACHED
+
+#15 [client4 3/8] WORKDIR /app
+#15 CACHED
+
+#16 [client4 2/8] RUN pip install flwr[simulations] torch==2.2.1 torchvision==0.17.1 grpcio==1.66.1 numpy==1.26.2 psutil torchgan scikit-learn
+#16 CACHED
+
+#17 [client4 4/8] COPY client.py /app/client.py
+#17 CACHED
+
+#18 [client4 5/8] COPY server.py /app/server.py
+#18 CACHED
+
+#19 [client4 6/8] COPY taskA.py /app/taskA.py
+#19 CACHED
+
+#20 [server  8/10] COPY configuration/ /app/configuration/
+#20 DONE 0.0s
+
+#21 [client2 7/8] COPY configuration/ /app/configuration/
+#21 DONE 0.0s
+
+#22 [server  9/10] COPY adaptation.py /app/adaptation.py
+#22 DONE 0.0s
+
+#23 [client2 8/8] RUN mkdir -p data
+#23 DONE 0.1s
+
+#24 [server 10/10] RUN mkdir -p /app/performance
+#24 DONE 0.1s
+
+#25 [client1] exporting to image
+#25 exporting layers 0.1s done
+#25 exporting manifest sha256:f3ba9362798956bc5dff759a91b388911b1d34d1db6f99546e294a551abd04b1 0.0s done
+#25 exporting config sha256:8496fd59fcb80afdd7be041bd558eabf8f0bb84a5e1908060dae1450bd6101c8 0.0s done
+#25 exporting attestation manifest sha256:0c014c783f92c509b5a29a25de39622ffdc9e695b68bf283b13af9a0d8679e52
+#25 exporting attestation manifest sha256:0c014c783f92c509b5a29a25de39622ffdc9e695b68bf283b13af9a0d8679e52 0.0s done
+#25 exporting manifest list sha256:ddb7d50a673c5e0134d45f46e3609f52146cd9e9b6efe991b4e3ec1e1f09df8a 0.0s done
+#25 naming to docker.io/library/ap4fed_client:latest done
+#25 unpacking to docker.io/library/ap4fed_client:latest 0.0s done
+#25 DONE 0.2s
+
+#26 [client5] exporting to image
+#26 exporting layers 0.1s done
+#26 exporting manifest sha256:0db556b377ab133561ab52b5a65c9d90c83c32355001df46c44015e7ff265c17 0.0s done
+#26 exporting config sha256:0ec7f710f63fa9455d7c925daac4c053f0f55c228a95b104e3131659b431186a 0.0s done
+#26 exporting attestation manifest sha256:b9cb8852571003dc292e5cf40726deede229782a1eb624437d6d039b8d0fcf3f 0.0s done
+#26 exporting manifest list sha256:3ade1c29c211501d7af8673aade8d5d42506df13c46ee07e548d5aa460ac173f 0.0s done
+#26 naming to docker.io/library/ap4fed_client:latest done
+#26 unpacking to docker.io/library/ap4fed_client:latest 0.0s done
+#26 DONE 0.2s
+
+#27 [client2] exporting to image
+#27 exporting layers 0.1s done
+#27 exporting manifest sha256:28f5b8e10190740d186a3318986e2ca2e05be34d63559042c6c793792ce11886 0.0s done
+#27 exporting config sha256:403e86a5ae10748e523b2c5141b9ae7c78da9827ab14aa00fc6bc0c7ad6c42d5 0.0s done
+#27 exporting attestation manifest sha256:c3aeca1326f23ac161a54d641dbe8722f9902778ae7ddf44530ee732191451bb 0.0s done
+#27 exporting manifest list sha256:1ac9023bfc7d2966ac04dcd49f0104993b4efa8e0097d7b77e4bf850c799476d 0.0s done
+#27 naming to docker.io/library/ap4fed_client:latest done
+#27 unpacking to docker.io/library/ap4fed_client:latest 0.0s done
+#27 DONE 0.2s
+
+#28 [client3] exporting to image
+#28 exporting layers 0.1s done
+#28 exporting manifest sha256:c332e235b82e284b8acd195af0b14dc62adb32d3f25f1d5813690b6340c4dc91 0.0s done
+#28 exporting config sha256:0f3640526573e569eb2897289390e3391474bd1ef927d9fc1f282c39c0c98853 0.0s done
+#28 exporting attestation manifest sha256:dc122b241e0310ff8efc6b4b741f8436b045526e0d4146be3154fec0e86bbfd7 0.0s done
+#28 exporting manifest list sha256:2290bb502a9d95190b99d7c4a51744cebdfb0f7ebcbfcee735bcf2dea5e08a81 0.0s done
+#28 naming to docker.io/library/ap4fed_client:latest done
+#28 unpacking to docker.io/library/ap4fed_client:latest 0.0s done
+#28 DONE 0.2s
+
+#29 [client4] exporting to image
+#29 exporting layers 0.1s done
+#29 exporting manifest sha256:51089a47cb8b6866d8d70140bfa1ef4db98c6cea1b853ad22c9d19cf2a02f0ad 0.0s done
+#29 exporting config sha256:7f91cece70567d87fbbe8dc2a82dd43a343dcd071cd1cd99ee733828d1f3160f 0.0s done
+#29 exporting attestation manifest sha256:ea05dff526bef797e3314c5c31b921019980055760e241f79845e2b0aba62380 0.0s done
+#29 exporting manifest list sha256:481463dab45d98cfca860f18739b760f242e4b280e29d6c1a1cafc6da9389934 0.0s done
+#29 naming to docker.io/library/ap4fed_client:latest done
+#29 unpacking to docker.io/library/ap4fed_client:latest 0.0s done
+#29 DONE 0.2s
+
+#30 [server] exporting to image
+#30 exporting layers 0.1s done
+#30 exporting manifest sha256:611af6dde61aad79e7c29714a382ba4f38b4e26cfa24c085763be5664b1d67d0 0.0s done
+#30 exporting config sha256:de7075c6c63d1e4e912e22216715ab290a1137bd2dfd4a6c45656d7343fec8d6 0.0s done
+#30 exporting attestation manifest sha256:0dcf0d0a3f01e02a3d95c94b8a286132d01d15a20c8d8be422a94697958ed7a3 0.0s done
+#30 exporting manifest list sha256:bc320454c27751cc2b90f6518327b6f94499469fef0dfebec8c5ab20d76fbf18 0.0s done
+#30 naming to docker.io/library/ap4fed_server:latest done
+#30 unpacking to docker.io/library/ap4fed_server:latest
+#30 unpacking to docker.io/library/ap4fed_server:latest 0.1s done
+#30 DONE 0.3s
+
+#31 [server] resolving provenance for metadata file
+#31 DONE 0.0s
+
+#32 [client5] resolving provenance for metadata file
+#32 DONE 0.1s
+
+#33 [client2] resolving provenance for metadata file
+#33 DONE 0.0s
+
+#34 [client3] resolving provenance for metadata file
+#34 DONE 0.0s
+
+#35 [client1] resolving provenance for metadata file
+#35 DONE 0.1s
+
+#36 [client4] resolving provenance for metadata file
+#36 DONE 0.0s
+ Image ap4fed_server:latest Built 
+ Image ap4fed_client:latest Built 
+ Image ap4fed_client:latest Built 
+ Image ap4fed_client:latest Built 
+ Image ap4fed_client:latest Built 
+ Image ap4fed_client:latest Built 
+ Network docker_flwr_network Creating 
+ Network docker_flwr_network Created 
+ Container flwr_server Creating 
+ Container flwr_server Created 
+ Container Client3 Creating 
+ Container Client4 Creating 
+ Container Client1 Creating 
+ Container Client5 Creating 
+ Container Client2 Creating 
+ Container Client4 Created 
+ Container Client3 Created 
+ Container Client1 Created 
+ Container Client2 Created 
+ Container Client5 Created 
+Attaching to Client1, Client2, Client3, Client4, Client5, flwr_server
+ Container flwr_server Starting 
+ Container flwr_server Started 
+ Container Client5 Starting 
+ Container Client3 Starting 
+ Container Client1 Starting 
+ Container Client4 Starting 
+ Container Client2 Starting 
+ Container Client4 Started 
+ Container Client5 Started 
+ Container Client1 Started 
+ Container Client3 Started 
+ Container Client2 Started 
+flwr_server  | [92mINFO [0m:      ==========================================
+flwr_server  | [92mINFO [0m:        ___  ______  ___ ______       _ 
+flwr_server  | [92mINFO [0m:       / _ \ | ___ \/   ||  ___|     | |
+flwr_server  | [92mINFO [0m:      / /_\ \| |_/ / /| || |_ ___  __| |
+flwr_server  | [92mINFO [0m:      |  _  ||  __/ /_| ||  _/ _ \/ _` |
+flwr_server  | [92mINFO [0m:      | | | || |  \___  || ||  __/ (_| |
+flwr_server  | [92mINFO [0m:      \_| |_/\_|      |_/\_| \___|\__,_| v.1.5.0
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      ==========================================
+flwr_server  | [92mINFO [0m:      Simulation Started!
+flwr_server  | [92mINFO [0m:      List of the Architectural Patterns enabled:
+flwr_server  | [92mINFO [0m:      Client Registry ✅
+flwr_server  | [92mINFO [0m:      ==========================================
+flwr_server  | [92mINFO [0m:      Adaptation Enabled ✅ - Random
+flwr_server  | [93mWARNING [0m:   DEPRECATED FEATURE: flwr.server.start_server() is deprecated.
+flwr_server  | 	Instead, use the `flower-superlink` CLI command to start a SuperLink as shown below:
+flwr_server  | 
+flwr_server  | 		$ flower-superlink --insecure
+flwr_server  | 
+flwr_server  | 	To view usage and all available options, run:
+flwr_server  | 
+flwr_server  | 		$ flower-superlink --help
+flwr_server  | 
+flwr_server  | 	Using `start_server()` is deprecated.
+flwr_server  | 
+flwr_server  |             This is a deprecated feature. It will be removed
+flwr_server  |             entirely in future versions of Flower.
+flwr_server  |         
+flwr_server  | [92mINFO [0m:      Starting Flower server, config: num_rounds=10, no round_timeout
+flwr_server  | [92mINFO [0m:      Flower ECE: gRPC server running (10 rounds), SSL is disabled
+flwr_server  | [92mINFO [0m:      [INIT]
+flwr_server  | [92mINFO [0m:      Requesting initial parameters from one random client
+Client2      | [92mINFO [0m:      Client 2 compute unit: CPU (pid=8)
+Client2      | [93mWARNING [0m:   DEPRECATED FEATURE: flwr.client.start_client() is deprecated.
+Client2      | 	Instead, use the `flower-supernode` CLI command to start a SuperNode as shown below:
+Client2      | 
+Client2      | 		$ flower-supernode --insecure --superlink='<IP>:<PORT>'
+Client2      | 
+Client2      | 	To view all available options, run:
+Client2      | 
+Client2      | 		$ flower-supernode --help
+Client2      | 
+Client2      | 	Using `start_client()` is deprecated.
+Client2      | 
+Client2      |             This is a deprecated feature. It will be removed
+Client2      |             entirely in future versions of Flower.
+Client2      |         
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: get_parameters message c1e3c8d1-4079-46ef-a343-c971af6be564
+Client2      | [92mINFO [0m:      Sent reply
+flwr_server  | [93mWARNING [0m:   Failed to receive initial parameters from the client. Empty initial parameters will be used.
+flwr_server  | [92mINFO [0m:      Starting evaluation of initial global parameters
+flwr_server  | [92mINFO [0m:      Evaluation returned no results (`None`)
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [ROUND 1]
+Client3      | [92mINFO [0m:      Client 3 compute unit: CPU (pid=8)
+Client3      | [93mWARNING [0m:   DEPRECATED FEATURE: flwr.client.start_client() is deprecated.
+Client3      | 	Instead, use the `flower-supernode` CLI command to start a SuperNode as shown below:
+Client3      | 
+Client3      | 		$ flower-supernode --insecure --superlink='<IP>:<PORT>'
+Client3      | 
+Client3      | 	To view all available options, run:
+Client3      | 
+Client3      | 		$ flower-supernode --help
+Client3      | 
+Client3      | 	Using `start_client()` is deprecated.
+Client3      | 
+Client3      |             This is a deprecated feature. It will be removed
+Client3      |             entirely in future versions of Flower.
+Client3      |         
+Client4      | [92mINFO [0m:      Client 4 compute unit: CPU (pid=8)
+Client4      | [93mWARNING [0m:   DEPRECATED FEATURE: flwr.client.start_client() is deprecated.
+Client4      | 	Instead, use the `flower-supernode` CLI command to start a SuperNode as shown below:
+Client4      | 
+Client4      | 		$ flower-supernode --insecure --superlink='<IP>:<PORT>'
+Client4      | 
+Client4      | 	To view all available options, run:
+Client4      | 
+Client4      | 		$ flower-supernode --help
+Client4      | 
+Client4      | 	Using `start_client()` is deprecated.
+Client4      | 
+Client4      |             This is a deprecated feature. It will be removed
+Client4      |             entirely in future versions of Flower.
+Client4      |         
+Client5      | [92mINFO [0m:      Client 5 compute unit: CPU (pid=8)
+Client5      | [93mWARNING [0m:   DEPRECATED FEATURE: flwr.client.start_client() is deprecated.
+Client5      | 	Instead, use the `flower-supernode` CLI command to start a SuperNode as shown below:
+Client5      | 
+Client5      | 		$ flower-supernode --insecure --superlink='<IP>:<PORT>'
+Client5      | 
+Client5      | 	To view all available options, run:
+Client5      | 
+Client5      | 		$ flower-supernode --help
+Client5      | 
+Client5      | 	Using `start_client()` is deprecated.
+Client5      | 
+Client5      |             This is a deprecated feature. It will be removed
+Client5      |             entirely in future versions of Flower.
+Client5      |         
+Client1      | [92mINFO [0m:      Client 1 compute unit: CPU (pid=8)
+Client1      | [93mWARNING [0m:   DEPRECATED FEATURE: flwr.client.start_client() is deprecated.
+Client1      | 	Instead, use the `flower-supernode` CLI command to start a SuperNode as shown below:
+Client1      | 
+Client1      | 		$ flower-supernode --insecure --superlink='<IP>:<PORT>'
+Client1      | 
+Client1      | 	To view all available options, run:
+Client1      | 
+Client1      | 		$ flower-supernode --help
+Client1      | 
+Client1      | 	Using `start_client()` is deprecated.
+Client1      | 
+Client1      |             This is a deprecated feature. It will be removed
+Client1      |             entirely in future versions of Flower.
+Client1      |         
+flwr_server  | [92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: train message 1ffe7d19-580d-460e-9599-da8581bca3a1
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: train message fd2b1ad3-09a8-4ff9-ae2d-afddecdc418f
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: train message 75cf9233-07e4-4bdd-9278-22709ff7c205
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: train message 12b6b521-01a9-44ad-b051-bb5bb181b020
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: train message 29a27a38-3ed1-454f-9f80-5aa3823f4323
+Client4      | [92mINFO [0m:      [DATA DEBUG] Client 4 round 1 train class distribution: {0: 1364, 1: 252, 2: 52, 3: 732}
+Client4      | [92mINFO [0m:      Starting training...
+Client1      | [92mINFO [0m:      [DATA DEBUG] Client 1 round 1 train class distribution: {0: 1751, 1: 794, 2: 15547, 3: 5908}
+Client3      | [92mINFO [0m:      [DATA DEBUG] Client 3 round 1 train class distribution: {0: 573, 1: 1729, 2: 98}
+Client3      | [92mINFO [0m:      Starting training...
+Client1      | [92mINFO [0m:      Starting training...
+Client5      | [92mINFO [0m:      [DATA DEBUG] Client 5 round 1 train class distribution: {0: 10568, 1: 11851, 2: 1581}
+Client5      | [92mINFO [0m:      Starting training...
+Client2      | [92mINFO [0m:      [DATA DEBUG] Client 2 round 1 train class distribution: {0: 37, 1: 243, 2: 178, 3: 1942}
+Client2      | [92mINFO [0m:      Starting training...
+Client2      | [92mINFO [0m:      Training completed in 1.26 seconds
+Client4      | [92mINFO [0m:      Training completed in 1.84 seconds
+Client3      | [92mINFO [0m:      Training completed in 2.47 seconds
+Client2      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.26
+Client2      | [92mINFO [0m:      Sent reply
+Client4      | [92mINFO [0m:      Client 4 injecting delay of 43 seconds
+Client3      | [92mINFO [0m:      Client 3 injecting delay of 44 seconds
+Client1      | [92mINFO [0m:      Training completed in 10.46 seconds
+Client1      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.17
+Client5      | [92mINFO [0m:      Training completed in 12.24 seconds
+Client1      | [92mINFO [0m:      Sent reply
+Client5      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.21
+Client5      | [92mINFO [0m:      Sent reply
+Client4      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.15
+Client4      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.27
+Client3      | [92mINFO [0m:      Sent reply
+flwr_server  | [92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+flwr_server  | [92mINFO [0m:      Results Aggregated in 50.70 seconds.
+flwr_server  | [92mINFO [0m:      [ROUND 1] Random policy executed
+flwr_server  | [92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [ROUND 2]
+flwr_server  | [92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: train message 6c894d5d-40ca-4b37-b7cb-b49b74ee8bde
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: train message d8c68ce7-08bd-4c53-bdb1-6f994f24af2e
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: train message 4e6f68b3-91f2-4c6f-897a-58116f64b878
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: train message 8e4d6df2-6da0-43ca-b3ac-d0a29463e89f
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: train message c4c11a06-1162-4daa-ae4f-9f0c5c39aad9
+Client5      | [92mINFO [0m:      [DATA DEBUG] Client 5 round 2 train class distribution: {0: 10568, 1: 11851, 2: 1581}
+Client4      | [92mINFO [0m:      [DATA DEBUG] Client 4 round 2 train class distribution: {0: 1098, 1: 3008, 2: 39, 3: 655}
+Client5      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      HDH Data Handler skipped for AG_NEWS text data
+Client4      | [92mINFO [0m:      Starting training...
+Client2      | [92mINFO [0m:      [DATA DEBUG] Client 2 round 2 train class distribution: {0: 356, 1: 518, 2: 622, 3: 3304}
+Client2      | [92mINFO [0m:      HDH Data Handler skipped for AG_NEWS text data
+Client2      | [92mINFO [0m:      Starting training...
+Client3      | [92mINFO [0m:      [DATA DEBUG] Client 3 round 2 train class distribution: {0: 1174, 1: 3435, 2: 191}
+Client1      | [92mINFO [0m:      [DATA DEBUG] Client 1 round 2 train class distribution: {0: 1751, 1: 794, 2: 15547, 3: 5908}
+Client3      | [92mINFO [0m:      Starting training...
+Client1      | [92mINFO [0m:      HDH Data Handler skipped for AG_NEWS text data
+Client1      | [92mINFO [0m:      Starting training...
+Client2      | [92mINFO [0m:      Training completed in 1.18 seconds
+Client4      | [92mINFO [0m:      Training completed in 1.84 seconds
+Client2      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.15
+Client2      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Training completed in 2.41 seconds
+Client4      | [92mINFO [0m:      Client 4 injecting delay of 25 seconds
+Client3      | [92mINFO [0m:      Client 3 injecting delay of 21 seconds
+Client1      | [92mINFO [0m:      Training completed in 6.98 seconds
+Client5      | [92mINFO [0m:      Training completed in 9.40 seconds
+Client1      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.17
+Client1      | [92mINFO [0m:      Sent reply
+Client5      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.21
+Client5      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.27
+Client3      | [92mINFO [0m:      Sent reply
+Client4      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.18
+Client4      | [92mINFO [0m:      Sent reply
+flwr_server  | [92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+flwr_server  | [92mINFO [0m:      Results Aggregated in 29.76 seconds.
+flwr_server  | [92mINFO [0m:      [ROUND 2] Random policy executed
+flwr_server  | [92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [ROUND 3]
+flwr_server  | [92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: train message 39c05321-d906-4e05-8778-2ec08c9e697d
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: train message c5b021db-993e-47ad-aeca-f5619166fa17
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: train message 964de197-73e1-4366-8501-988a903e3de2
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: train message 2fbee0b0-e50b-40ea-b627-058dc4fb83f9
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: train message e67ea937-44c3-4318-975d-3a4c893fa703
+Client1      | [92mINFO [0m:      [DATA DEBUG] Client 1 round 3 train class distribution: {0: 1751, 1: 794, 2: 15547, 3: 5908}
+Client2      | [92mINFO [0m:      [DATA DEBUG] Client 2 round 3 train class distribution: {0: 1157, 1: 432, 2: 2988, 3: 2623}
+Client1      | [92mINFO [0m:      Client 1 participates in this round. (CPU: 5, RAM: 2)
+Client2      | [92mINFO [0m:      Client 2 participates in this round. (CPU: 5, RAM: 2)
+Client5      | [92mINFO [0m:      [DATA DEBUG] Client 5 round 3 train class distribution: {0: 10568, 1: 11851, 2: 1581}
+Client5      | [92mINFO [0m:      Client 5 participates in this round. (CPU: 3, RAM: 2)
+Client2      | [92mINFO [0m:      Starting training...
+Client1      | [92mINFO [0m:      Starting training...
+Client3      | [92mINFO [0m:      [DATA DEBUG] Client 3 round 3 train class distribution: {0: 2516, 1: 4090, 2: 594}
+Client3      | [92mINFO [0m:      Client 3 participates in this round. (CPU: 5, RAM: 2)
+Client5      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      [DATA DEBUG] Client 4 round 3 train class distribution: {0: 874, 1: 2064, 2: 140, 3: 4122}
+Client3      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      Client 4 participates in this round. (CPU: 3, RAM: 2)
+Client4      | [92mINFO [0m:      Starting training...
+Client2      | [92mINFO [0m:      Training completed in 2.23 seconds
+Client4      | [92mINFO [0m:      Training completed in 2.72 seconds
+Client2      | [92mINFO [0m:      Local parameters compressed: reduced 1093698 bytes (8.53%)
+Client2      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.07
+Client2      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Training completed in 4.54 seconds
+Client4      | [92mINFO [0m:      Client 4 injecting delay of 35 seconds
+Client3      | [92mINFO [0m:      Client 3 injecting delay of 40 seconds
+Client1      | [92mINFO [0m:      Training completed in 9.45 seconds
+Client5      | [92mINFO [0m:      Training completed in 9.69 seconds
+Client1      | [92mINFO [0m:      Local parameters compressed: reduced 1084865 bytes (8.46%)
+Client1      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.17
+Client1      | [92mINFO [0m:      Sent reply
+Client5      | [92mINFO [0m:      Local parameters compressed: reduced 1084610 bytes (8.46%)
+Client5      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.21
+Client5      | [92mINFO [0m:      Sent reply
+Client4      | [92mINFO [0m:      Local parameters compressed: reduced 1093462 bytes (8.53%)
+Client4      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.15
+Client4      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Local parameters compressed: reduced 1093138 bytes (8.53%)
+Client3      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.21
+Client3      | [92mINFO [0m:      Sent reply
+flwr_server  | [92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+flwr_server  | [92mINFO [0m:      Results Aggregated in 48.66 seconds.
+flwr_server  | [92mINFO [0m:      [ROUND 3] Random policy executed
+flwr_server  | [92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [ROUND 4]
+flwr_server  | [92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: train message ced613fc-f78f-4fbf-9766-e9d50510681c
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: train message 22479e2f-14a5-45a7-aee0-311dc6ff4954
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: train message 04361614-c093-43b9-815f-a0600db3fa27
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: train message 320ca1d7-ff2e-4e3a-96b0-fa683789bd9f
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: train message 47ebc1aa-5a38-4473-a133-ae3a6a7ec614
+Client2      | [92mINFO [0m:      [DATA DEBUG] Client 2 round 4 train class distribution: {0: 1171, 1: 417, 2: 3634, 3: 4378}
+Client2      | [92mINFO [0m:      Client 2 participates in this round. (CPU: 5, RAM: 2)
+Client1      | [92mINFO [0m:      [DATA DEBUG] Client 1 round 4 train class distribution: {0: 1751, 1: 794, 2: 15547, 3: 5908}
+Client5      | [92mINFO [0m:      [DATA DEBUG] Client 5 round 4 train class distribution: {0: 10568, 1: 11851, 2: 1581}
+Client1      | [92mINFO [0m:      Client 1 participates in this round. (CPU: 5, RAM: 2)
+Client5      | [92mINFO [0m:      Client 5 participates in this round. (CPU: 3, RAM: 2)
+Client2      | [92mINFO [0m:      Starting training...
+Client3      | [92mINFO [0m:      [DATA DEBUG] Client 3 round 4 train class distribution: {0: 3288, 1: 5522, 2: 790}
+Client4      | [92mINFO [0m:      [DATA DEBUG] Client 4 round 4 train class distribution: {0: 2263, 1: 2517, 2: 129, 3: 4691}
+Client3      | [92mINFO [0m:      Client 3 participates in this round. (CPU: 5, RAM: 2)
+Client5      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      Client 4 participates in this round. (CPU: 3, RAM: 2)
+Client1      | [92mINFO [0m:      Starting training...
+Client3      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      Training completed in 2.89 seconds
+Client3      | [92mINFO [0m:      Training completed in 3.74 seconds
+Client2      | [92mINFO [0m:      Training completed in 4.54 seconds
+Client4      | [92mINFO [0m:      Client 4 injecting delay of 23 seconds
+Client3      | [92mINFO [0m:      Client 3 injecting delay of 24 seconds
+Client2      | [92mINFO [0m:      Local parameters compressed: reduced 1090048 bytes (8.50%)
+Client2      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.11
+Client2      | [92mINFO [0m:      Sent reply
+Client5      | [92mINFO [0m:      Training completed in 8.11 seconds
+Client1      | [92mINFO [0m:      Training completed in 10.35 seconds
+Client1      | [92mINFO [0m:      Local parameters compressed: reduced 1081215 bytes (8.44%)
+Client1      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.17
+Client1      | [92mINFO [0m:      Sent reply
+Client5      | [92mINFO [0m:      Local parameters compressed: reduced 1080425 bytes (8.43%)
+Client5      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.21
+Client5      | [92mINFO [0m:      Sent reply
+Client4      | [92mINFO [0m:      Local parameters compressed: reduced 1090103 bytes (8.50%)
+Client4      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.12
+Client4      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Local parameters compressed: reduced 1089880 bytes (8.50%)
+Client3      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.21
+Client3      | [92mINFO [0m:      Sent reply
+flwr_server  | [92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+flwr_server  | [92mINFO [0m:      Results Aggregated in 30.67 seconds.
+flwr_server  | [92mINFO [0m:      [ROUND 4] Random policy executed
+flwr_server  | [92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [ROUND 5]
+flwr_server  | [92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: train message d3436b78-8c4c-40ad-a22e-5bb6a269a64a
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: train message 38524f14-2209-4bb3-9c7c-c3e48fecf324
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: train message 267579e1-7b15-4ac8-ae42-21d320a21361
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: train message 6671916a-cfb2-43fc-be40-403971089fd2
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: train message 0ca078dd-897e-411c-910a-8a6ea305f434
+Client5      | [92mINFO [0m:      [DATA DEBUG] Client 5 round 5 train class distribution: {0: 10568, 1: 11851, 2: 1581}
+Client5      | [92mINFO [0m:      Starting training...
+Client3      | [92mINFO [0m:      [DATA DEBUG] Client 3 round 5 train class distribution: {0: 5236, 1: 6323, 2: 441}
+Client4      | [92mINFO [0m:      [DATA DEBUG] Client 4 round 5 train class distribution: {0: 2644, 1: 3304, 2: 175, 3: 5877}
+Client3      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      Starting training...
+Client1      | [92mINFO [0m:      [DATA DEBUG] Client 1 round 5 train class distribution: {0: 1751, 1: 794, 2: 15547, 3: 5908}
+Client2      | [92mINFO [0m:      [DATA DEBUG] Client 2 round 5 train class distribution: {0: 1159, 1: 425, 2: 5242, 3: 5174}
+Client2      | [92mINFO [0m:      Starting training...
+Client1      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      Training completed in 3.55 seconds
+Client3      | [92mINFO [0m:      Training completed in 5.75 seconds
+Client4      | [92mINFO [0m:      Client 4 injecting delay of 33 seconds
+Client2      | [92mINFO [0m:      Training completed in 7.51 seconds
+Client3      | [92mINFO [0m:      Client 3 injecting delay of 34 seconds
+Client2      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.13
+Client2      | [92mINFO [0m:      Sent reply
+Client5      | [92mINFO [0m:      Training completed in 11.39 seconds
+Client1      | [92mINFO [0m:      Training completed in 12.05 seconds
+Client1      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.17
+Client1      | [92mINFO [0m:      Sent reply
+Client5      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.21
+Client5      | [92mINFO [0m:      Sent reply
+Client4      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.12
+Client4      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.24
+Client3      | [92mINFO [0m:      Sent reply
+flwr_server  | [92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+flwr_server  | [92mINFO [0m:      Results Aggregated in 45.06 seconds.
+flwr_server  | [92mINFO [0m:      [ROUND 5] Random policy executed
+flwr_server  | [92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [ROUND 6]
+flwr_server  | [92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: train message bd3a3815-547d-45b6-b7cf-312a41dde028
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: train message 82696ca3-33a5-42b5-8eb3-bf5c27069532
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: train message 736f64f9-b615-48f5-8381-448eb903eacc
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: train message d4915405-a8d7-44c6-b3b2-c5328d9e0d0d
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: train message 0c854f3c-ce2d-4cb0-b2e9-d5dd680ff2e1
+Client3      | [92mINFO [0m:      [DATA DEBUG] Client 3 round 6 train class distribution: {0: 5100, 1: 8883, 2: 417}
+Client2      | [92mINFO [0m:      [DATA DEBUG] Client 2 round 6 train class distribution: {0: 1389, 1: 454, 2: 6893, 3: 5664}
+Client1      | [92mINFO [0m:      [DATA DEBUG] Client 1 round 6 train class distribution: {0: 1751, 1: 794, 2: 15547, 3: 5908}
+Client5      | [92mINFO [0m:      [DATA DEBUG] Client 5 round 6 train class distribution: {0: 10568, 1: 11851, 2: 1581}
+Client3      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      [DATA DEBUG] Client 4 round 6 train class distribution: {0: 3660, 1: 3796, 2: 270, 3: 6674}
+Client2      | [92mINFO [0m:      Starting training...
+Client1      | [92mINFO [0m:      Starting training...
+Client5      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      Starting training...
+Client1      | [92mINFO [0m:      Training completed in 6.25 seconds
+Client4      | [92mINFO [0m:      Training completed in 6.15 seconds
+Client3      | [92mINFO [0m:      Training completed in 6.32 seconds
+Client2      | [92mINFO [0m:      Training completed in 6.70 seconds
+Client1      | [92mINFO [0m:      Local parameters compressed: reduced 1067594 bytes (8.33%)
+Client1      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.17
+Client1      | [92mINFO [0m:      Sent reply
+Client4      | [92mINFO [0m:      Client 4 injecting delay of 44 seconds
+Client3      | [92mINFO [0m:      Client 3 injecting delay of 42 seconds
+Client2      | [92mINFO [0m:      Local parameters compressed: reduced 1072922 bytes (8.37%)
+Client2      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.13
+Client2      | [92mINFO [0m:      Sent reply
+Client5      | [92mINFO [0m:      Training completed in 10.17 seconds
+Client5      | [92mINFO [0m:      Local parameters compressed: reduced 1066435 bytes (8.32%)
+Client5      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.21
+Client5      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Local parameters compressed: reduced 1071633 bytes (8.36%)
+Client3      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.26
+Client3      | [92mINFO [0m:      Sent reply
+Client4      | [92mINFO [0m:      Local parameters compressed: reduced 1072313 bytes (8.37%)
+Client4      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.11
+Client4      | [92mINFO [0m:      Sent reply
+flwr_server  | [92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+flwr_server  | [92mINFO [0m:      Results Aggregated in 54.96 seconds.
+flwr_server  | [92mINFO [0m:      [ROUND 6] Random policy executed
+flwr_server  | [92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [ROUND 7]
+flwr_server  | [92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: train message a66498b9-2e65-4a78-b725-619a446e1c9f
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: train message 44110152-3e01-41c7-9759-adc3954ddd15
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: train message e0f97d2b-75d7-43ee-b03a-1e15ec634539
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: train message fd9bf88f-58a5-4441-be40-b943c6f8e15a
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: train message 60e28b20-98f6-4627-8129-7438795aa124
+Client4      | [92mINFO [0m:      [DATA DEBUG] Client 4 round 7 train class distribution: {0: 4164, 1: 4187, 2: 326, 3: 8123}
+Client1      | [92mINFO [0m:      [DATA DEBUG] Client 1 round 7 train class distribution: {0: 1751, 1: 794, 2: 15547, 3: 5908}
+Client3      | [92mINFO [0m:      [DATA DEBUG] Client 3 round 7 train class distribution: {0: 6007, 1: 10293, 2: 500}
+Client4      | [92mINFO [0m:      Starting training...
+Client1      | [92mINFO [0m:      Starting training...
+Client3      | [92mINFO [0m:      Starting training...
+Client5      | [92mINFO [0m:      [DATA DEBUG] Client 5 round 7 train class distribution: {0: 10568, 1: 11851, 2: 1581}
+Client2      | [92mINFO [0m:      [DATA DEBUG] Client 2 round 7 train class distribution: {0: 1643, 1: 661, 2: 7836, 3: 6660}
+Client2      | [92mINFO [0m:      Starting training...
+Client5      | [92mINFO [0m:      Starting training...
+Client2      | [92mINFO [0m:      Training completed in 5.65 seconds
+Client1      | [92mINFO [0m:      Training completed in 7.86 seconds
+Client4      | [92mINFO [0m:      Training completed in 8.09 seconds
+Client2      | [92mINFO [0m:      Local parameters compressed: reduced 1068287 bytes (8.33%)
+Client2      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.12
+Client2      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Training completed in 9.26 seconds
+Client3      | [92mINFO [0m:      Client 3 injecting delay of 38 seconds
+Client4      | [92mINFO [0m:      Client 4 injecting delay of 49 seconds
+Client1      | [92mINFO [0m:      Local parameters compressed: reduced 1063611 bytes (8.30%)
+Client1      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.17
+Client1      | [92mINFO [0m:      Sent reply
+Client5      | [92mINFO [0m:      Training completed in 10.89 seconds
+Client5      | [92mINFO [0m:      Local parameters compressed: reduced 1062952 bytes (8.29%)
+Client5      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.21
+Client5      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Local parameters compressed: reduced 1066952 bytes (8.32%)
+Client3      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.26
+Client3      | [92mINFO [0m:      Sent reply
+Client4      | [92mINFO [0m:      Local parameters compressed: reduced 1067585 bytes (8.33%)
+Client4      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.11
+Client4      | [92mINFO [0m:      Sent reply
+flwr_server  | [92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+flwr_server  | [92mINFO [0m:      Results Aggregated in 61.72 seconds.
+flwr_server  | [92mINFO [0m:      [ROUND 7] Random policy executed
+flwr_server  | [92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [ROUND 8]
+flwr_server  | [92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: train message d07185e2-0206-4369-9eae-ba80aa350577
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: train message 7a4bcb08-0e4f-4964-ab9e-d99ccad63f17
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: train message 06596e4a-523c-46d1-8f45-8a659ddf6bec
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: train message 908b1d8f-105c-448a-8f85-182bcccd1270
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: train message d1c58e31-d597-4d47-9270-05dc7519e6e2
+Client4      | [92mINFO [0m:      [DATA DEBUG] Client 4 round 8 train class distribution: {0: 3094, 1: 3510, 2: 221, 3: 12375}
+Client5      | [92mINFO [0m:      [DATA DEBUG] Client 5 round 8 train class distribution: {0: 10568, 1: 11851, 2: 1581}
+Client3      | [92mINFO [0m:      [DATA DEBUG] Client 3 round 8 train class distribution: {0: 6531, 1: 11391, 2: 1278}
+Client1      | [92mINFO [0m:      [DATA DEBUG] Client 1 round 8 train class distribution: {0: 1751, 1: 794, 2: 15547, 3: 5908}
+Client3      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      Starting training...
+Client5      | [92mINFO [0m:      Starting training...
+Client2      | [92mINFO [0m:      [DATA DEBUG] Client 2 round 8 train class distribution: {0: 1901, 1: 760, 2: 8716, 3: 7823}
+Client1      | [92mINFO [0m:      Starting training...
+Client2      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      Training completed in 6.60 seconds
+Client2      | [92mINFO [0m:      Training completed in 6.56 seconds
+Client1      | [92mINFO [0m:      Training completed in 7.80 seconds
+Client4      | [92mINFO [0m:      Client 4 injecting delay of 26 seconds
+Client5      | [92mINFO [0m:      Training completed in 9.56 seconds
+Client3      | [92mINFO [0m:      Training completed in 9.78 seconds
+Client2      | [92mINFO [0m:      Local parameters compressed: reduced 1061930 bytes (8.28%)
+Client2      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.12
+Client2      | [92mINFO [0m:      Sent reply
+Client1      | [92mINFO [0m:      Local parameters compressed: reduced 1058176 bytes (8.26%)
+Client1      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.17
+Client1      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Client 3 injecting delay of 23 seconds
+Client5      | [92mINFO [0m:      Local parameters compressed: reduced 1057161 bytes (8.25%)
+Client5      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.21
+Client5      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Local parameters compressed: reduced 1060322 bytes (8.27%)
+Client3      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.22
+Client3      | [92mINFO [0m:      Sent reply
+Client4      | [92mINFO [0m:      Local parameters compressed: reduced 1061535 bytes (8.28%)
+Client4      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.17
+Client4      | [92mINFO [0m:      Sent reply
+flwr_server  | [92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+flwr_server  | [92mINFO [0m:      Results Aggregated in 37.31 seconds.
+flwr_server  | [92mINFO [0m:      [ROUND 8] Random policy executed
+flwr_server  | [92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [ROUND 9]
+flwr_server  | [92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: train message b2227c96-01ef-449c-8f06-bc5f82a08344
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: train message 42d6b8ef-8b8b-4f52-9c74-d72db98bf5e7
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: train message ccb6ead8-81b1-4986-acfa-48ca37d452d4
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: train message 89aee497-7981-48ca-bb7b-3bd7e95469ef
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: train message a73ced02-8c24-4f10-b939-9ef7db1f503c
+Client5      | [92mINFO [0m:      [DATA DEBUG] Client 5 round 9 train class distribution: {0: 10568, 1: 11851, 2: 1581}
+Client5      | [92mINFO [0m:      Starting training...
+Client3      | [92mINFO [0m:      [DATA DEBUG] Client 3 round 9 train class distribution: {0: 8698, 1: 11601, 2: 1301}
+Client3      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      [DATA DEBUG] Client 4 round 9 train class distribution: {0: 3833, 1: 3792, 2: 287, 3: 13688}
+Client1      | [92mINFO [0m:      [DATA DEBUG] Client 1 round 9 train class distribution: {0: 1751, 1: 794, 2: 15547, 3: 5908}
+Client2      | [92mINFO [0m:      [DATA DEBUG] Client 2 round 9 train class distribution: {0: 2584, 1: 742, 2: 9143, 3: 9131}
+Client4      | [92mINFO [0m:      Starting training...
+Client1      | [92mINFO [0m:      Starting training...
+Client2      | [92mINFO [0m:      Starting training...
+Client2      | [92mINFO [0m:      Training completed in 7.67 seconds
+Client4      | [92mINFO [0m:      Training completed in 10.10 seconds
+Client2      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.12
+Client2      | [92mINFO [0m:      Sent reply
+Client1      | [92mINFO [0m:      Training completed in 11.22 seconds
+Client3      | [92mINFO [0m:      Training completed in 12.06 seconds
+Client5      | [92mINFO [0m:      Training completed in 13.36 seconds
+Client4      | [92mINFO [0m:      Client 4 injecting delay of 20 seconds
+Client3      | [92mINFO [0m:      Client 3 injecting delay of 39 seconds
+Client1      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.17
+Client1      | [92mINFO [0m:      Sent reply
+Client5      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.21
+Client5      | [92mINFO [0m:      Sent reply
+Client4      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.17
+Client4      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.22
+Client3      | [92mINFO [0m:      Sent reply
+flwr_server  | [92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+flwr_server  | [92mINFO [0m:      Results Aggregated in 54.76 seconds.
+flwr_server  | [92mINFO [0m:      [ROUND 9] Random policy executed
+flwr_server  | [92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [ROUND 10]
+flwr_server  | [92mINFO [0m:      configure_fit: strategy sampled 5 clients (out of 5)
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: train message 9873be32-18a5-4956-b911-93c3da62013f
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: train message 3ada98f6-f074-4e5b-89fa-b8de64ef2e5c
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: train message 0a0a0282-034f-4082-b5f0-167bfa0ce785
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: train message a0ec1221-824d-4ccc-8101-fb49e82c7d07
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: train message 3feda140-95e9-4754-99d7-fd8878b1c603
+Client1      | [92mINFO [0m:      [DATA DEBUG] Client 1 round 10 train class distribution: {0: 1751, 1: 794, 2: 15547, 3: 5908}
+Client1      | [92mINFO [0m:      Client 1 participates in this round. (CPU: 5, RAM: 2)
+Client5      | [92mINFO [0m:      [DATA DEBUG] Client 5 round 10 train class distribution: {0: 10568, 1: 11851, 2: 1581}
+Client5      | [92mINFO [0m:      Client 5 participates in this round. (CPU: 3, RAM: 2)
+Client2      | [92mINFO [0m:      [DATA DEBUG] Client 2 round 10 train class distribution: {0: 2949, 1: 1317, 2: 10412, 3: 9322}
+Client2      | [92mINFO [0m:      Client 2 participates in this round. (CPU: 5, RAM: 2)
+Client1      | [92mINFO [0m:      Starting training...
+Client5      | [92mINFO [0m:      Starting training...
+Client3      | [92mINFO [0m:      [DATA DEBUG] Client 3 round 10 train class distribution: {0: 10568, 1: 11851, 2: 1581}
+Client2      | [92mINFO [0m:      Starting training...
+Client4      | [92mINFO [0m:      [DATA DEBUG] Client 4 round 10 train class distribution: {0: 4164, 1: 4187, 2: 879, 3: 14770}
+Client3      | [92mINFO [0m:      Client 3 participates in this round. (CPU: 5, RAM: 2)
+Client4      | [92mINFO [0m:      Client 4 participates in this round. (CPU: 3, RAM: 2)
+Client4      | [92mINFO [0m:      Starting training...
+Client3      | [92mINFO [0m:      Starting training...
+Client2      | [92mINFO [0m:      Training completed in 7.28 seconds
+Client5      | [92mINFO [0m:      Training completed in 7.94 seconds
+Client4      | [92mINFO [0m:      Training completed in 8.04 seconds
+Client1      | [92mINFO [0m:      Training completed in 9.01 seconds
+Client3      | [92mINFO [0m:      Training completed in 9.43 seconds
+Client2      | [92mINFO [0m:      Local parameters compressed: reduced 1047187 bytes (8.17%)
+Client2      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.09
+Client2      | [92mINFO [0m:      Sent reply
+Client5      | [92mINFO [0m:      Local parameters compressed: reduced 1044505 bytes (8.15%)
+Client5      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.21
+Client5      | [92mINFO [0m:      Sent reply
+Client4      | [92mINFO [0m:      Client 4 injecting delay of 47 seconds
+Client3      | [92mINFO [0m:      Client 3 injecting delay of 31 seconds
+Client1      | [92mINFO [0m:      Local parameters compressed: reduced 1045471 bytes (8.16%)
+Client1      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.17
+Client1      | [92mINFO [0m:      Sent reply
+Client3      | [92mINFO [0m:      Local parameters compressed: reduced 1046118 bytes (8.16%)
+Client3      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.21
+Client3      | [92mINFO [0m:      Sent reply
+Client4      | [92mINFO [0m:      Local parameters compressed: reduced 1046152 bytes (8.16%)
+Client4      | [92mINFO [0m:      Jensen-Shannon Divergence (client vs perfect IID): 0.13
+Client4      | [92mINFO [0m:      Sent reply
+flwr_server  | [92mINFO [0m:      aggregate_fit: received 5 results and 0 failures
+flwr_server  | [92mINFO [0m:      Results Aggregated in 60.99 seconds.
+flwr_server  | [92mINFO [0m:      [ROUND 10] Final round reached (10/10). No adaptation for next round.
+flwr_server  | [92mINFO [0m:      configure_evaluate: no clients selected, skipping evaluation
+flwr_server  | [92mINFO [0m:      
+flwr_server  | [92mINFO [0m:      [SUMMARY]
+flwr_server  | [92mINFO [0m:      Run finished 10 round(s) in 484.94s
+flwr_server  | [92mINFO [0m:      	History (metrics, distributed, fit):
+flwr_server  | [92mINFO [0m:      	{'MLP': [(1,
+flwr_server  | [92mINFO [0m:      	          {'jsd': (0.17075224334804404,
+flwr_server  | [92mINFO [0m:      	                   0.262113757736954,
+flwr_server  | [92mINFO [0m:      	                   0.27121545243170897,
+flwr_server  | [92mINFO [0m:      	                   0.15115294275505525,
+flwr_server  | [92mINFO [0m:      	                   0.21480407115043043),
+flwr_server  | [92mINFO [0m:      	           'train_accuracy': 0.8826630434782609,
+flwr_server  | [92mINFO [0m:      	           'train_f1': 0.6983727143417713,
+flwr_server  | [92mINFO [0m:      	           'train_loss': 0.3570105091126069,
+flwr_server  | [92mINFO [0m:      	           'train_mae': 0.18132246376811595,
+flwr_server  | [92mINFO [0m:      	           'val_accuracy': 0.5526830663615561,
+flwr_server  | [92mINFO [0m:      	           'val_f1': 0.4637888383267002,
+flwr_server  | [92mINFO [0m:      	           'val_loss': 1.376259210846244,
+flwr_server  | [92mINFO [0m:      	           'val_mae': 0.7864874141876431}),
+flwr_server  | [92mINFO [0m:      	         (2,
+flwr_server  | [92mINFO [0m:      	          {'jsd': (0.17075224334804404,
+flwr_server  | [92mINFO [0m:      	                   0.14806106894644772,
+flwr_server  | [92mINFO [0m:      	                   0.27074292804677735,
+flwr_server  | [92mINFO [0m:      	                   0.17588995288078332,
+flwr_server  | [92mINFO [0m:      	                   0.21480407115043043),
+flwr_server  | [92mINFO [0m:      	           'train_accuracy': 0.9357211538461538,
+flwr_server  | [92mINFO [0m:      	           'train_f1': 0.8809584302021258,
+flwr_server  | [92mINFO [0m:      	           'train_loss': 0.2113475424089493,
+flwr_server  | [92mINFO [0m:      	           'train_mae': 0.0957051282051282,
+flwr_server  | [92mINFO [0m:      	           'val_accuracy': 0.7053036437246963,
+flwr_server  | [92mINFO [0m:      	           'val_f1': 0.6598188391286648,
+flwr_server  | [92mINFO [0m:      	           'val_loss': 1.0883602630464653,
+flwr_server  | [92mINFO [0m:      	           'val_mae': 0.5539574898785425}),
+flwr_server  | [92mINFO [0m:      	         (3,
+flwr_server  | [92mINFO [0m:      	          {'jsd': (0.17075224334804404,
+flwr_server  | [92mINFO [0m:      	                   0.07482825855466443,
+flwr_server  | [92mINFO [0m:      	                   0.20864825869277837,
+flwr_server  | [92mINFO [0m:      	                   0.14850277423999025,
+flwr_server  | [92mINFO [0m:      	                   0.21480407115043043),
+flwr_server  | [92mINFO [0m:      	           'train_accuracy': 0.9482040229885057,
+flwr_server  | [92mINFO [0m:      	           'train_f1': 0.9186353006229729,
+flwr_server  | [92mINFO [0m:      	           'train_loss': 0.16994197082416765,
+flwr_server  | [92mINFO [0m:      	           'train_mae': 0.0775287356321839,
+flwr_server  | [92mINFO [0m:      	           'val_accuracy': 0.7533983666061705,
+flwr_server  | [92mINFO [0m:      	           'val_f1': 0.7108412177609873,
+flwr_server  | [92mINFO [0m:      	           'val_loss': 0.9728515782741366,
+flwr_server  | [92mINFO [0m:      	           'val_mae': 0.46269509981851176}),
+flwr_server  | [92mINFO [0m:      	         (4,
+flwr_server  | [92mINFO [0m:      	          {'jsd': (0.17075224334804404,
+flwr_server  | [92mINFO [0m:      	                   0.10574524992989734,
+flwr_server  | [92mINFO [0m:      	                   0.20971027192685993,
+flwr_server  | [92mINFO [0m:      	                   0.12200284931897418,
+flwr_server  | [92mINFO [0m:      	                   0.21480407115043043),
+flwr_server  | [92mINFO [0m:      	           'train_accuracy': 0.9540755208333334,
+flwr_server  | [92mINFO [0m:      	           'train_f1': 0.9297972432078012,
+flwr_server  | [92mINFO [0m:      	           'train_loss': 0.14661185407545418,
+flwr_server  | [92mINFO [0m:      	           'train_mae': 0.07020833333333333,
+flwr_server  | [92mINFO [0m:      	           'val_accuracy': 0.7646381578947368,
+flwr_server  | [92mINFO [0m:      	           'val_f1': 0.7230195194111203,
+flwr_server  | [92mINFO [0m:      	           'val_loss': 0.8961790255378737,
+flwr_server  | [92mINFO [0m:      	           'val_mae': 0.4301726973684211}),
+flwr_server  | [92mINFO [0m:      	         (5,
+flwr_server  | [92mINFO [0m:      	          {'jsd': (0.17075224334804404,
+flwr_server  | [92mINFO [0m:      	                   0.127020200888638,
+flwr_server  | [92mINFO [0m:      	                   0.2440494098733091,
+flwr_server  | [92mINFO [0m:      	                   0.1212322410417553,
+flwr_server  | [92mINFO [0m:      	                   0.21480407115043043),
+flwr_server  | [92mINFO [0m:      	           'train_accuracy': 0.9599285714285715,
+flwr_server  | [92mINFO [0m:      	           'train_f1': 0.9017030448358125,
+flwr_server  | [92mINFO [0m:      	           'train_loss': 0.12967235472869304,
+flwr_server  | [92mINFO [0m:      	           'train_mae': 0.0605952380952381,
+flwr_server  | [92mINFO [0m:      	           'val_accuracy': 0.7704135338345866,
+flwr_server  | [92mINFO [0m:      	           'val_f1': 0.7324444751370598,
+flwr_server  | [92mINFO [0m:      	           'val_loss': 0.8612323617218132,
+flwr_server  | [92mINFO [0m:      	           'val_mae': 0.43492481203007516}),
+flwr_server  | [92mINFO [0m:      	         (6,
+flwr_server  | [92mINFO [0m:      	          {'jsd': (0.17075224334804404,
+flwr_server  | [92mINFO [0m:      	                   0.1329120631452106,
+flwr_server  | [92mINFO [0m:      	                   0.2617114299783261,
+flwr_server  | [92mINFO [0m:      	                   0.10885658624808599,
+flwr_server  | [92mINFO [0m:      	                   0.21480407115043043),
+flwr_server  | [92mINFO [0m:      	           'train_accuracy': 0.9630372807017544,
+flwr_server  | [92mINFO [0m:      	           'train_f1': 0.9401019012797227,
+flwr_server  | [92mINFO [0m:      	           'train_loss': 0.1191845157422256,
+flwr_server  | [92mINFO [0m:      	           'train_mae': 0.055482456140350876,
+flwr_server  | [92mINFO [0m:      	           'val_accuracy': 0.7827008310249307,
+flwr_server  | [92mINFO [0m:      	           'val_f1': 0.747201777377838,
+flwr_server  | [92mINFO [0m:      	           'val_loss': 0.8097137894359652,
+flwr_server  | [92mINFO [0m:      	           'val_mae': 0.41284626038781164}),
+flwr_server  | [92mINFO [0m:      	         (7,
+flwr_server  | [92mINFO [0m:      	          {'jsd': (0.17075224334804404,
+flwr_server  | [92mINFO [0m:      	                   0.12256350357884038,
+flwr_server  | [92mINFO [0m:      	                   0.2601361076544936,
+flwr_server  | [92mINFO [0m:      	                   0.11168592160818167,
+flwr_server  | [92mINFO [0m:      	                   0.21480407115043043),
+flwr_server  | [92mINFO [0m:      	           'train_accuracy': 0.9651117886178862,
+flwr_server  | [92mINFO [0m:      	           'train_f1': 0.9422080371212479,
+flwr_server  | [92mINFO [0m:      	           'train_loss': 0.11113528568812502,
+flwr_server  | [92mINFO [0m:      	           'train_mae': 0.052184959349593496,
+flwr_server  | [92mINFO [0m:      	           'val_accuracy': 0.7851668806161747,
+flwr_server  | [92mINFO [0m:      	           'val_f1': 0.7504987176440264,
+flwr_server  | [92mINFO [0m:      	           'val_loss': 0.81016086032057,
+flwr_server  | [92mINFO [0m:      	           'val_mae': 0.40172978177150187}),
+flwr_server  | [92mINFO [0m:      	         (8,
+flwr_server  | [92mINFO [0m:      	          {'jsd': (0.17075224334804404,
+flwr_server  | [92mINFO [0m:      	                   0.12117378530181136,
+flwr_server  | [92mINFO [0m:      	                   0.22271966266908796,
+flwr_server  | [92mINFO [0m:      	                   0.1724350367335955,
+flwr_server  | [92mINFO [0m:      	                   0.21480407115043043),
+flwr_server  | [92mINFO [0m:      	           'train_accuracy': 0.9682102272727273,
+flwr_server  | [92mINFO [0m:      	           'train_f1': 0.947707661394411,
+flwr_server  | [92mINFO [0m:      	           'train_loss': 0.1040177998657931,
+flwr_server  | [92mINFO [0m:      	           'train_mae': 0.04776515151515152,
+flwr_server  | [92mINFO [0m:      	           'val_accuracy': 0.7926913875598086,
+flwr_server  | [92mINFO [0m:      	           'val_f1': 0.7569181085416643,
+flwr_server  | [92mINFO [0m:      	           'val_loss': 0.8203898441477825,
+flwr_server  | [92mINFO [0m:      	           'val_mae': 0.37012559808612444}),
+flwr_server  | [92mINFO [0m:      	         (9,
+flwr_server  | [92mINFO [0m:      	          {'jsd': (0.17075224334804404,
+flwr_server  | [92mINFO [0m:      	                   0.11597612431232991,
+flwr_server  | [92mINFO [0m:      	                   0.22162722955857278,
+flwr_server  | [92mINFO [0m:      	                   0.16500115248820058,
+flwr_server  | [92mINFO [0m:      	                   0.21480407115043043),
+flwr_server  | [92mINFO [0m:      	           'train_accuracy': 0.9685283687943262,
+flwr_server  | [92mINFO [0m:      	           'train_f1': 0.9014759894779649,
+flwr_server  | [92mINFO [0m:      	           'train_loss': 0.10258325556544125,
+flwr_server  | [92mINFO [0m:      	           'train_mae': 0.047863475177304965,
+flwr_server  | [92mINFO [0m:      	           'val_accuracy': 0.7893645016797312,
+flwr_server  | [92mINFO [0m:      	           'val_f1': 0.7541380186615325,
+flwr_server  | [92mINFO [0m:      	           'val_loss': 0.8393076861278475,
+flwr_server  | [92mINFO [0m:      	           'val_mae': 0.3902743561030235}),
+flwr_server  | [92mINFO [0m:      	         (10,
+flwr_server  | [92mINFO [0m:      	          {'jsd': (0.17075224334804404,
+flwr_server  | [92mINFO [0m:      	                   0.09367667656756147,
+flwr_server  | [92mINFO [0m:      	                   0.21480407115043043,
+flwr_server  | [92mINFO [0m:      	                   0.1316224559042507,
+flwr_server  | [92mINFO [0m:      	                   0.21480407115043043),
+flwr_server  | [92mINFO [0m:      	           'train_accuracy': 0.9683083333333333,
+flwr_server  | [92mINFO [0m:      	           'train_f1': 0.9050136714123349,
+flwr_server  | [92mINFO [0m:      	           'train_loss': 0.10302459698195258,
+flwr_server  | [92mINFO [0m:      	           'train_mae': 0.04750833333333333,
+flwr_server  | [92mINFO [0m:      	           'val_accuracy': 0.8063421052631579,
+flwr_server  | [92mINFO [0m:      	           'val_f1': 0.7728441330214336,
+flwr_server  | [92mINFO [0m:      	           'val_loss': 0.7731384685290487,
+flwr_server  | [92mINFO [0m:      	           'val_mae': 0.3480263157894737})]}
+flwr_server  | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      
+Client4      | [92mINFO [0m:      Received: reconnect message 2959a9b8-d074-4e2d-b0dd-53e96d4ff03f
+Client3      | [92mINFO [0m:      
+Client3      | [92mINFO [0m:      Received: reconnect message 84663a0d-1a3e-4ed4-a4be-8b01002b7c15
+Client2      | [92mINFO [0m:      
+Client2      | [92mINFO [0m:      Received: reconnect message 0f823db2-0300-4a1f-9c8e-69c060008d61
+Client5      | [92mINFO [0m:      
+Client5      | [92mINFO [0m:      Received: reconnect message 50398b32-b6b0-4738-9404-181fd7ce8df8
+Client1      | [92mINFO [0m:      
+Client1      | [92mINFO [0m:      Received: reconnect message 1483317b-ecac-45bc-b3e6-733567959d86
+Client1      | [92mINFO [0m:      Disconnect and shut down
+Client5      | [92mINFO [0m:      Disconnect and shut down
+Client3      | [92mINFO [0m:      Disconnect and shut down
+Client4      | [92mINFO [0m:      Disconnect and shut down
+Client2      | [92mINFO [0m:      Disconnect and shut down
+[KClient5 exited with code 0
+[KClient3 exited with code 0
+[KClient1 exited with code 0
+[KClient4 exited with code 0
+[KClient2 exited with code 0
+[Kflwr_server exited with code 0

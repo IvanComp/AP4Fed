@@ -1,0 +1,14 @@
+Round: 4
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+The Client Selector should be turned ON to mitigate the straggler effect caused by clients with fewer CPUs. Given the cpu_per_client [5,5,5,3,3], a selection_value of 3 will exclude clients with 3 CPUs, leaving the three clients with 5 CPUs. This ensures at least two clients remain active and reduces the Total Round Time and Training Time. The rationale focuses solely on the Client Selector as per the system configuration and performance metrics provided in the context. The decision is based on the need to optimize Total Round Time and Training Time.
+CS=ON; MC=OFF; HDH=ON
+
+[Rationale MC] | role=MC
+Based on the system configuration and evaluation metrics, the Message Compressor remains OFF. There is no clear bottleneck in communication time to warrant compression, as the Communication Time mean is 15.888 seconds with a wide range. The potential overhead of compression may not be justified by marginal gains in this round. HDH remains ON as per previous state and the Val F1 is stable at 0.6933. Client Selector remains OFF to ensure diversity. The decision is based on previous AP states and recent performance trends. CS=OFF; MC=OFF; HDH=ON
+
+[Rationale HDH] | role=HDH
+The Heterogeneous Data Handler is activated for the next round to mitigate the non-IID effects. The system configuration indicates that there are clients with non-IID data, specifically clients 1, 2, and 4. The Val F1 score was 0.6933 in the last round, which is an improvement from the previous round, but the decision to keep HDH on is based on the persistent non-IID data issue. Repeated activation is necessary when conditions warrant and F1 remains poor while round times are acceptable. HDH is ON.
+CS=OFF; MC=OFF; HDH=ON
+

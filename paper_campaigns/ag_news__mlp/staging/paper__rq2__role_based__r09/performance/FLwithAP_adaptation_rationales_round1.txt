@@ -1,0 +1,15 @@
+Round: 1
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+Based on the client configuration with CPUs [5, 5, 5, 3, 3], activating the Client Selector with selection_value=3 will exclude clients with CPU=3, leaving only clients with CPU=5 active. This approach directly addresses the Straggler effect, as low-CPU clients (3) are known to cause delays. Since at least three clients (CPU=5) will be active, the system remains stable and avoids crashes. The decision to keep other patterns off is consistent with previous configurations, as no evidence indicates a need for other optimizations in communication or data handling at this stage.
+CS=ON; MC=OFF; HDH=OFF
+
+[Rationale MC] | role=MC
+Given the system configuration, the model is not specified, but based on the communication time metrics, the 'CommunicationTime_s' column has a mean of 11.59, min of 0.54, max of 28.6, and last value of 0.72. The trend_slope is -6.6825, indicating a significant improvement in communication time over recent rounds, so enabling the Message Compressor may not be necessary and could still introduce overhead. Therefore, I keep it ON as it has been OFF previously and the conditions might be changing, but the evidence is weak. The decision is made after verifying the communication time trends and not interfering with other patterns. Message Compressor remains ON to probe its effect despite the improving communication times.
+CS=OFF; MC=ON; HDH=OFF
+
+[Rationale HDH] | role=HDH
+In this round, the system configuration shows that there are non-IID clients, which can negatively impact the global model accuracy. However, the previous round's metrics show that Val F1 was not provided, so we cannot compare baseline performance. Looking at the performance metrics, TrainingTime mean is 1.47 seconds, CommunicationTime mean is 11.59 seconds, and TotalRoundTime is fixed at 31.85 seconds. The Val F1 metric was not available in the last round, so I cannot use it to make a decision. Based on the presence of non-IID clients, I still believe it is necessary to activate HDH to mitigate non-IID effects. Additionally, HDH has been off for the last round and the evidence suggests that non-IID data is present, so turning it on is appropriate. HDH is designed to improve model performance on non-IID data, and while there may be overhead, the potential improvement justifies it in this case. CS and MC are kept OFF for now, as their activation would require a change from previous state or specific conditions not met. This decision should be made with knowledge of non-IID clients. CS=<OFF>; MC=OFF; HDH=ON
+CS=OFF; MC=OFF; HDH=ON
+

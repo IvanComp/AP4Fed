@@ -1,0 +1,22 @@
+Round: 8
+Policy: Multiple AI-Agents (Role-Based)
+
+[Rationale CS] | role=CS
+The Client Selector is activated to mitigate the impact of clients with lower CPU capabilities. Given the system configuration with CPUs [5,5,5,3,3], setting selection_value=3 will exclude clients with 3 CPUs. This ensures that three clients (those with 5 CPUs) remain active, meeting the requirement of at least two clients active. The performance metrics show no significant degradation in Val F1, and the Client Selector has been OFF previously but round times may benefit from exclusion of lower CPU clients. No changes are made to Message Compressor or Heterogeneous Data Handler as their previous states are retained. The rationale focuses solely on the Client Selector.
+CS=ON; MC=OFF; HDH=ON
+
+[Rationale MC] | role=MC
+For the Message Compressor, the recent round's Communication Time mean was 9.697 seconds, with a significant maximum value of 27.990 seconds and a trend slope of +1.054, indicating increasing communication overhead. Given the model size, which in previous rounds was scaled by a factor (though exact model details are not provided, assuming standard sizes), compression might help reduce communication time without unacceptable overhead. However, the decision to keep MC OFF is maintained as the primary focus is on minimizing global model accuracy degradation and avoiding unnecessary overhead, unless strong evidence points to high communication time as a bottleneck.
+
+ CS and HDH remain unchanged based on previous state and their relevance: Client Selector is active to handle stragglers by setting the threshold to 3, ensuring only clients with CPU >3 are active (which are the three 5-CPU clients). Heterogeneous Data Handler remains active for non-IID clients present, as it has shown to improve F1 scores over several rounds.
+
+ This decision maintains stability and avoids introducing potential degradation from MC while focusing on the proven effectiveness of CS and HDH for CPU heterogeneity and non-IID data.
+CS=ON; MC=OFF; HDH=ON
+
+[Rationale HDH] | role=HDH
+Based on the system configuration, the Client Selector should remain ON. With CPUs [5,5,5,3,3], a selection_value of 3 ensures that clients with CPU>3 (the three clients with CPU=5) are active, thus reducing the impact of slow clients and optimizing round time.
+
+Message Compressor remains OFF as per previous configuration and no strong evidence for enabling it.
+
+Heterogeneous Data Handler is activated because non-IID clients (IDs 1,2,4) are present, and this will mitigate their effects. Although it has been ON previously, the Val F1 has improved slightly (0.6037), but non-IID presence persists. HDH reduces training overhead per client and improves global accuracy by addressing data heterogeneity. Re-enable HDH to sustain performance. CS=ON; MC=OFF; HDH=ON
+
