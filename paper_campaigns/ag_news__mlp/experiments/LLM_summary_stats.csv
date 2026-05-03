@@ -1,7 +1,0 @@
-Configuration,Model Accuracy (mean ± std),Total FL Time (mean ± std),Agent Overhead (mean ± std),n_runs
-Never,0.72 ± 0.06,476 ± 37 s,0 ± 0 s,10
-Random,0.76 ± 0.03,473 ± 19 s,1 ± 0 s,10
-Expert-Driven,0.74 ± 0.06,493 ± 22 s,2 ± 0 s,10
-Voting-based,0.77 ± 0.04,429 ± 46 s,464 ± 83 s,10
-Role-based,0.75 ± 0.06,436 ± 54 s,390 ± 127 s,10
-Debate-based,0.78 ± 0.04,402 ± 36 s,354 ± 69 s,10

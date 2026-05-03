@@ -1,4 +1,0 @@
-Agent | ,Accuracy | Never,Accuracy | Random,Accuracy | Expert-Driven,Training | Never,Training | Random,Training | Expert-Driven,Communication | Never,Communication | Random,Communication | Expert-Driven,Round Time | Never,Round Time | Random,Round Time | Expert-Driven
-Voting-based,✓✓✓,✓✓✓,✓✓✓,✓✓✓,✓✓✓,-,✗✗✗,-,-,-,✓✓✓,-
-Role-based,✓✓✓,✓✓✓,-,-,✓✓✓,✗✗✗,✗✗✗,✗✗✗,-,✗✗✗,✓✓✓,✗✗✗
-Debate-based,✓✓✓,✓✓✓,-,-,✓✓✓,✗✗✗,✗✗✗,-,-,✗✗✗,✓✓✓,-

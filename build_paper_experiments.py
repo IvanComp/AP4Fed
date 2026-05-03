@@ -47,7 +47,6 @@ DOCKER_CONFIG_PATH = DOCKER_DIR / "configuration" / "config.json"
 LOCAL_ADAPTATION_PATH = LOCAL_DIR / "adaptation.py"
 DOCKER_ADAPTATION_PATH = ROOT / "Docker" / "adaptation.py"
 CAMPAIGNS_ROOT = ROOT / "paper_campaigns"
-NOTEBOOK_TEMPLATES_DIR = ROOT / "paper_notebook_templates"
 
 INDEX_FIELDS = [
     "Configuration",
@@ -128,9 +127,9 @@ KNOWN_TASK_SLUGS = {
     ("fashionmnist", "cnn_16k"): "fashionmnist__cnn16k",
     ("ag_news", "mlp"): "ag_news__mlp",
 }
-TASK_NOTEBOOK_TEMPLATES = {
-    ("fashionmnist", "cnn_16k"): NOTEBOOK_TEMPLATES_DIR / "fashionmnist__cnn16k" / "Paper Figures.ipynb",
-    ("ag_news", "mlp"): NOTEBOOK_TEMPLATES_DIR / "ag_news__mlp" / "Paper Figures.ipynb",
+TASK_NOTEBOOK_FILENAMES = {
+    ("fashionmnist", "cnn_16k"): "Paper Figures CNN.ipynb",
+    ("ag_news", "mlp"): "Paper Figures MLP.ipynb",
 }
 
 CLIENT_TEMPLATE = [
@@ -405,7 +404,13 @@ def default_ollama_url_for_mode(mode: str) -> str:
 
 def notebook_template_for_output() -> Optional[Path]:
     signature = current_task_signature()
-    candidate = TASK_NOTEBOOK_TEMPLATES.get(signature)
+    task_slug = KNOWN_TASK_SLUGS.get(signature)
+    if task_slug is None:
+        return None
+    notebook_name = TASK_NOTEBOOK_FILENAMES.get(signature)
+    if notebook_name is None:
+        return None
+    candidate = CAMPAIGNS_ROOT / task_slug / "experiments" / notebook_name
     if candidate and candidate.exists():
         return candidate
     return None
@@ -426,7 +431,10 @@ def write_campaign_metadata(base_dir: Path, kind: str) -> None:
 
 def sync_output_notebook(output_dir: Path) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
-    destination = output_dir / "Paper Figures.ipynb"
+    notebook_name = TASK_NOTEBOOK_FILENAMES.get(current_task_signature())
+    if notebook_name is None:
+        return
+    destination = output_dir / notebook_name
     template = notebook_template_for_output()
     if template is None or not template.exists():
         return
@@ -1233,6 +1241,16 @@ def last_valid_value(series: pd.Series) -> float:
     return float(numeric.iloc[-1]) if not numeric.empty else math.nan
 
 
+def representative_agent_time(series: pd.Series) -> float:
+    numeric = to_numeric_series(series).dropna()
+    if numeric.empty:
+        return math.nan
+    positive = numeric[numeric > 0]
+    if not positive.empty:
+        return float(positive.iloc[-1])
+    return float(numeric.iloc[-1])
+
+
 def last_non_empty(series: pd.Series) -> str:
     values = [str(value).strip() for value in series.dropna() if str(value).strip()]
     return values[-1] if values else ""
@@ -1255,7 +1273,7 @@ def aggregate_run_csv(csv_path: Path, approach_name: str, run_name: str) -> pd.D
     df[round_col] = pd.to_numeric(df[round_col], errors="coerce")
     df = df.dropna(subset=[round_col])
     df[round_col] = df[round_col].astype(int)
-    df.sort_values(round_col, inplace=True)
+    df.sort_values(round_col, kind="mergesort", inplace=True)
 
     rows: List[Dict[str, object]] = []
     for round_idx, sub in df.groupby(round_col, sort=True):
@@ -1268,11 +1286,15 @@ def aggregate_run_csv(csv_path: Path, approach_name: str, run_name: str) -> pd.D
                 "total_time": last_valid_value(sub[total_time_col]) if total_time_col else math.nan,
                 "training_time": float(to_numeric_series(sub[training_time_col]).mean()) if training_time_col else math.nan,
                 "communication_time": float(to_numeric_series(sub[communication_time_col]).mean()) if communication_time_col else math.nan,
-                "agent_time": last_valid_value(sub[agent_time_col]) if agent_time_col else 0.0,
+                "agent_time": representative_agent_time(sub[agent_time_col]) if agent_time_col else 0.0,
                 "ap_list": last_non_empty(sub[ap_list_col]) if ap_list_col else "",
             }
         )
-    return pd.DataFrame(rows)
+    round_df = pd.DataFrame(rows)
+    if agent_time_col and not round_df.empty:
+        final_idx = round_df["round"].idxmax()
+        round_df.loc[final_idx, "agent_time"] = 0.0
+    return round_df
 
 
 def load_exported_runs(output_dir: Path) -> pd.DataFrame:

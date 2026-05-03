@@ -1,7 +1,0 @@
-{
-    "task_slug": "ag_news__mlp",
-    "dataset": "AG_NEWS",
-    "model": "MLP",
-    "mode": "docker",
-    "kind": "staging"
-}

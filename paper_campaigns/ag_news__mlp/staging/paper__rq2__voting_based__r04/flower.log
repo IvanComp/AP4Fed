@@ -1,9 +1,0 @@
- Image ap4fed_client:latest Building 
- Image ap4fed_client:latest Building 
- Image ap4fed_server:latest Building 
- Image ap4fed_client:latest Building 
- Image ap4fed_client:latest Building 
- Image ap4fed_client:latest Building 
-#1 [internal] load local bake definitions
-#1 reading from stdin 2.76kB done
-#1 DONE 0.0s

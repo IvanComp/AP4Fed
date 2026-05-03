@@ -1902,6 +1902,7 @@ class AdaptationManager:
 
     def config_next_round(self, metrics_history: Dict, last_round_time: float):
         t_agents_start = time.perf_counter()
+        self.adaptation_time = 0.0
         if not self.enabled:
             return self.default_config["patterns"]
         current_round = self._infer_current_round(metrics_history)
