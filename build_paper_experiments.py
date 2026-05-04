@@ -1294,6 +1294,14 @@ def aggregate_run_csv(csv_path: Path, approach_name: str, run_name: str) -> pd.D
     if agent_time_col and not round_df.empty:
         final_idx = round_df["round"].idxmax()
         round_df.loc[final_idx, "agent_time"] = 0.0
+    if not round_df.empty:
+        round_df["agent_time"] = pd.to_numeric(round_df["agent_time"], errors="coerce").fillna(0.0)
+        total_numeric = pd.to_numeric(round_df["total_time"], errors="coerce")
+        round_df["total_time"] = np.where(
+            total_numeric.notna(),
+            total_numeric + round_df["agent_time"],
+            total_numeric,
+        )
     return round_df
 
 

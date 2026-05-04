@@ -336,6 +336,10 @@ def preprocess_csv(agent_time=None):
     except (TypeError, ValueError):
         val = np.nan
     df.loc[idx, 'Agent Time (s)'] = val
+    if len(idx) > 0 and pd.notna(val):
+        total_time_value = pd.to_numeric(df.loc[idx, "Total Time of FL Round"], errors="coerce")
+        if not total_time_value.empty and pd.notna(total_time_value.iloc[0]):
+            df.loc[idx, "Total Time of FL Round"] = round(float(total_time_value.iloc[0]) + float(val), 2)
     df.drop(columns=["Client Number"], inplace=True)
     df.to_csv(csv_file, index=False)
 

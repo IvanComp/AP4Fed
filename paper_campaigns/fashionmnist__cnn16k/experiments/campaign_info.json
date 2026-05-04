@@ -1,7 +1,0 @@
-{
-    "task_slug": "fashionmnist__cnn16k",
-    "dataset": "FashionMNIST",
-    "model": "CNN 16k",
-    "mode": "docker",
-    "kind": "experiments"
-}

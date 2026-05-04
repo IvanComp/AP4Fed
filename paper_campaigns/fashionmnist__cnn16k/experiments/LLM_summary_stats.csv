@@ -2,6 +2,6 @@ Configuration,Model Accuracy (mean ± std),Total FL Time (mean ± std),Agent Ove
 Never,0.78 ± 0.01,1666 ± 124 s,0 ± 0 s,10
 Random,0.78 ± 0.01,3796 ± 977 s,0 ± 0 s,10
 Expert-Driven,0.81 ± 0.02,1619 ± 291 s,0 ± 0 s,10
-Voting-based,0.82 ± 0.01,1921 ± 285 s,466 ± 84 s,10
-Role-based,0.82 ± 0.02,2889 ± 357 s,388 ± 114 s,10
-Debate-based,0.82 ± 0.01,1872 ± 425 s,368 ± 96 s,10
+Voting-based,0.82 ± 0.01,2387 ± 220 s,466 ± 84 s,10
+Role-based,0.82 ± 0.02,3276 ± 320 s,388 ± 114 s,10
+Debate-based,0.82 ± 0.01,2240 ± 494 s,368 ± 96 s,10
