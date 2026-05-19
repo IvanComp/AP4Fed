@@ -417,12 +417,16 @@ class FlowerClient(NumPyClient):
                 parameters = numpy_arrays
 
             set_weights_A(self.net, parameters)
+            proximal_mu = config.get("proximal_mu", 0.0)
+            global_weights_for_prox = parameters if proximal_mu else None
             results, training_time = train_A(
                 self.net,
                 self.trainloader,
                 self.testloader,
                 epochs=self.epochs,
                 DEVICE=self.DEVICE,
+                proximal_mu=proximal_mu,
+                global_weights=global_weights_for_prox,
             )
             new_parameters = get_weights_A(self.net)
 

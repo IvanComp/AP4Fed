@@ -970,6 +970,17 @@ def load_data(client_config, GLOBAL_ROUND_COUNTER, dataset_name_override=None):
 
         trainset = Subset(trainset, selected_indices)
 
+    max_train_samples = int(os.environ.get("AP4FED_MAX_TRAIN_SAMPLES_PER_CLIENT", "0") or 0)
+    if max_train_samples > 0 and len(trainset) > max_train_samples:
+        rng = random.Random(partition_seed + client_id)
+        limited_indices = list(range(len(trainset)))
+        rng.shuffle(limited_indices)
+        trainset = Subset(trainset, limited_indices[:max_train_samples])
+
+    max_test_samples = int(os.environ.get("AP4FED_MAX_TEST_SAMPLES", "0") or 0)
+    if max_test_samples > 0 and len(testset) > max_test_samples:
+        testset = Subset(testset, list(range(max_test_samples)))
+
     class_distribution = Counter()
     for idx in range(len(trainset)):
         _, label = trainset[idx]
@@ -1195,7 +1206,7 @@ def get_jsd(trainloader):
     return JSD
 
 
-def train(net, trainloader, valloader, epochs, DEVICE):
+def train(net, trainloader, valloader, epochs, DEVICE, proximal_mu=0.0, global_weights=None):
     labels = [lbl.item() if isinstance(lbl, torch.Tensor) else lbl for _, lbl in trainloader.dataset]
     #dist = dict(Counter(labels))
     #log(INFO, f"Training dataset distribution ({DATASET_NAME}): {dist}")
@@ -1206,6 +1217,16 @@ def train(net, trainloader, valloader, epochs, DEVICE):
     net.to(DEVICE)
     criterion = torch.nn.CrossEntropyLoss().to(DEVICE)
     optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
+    proximal_refs = None
+    try:
+        proximal_mu = float(proximal_mu or 0.0)
+    except Exception:
+        proximal_mu = 0.0
+    if proximal_mu > 0.0 and global_weights is not None:
+        proximal_refs = [
+            torch.as_tensor(weight, device=DEVICE, dtype=param.dtype).detach().clone()
+            for weight, param in zip(global_weights, net.parameters())
+        ]
     net.train()
     for _ in range(epochs):
         for batch, labels in trainloader:
@@ -1219,6 +1240,11 @@ def train(net, trainloader, valloader, epochs, DEVICE):
                 images = batch.to(DEVICE)
                 outputs = net(images)
             loss = criterion(outputs, labels)
+            if proximal_refs is not None:
+                prox_term = torch.zeros((), device=DEVICE)
+                for param, ref in zip(net.parameters(), proximal_refs):
+                    prox_term = prox_term + torch.sum((param - ref) ** 2)
+                loss = loss + (proximal_mu / 2.0) * prox_term
             loss.backward()
             optimizer.step()
     training_time = time.time() - start_time

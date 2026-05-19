@@ -272,8 +272,8 @@ class DashboardWindow(QWidget):
         metrics_panel_layout.setSpacing(8)
 
         self.metrics_table = QTableWidget()
-        self.metrics_table.setColumnCount(6)
-        self.metrics_table.setHorizontalHeaderLabels(["Round", "Client", "F1", "Total Time (s)", "Training (s)", "Comm (s)"])
+        self.metrics_table.setColumnCount(7)
+        self.metrics_table.setHorizontalHeaderLabels(["Round", "Client", "F1", "Total Time (s)", "Training (s)", "Comm (s)", "Agg"])
         self.metrics_table.verticalHeader().setVisible(False)
         self.metrics_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.metrics_table.setSelectionMode(QAbstractItemView.NoSelection)
@@ -294,6 +294,7 @@ class DashboardWindow(QWidget):
         header.setSectionResizeMode(3, QHeaderView.Stretch)
         header.setSectionResizeMode(4, QHeaderView.Stretch)
         header.setSectionResizeMode(5, QHeaderView.Stretch)
+        header.setSectionResizeMode(6, QHeaderView.ResizeToContents)
 
         metrics_panel_layout.addWidget(self.metrics_table)
         top_row_layout.addWidget(self.metrics_panel)
@@ -493,6 +494,7 @@ class DashboardWindow(QWidget):
             last = df_nonan.iloc[-1]
             f1_val = last.get("Val F1", float("nan"))
             total_time_val = last.get("Total Time of FL Round", float("nan"))
+            aggregation_baseline = last.get("Aggregation Baseline", "")
             rounds_list.append(rnd)
             f1_list.append(f1_val)
             total_times_list.append(total_time_val)
@@ -512,6 +514,7 @@ class DashboardWindow(QWidget):
                         f"{total_time_val:.0f}",
                         f"{train_t:.2f}",
                         f"{comm_t:.2f}",
+                        str(aggregation_baseline),
                     )
                 )
 
@@ -540,6 +543,7 @@ class DashboardWindow(QWidget):
             if span_len > 1:
                 self.metrics_table.setSpan(current_row, 2, span_len, 1)
                 self.metrics_table.setSpan(current_row, 3, span_len, 1)
+                self.metrics_table.setSpan(current_row, 6, span_len, 1)
                 for r in range(current_row + 1, current_row + span_len):
                     empty_f1 = QTableWidgetItem("")
                     empty_f1.setTextAlignment(Qt.AlignCenter)
@@ -547,6 +551,9 @@ class DashboardWindow(QWidget):
                     empty_tt = QTableWidgetItem("")
                     empty_tt.setTextAlignment(Qt.AlignCenter)
                     self.metrics_table.setItem(r, 3, empty_tt)
+                    empty_agg = QTableWidgetItem("")
+                    empty_agg.setTextAlignment(Qt.AlignCenter)
+                    self.metrics_table.setItem(r, 6, empty_agg)
             current_row += span_len
 
         self.update_pattern_grid(pattern_matrix_data)

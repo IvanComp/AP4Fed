@@ -48,6 +48,7 @@ from pytorch_grad_cam import (
 )
 from pytorch_grad_cam.utils.image import show_cam_on_image, preprocess_image
 from adaptation import AdaptationManager
+from aggregation_baselines import DynamicAggregationBaselineManager
 
 # Silence progress bars printed by pytorch-grad-cam internals (ScoreCAM/AblationCAM).
 _orig_tqdm = tqdm.tqdm
@@ -164,6 +165,7 @@ with open(csv_file, 'w', newline='') as file:
         'Train Loss', 'Train Accuracy', 'Train F1', 'Train MAE',
         'Val Loss', 'Val Accuracy', 'Val F1', 'Val MAE',
         'SSIM Overhead (indice)',
+        'Aggregation Baseline', 'Next Aggregation Baseline', 'Aggregation LLM Time (s)', 'Aggregation Rationale',
         'AP List (client_selector,client_cluster,message_compressor,model_co-versioning_registry,multi-task_model_trainer,heterogeneous_data_handler)'
     ])
 
@@ -174,7 +176,7 @@ def log_round_time(
         training_time, jsd, hdh_ms, communication_time, time_between_rounds,
         n_cpu, cpu_percent, ram_percent,
         client_model_type, data_distr, dataset_value,
-        already_logged, srt1, srt2, agg_key, ssim_overhead=None
+        already_logged, srt1, srt2, agg_key, ssim_overhead=None, aggregation_baseline="FedAvg"
 ):
     try:
         client_id = docker_client.containers.get(client_id).name
@@ -242,6 +244,10 @@ def log_round_time(
             f"{val_f1:.4f}" if val_f1 is not None else "",
             f"{val_mae:.4f}" if val_mae is not None else "",
             f"{ssim_overhead:.2f}" if ssim_overhead is not None else "",
+            aggregation_baseline if not already_logged else "",
+            "",
+            "",
+            "",
             ap_list
         ])
 
@@ -649,7 +655,14 @@ def append_ml_experiment_row(row):
     else:
         row_df.to_csv(ml_csv_file, index=False, na_rep="NaN", sep=";", decimal=",")
 
-def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_rounds):
+def weighted_average_global(
+        metrics,
+        agg_model_type,
+        srt1,
+        srt2,
+        time_between_rounds,
+        aggregation_baseline="FedAvg",
+):
     if agg_model_type not in global_metrics:
         global_metrics[agg_model_type] = {
             "train_loss": [],
@@ -738,7 +751,8 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
                 dataset_value,
                 srt1,
                 srt2,
-                None
+                None,
+                aggregation_baseline
             ))
 
     num_clients = len(client_data_list)
@@ -779,7 +793,8 @@ def weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_ro
             srt1,
             srt2,
             agg_model_type,
-            ssim_overhead
+            ssim_overhead,
+            aggregation_baseline
         )
 
     return {
@@ -846,6 +861,7 @@ class FedAvg(Strategy):
         self._send_ts = {}
         self.excluded_cid = None
         self._used_training_client_cids = set()
+        self.aggregation_mgr = DynamicAggregationBaselineManager(config, initial_parameters_a, performance_dir)
         banner = r"""
   ___  ______  ___ ______       _ 
  / _ \ | ___ \/   ||  ___|     | |
@@ -855,6 +871,8 @@ class FedAvg(Strategy):
 \_| |_/\_|      |_/\_| \___|\__,_| v.1.5.0
 
 """
+        log(INFO, "==========================================")
+        log(INFO, self.aggregation_mgr.describe())
         log(INFO, "==========================================")
         for raw in banner.splitlines()[1:]:
             line = raw.replace(" ", "\u00A0")
@@ -1008,11 +1026,12 @@ class FedAvg(Strategy):
         fit_configurations: List[Tuple[ClientProxy, FitIns]] = []
         for client in clients:
             self._send_ts[client.cid] = time.time()
+            aggregation_fit_config = self.aggregation_mgr.fit_config()
             if 'MESSAGE_COMPRESSOR' in globals() and MESSAGE_COMPRESSOR:
-                cfg = {"compressed_parameters_b64": compressed_parameters_b64}
+                cfg = {"compressed_parameters_b64": compressed_parameters_b64, **aggregation_fit_config}
                 fit_ins = FitIns(fake_parameters, cfg)
             else:
-                fit_ins = FitIns(base_params, {})
+                fit_ins = FitIns(base_params, aggregation_fit_config)
 
             fit_configurations.append((client, fit_ins))
 
@@ -1120,7 +1139,8 @@ class FedAvg(Strategy):
             model_type,
             max_train,
             communication_time,
-            round_total_time
+            round_total_time,
+            currentRnd
         )
 
         aggregated_model = NetA()
@@ -1476,6 +1496,16 @@ class FedAvg(Strategy):
         next_round_config = self.adapt_mgr.config_next_round(metrics_history, round_total_time)
         agent_time = getattr(self.adapt_mgr, 'adaptation_time', None)
         preprocess_csv(agent_time)
+        aggregation_decision = self.aggregation_mgr.decide_next_round(currentRnd, metrics_history, csv_file)
+        self.aggregation_mgr.update_latest_csv_decision(csv_file, currentRnd, aggregation_decision)
+        log(
+            INFO,
+            f"[Aggregation Baseline] round={currentRnd} used={aggregation_decision.get('previous_baseline')} "
+            f"next={aggregation_decision.get('next_baseline')} llm={aggregation_decision.get('llm_model')} "
+            f"time={float(aggregation_decision.get('llm_time') or 0.0):.2f}s"
+        )
+        if aggregation_decision.get("rationale"):
+            log(INFO, f"[Aggregation Rationale] {aggregation_decision.get('rationale')}")
         round_csv = os.path.join(performance_dir, f"FLwithAP_performance_metrics_round{currentRnd}.csv")
         shutil.copy(csv_file, round_csv)
         if currentRnd >= num_rounds:
@@ -1484,27 +1514,30 @@ class FedAvg(Strategy):
 
         return self.parameters_a, metrics_aggregated
 
-    def aggregate_parameters(self, results, agg_model_type, srt1, srt2, time_between_rounds):
-        total_examples = sum([num_examples for _, num_examples, _ in results])
-        new_weights = None
-
+    def aggregate_parameters(self, results, agg_model_type, srt1, srt2, time_between_rounds, server_round):
         metrics = []
-        for client_params, num_examples, client_metrics in results:
-            client_weights = parameters_to_ndarrays(client_params)
-            if num_examples == 0 or not client_weights:
+        for _, num_examples, client_metrics in results:
+            if num_examples == 0:
                 continue
-            weight = num_examples / total_examples
-            if new_weights is None:
-                new_weights = [w * weight for w in client_weights]
-            else:
-                new_weights = [nw + w * weight for nw, w in zip(new_weights, client_weights)]
             metrics.append((num_examples, client_metrics))
 
-        if new_weights is None:
+        if not metrics:
             return self.parameters_a
 
-        weighted_average_global(metrics, agg_model_type, srt1, srt2, time_between_rounds)
-        return ndarrays_to_parameters(new_weights)
+        aggregated_parameters = self.aggregation_mgr.aggregate(
+            server_round,
+            results,
+            self.parameters_a,
+        )
+        weighted_average_global(
+            metrics,
+            agg_model_type,
+            srt1,
+            srt2,
+            time_between_rounds,
+            aggregation_baseline=self.aggregation_mgr.label(),
+        )
+        return aggregated_parameters
 
     def configure_evaluate(
             self,

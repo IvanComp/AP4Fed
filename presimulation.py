@@ -413,7 +413,7 @@ class PreSimulationPage(QWidget):
         self.home_page_callback = home_page_callback
         self.temp_pattern_config = {}
         self.setWindowTitle("AP4Fed")
-        self.resize(800, 600)
+        self.resize(1180, 700)
 
         self.setStyleSheet("""
             QWidget {
@@ -473,6 +473,26 @@ class PreSimulationPage(QWidget):
         g_layout = QGridLayout()
         g_layout.setHorizontalSpacing(24)
         g_layout.setVerticalSpacing(14)
+        adaptation_settings_group = QGroupBox("Adaptation Settings")
+        adaptation_settings_group.setStyleSheet("""
+            QGroupBox {
+                background-color: white;
+                border: 1px solid lightgray;
+                border-radius: 5px;
+                margin-top: 10px;
+            }
+            QGroupBox:title {
+                subcontrol-origin: margin;
+                subcontrol-position: top center;
+                padding: 0 3px;
+                color: black;
+                font-size: 14px;
+                font-weight: bold;
+            }
+        """)
+        a_layout = QGridLayout()
+        a_layout.setHorizontalSpacing(24)
+        a_layout.setVerticalSpacing(14)
         bold_font = QFont()
         bold_font.setBold(True)
 
@@ -504,7 +524,7 @@ class PreSimulationPage(QWidget):
         self.sim_type_combo.addItems(["Local","Docker"])
         self.sim_type_combo.setMinimumWidth(160)
 
-        adaptation_label = QLabel("Type of Adaptation:")
+        adaptation_label = QLabel("Architectural Pattern Adaptation:")
         font = adaptation_label.font()
         font.setBold(True)
         adaptation_label.setFont(font)
@@ -520,29 +540,74 @@ class PreSimulationPage(QWidget):
         self.llm_label.hide()
         self.llm_combo.hide()
 
+        aggregation_adaptation_label = QLabel("Aggregation Strategies Adaptation:")
+        aggregation_adaptation_label.setFont(bold_font)
+        self.aggregation_adaptation_combo = QComboBox()
+        self.aggregation_adaptation_combo.addItems(["None", "Enabled"])
+        self.aggregation_adaptation_combo.setMinimumWidth(280)
+        self.aggregation_adaptation_combo.setToolTip(
+            "Adapt the Flower aggregation strategy at the end of each round."
+        )
+
+        self.aggregation_policy_label = QLabel("Adaptation Policy:")
+        self.aggregation_policy_label.setFont(bold_font)
+        self.aggregation_policy_combo = QComboBox()
+        self.aggregation_policy_combo.addItems([
+            "Random",
+            "Predictor-Based",
+            "Bayesian Optimization-Based",
+            "LLM-Based",
+        ])
+        self.aggregation_policy_combo.setMinimumWidth(220)
+        self.aggregation_policy_label.hide()
+        self.aggregation_policy_combo.hide()
+
+        self.aggregation_llm_label = QLabel("LLM")
+        self.aggregation_llm_label.setFont(bold_font)
+        self.aggregation_llm_combo = QComboBox()
+        self.aggregation_llm_combo.addItems(["llama3.2:3b", "deepseek-r1:8b"])
+        self.aggregation_llm_combo.setMinimumWidth(180)
+        self.aggregation_llm_label.hide()
+        self.aggregation_llm_combo.hide()
+
         def _toggle_llm_selector(text):
             vis = "ai-agent" in str(text).lower()
             self.llm_label.setVisible(vis)
             self.llm_combo.setVisible(vis)
 
-        def add_setting(row, col, setting_label, setting_widget):
+        def _toggle_aggregation_controls():
+            enabled = self.aggregation_adaptation_combo.currentText() != "None"
+            is_llm_policy = self.aggregation_policy_combo.currentText() == "LLM-Based"
+            self.aggregation_policy_label.setVisible(enabled)
+            self.aggregation_policy_combo.setVisible(enabled)
+            self.aggregation_llm_label.setVisible(enabled and is_llm_policy)
+            self.aggregation_llm_combo.setVisible(enabled and is_llm_policy)
+
+        def add_setting(target_layout, row, col, setting_label, setting_widget):
             field = QWidget()
             field_layout = QVBoxLayout(field)
             field_layout.setContentsMargins(0, 0, 0, 0)
             field_layout.setSpacing(6)
             field_layout.addWidget(setting_label)
             field_layout.addWidget(setting_widget)
-            g_layout.addWidget(field, row, col)
+            target_layout.addWidget(field, row, col)
 
-        add_setting(0, 0, rounds_label, self.rounds_input)
-        add_setting(0, 1, clients_label, self.clients_input)
-        add_setting(0, 2, clients_per_round_label, self.clients_per_round_input)
-        add_setting(1, 0, simulation_label, self.sim_type_combo)
-        add_setting(1, 1, adaptation_label, self.adaptation_combo)
-        add_setting(1, 2, self.llm_label, self.llm_combo)
+        add_setting(g_layout, 0, 0, rounds_label, self.rounds_input)
+        add_setting(g_layout, 0, 1, clients_label, self.clients_input)
+        add_setting(g_layout, 0, 2, clients_per_round_label, self.clients_per_round_input)
+        add_setting(g_layout, 1, 0, simulation_label, self.sim_type_combo)
+
+        add_setting(a_layout, 0, 0, adaptation_label, self.adaptation_combo)
+        add_setting(a_layout, 0, 1, self.llm_label, self.llm_combo)
+        add_setting(a_layout, 1, 0, aggregation_adaptation_label, self.aggregation_adaptation_combo)
+        add_setting(a_layout, 1, 1, self.aggregation_policy_label, self.aggregation_policy_combo)
+        add_setting(a_layout, 1, 2, self.aggregation_llm_label, self.aggregation_llm_combo)
 
         self.adaptation_combo.currentTextChanged.connect(_toggle_llm_selector)
+        self.aggregation_adaptation_combo.currentTextChanged.connect(lambda _: _toggle_aggregation_controls())
+        self.aggregation_policy_combo.currentTextChanged.connect(lambda _: _toggle_aggregation_controls())
         _toggle_llm_selector(self.adaptation_combo.currentText())
+        _toggle_aggregation_controls()
 
         docker_status_label = QLabel("Docker Status:")
         font = docker_status_label.font()
@@ -577,8 +642,14 @@ class PreSimulationPage(QWidget):
                 self.check_docker_status()
         self.sim_type_combo.currentTextChanged.connect(on_type_changed)
 
+        adaptation_settings_group.setLayout(a_layout)
         general_settings_group.setLayout(g_layout)
-        main_layout.addWidget(general_settings_group)
+
+        settings_row = QHBoxLayout()
+        settings_row.setSpacing(16)
+        settings_row.addWidget(general_settings_group, 1)
+        settings_row.addWidget(adaptation_settings_group, 1)
+        main_layout.addLayout(settings_row)
 
         patterns_label = QLabel("Select Architectural Patterns to be applied:")
         patterns_label.setAlignment(Qt.AlignLeft)
@@ -998,6 +1069,40 @@ class PreSimulationPage(QWidget):
             "clients_per_round": min(self.clients_per_round_input.value(), self.clients_input.value()),
             "adaptation": self.adaptation_combo.currentText(),
             "LLM": self.llm_combo.currentText(),
+            "aggregation_baselines": {
+                "enabled": self.aggregation_adaptation_combo.currentText() != "None",
+                "policy": self.aggregation_policy_combo.currentText(),
+                "llm_model": self.aggregation_llm_combo.currentText() if self.aggregation_policy_combo.currentText() == "LLM-Based" else "llama3.2:3b",
+                "initial_baseline": "FedAvg",
+                "candidates": [
+                    "FedAvg",
+                    "FedAvgM",
+                    "FedProx",
+                    "FedAdam",
+                    "FedAdagrad",
+                    "FedYogi",
+                    "FedMedian",
+                    "FedTrimmedAvg",
+                    "Krum",
+                    "Bulyan",
+                    "QFedAvg",
+                    "FaultTolerantFedAvg"
+                ],
+                "params": {
+                    "fedavgm_momentum": 0.9,
+                    "fedavgm_learning_rate": 1.0,
+                    "fedprox_mu": 0.01,
+                    "trimmedavg_beta": 0.2,
+                    "fedopt_eta": 0.1,
+                    "fedopt_eta_l": 0.1,
+                    "fedopt_beta_1": 0.9,
+                    "fedopt_beta_2": 0.99,
+                    "fedopt_tau": 1e-9,
+                    "qfedavg_q": 0.2,
+                    "qfedavg_learning_rate": 0.1,
+                    "num_malicious_clients": 0
+                }
+            },
             "patterns": patterns_data,
             "client_generation_mode": "manual",
             "client_profiles": [],
