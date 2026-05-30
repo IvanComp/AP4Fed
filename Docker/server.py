@@ -879,6 +879,7 @@ class FedAvg(Strategy):
             log(INFO, line)
         log(INFO, "==========================================")
         log(INFO, "Simulation Started!")
+        log(INFO, "==========================================")
         log(INFO, "List of the Architectural Patterns enabled:")
 
         enabled_patterns = []
@@ -897,12 +898,13 @@ class FedAvg(Strategy):
                 time.sleep(1)
 
         log(INFO, "==========================================")
+        log(INFO, "Adaptation:")
 
         ADAPTATION = config.get('adaptation', "None").strip()
         ADAPTATION_L = ADAPTATION.lower()
 
         if ADAPTATION_L in ["none", ""]:
-            log(INFO, "Adaptation Disabled ❌")
+            log(INFO, "Disabled ❌")
             self.adapt_mgr = AdaptationManager(False, config)
         else:
             pol_display = ADAPTATION.title()
@@ -920,7 +922,9 @@ class FedAvg(Strategy):
                 pol_display = "AI-Agents"
 
             self.adapt_mgr = AdaptationManager(True, config)
-            log(INFO, f"Adaptation Enabled ✅ - {pol_display}")
+            log(INFO, f"Enabled ✅ - {pol_display}")
+            # self.adapt_mgr.describe()
+        log(INFO, "==========================================")
 
     def initialize_parameters(self, client_manager: ClientManager) -> Optional[Parameters]:
         return None
@@ -1498,14 +1502,14 @@ class FedAvg(Strategy):
         preprocess_csv(agent_time)
         aggregation_decision = self.aggregation_mgr.decide_next_round(currentRnd, metrics_history, csv_file)
         self.aggregation_mgr.update_latest_csv_decision(csv_file, currentRnd, aggregation_decision)
-        log(
-            INFO,
-            f"[Aggregation Baseline] round={currentRnd} used={aggregation_decision.get('previous_baseline')} "
-            f"next={aggregation_decision.get('next_baseline')} llm={aggregation_decision.get('llm_model')} "
-            f"time={float(aggregation_decision.get('llm_time') or 0.0):.2f}s"
-        )
-        if aggregation_decision.get("rationale"):
-            log(INFO, f"[Aggregation Rationale] {aggregation_decision.get('rationale')}")
+        # log(
+        #     INFO,
+        #     f"[Aggregation Baseline] round={currentRnd} used={aggregation_decision.get('previous_baseline')} "
+        #     f"next={aggregation_decision.get('next_baseline')} llm={aggregation_decision.get('llm_model')} "
+        #     f"time={float(aggregation_decision.get('llm_time') or 0.0):.2f}s"
+        # )
+        # if aggregation_decision.get("rationale"):
+        #     log(INFO, f"[Aggregation Rationale] {aggregation_decision.get('rationale')}")
         round_csv = os.path.join(performance_dir, f"FLwithAP_performance_metrics_round{currentRnd}.csv")
         shutil.copy(csv_file, round_csv)
         if currentRnd >= num_rounds:

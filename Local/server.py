@@ -873,6 +873,7 @@ class FedAvg(Strategy):
             log(INFO, line)
         log(INFO, "==========================================")
         log(INFO, "Simulation Started!")
+        log(INFO, "==========================================")
         log(INFO, "List of the Architectural Patterns enabled:")
 
         enabled_patterns = []
@@ -880,8 +881,20 @@ class FedAvg(Strategy):
             if pattern_info["enabled"]:
                 enabled_patterns.append((pattern_name, pattern_info))
 
+        if not enabled_patterns:
+            log(INFO, "No patterns are enabled.")
+        else:
+            for pattern_name, pattern_info in enabled_patterns:
+                pattern_str = pattern_name.replace('_', ' ').title()
+                log(INFO, f"{pattern_str} ✅")
+                if pattern_info["params"]:
+                    log(INFO, f" AP Parameters: {pattern_info['params']}")
+                time.sleep(1)
+
+        log(INFO, "==========================================")
+        log(INFO, "Adaptation:")
         if ADAPTATION == "none" or not ADAPTATION:
-            log(INFO, "Adaptation Disabled ❌")
+            log(INFO, "Disabled ❌")
             self.adapt_mgr = AdaptationManager(False, config)
         else:
             pol_display = ADAPTATION.title()
@@ -897,20 +910,10 @@ class FedAvg(Strategy):
                 pol_display = "Random"
             elif "single" in ADAPTATION or "ai-agents" in ADAPTATION:
                 pol_display = "AI-Agents"
-                
-            log(INFO, f"Adaptation Enabled ✅ - {pol_display}")
-            self.adapt_mgr = AdaptationManager(True, config)
-            self.adapt_mgr.describe()
 
-        if not enabled_patterns:
-            log(INFO, "No patterns are enabled.")
-        else:
-            for pattern_name, pattern_info in enabled_patterns:
-                pattern_str = pattern_name.replace('_', ' ').title()
-                log(INFO, f"{pattern_str} ✅")
-                if pattern_info["params"]:
-                    log(INFO, f" AP Parameters: {pattern_info['params']}")
-                time.sleep(1)
+            log(INFO, f"Enabled ✅ - {pol_display}")
+            self.adapt_mgr = AdaptationManager(True, config)
+            # self.adapt_mgr.describe()
 
         log(INFO, "==========================================")
 
@@ -1492,14 +1495,14 @@ class FedAvg(Strategy):
         preprocess_csv(agent_time)
         aggregation_decision = self.aggregation_mgr.decide_next_round(currentRnd, metrics_history, csv_file)
         self.aggregation_mgr.update_latest_csv_decision(csv_file, currentRnd, aggregation_decision)
-        log(
-            INFO,
-            f"[Aggregation Baseline] round={currentRnd} used={aggregation_decision.get('previous_baseline')} "
-            f"next={aggregation_decision.get('next_baseline')} llm={aggregation_decision.get('llm_model')} "
-            f"time={float(aggregation_decision.get('llm_time') or 0.0):.2f}s"
-        )
-        if aggregation_decision.get("rationale"):
-            log(INFO, f"[Aggregation Rationale] {aggregation_decision.get('rationale')}")
+        # log(
+        #     INFO,
+        #     f"[Aggregation Baseline] round={currentRnd} used={aggregation_decision.get('previous_baseline')} "
+        #     f"next={aggregation_decision.get('next_baseline')} llm={aggregation_decision.get('llm_model')} "
+        #     f"time={float(aggregation_decision.get('llm_time') or 0.0):.2f}s"
+        # )
+        # if aggregation_decision.get("rationale"):
+        #     log(INFO, f"[Aggregation Rationale] {aggregation_decision.get('rationale')}")
         round_csv = os.path.join(
             performance_dir,
             f"FLwithAP_performance_metrics_round{currentRnd}.csv"

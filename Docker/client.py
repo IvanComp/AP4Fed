@@ -254,11 +254,11 @@ class FlowerClient(NumPyClient):
         #         INFO,
         #         f"{self.cid} compute unit: CUDA (device={gpu_idx}, name={gpu_name}, pid={os.getpid()})",
         #     )
-        log(
-            INFO,
-            f"{self.cid} compute unit: CPU (pid={os.getpid()}, assigned_cores={self.assigned_cpu_ids}, "
-            f"torch_threads={self.torch_cpu_threads})",
-        )
+        # log(
+        #     INFO,
+        #     f"{self.cid} compute unit: CPU (pid={os.getpid()}, assigned_cores={self.assigned_cpu_ids}, "
+        #     f"torch_threads={self.torch_cpu_threads})",
+        # )
 
     def fit(self, parameters, config):
         global GLOBAL_ROUND_COUNTER

@@ -1,1 +1,1 @@
-{"allocations": {}}
+{"allocations": {"2:27375": {"client_id": "2", "pid": 27375, "cores": [0, 1, 2, 3, 4]}, "1:27376": {"client_id": "1", "pid": 27376, "cores": [5, 6, 7, 8, 9]}}}

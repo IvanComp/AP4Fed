@@ -305,7 +305,7 @@ class FlowerClient(NumPyClient):
         #         INFO,
         #         f"{self.cid} compute unit: CUDA (device={gpu_idx}, name={gpu_name}, pid={os.getpid()}, requested_cpus={self.n_cpu})",
         #     )
-        log(INFO, f"{self.cid} compute unit: CPU (pid={os.getpid()}, requested_cpus={self.n_cpu})")
+        # log(INFO, f"{self.cid} compute unit: CPU (pid={os.getpid()}, requested_cpus={self.n_cpu})")
 
     def fit(self, parameters, config):
         global GLOBAL_ROUND_COUNTER
@@ -359,10 +359,10 @@ class FlowerClient(NumPyClient):
                 pass
         self.torch_cpu_threads = configure_torch_cpu_threads(self.assigned_cpu_cores)
         overlap_note = " (overlap due to limited host CPUs)" if round_cpu_overlap else ""
-        log(
-            INFO,
-            f"{self.cid} round compute allocation: assigned_cores={self.assigned_cpu_cores}, torch_threads={self.torch_cpu_threads}{overlap_note}",
-        )
+        # log(
+        #     INFO,
+        #     f"{self.cid} round compute allocation: assigned_cores={self.assigned_cpu_cores}, torch_threads={self.torch_cpu_threads}{overlap_note}",
+        # )
 
         try:
             selection_strategy = ""

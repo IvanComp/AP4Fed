@@ -1002,11 +1002,11 @@ def load_data(client_config, GLOBAL_ROUND_COUNTER, dataset_name_override=None):
     for idx in range(len(trainset)):
         _, label = trainset[idx]
         class_distribution[int(label)] += 1
-    log(
-        INFO,
-        f"[DATA DEBUG] Client {client_id} round {GLOBAL_ROUND_COUNTER} "
-        f"train class distribution: {dict(sorted(class_distribution.items()))}",
-    )
+    # log(
+    #     INFO,
+    #     f"[DATA DEBUG] Client {client_id} round {GLOBAL_ROUND_COUNTER} "
+    #     f"train class distribution: {dict(sorted(class_distribution.items()))}",
+    # )
 
     if DATASET_NAME == "AGNEWS":
         trainloader = DataLoader(trainset, batch_size=batch_size, shuffle=True, collate_fn=agnews_collate_batch)
@@ -1218,7 +1218,7 @@ def get_jsd(trainloader):
 
     JSD = 0.5 * kl_div(P, M) + 0.5 * kl_div(Q, M)
 
-    log(INFO, f"Jensen-Shannon Divergence (client vs perfect IID): {JSD:.2f}")
+    # log(INFO, f"Jensen-Shannon Divergence (client vs perfect IID): {JSD:.2f}")
 
     return JSD
 
