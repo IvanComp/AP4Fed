@@ -292,6 +292,10 @@ The open-science artifact for the Journal of Systems and Software study on multi
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14938910.svg)](https://zenodo.org/records/14938910)
 
+The open-science artifact for the Journal of Systems and Software study on agentic runtime reconfiguration [3] is available on Zenodo:
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20006358.svg)](https://zenodo.org/records/20006358)
+
 # References
 
 [1] Compagnucci, I., Pinciroli, R., & Trubiani, C. (2025). [**Performance Analysis of Architectural Patterns for Federated Learning Systems.**](https://doi.org/10.1109/ICSA65012.2025.00036) 22nd IEEE International Conference on Software Architecture (ICSA 2025).
