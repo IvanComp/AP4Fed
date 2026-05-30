@@ -28,8 +28,8 @@ Testing Models: [torchvision.models (+120)]
 
 <tt>AP4FED</tt> supports software architects by offering a framework for the quantitative evaluation of specific design decisions, enabling a deeper understanding of their impact on system performance and guiding the optimization of Federated Learning architectures.
 
-An initial version of <tt>AP4FED</tt> was developed and tested in the research paper "_Performance Analysis of Architectural Patterns for Federated Learning Systems_" accepted for the 22nd IEEE International Conference on Software Architecture (ICSA 2025) [1].
-<tt>AP4FED</tt> was also used in the research paper "_Experimenting Architectural Patterns in Federated Learning Systems_" accepted for the Journal of Systems & Software [2].
+An initial version of <tt>AP4FED</tt> was developed and tested in the research paper "_Performance Analysis of Architectural Patterns for Federated Learning Systems_" accepted for the 22nd IEEE International Conference on Software Architecture (ICSA 2025) [a].
+<tt>AP4FED</tt> was also used in the research paper "_Experimenting Architectural Patterns in Federated Learning Systems_" accepted for the Journal of Systems & Software [b].
 
 <p align="center">
 <img src="img/readme/Poster.png" width="440px" height="610px"/>
@@ -292,23 +292,10 @@ You can explore the performance in combining **multiple** architectural patterns
 
 # References
 
-[1] Compagnucci, I., Pinciroli, R., & Trubiani, C. (2025). [**Performance Analysis of Architectural Patterns for Federated Learning Systems.**](https://cs.gssi.it/catia.trubiani/download/2025-ICSA-Architectural-Patterns-Federated-Learning.pdf)
-Accepted for the 22nd IEEE International Conference on Software Architecture. ICSA 2025.
+[]
 
-```
-@inproceedings{CompagnucciFL,
-  author       = {Compagnucci, Ivan and Pinciroli, Riccardo and Trubiani, Catia},
-  title        = {{Performance Analysis of Architectural Patterns for Federated Learning Systems}},
-  booktitle    = {International Conference on Software Architecture, {ICSA 25}},
-  pages        = {289--300},
-  url          = {https://doi.org/10.1109/ICSA65012.2025.00036},
-  doi          = {10.1109/ICSA65012.2025.00036}
-  publisher    = {{IEEE}},
-  year         = {2025},
-}
-```
 
-[2] Compagnucci, I., Pinciroli, R., & Trubiani, C. (2025). [**Experimenting Architectural Patterns in Federated Learning Systems.**](https://cs.gssi.it/catia.trubiani/download/2025-JSS-Experimenting_Architectural_Patterns_in_Federated_Learning_Systems-preprint.pdf)
+[b] Compagnucci, I., Pinciroli, R., & Trubiani, C. (2025). [**Experimenting Architectural Patterns in Federated Learning Systems.**](https://cs.gssi.it/catia.trubiani/download/2025-JSS-Experimenting_Architectural_Patterns_in_Federated_Learning_Systems-preprint.pdf)
 Accepted in The Journal of Systems & Software. 2025.
 
 ```
@@ -322,5 +309,21 @@ issn = {0164-1212},
 doi = {https://doi.org/10.1016/j.jss.2025.112655},
 url = {https://www.sciencedirect.com/science/article/pii/S0164121225003243},
 author = {Ivan Compagnucci and Riccardo Pinciroli and Catia Trubiani},
+}
+```
+
+[a] Compagnucci, I., Pinciroli, R., & Trubiani, C. (2025). [**Performance Analysis of Architectural Patterns for Federated Learning Systems.**](https://cs.gssi.it/catia.trubiani/download/2025-ICSA-Architectural-Patterns-Federated-Learning.pdf)
+Accepted for the 22nd IEEE International Conference on Software Architecture. ICSA 2025.
+
+```
+@inproceedings{CompagnucciFL,
+  author       = {Compagnucci, Ivan and Pinciroli, Riccardo and Trubiani, Catia},
+  title        = {{Performance Analysis of Architectural Patterns for Federated Learning Systems}},
+  booktitle    = {International Conference on Software Architecture, {ICSA 25}},
+  pages        = {289--300},
+  url          = {https://doi.org/10.1109/ICSA65012.2025.00036},
+  doi          = {10.1109/ICSA65012.2025.00036}
+  publisher    = {{IEEE}},
+  year         = {2025},
 }
 ```

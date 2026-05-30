@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-"""Run the 6 RQ2 baseline/configuration tests locally without Docker.
-
-This runner uses the Local Flower simulation but temporarily reuses the richer
-agentic adaptation logic from Docker/adaptation.py so that Random, Voting,
-Role-Based, Debate-Based, and Single-Agent policies behave consistently during
-local experiments as well.
-"""
 
 from __future__ import annotations
 

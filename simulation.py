@@ -84,7 +84,6 @@ def load_adaptation(simulation_type):
 
 
 def detect_cuda_gpu_count():
-    """Return the number of CUDA GPUs available on this host."""
     try:
         result = subprocess.run(
             ["nvidia-smi", "-L"],
@@ -111,7 +110,6 @@ def detect_cuda_gpu_count():
 
 
 def resolve_docker_compose_command():
-    """Return the Docker Compose command as a QProcess program and base args."""
     docker_candidates = [
         shutil.which("docker"),
         "/opt/homebrew/bin/docker",
