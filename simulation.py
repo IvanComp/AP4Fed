@@ -99,7 +99,7 @@ def detect_cuda_gpu_count():
         pass
 
     try:
-        import torch  # type: ignore
+        import torch
 
         if torch.cuda.is_available():
             return int(torch.cuda.device_count())
@@ -203,9 +203,6 @@ class AIAgentsLogViewer(QWidget):
 
             self._last_size = size
 
-# ------------------------------------------------------------
-# Dashboard Window (PyQt)
-# ------------------------------------------------------------
 class DashboardWindow(QWidget):
     def __init__(self, simulation_type):
         super().__init__()
@@ -297,7 +294,6 @@ class DashboardWindow(QWidget):
         metrics_panel_layout.addWidget(self.metrics_table)
         top_row_layout.addWidget(self.metrics_panel)
 
-        # Right: Plots panel
         self.plots_panel = QWidget()
         self.plots_panel_layout = QVBoxLayout(self.plots_panel)
         self.plots_panel_layout.setContentsMargins(0, 0, 0, 0)
@@ -348,7 +344,6 @@ class DashboardWindow(QWidget):
         self.plots_panel_layout.addWidget(plots_container)
         top_row_layout.addWidget(self.plots_panel)
 
-        # Patterns grid
         self.patterns_panel = QFrame()
         self.patterns_panel.setFrameShape(QFrame.NoFrame)
         self.patterns_panel.setFrameShadow(QFrame.Plain)
@@ -556,7 +551,6 @@ class DashboardWindow(QWidget):
 
         self.update_pattern_grid(pattern_matrix_data)
 
-        # Plot Global F1
         self.ax_f1.clear()
         sns.lineplot(x=rounds_list, y=f1_list, marker="o", ax=self.ax_f1, color=self.color_f1)
         self.ax_f1.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -565,7 +559,6 @@ class DashboardWindow(QWidget):
         self.ax_f1.set_ylabel("F1 Score")
         self.canvas_f1.draw()
 
-        # Plot Total Round Time
         self.ax_tot.clear()
         sns.lineplot(x=rounds_list, y=total_times_list, marker="o", ax=self.ax_tot, color=self.color_tot)
         self.ax_tot.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -574,7 +567,6 @@ class DashboardWindow(QWidget):
         self.ax_tot.set_ylabel("Total Round Time (sec)")
         self.canvas_tot.draw()
 
-        # Plot per-client Training and Communication
         self.ax_train.clear()
         self.ax_comm.clear()
         for cid in self.clients:
@@ -604,9 +596,6 @@ class DashboardWindow(QWidget):
         self.canvas_train.draw()
         self.canvas_comm.draw()
 
-# ------------------------------------------------------------
-# Simulation Page (PyQt)
-# ------------------------------------------------------------
 class SimulationPage(QWidget):
     def __init__(self, config, num_supernodes=None):
         super().__init__()

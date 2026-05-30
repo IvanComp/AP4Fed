@@ -283,7 +283,6 @@ class AdaptationManager(AgentPolicyMixin):
         try:
             df = pd.read_csv(last_f)
             
-            # Trova la colonna dei round
             col_round = next((c for c in df.columns if "round" in str(c).lower().strip()), None)
             
             if col_round and len(df) > 0:
@@ -292,7 +291,7 @@ class AdaptationManager(AgentPolicyMixin):
                 df_prev = df[df[col_round].astype(int) == (last_r_val - 1)].copy()
             else:
                 df_r = df.copy()
-                df_prev = pd.DataFrame() # Vuoto
+                df_prev = pd.DataFrame()
                 
             agg_r = _sa_aggregate_round(df_r)
             agg_prev = _sa_aggregate_round(df_prev) if not df_prev.empty else {}
@@ -301,13 +300,12 @@ class AdaptationManager(AgentPolicyMixin):
             logs.append(f"Error reading metrics: {e}")
             return new_config, logs
         
-        # Helper per prendere i valori in sicurezza
         def get_val(agg_dict, key, default=0.0):
             v = agg_dict.get(key)
             return float(v) if v is not None else default
 
         f1_r = get_val(agg_r, "mean_f1")
-        time_r = get_val(agg_r, "mean_total_time", 1.0) # Evita div/0
+        time_r = get_val(agg_r, "mean_total_time", 1.0)
         jsd_r = get_val(agg_r, "mean_jsd")
         comm_r = get_val(agg_r, "mean_comm_time")
 
@@ -316,7 +314,6 @@ class AdaptationManager(AgentPolicyMixin):
         jsd_prev = get_val(agg_prev, "mean_jsd")
         comm_prev = get_val(agg_prev, "mean_comm_time")
 
-        # Client Selector: (Accuracy_r / Time_r) < (Accuracy_prev / Time_prev)
         rate_r = f1_r / time_r if time_r > 0 else 0
         rate_prev = f1_prev / time_prev if time_prev > 0 else 0
         
@@ -327,7 +324,6 @@ class AdaptationManager(AgentPolicyMixin):
             new_config["patterns"]["client_selector"]["enabled"] = False
             logs.append(f"Client Selector: OFF (Rate {rate_r:.4f} >= {rate_prev:.4f})")
 
-        # Heterogeneous Data Handler: JSD_r < JSD_prev AND F1_r < F1_prev
         if jsd_r < jsd_prev and f1_r < f1_prev:
             new_config["patterns"]["heterogeneous_data_handler"]["enabled"] = True
             logs.append(f"Heterogeneous Data Handler: ON (JSD {jsd_r:.3f}<{jsd_prev:.3f} AND F1 {f1_r:.3f}<{f1_prev:.3f})")
@@ -335,7 +331,6 @@ class AdaptationManager(AgentPolicyMixin):
             new_config["patterns"]["heterogeneous_data_handler"]["enabled"] = False
             logs.append(f"Heterogeneous Data Handler: OFF (Condition not met: JSD {jsd_r:.3f} vs {jsd_prev:.3f}, F1 {f1_r:.3f} vs {f1_prev:.3f})")
 
-        # Message Compressor: Comm_r > Comm_prev
         if comm_r > comm_prev:
             new_config["patterns"]["message_compressor"]["enabled"] = True
             logs.append(f"Message Compressor: ON (Comm {comm_r:.3f} > {comm_prev:.3f})")

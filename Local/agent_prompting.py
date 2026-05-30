@@ -66,7 +66,6 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         "heterogeneous_data_handler": _state((ap_prev or {}).get("heterogeneous_data_handler")),
     }
 
-    # 1) Static Context: Role, Task, Guardrails, Output
     instructions = (
         "Architectural Pattern Decision: Prompt\n\n"
         "#Context"
@@ -118,7 +117,6 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         '- "rationale": A detailed explanation (at least 50 words). The rationale MUST end with the exact signature line: CS=<ON|OFF>; MC=<ON|OFF>; HDH=<ON|OFF>, where ON/OFF equals the JSON decisions above.'
     )
 
-    # 2) RAG: full system config + full metrics history 
     rag = ""
     try:
         use_rag = bool(_runtime_attr("USE_RAG", USE_RAG))
@@ -361,7 +359,6 @@ def _sa_build_prompt(mode: str, config, round_idx, agg, ap_prev):
         except Exception:
             pass
 
-    # 3) Few-shot examples appended only for few-shot modes
     if mode != "zero":
         ex1_ctx = (
             "## Example 1 — Client Selector (edge-case)\n"
@@ -476,7 +473,6 @@ def _sa_parse_output(text: str):
         vs = str(v).strip().upper()
         return "ON" if vs in ("ON","ENABLED","TRUE","1") else "OFF"
 
-    # 1) decisioni iniziali dal JSON (o default se mancanti)
     decisions = {
         "client_selector":            _onoff(km.get("client_selector", default["client_selector"])),
         "message_compressor":         _onoff(km.get("message_compressor", default["message_compressor"])),
@@ -488,12 +484,10 @@ def _sa_parse_output(text: str):
         except Exception:
             pass
 
-    # 2) rationale: prendi dal JSON se c'è, altrimenti prova a ricavarlo dal testo
     rationale = str(km.get("rationale", "") or "").strip()
     if not rationale:
         rationale = (s.replace(last_json, "").strip() if last_json else s) or ""
 
-    # 3) firma: se presente nel rationale o nel testo, diventa la verità che sovrascrive le decisioni
     sig_re = re.compile(r"\bCS\s*=\s*(ON|OFF)\s*;\s*MC\s*=\s*(ON|OFF)\s*;\s*HDH\s*=\s*(ON|OFF)\b", flags=re.I)
     m = sig_re.search(rationale) or sig_re.search(s)
     if m:

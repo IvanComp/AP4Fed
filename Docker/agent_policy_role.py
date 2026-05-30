@@ -20,7 +20,6 @@ class RoleAgentPolicyMixin:
         MODEL, MODE = self.sa_model, "few-shot"
         logs: List[str] = []
 
-        # contesto (coerente con gli altri approcci)
         last_round = getattr(self, "_last_round_info", None) or {}
         agg = getattr(self, "_last_round_agg", None) or {}
         try:
@@ -28,31 +27,25 @@ class RoleAgentPolicyMixin:
         except Exception:
             ap_prev = {}
 
-        # mapping specialisti: etichetta di log, chiave di focus, temperatura
         specs = [
             ("CS",  "client_selector",            1.0),
             ("MC",  "message_compressor",         1.0),
             ("HDH", "heterogeneous_data_handler", 1.0),
         ]
 
-        # raccolta output specialisti (filtrato per ruolo)
         specialist = { "client_selector": {}, "message_compressor": {}, "heterogeneous_data_handler": {} }
         specialist_rat = { "client_selector": "", "message_compressor": "", "heterogeneous_data_handler": "" }
 
-        # util per ON/OFF
         def _onoff(x): return "ON" if str(x).strip().upper() == "ON" else "OFF"
 
-        # valori precedenti per frecce nei log
         prev_cs  = (ap_prev.get("client_selector", "OFF") or "OFF").upper()
         prev_mc  = (ap_prev.get("message_compressor", "OFF") or "OFF").upper()
         prev_hdh = (ap_prev.get("heterogeneous_data_handler", "OFF") or "OFF").upper()
 
         for label, key_focus, temp in specs:
             try:
-                # prompt base "di sempre"
                 base_p = _sa_build_prompt(MODE, base_config, last_round, agg, ap_prev)
 
-                # blocco Role Focus (molto rigido)
                 role_focus = (
                     "\n\n### Role Focus\n"
                     f"You are the specialist for '{key_focus}'.\n"
@@ -86,16 +79,14 @@ class RoleAgentPolicyMixin:
                     cs_val = _onoff(d_i.get("client_selector", prev_cs))
                 elif key_focus == "message_compressor":
                     mc_val = _onoff(d_i.get("message_compressor", prev_mc))
-                else:  # HDH
+                else:
                     hdh_val = _onoff(d_i.get("heterogeneous_data_handler", prev_hdh))
 
-                # costruisci l’oggetto filtrato consegnato al coordinator (owner per pattern)
                 out = {
                     "client_selector": cs_val,
                     "message_compressor": mc_val,
                     "heterogeneous_data_handler": hdh_val
                 }
-                # selection_value solo se focus è CS e CS=ON
                 if key_focus == "client_selector" and cs_val == "ON":
                     try:
                         sv = d_i.get("selection_value", None)
@@ -107,7 +98,6 @@ class RoleAgentPolicyMixin:
                 specialist[key_focus] = out
                 specialist_rat[key_focus] = r_i
 
-                # log come nel tuo esempio: solo la riga del pattern di focus
                 if key_focus == "client_selector":
                     logs.append(f"[Agent CS] Decision ({MODEL}): CS: ·→{'✅' if cs_val=='ON' else '❌'}")
                     if r_i:
@@ -120,10 +110,9 @@ class RoleAgentPolicyMixin:
                     logs.append(f"[Agent HDH] Decision ({MODEL}): HDH: ·→{'✅' if hdh_val=='ON' else '❌'}")
                     if r_i:
                         logs.append(f"[Rationale HDH] {r_i}")
-                logs.append("")  # spazio tra agenti
+                logs.append("")
 
             except Exception as e:
-                # in caso di errore: mantieni il valore prev per quel ruolo
                 if key_focus == "client_selector":
                     specialist[key_focus] = {"client_selector": prev_cs, "message_compressor": prev_mc, "heterogeneous_data_handler": prev_hdh}
                 elif key_focus == "message_compressor":
@@ -134,7 +123,6 @@ class RoleAgentPolicyMixin:
                 logs.append(f"[Agent {label}] ERROR: {e!r}")
                 logs.append("")
 
-        # Coordinator deterministico: merge per ruolo (no voting, no LLM)
         cs_final  = specialist["client_selector"]["client_selector"]
         mc_final  = specialist["message_compressor"]["message_compressor"]
         hdh_final = specialist["heterogeneous_data_handler"]["heterogeneous_data_handler"]
@@ -164,7 +152,6 @@ class RoleAgentPolicyMixin:
                 cs_final = "OFF"
                 logs.append("[Coordinator] Role-Merge rejected CS because no safe selection_value exists for the current CPU distribution.")
 
-        # Log coordinator come nel tuo format
         logs.append("[Coordinator] Role-Merge: " +
                     f"CS: ·→{'✅' if cs_final=='ON' else '❌'} • "
                     f"MC: ·→{'✅' if mc_final=='ON' else '❌'} • "

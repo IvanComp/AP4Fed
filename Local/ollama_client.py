@@ -18,7 +18,6 @@ def _sa_call_ollama(model: str, prompt: str, base_urls: List[str], force_json: b
     for base in base_urls:
         try:
             if _is_gpt_oss(model):
-                # Usa /api/chat per gpt-oss, con reasoning e JSON mode abilitabile
                 body = {
                     "model": model,
                     "messages": [{"role": "user", "content": prompt}],
@@ -69,7 +68,7 @@ def _sa_call_ollama(model: str, prompt: str, base_urls: List[str], force_json: b
                 if _is_llama(model):
                     opts.setdefault("temperature", 0.5)
                     opts.setdefault("top_p", 1.0)
-                    opts.setdefault("num_ctx", 4096)  # opzionale ma utile
+                    opts.setdefault("num_ctx", 4096)
                     common_stops = ["}\n", "}\r\n", "\n\n##", "\n###", "\n# ", "```"]
                     if isinstance(opts.get("stop"), list):
                         for s in common_stops:

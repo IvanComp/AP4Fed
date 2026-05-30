@@ -58,14 +58,13 @@ class VotingAgentPolicyMixin:
                 )
                 if r_i:
                     logs.append(f"[Rationale A{i}] {r_i}")
-                logs.append("")  # spazio tra agenti
+                logs.append("")
             except Exception as e:
                 agent_decisions.append({})
                 agent_rationales.append("")
                 logs.append(f"[Agent {i}] ERROR: {e!r}")
                 logs.append("")
 
-        # maggioranza (comportamento ufficiale, immutato)
         def _vote(pattern: str) -> int:
             return sum(1 for d in agent_decisions if (d.get(pattern, "OFF") or "OFF").upper() == "ON")
 
@@ -75,15 +74,12 @@ class VotingAgentPolicyMixin:
 
         logs.append(f"[Coordinator] Majority: CS: ·→{maj_cs} • MC: ·→{maj_mc} • HDH: ·→{maj_hdh}")
         logs.append("")
-        # LOG DETERMINISTICO: ciò che viene davvero applicato
         logs.append(f"[Final Decision] CS={maj_cs}; MC={maj_mc}; HDH={maj_hdh}")
         logs.append("")
 
-        # coordinator LLM consultivo, nessun override del risultato
         try:
             raw = _sa_call_ollama(
                 COORD_MODEL,
-                # Prompt base + breve riepilogo dei voti/majority
                 _sa_build_prompt(MODE, base_config, last_round, agg, ap_prev)
                 + "\n\n### Voting Summary\n"
                 + "\n".join([f"- A{i}: {d}" for i, d in enumerate(agent_decisions, start=1)])
@@ -95,7 +91,6 @@ class VotingAgentPolicyMixin:
                 options={"temperature": 0.2, "top_p": 0.9, "num_ctx": 8192},
             )
             coord_dec, coord_rat, _ = _sa_parse_output(raw)
-            # Sanitize per evitare righe che sembrano un verdetto finale
             import re as _re
 
             text = coord_rat or (coord_dec or {}).get("rationale", "") or ""

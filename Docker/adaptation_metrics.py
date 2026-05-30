@@ -13,7 +13,6 @@ def _sa_latest_round_csv():
     return rnum(lastf), lastf
 
 def _sa_aggregate_round(df):
-    # Trova colonne in modo robusto
     def _find(colnames):
         for c in df.columns:
             lc = str(c).strip().lower()
@@ -34,7 +33,6 @@ def _sa_aggregate_round(df):
     col_f1    = _find([lambda s: "val f1" in s or s == "f1"])
     col_jsd   = _find([lambda s: "jsd" == str(s).strip().lower()])
 
-    # Se la CSV ha più round, prendi l'ultimo; altrimenti usa tutto il df
     dfl = df
     if col_round and col_round in df.columns:
         try:
@@ -43,12 +41,10 @@ def _sa_aggregate_round(df):
         except Exception:
             dfl = df.copy()
 
-    # Righe per-client: dove c'è un Client ID o comunque valori numerici sui tempi
     per_client = dfl.copy()
     if col_cid and col_cid in per_client.columns:
         per_client = per_client[per_client[col_cid].notna()].copy()
 
-    # Serie numeriche pulite
     def _series(dfx, col):
         if not col or col not in dfx.columns:
             return []
@@ -63,7 +59,6 @@ def _sa_aggregate_round(df):
     tr_seq = _series(per_client, col_tr)
     cm_seq = _series(per_client, col_cm)
 
-    # F1 e Total Round Time sono GLOBAL: prendi l'ultimo valore non-NaN nel sottoinsieme del round
     def _last_non_nan(dfx, col):
         if not col or col not in dfx.columns:
             return None
@@ -79,7 +74,6 @@ def _sa_aggregate_round(df):
     tt_last = _last_non_nan(dfl, col_tt)
     jsd_last = _last_non_nan(dfl, col_jsd)
 
-    # Statistiche aggregati per-client (round selezionato)
     def _agg(seq):
         if not seq:
             return {"count": 0, "mean": None, "min": None, "max": None}
@@ -95,11 +89,11 @@ def _sa_aggregate_round(df):
 
     return {
         "round": int(dfl[col_round].iloc[0]) if col_round and len(dfl) else None,
-        "mean_f1": f1_last,                  # GLOBAL Val F1 dell'ultimo round
-        "mean_total_time": tt_last,          # GLOBAL Total Time of FL Round dell'ultimo round
-        "mean_training_time": tr_agg["mean"],# media per-client del round
-        "mean_comm_time": cm_agg["mean"],    # media per-client del round
-        "mean_jsd": jsd_last,                # GLOBAL JSD dell'ultimo round
-        "training_time_stats": tr_agg,       # include count/min/max
+        "mean_f1": f1_last,
+        "mean_total_time": tt_last,
+        "mean_training_time": tr_agg["mean"],
+        "mean_comm_time": cm_agg["mean"],
+        "mean_jsd": jsd_last,
+        "training_time_stats": tr_agg,
         "comm_time_stats": cm_agg
     }
