@@ -1081,26 +1081,19 @@ class PreSimulationPage(QWidget):
                     "FedAdam",
                     "FedAdagrad",
                     "FedYogi",
-                    "FedMedian",
-                    "FedTrimmedAvg",
-                    "Krum",
-                    "Bulyan",
-                    "QFedAvg",
-                    "FaultTolerantFedAvg"
+                    "QFedAvg"
                 ],
                 "params": {
                     "fedavgm_momentum": 0.9,
                     "fedavgm_learning_rate": 1.0,
                     "fedprox_mu": 0.01,
-                    "trimmedavg_beta": 0.2,
                     "fedopt_eta": 0.1,
                     "fedopt_eta_l": 0.1,
                     "fedopt_beta_1": 0.9,
                     "fedopt_beta_2": 0.99,
                     "fedopt_tau": 1e-9,
                     "qfedavg_q": 0.2,
-                    "qfedavg_learning_rate": 0.1,
-                    "num_malicious_clients": 0
+                    "qfedavg_learning_rate": 0.1
                 }
             },
             "patterns": patterns_data,

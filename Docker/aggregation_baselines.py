@@ -12,17 +12,12 @@ import numpy as np
 import pandas as pd
 from flwr.common import Parameters, ndarrays_to_parameters, parameters_to_ndarrays
 from flwr.server.strategy import (
-    Bulyan as FlowerBulyan,
-    FaultTolerantFedAvg as FlowerFaultTolerantFedAvg,
     FedAdagrad as FlowerFedAdagrad,
     FedAdam as FlowerFedAdam,
     FedAvg as FlowerFedAvg,
     FedAvgM as FlowerFedAvgM,
-    FedMedian as FlowerFedMedian,
     FedProx as FlowerFedProx,
-    FedTrimmedAvg as FlowerFedTrimmedAvg,
     FedYogi as FlowerFedYogi,
-    Krum as FlowerKrum,
     QFedAvg as FlowerQFedAvg,
 )
 
@@ -34,12 +29,7 @@ BASELINE_LABELS = {
     "fedadam": "FedAdam",
     "fedadagrad": "FedAdagrad",
     "fedyogi": "FedYogi",
-    "fedmedian": "FedMedian",
-    "fedtrimmedavg": "FedTrimmedAvg",
-    "krum": "Krum",
-    "bulyan": "Bulyan",
     "qfedavg": "QFedAvg",
-    "faulttolerantfedavg": "FaultTolerantFedAvg",
 }
 
 
@@ -54,17 +44,8 @@ def _canonical_baseline(name: Optional[str]) -> str:
         "fedadam": "fedadam",
         "fedadagrad": "fedadagrad",
         "fedyogi": "fedyogi",
-        "fedmedian": "fedmedian",
-        "median": "fedmedian",
-        "fedtrimmedavg": "fedtrimmedavg",
-        "fedtrimmedaverage": "fedtrimmedavg",
-        "trimmedavg": "fedtrimmedavg",
-        "krum": "krum",
-        "bulyan": "bulyan",
         "qfedavg": "qfedavg",
         "qffedavg": "qfedavg",
-        "faulttolerantfedavg": "faulttolerantfedavg",
-        "faulttolerant": "faulttolerantfedavg",
     }
     return aliases.get(raw, "fedavg")
 
@@ -109,7 +90,6 @@ class DynamicAggregationBaselineManager:
         self.fedavgm_momentum = float(params.get("fedavgm_momentum", 0.9))
         self.fedavgm_learning_rate = float(params.get("fedavgm_learning_rate", 1.0))
         self.fedprox_mu = float(params.get("fedprox_mu", 0.01))
-        self.trimmedavg_beta = float(params.get("trimmedavg_beta", 0.2))
         self.fedopt_eta = float(params.get("fedopt_eta", 0.1))
         self.fedopt_eta_l = float(params.get("fedopt_eta_l", 0.1))
         self.fedopt_beta_1 = float(params.get("fedopt_beta_1", 0.9))
@@ -117,7 +97,6 @@ class DynamicAggregationBaselineManager:
         self.fedopt_tau = float(params.get("fedopt_tau", 1e-9))
         self.qfedavg_q = float(params.get("qfedavg_q", 0.2))
         self.qfedavg_learning_rate = float(params.get("qfedavg_learning_rate", 0.1))
-        self.num_malicious_clients = int(params.get("num_malicious_clients", 0))
         self.history: List[Dict] = []
         self._strategies = self._build_strategies(initial_parameters)
 
@@ -138,13 +117,6 @@ class DynamicAggregationBaselineManager:
                 initial_parameters=initial_parameters,
                 server_learning_rate=self.fedavgm_learning_rate,
                 server_momentum=self.fedavgm_momentum,
-                fit_metrics_aggregation_fn=lambda _: {},
-            ),
-            "fedmedian": FlowerFedMedian(
-                min_fit_clients=1,
-                min_evaluate_clients=1,
-                min_available_clients=1,
-                initial_parameters=initial_parameters,
                 fit_metrics_aggregation_fn=lambda _: {},
             ),
             "fedprox": FlowerFedProx(
@@ -189,31 +161,6 @@ class DynamicAggregationBaselineManager:
                 beta_2=self.fedopt_beta_2,
                 tau=max(self.fedopt_tau, 0.001),
             ),
-            "fedtrimmedavg": FlowerFedTrimmedAvg(
-                min_fit_clients=1,
-                min_evaluate_clients=1,
-                min_available_clients=1,
-                initial_parameters=initial_parameters,
-                beta=self.trimmedavg_beta,
-                fit_metrics_aggregation_fn=lambda _: {},
-            ),
-            "krum": FlowerKrum(
-                min_fit_clients=1,
-                min_evaluate_clients=1,
-                min_available_clients=1,
-                initial_parameters=initial_parameters,
-                fit_metrics_aggregation_fn=lambda _: {},
-                num_malicious_clients=self.num_malicious_clients,
-            ),
-            "bulyan": FlowerBulyan(
-                min_fit_clients=1,
-                min_evaluate_clients=1,
-                min_available_clients=1,
-                initial_parameters=initial_parameters,
-                fit_metrics_aggregation_fn=lambda _: {},
-                num_malicious_clients=self.num_malicious_clients,
-                to_keep=0,
-            ),
             "qfedavg": FlowerQFedAvg(
                 min_fit_clients=1,
                 min_evaluate_clients=1,
@@ -223,15 +170,6 @@ class DynamicAggregationBaselineManager:
                 evaluate_fn=lambda _rnd, _weights, _cfg: (1.0, {}),
                 q_param=self.qfedavg_q,
                 qffl_learning_rate=self.qfedavg_learning_rate,
-            ),
-            "faulttolerantfedavg": FlowerFaultTolerantFedAvg(
-                min_fit_clients=1,
-                min_evaluate_clients=1,
-                min_available_clients=1,
-                initial_parameters=initial_parameters,
-                fit_metrics_aggregation_fn=lambda _: {},
-                min_completion_rate_fit=0.5,
-                min_completion_rate_evaluate=0.5,
             ),
         }
 
@@ -334,15 +272,10 @@ class DynamicAggregationBaselineManager:
             "fedavg": "Weighted average. Stable default when clients are fairly regular.",
             "fedavgm": "Server momentum. Useful when F1 improvement stalls or convergence is noisy.",
             "fedprox": "Proximal optimization for system/data heterogeneity. Prefer when clients are heterogeneous or non-IID.",
-            "fedadam": "Adaptive server optimizer with Adam updates.",
-            "fedadagrad": "Adaptive server optimizer with Adagrad updates.",
-            "fedyogi": "Adaptive server optimizer with Yogi updates.",
-            "fedmedian": "Coordinate-wise median. Robust when client updates or metrics look like outliers.",
-            "fedtrimmedavg": "Trimmed mean. Robust to moderate outliers while preserving averaging behaviour.",
-            "krum": "Byzantine-robust aggregation selecting an update close to its neighbours.",
-            "bulyan": "Byzantine-robust aggregation using Krum-style selection followed by robust averaging.",
-            "qfedavg": "Fairness-aware q-FedAvg aggregation.",
-            "faulttolerantfedavg": "FedAvg variant tolerant to partial client completion.",
+            "fedadam": "Adaptive server optimizer with Adam updates. Useful when server-side optimization can speed convergence.",
+            "fedadagrad": "Adaptive server optimizer with Adagrad updates. Useful for noisy or sparse update dynamics.",
+            "fedyogi": "Adaptive server optimizer with Yogi updates. Useful for stable adaptive convergence under non-IID updates.",
+            "qfedavg": "q-FedAvg optimizes a fairness-aware objective and can improve weak-client performance under non-IID imbalance.",
         }
         candidates = {self.label(c): candidate_guide[c] for c in self.candidates if c in candidate_guide}
         return (
@@ -364,16 +297,19 @@ class DynamicAggregationBaselineManager:
             return selected, f"Random policy selected {self.label(selected)} from the configured candidate strategies."
         if "bayesian" in policy_l:
             if summary.get("val_f1_delta") is not None and summary.get("val_f1_delta") < 0:
-                selected = "fedmedian" if "fedmedian" in self.candidates else self.current_baseline
-                return selected, "Bayesian-optimization placeholder: validation F1 decreased, so a robust strategy is preferred."
+                selected = "fedyogi" if "fedyogi" in self.candidates else self.current_baseline
+                return selected, "Bayesian-optimization placeholder: validation F1 decreased, so a conservative adaptive optimizer is preferred."
             selected = "fedavgm" if "fedavgm" in self.candidates else self.current_baseline
             return selected, "Bayesian-optimization placeholder: no fitted surrogate is available yet, so the exploratory momentum strategy is preferred."
         if "predictor" in policy_l:
-            if summary.get("training_straggler_ratio", 1.0) > 1.5 or summary.get("val_f1_delta", 0.0) < -0.01:
-                selected = "fedtrimmedavg" if "fedtrimmedavg" in self.candidates else self.current_baseline
-                return selected, "Predictor-based heuristic selected a robust trimmed average because metrics suggest stragglers or degraded validation F1."
+            if summary.get("training_straggler_ratio", 1.0) > 1.5:
+                selected = "fedprox" if "fedprox" in self.candidates else self.current_baseline
+                return selected, "Predictor-based heuristic selected FedProx because client training times suggest heterogeneity."
+            if summary.get("val_f1_delta", 0.0) < -0.01:
+                selected = "fedadam" if "fedadam" in self.candidates else self.current_baseline
+                return selected, "Predictor-based heuristic selected FedAdam because validation F1 degraded and adaptive server updates may improve convergence."
             selected = "fedavg" if "fedavg" in self.candidates else self.current_baseline
-            return selected, "Predictor-based heuristic kept the stable FedAvg baseline because no strong anomaly was detected."
+            return selected, "Predictor-based heuristic kept FedAvg because no performance signal suggests switching."
         return self.current_baseline, f"Policy '{self.policy}' is not LLM-Based; keeping {self.label()}."
 
     def _call_ollama(self, prompt: str) -> str:

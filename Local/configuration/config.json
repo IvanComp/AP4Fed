@@ -1,8 +1,8 @@
 {
     "simulation_type": "Local",
     "rounds": 1,
-    "clients": 2,
-    "clients_per_round": 2,
+    "clients": 5,
+    "clients_per_round": 5,
     "dataset": "FashionMNIST",
     "adaptation": "None",
     "LLM": "llama3.2:3b",
@@ -11,23 +11,27 @@
         "enabled": false,
         "policy": "LLM-Based",
         "llm_model": "llama3.2:3b",
-        "initial_baseline": "Bulyan",
+        "initial_baseline": "FedAvg",
         "candidates": [
-            "Bulyan"
+            "FedAvg",
+            "FedAvgM",
+            "FedProx",
+            "FedAdam",
+            "FedAdagrad",
+            "FedYogi",
+            "QFedAvg"
         ],
         "params": {
             "fedavgm_momentum": 0.9,
             "fedavgm_learning_rate": 1.0,
             "fedprox_mu": 0.01,
-            "trimmedavg_beta": 0.1,
             "fedopt_eta": 0.1,
-            "fedopt_eta_l": 1.0,
+            "fedopt_eta_l": 0.1,
             "fedopt_beta_1": 0.9,
             "fedopt_beta_2": 0.99,
             "fedopt_tau": 1e-09,
             "qfedavg_q": 0.2,
-            "qfedavg_learning_rate": 0.1,
-            "num_malicious_clients": 0
+            "qfedavg_learning_rate": 0.1
         }
     },
     "patterns": {
@@ -77,6 +81,42 @@
         },
         {
             "client_id": 2,
+            "cpu": 2,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "IID",
+            "non_iid_alpha": 0.5,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 3,
+            "cpu": 2,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "IID",
+            "non_iid_alpha": 0.5,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 4,
+            "cpu": 2,
+            "ram": 2,
+            "dataset": "FashionMNIST",
+            "data_distribution_type": "IID",
+            "non_iid_alpha": 0.5,
+            "data_persistence_type": "Same Data",
+            "delay_combobox": "No",
+            "model": "CNN 16k",
+            "epochs": 1
+        },
+        {
+            "client_id": 5,
             "cpu": 2,
             "ram": 2,
             "dataset": "FashionMNIST",

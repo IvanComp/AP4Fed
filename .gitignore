@@ -1,5 +1,6 @@
 pycache/*
 *.pyc
+*.log
 **/data
 **/Local/img
 **/Local/model_weights
@@ -8,3 +9,12 @@ pycache/*
 .venv*/
 **/.ipynb_checkpoints/
 .DS_Store
+Local/.client_idx
+Local/performance/
+Local/performance_MLdata/
+Docker/performance/
+Docker/performance_MLdata/
+run_logs/
+strategy_comparison_results/
+strategy_smoke*.json
+paper_campaigns/**/experiments/**/*.csv

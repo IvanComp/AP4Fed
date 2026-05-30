@@ -63,6 +63,23 @@ global DATASET_TYPE, DATASET_NAME
 DATASET_TYPE = ""
 DATASET_NAME = ""
 
+
+def configure_reproducibility_from_env() -> None:
+    seed_value = os.environ.get("AP4FED_GLOBAL_SEED")
+    if not seed_value:
+        return
+    try:
+        seed = int(seed_value)
+    except ValueError:
+        log(INFO, f"Ignoring invalid AP4FED_GLOBAL_SEED value: {seed_value!r}")
+        return
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+
+configure_reproducibility_from_env()
+
 AVAILABLE_DATASETS = {
     "CIFAR10": {
         "class": CIFAR10,

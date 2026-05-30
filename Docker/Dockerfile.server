@@ -32,6 +32,14 @@ COPY server.py /app/server.py
 COPY taskA.py /app/taskA.py
 COPY configuration/ /app/configuration/
 COPY adaptation.py /app/adaptation.py
+COPY adaptation_settings.py /app/adaptation_settings.py
+COPY adaptation_criteria.py /app/adaptation_criteria.py
+COPY adaptation_metrics.py /app/adaptation_metrics.py
+COPY agent_prompting.py /app/agent_prompting.py
+COPY ollama_client.py /app/ollama_client.py
+COPY rationale_store.py /app/rationale_store.py
+COPY agent_policies.py /app/agent_policies.py
+COPY agent_policy_*.py /app/
 
 
 EXPOSE 8080
