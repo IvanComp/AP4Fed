@@ -17,4 +17,5 @@ Docker/performance_MLdata/
 run_logs/
 strategy_comparison_results/
 strategy_smoke*.json
+adept_campaign_results/
 paper_campaigns/**/experiments/**/*.csv

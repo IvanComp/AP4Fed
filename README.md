@@ -75,25 +75,34 @@ To run a Docker project, ensure that the following prerequisites are installed:
 
 ## Headless Experiments / Cluster Runs
 
-For paper-oriented runners and cluster executions, AP4FED provides a bootstrap flow for headless machines.
-This setup runs experiments and generates CSV results without opening the GUI.
+AP4FED can run paper experiments without opening the GUI. Install the local
+dependencies as described above, then inspect the missing ADEPT federated
+learning runs:
 
 ```bash
-./scripts/bootstrap_experiment_env.sh
-source .venv-experiments/bin/activate
-python scripts/verify_experiment_env.py --mode local
+python run_adept_campaign.py --dry-run
 ```
 
-To run Docker-backed experiments, verify the container runtime too:
+The ADEPT runner schedules experiments breadth-first. It completes one repeat
+for every missing model/pattern cell before starting the next repeat. To
+populate every currently empty cell once and obtain an early plottable full
+factorial dataset, run:
 
 ```bash
-python scripts/verify_experiment_env.py --mode docker
+python run_adept_campaign.py --through-wave 1
 ```
 
-The full workflow is documented in [docs/HPC_EXPERIMENTS.md](docs/HPC_EXPERIMENTS.md).
+Then resume the same campaign and complete five repeats per cell with:
 
-The Python environment does not install or start Ollama.
-LLM-based approaches (`Voting-based`, `Role-based`, `Debate-based`) call an Ollama-compatible HTTP endpoint configured through `--ollama-base-url`.
+```bash
+python run_adept_campaign.py
+```
+
+Successful runs are indexed under `adept_campaign_results/index.csv`. The
+runner refreshes `adept_campaign_results/adept_experiments.csv` after every
+successful run by combining the preliminary dataset with the new results.
+Simulations are executed one at a time to prevent resource contention from
+distorting performance measurements.
 
 
 # How To Run
