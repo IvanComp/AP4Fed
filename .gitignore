@@ -2,6 +2,8 @@ pycache/*
 *.pyc
 *.log
 **/data
+!tests/data/
+!tests/data/FLwithAP_MLdata_split.csv
 **/Local/img
 **/Local/model_weights
 **/Docker/img

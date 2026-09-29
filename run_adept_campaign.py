@@ -27,9 +27,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent
 LOCAL_DIR = ROOT / "Local"
 LOCAL_CONFIG_PATH = LOCAL_DIR / "configuration" / "config.json"
-DEFAULT_EXISTING_RESULTS = (
-    ROOT.parent / "patterns-sa" / "federatedlearning" / "FLwithAP_MLdata_split.csv"
-)
+DEFAULT_EXISTING_RESULTS = ROOT / "tests" / "data" / "FLwithAP_MLdata_split.csv"
 DEFAULT_OUTPUT_DIR = ROOT / "adept_campaign_results"
 
 MODELS = ("CNN 16k", "squeezenet1_1")
