@@ -4,6 +4,8 @@
 Runs are scheduled breadth-first by repeat: all missing cells receive repeat 1
 before any cell receives repeat 2, and so on.  The simulations themselves stay
 serial so concurrent workloads cannot contaminate performance measurements.
+The Local phase must finish before the Docker phase starts on the same Linux
+host.
 """
 
 from __future__ import annotations
@@ -12,11 +14,14 @@ import argparse
 import csv
 import json
 import os
+import platform
 import shutil
+import socket
 import subprocess
 import sys
 import time
 import zlib
+import copy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -26,7 +31,11 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parent
 LOCAL_DIR = ROOT / "Local"
+DOCKER_DIR = ROOT / "Docker"
 LOCAL_CONFIG_PATH = LOCAL_DIR / "configuration" / "config.json"
+DOCKER_CONFIG_PATH = DOCKER_DIR / "configuration" / "config.json"
+DOCKER_COMPOSE_PATH = DOCKER_DIR / "docker-compose.yml"
+DOCKER_ADEPT_COMPOSE_PATH = DOCKER_DIR / "docker-compose.adept.yml"
 DEFAULT_EXISTING_RESULTS = ROOT / "tests" / "data" / "FLwithAP_MLdata_split.csv"
 DEFAULT_OUTPUT_DIR = ROOT / "adept_campaign_results"
 
@@ -44,6 +53,7 @@ CONFIGURATIONS = (
 
 INDEX_FIELDS = (
     "Run ID",
+    "Execution Mode",
     "Wave",
     "Repeat",
     "Model",
@@ -56,6 +66,8 @@ INDEX_FIELDS = (
     "Duration Seconds",
     "Output Dir",
     "ML Summary CSV",
+    "Hostname",
+    "Git Commit",
 )
 
 CLIENT_TEMPLATE = (
@@ -72,6 +84,14 @@ class RunSpec:
     repeat: int
     model: str
     configuration: str
+    execution_mode: str = "Local"
+
+    @property
+    def mode(self) -> str:
+        normalized = self.execution_mode.strip().title()
+        if normalized not in {"Local", "Docker"}:
+            raise ValueError(f"Invalid execution mode: {self.execution_mode}")
+        return normalized
 
     @property
     def states(self) -> tuple[str, str, str]:
@@ -84,7 +104,7 @@ class RunSpec:
     def run_id(self) -> str:
         model_slug = sanitize_name(self.model.lower())
         config_slug = self.configuration.lower().replace(",", "_")
-        return f"adept__{model_slug}__{config_slug}__r{self.repeat:02d}"
+        return f"adept__{self.mode.lower()}__{model_slug}__{config_slug}__r{self.repeat:02d}"
 
 
 def sanitize_name(value: str) -> str:
@@ -162,6 +182,7 @@ def build_plan(
     models: Iterable[str] = MODELS,
     configurations: Iterable[str] = CONFIGURATIONS,
     through_wave: int | None = None,
+    execution_mode: str = "Local",
 ) -> list[RunSpec]:
     if target_repeats < 1:
         raise ValueError("target_repeats must be >= 1")
@@ -173,7 +194,12 @@ def build_plan(
     for repeat in range(1, last_wave + 1):
         for configuration in configurations:
             for model in models:
-                spec = RunSpec(repeat=repeat, model=model, configuration=configuration)
+                spec = RunSpec(
+                    repeat=repeat,
+                    model=model,
+                    configuration=configuration,
+                    execution_mode=execution_mode,
+                )
                 if repeat <= counts.get((configuration, model), 0):
                     continue
                 if spec.run_id in completed_run_ids:
@@ -234,7 +260,7 @@ def build_config(spec: RunSpec, rounds: int) -> dict[str, Any]:
         for client_id, cpu, distribution, alpha in CLIENT_TEMPLATE
     ]
     return {
-        "simulation_type": "Local",
+        "simulation_type": spec.mode,
         "rounds": int(rounds),
         "clients": len(clients),
         "clients_per_round": len(clients),
@@ -254,9 +280,9 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=4) + "\n", encoding="utf-8")
 
 
-def reset_local_state() -> None:
+def reset_runtime_state(work_dir: Path, mode: str) -> None:
     for folder_name in ("performance", "performance_MLdata", "logs"):
-        folder = LOCAL_DIR / folder_name
+        folder = work_dir / folder_name
         if not folder.exists():
             continue
         for entry in folder.iterdir():
@@ -264,19 +290,22 @@ def reset_local_state() -> None:
                 shutil.rmtree(entry)
             else:
                 entry.unlink()
-    (LOCAL_DIR / ".client_idx").write_text("0", encoding="utf-8")
-    (LOCAL_DIR / ".cpu_pool_state.json").write_text('{"allocations": {}}\n', encoding="utf-8")
+    if mode == "Local":
+        (work_dir / ".client_idx").write_text("0", encoding="utf-8")
+        (work_dir / ".cpu_pool_state.json").write_text('{"allocations": {}}\n', encoding="utf-8")
 
 
 def ensure_cifar10_available() -> None:
-    """Download/verify CIFAR-10 once before Ray starts multiple clients."""
+    """Download CIFAR-10 once, then expose the same cache to Docker."""
     from torchvision.datasets import CIFAR10
 
     data_root = LOCAL_DIR / "data"
     print(f"Checking CIFAR-10 dataset cache in {data_root} ...")
     CIFAR10(root=str(data_root), train=True, download=True)
     CIFAR10(root=str(data_root), train=False, download=True)
-    print("CIFAR-10 dataset cache is ready.")
+    docker_data_root = DOCKER_DIR / "data"
+    shutil.copytree(data_root, docker_data_root, dirs_exist_ok=True)
+    print("CIFAR-10 dataset cache is ready for Local and Docker.")
 
 
 def copy_if_exists(source: Path, destination: Path) -> None:
@@ -289,12 +318,12 @@ def copy_if_exists(source: Path, destination: Path) -> None:
         shutil.copy2(source, destination)
 
 
-def archive_outputs(run_dir: Path, config: dict[str, Any]) -> Path | None:
+def archive_outputs(run_dir: Path, config: dict[str, Any], work_dir: Path) -> Path | None:
     run_dir.mkdir(parents=True, exist_ok=True)
     write_json(run_dir / "config.json", config)
-    copy_if_exists(LOCAL_DIR / "performance", run_dir / "performance")
-    copy_if_exists(LOCAL_DIR / "performance_MLdata", run_dir / "performance_MLdata")
-    copy_if_exists(LOCAL_DIR / "logs", run_dir / "logs")
+    copy_if_exists(work_dir / "performance", run_dir / "performance")
+    copy_if_exists(work_dir / "performance_MLdata", run_dir / "performance_MLdata")
+    copy_if_exists(work_dir / "logs", run_dir / "logs")
     summary = run_dir / "performance_MLdata" / "FLwithAP_MLdata.csv"
     return summary if summary.exists() else None
 
@@ -314,16 +343,23 @@ def _preliminary_with_metadata(path: Path) -> pd.DataFrame:
     frame = frame.copy()
     frame["repeat"] = frame.groupby(["config_id", "Model"]).cumcount() + 1
     frame["run_id"] = [
-        f"preliminary__{sanitize_name(str(model).lower())}__{str(configuration).lower().replace(',', '_')}__r{repeat:02d}"
+        f"preliminary__local__{sanitize_name(str(model).lower())}__{str(configuration).lower().replace(',', '_')}__r{repeat:02d}"
         for model, configuration, repeat in zip(frame["Model"], frame["config_id"], frame["repeat"])
     ]
     frame["result_source"] = "preliminary"
+    frame["execution_mode"] = "Local"
     return frame
 
 
-def regenerate_combined_dataset(existing_path: Path, index_path: Path, destination: Path) -> int:
+def regenerate_combined_dataset(
+    existing_path: Path,
+    phase_indexes: Iterable[tuple[str, Path]],
+    destination: Path,
+) -> int:
     frames = [_preliminary_with_metadata(existing_path)]
-    if index_path.exists():
+    for mode, index_path in phase_indexes:
+        if not index_path.exists():
+            continue
         index = pd.read_csv(index_path, dtype=str).fillna("")
         successful = index[index["Status"] == "ok"].drop_duplicates("Run ID", keep="last")
         for _, record in successful.iterrows():
@@ -334,6 +370,9 @@ def regenerate_combined_dataset(existing_path: Path, index_path: Path, destinati
             frame["repeat"] = int(record["Repeat"])
             frame["run_id"] = record["Run ID"]
             frame["result_source"] = "campaign"
+            frame["execution_mode"] = mode
+            frame["hostname"] = record.get("Hostname", "")
+            frame["git_commit"] = record.get("Git Commit", "")
             frame["partition_seed"] = int(record["Partition Seed"])
             frames.append(frame)
 
@@ -341,6 +380,102 @@ def regenerate_combined_dataset(existing_path: Path, index_path: Path, destinati
     destination.parent.mkdir(parents=True, exist_ok=True)
     combined.to_csv(destination, index=False)
     return len(combined)
+
+
+def build_docker_compose(
+    config: dict[str, Any],
+    source: Path = DOCKER_COMPOSE_PATH,
+    destination: Path = DOCKER_ADEPT_COMPOSE_PATH,
+) -> Path:
+    import yaml
+
+    compose = yaml.safe_load(source.read_text(encoding="utf-8"))
+    services = compose.get("services", {})
+    server = copy.deepcopy(services.get("server"))
+    client_template = services.get("client")
+    if not server or not client_template:
+        raise ValueError(f"Missing server/client service in {source}")
+
+    server.setdefault("environment", {})["NUM_ROUNDS"] = str(config["rounds"])
+    generated_services = {"server": server}
+    for detail in config["client_details"]:
+        client_id = int(detail["client_id"])
+        cpu = int(detail["cpu"])
+        ram = int(detail["ram"])
+        service = copy.deepcopy(client_template)
+        service.pop("deploy", None)
+        service["container_name"] = f"Client{client_id}"
+        service["cpus"] = cpu
+        service["mem_limit"] = f"{ram}g"
+        environment = service.setdefault("environment", {})
+        environment.update(
+            {
+                "CLIENT_ID": str(client_id),
+                "NUM_CPUS": str(cpu),
+                "NUM_RAM": str(ram),
+                "NUM_ROUNDS": str(config["rounds"]),
+            }
+        )
+        generated_services[f"client{client_id}"] = service
+
+    compose["services"] = generated_services
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(yaml.safe_dump(compose, sort_keys=False), encoding="utf-8")
+    return destination
+
+
+def resolve_docker_compose_command() -> list[str] | None:
+    docker = shutil.which("docker")
+    if docker:
+        result = subprocess.run(
+            [docker, "compose", "version"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        if result.returncode == 0:
+            return [docker, "compose"]
+    legacy = shutil.which("docker-compose")
+    return [legacy] if legacy else None
+
+
+def git_commit() -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.stdout.strip() if result.returncode == 0 else "unknown"
+
+
+def lock_campaign_to_machine(output_dir: Path) -> tuple[str, str]:
+    if platform.system() != "Linux":
+        raise RuntimeError("The ADEPT campaign is locked to the Linux workstation and cannot run on this computer.")
+
+    hostname = socket.gethostname()
+    commit = git_commit()
+    manifest_path = output_dir / "campaign_machine.json"
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        recorded_hostname = str(manifest.get("hostname", ""))
+        if recorded_hostname and recorded_hostname != hostname:
+            raise RuntimeError(
+                f"Campaign belongs to host '{recorded_hostname}', not current host '{hostname}'."
+            )
+    else:
+        write_json(
+            manifest_path,
+            {
+                "hostname": hostname,
+                "platform": platform.platform(),
+                "git_commit_at_start": commit,
+                "started_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                "phase_order": ["Local", "Docker"],
+            },
+        )
+    return hostname, commit
 
 
 def parse_csv_list(raw: str, allowed: Iterable[str], option: str) -> tuple[str, ...]:
