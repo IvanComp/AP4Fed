@@ -83,26 +83,28 @@ learning runs:
 python run_adept_campaign.py --dry-run
 ```
 
-The ADEPT runner schedules experiments breadth-first. It completes one repeat
-for every missing model/pattern cell before starting the next repeat. To
-populate every currently empty cell once and obtain an early plottable full
-factorial dataset, run:
+The ADEPT runner schedules experiments breadth-first. It first resumes and
+completes the Local matrix from the bundled preliminary results. Only after the
+Local matrix is complete does it start the full Docker matrix, serially, on the
+same Linux host. To populate every currently empty Local cell once, run:
 
 ```bash
 python run_adept_campaign.py --through-wave 1
 ```
 
-Then resume the same campaign and complete five repeats per cell with:
+Docker intentionally remains pending after this partial wave. Resume without a
+wave limit to complete Local and then start Docker automatically:
 
 ```bash
 python run_adept_campaign.py
 ```
 
-Successful runs are indexed under `adept_campaign_results/index.csv`. The
-runner refreshes `adept_campaign_results/adept_experiments.csv` after every
-successful run by combining the preliminary dataset with the new results.
-Simulations are executed one at a time to prevent resource contention from
-distorting performance measurements.
+Successful runs are indexed separately under
+`adept_campaign_results/local/index.csv` and
+`adept_campaign_results/docker/index.csv`. The combined CSV includes an
+`execution_mode` column. A machine manifest locks resumptions to the Linux
+hostname that started the campaign, ensuring that Local and Docker measurements
+come from the same workstation. Simulations run one at a time.
 
 
 # How To Run

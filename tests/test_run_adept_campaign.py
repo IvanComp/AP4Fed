@@ -1,6 +1,18 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
-from run_adept_campaign import CONFIGURATIONS, MODELS, RunSpec, build_config, build_plan
+import yaml
+
+from run_adept_campaign import (
+    CONFIGURATIONS,
+    DOCKER_COMPOSE_PATH,
+    MODELS,
+    RunSpec,
+    build_config,
+    build_docker_compose,
+    build_plan,
+)
 
 
 class CampaignPlanTests(unittest.TestCase):
@@ -46,6 +58,26 @@ class CampaignPlanTests(unittest.TestCase):
         self.assertTrue(config["patterns"]["client_selector"]["enabled"])
         self.assertTrue(config["patterns"]["message_compressor"]["enabled"])
         self.assertTrue(config["patterns"]["heterogeneous_data_handler"]["enabled"])
+
+    def test_docker_phase_starts_from_a_full_80_run_matrix(self):
+        plan = build_plan({}, set(), target_repeats=5, execution_mode="Docker")
+        self.assertEqual(80, len(plan))
+        self.assertTrue(all(spec.mode == "Docker" for spec in plan))
+        self.assertTrue(all("__docker__" in spec.run_id for spec in plan))
+
+    def test_docker_config_and_compose_have_five_explicit_clients(self):
+        spec = RunSpec(1, "CNN 16k", "ON,OFF,ON", execution_mode="Docker")
+        config = build_config(spec, rounds=10)
+        self.assertEqual("Docker", config["simulation_type"])
+        with TemporaryDirectory() as temp_dir:
+            destination = Path(temp_dir) / "compose.yml"
+            build_docker_compose(config, source=DOCKER_COMPOSE_PATH, destination=destination)
+            compose = yaml.safe_load(destination.read_text(encoding="utf-8"))
+        self.assertEqual(
+            {"server", "client1", "client2", "client3", "client4", "client5"},
+            set(compose["services"]),
+        )
+        self.assertEqual(1, compose["services"]["client5"]["cpus"])
 
 
 if __name__ == "__main__":

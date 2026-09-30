@@ -16,6 +16,7 @@ Local/performance/
 Local/performance_MLdata/
 Docker/performance/
 Docker/performance_MLdata/
+Docker/docker-compose.adept.yml
 run_logs/
 strategy_comparison_results/
 strategy_smoke*.json

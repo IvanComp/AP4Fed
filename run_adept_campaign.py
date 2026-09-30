@@ -11,6 +11,7 @@ host.
 from __future__ import annotations
 
 import argparse
+import copy
 import csv
 import json
 import os
@@ -21,7 +22,6 @@ import subprocess
 import sys
 import time
 import zlib
-import copy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -478,6 +478,180 @@ def lock_campaign_to_machine(output_dir: Path) -> tuple[str, str]:
     return hostname, commit
 
 
+def phase_index_path(output_dir: Path, mode: str) -> Path:
+    return output_dir / mode.lower() / "index.csv"
+
+
+def print_plan(mode: str, plan: list[RunSpec]) -> None:
+    print(f"\n{mode} phase: {len(plan)} scheduled run(s)")
+    for wave in sorted({spec.repeat for spec in plan}):
+        wave_specs = [spec for spec in plan if spec.repeat == wave]
+        print(f"Wave {wave}: {len(wave_specs)} run(s)")
+        for spec in wave_specs:
+            print(f"- {spec.run_id}: {spec.model} / {spec.configuration}")
+
+
+def run_local_process(config: dict[str, Any], log_path: Path, rounds: int) -> int:
+    env = dict(os.environ)
+    env["AP4FED_ROUNDS_OVERRIDE"] = str(rounds)
+    env["PYTHONUNBUFFERED"] = "1"
+    with log_path.open("w", encoding="utf-8") as log_handle:
+        process = subprocess.run(
+            ["flower-simulation", "--app", ".", "--num-supernodes", str(config["clients"])],
+            cwd=LOCAL_DIR,
+            env=env,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+    return int(process.returncode)
+
+
+def run_docker_process(config: dict[str, Any], log_path: Path, compose_project: str) -> int:
+    compose_command = resolve_docker_compose_command()
+    if compose_command is None:
+        raise RuntimeError("Docker Compose is not installed or is not available in PATH")
+
+    compose_path = build_docker_compose(config)
+    base_command = compose_command + ["-p", compose_project, "-f", str(compose_path)]
+    env = dict(os.environ)
+    env["COMPOSE_BAKE"] = "true"
+    env["NUM_ROUNDS"] = str(config["rounds"])
+
+    subprocess.run(
+        base_command + ["down", "--volumes", "--remove-orphans"],
+        cwd=DOCKER_DIR,
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    try:
+        with log_path.open("w", encoding="utf-8") as log_handle:
+            process = subprocess.run(
+                base_command
+                + [
+                    "up",
+                    "--build",
+                    "--remove-orphans",
+                    "--abort-on-container-exit",
+                    "--exit-code-from",
+                    "server",
+                ],
+                cwd=DOCKER_DIR,
+                env=env,
+                stdout=log_handle,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+        return int(process.returncode)
+    finally:
+        with log_path.open("a", encoding="utf-8") as log_handle:
+            subprocess.run(
+                base_command + ["down", "--volumes", "--remove-orphans"],
+                cwd=DOCKER_DIR,
+                env=env,
+                stdout=log_handle,
+                stderr=subprocess.STDOUT,
+                check=False,
+            )
+
+
+def execute_phase(
+    mode: str,
+    plan: list[RunSpec],
+    output_dir: Path,
+    existing_results: Path,
+    phase_indexes: tuple[tuple[str, Path], ...],
+    combined_path: Path,
+    rounds: int,
+    hostname: str,
+    commit: str,
+    continue_on_error: bool,
+    compose_project: str,
+) -> int:
+    if not plan:
+        print(f"\n{mode} phase already complete.")
+        return 0
+
+    work_dir = LOCAL_DIR if mode == "Local" else DOCKER_DIR
+    config_path = LOCAL_CONFIG_PATH if mode == "Local" else DOCKER_CONFIG_PATH
+    index_path = phase_index_path(output_dir, mode)
+    failures = 0
+
+    print(f"\nStarting {mode} phase on host {hostname}.")
+    for position, spec in enumerate(plan, start=1):
+        config = build_config(spec, rounds)
+        run_dir = output_dir / mode.lower() / "runs" / spec.run_id
+        log_path = run_dir / ("flower.log" if mode == "Local" else "docker-compose.log")
+        run_dir.mkdir(parents=True, exist_ok=True)
+        print(
+            f"\n[{mode} {position}/{len(plan)}] Wave {spec.repeat}: "
+            f"{spec.model} / {spec.configuration}"
+        )
+
+        reset_runtime_state(work_dir, mode)
+        write_json(config_path, config)
+        started = time.time()
+        startup_error = ""
+        try:
+            if mode == "Local":
+                return_code = run_local_process(config, log_path, rounds)
+            else:
+                return_code = run_docker_process(config, log_path, compose_project)
+        except Exception as exc:
+            return_code = 1
+            startup_error = str(exc)
+            with log_path.open("a", encoding="utf-8") as log_handle:
+                log_handle.write(f"\nRunner error: {exc}\n")
+
+        duration = time.time() - started
+        summary_path = archive_outputs(run_dir, config, work_dir)
+        if return_code == 0 and summary_path:
+            status = "ok"
+        elif startup_error:
+            status = "failed(startup)"
+        elif return_code:
+            status = f"failed({return_code})"
+        else:
+            status = "failed(missing-summary)"
+
+        selector, compressor, hdh = spec.states
+        append_index_row(
+            index_path,
+            {
+                "Run ID": spec.run_id,
+                "Execution Mode": mode,
+                "Wave": spec.repeat,
+                "Repeat": spec.repeat,
+                "Model": spec.model,
+                "Configuration": spec.configuration,
+                "Client Selector": selector,
+                "Message Compressor": compressor,
+                "HDH": hdh,
+                "Partition Seed": config["partition_seed"],
+                "Status": status,
+                "Duration Seconds": f"{duration:.1f}",
+                "Output Dir": str(run_dir),
+                "ML Summary CSV": str(summary_path) if summary_path else "",
+                "Hostname": hostname,
+                "Git Commit": commit,
+            },
+        )
+
+        if status == "ok":
+            total_rows = regenerate_combined_dataset(existing_results, phase_indexes, combined_path)
+            print(f"OK ({duration:.1f}s). Combined dataset now has {total_rows} rows.")
+        else:
+            failures += 1
+            detail = f" ({startup_error})" if startup_error else ""
+            print(f"FAILED: {status}{detail}; see {log_path}", file=sys.stderr)
+            if not continue_on_error:
+                break
+
+    return failures
+
+
 def parse_csv_list(raw: str, allowed: Iterable[str], option: str) -> tuple[str, ...]:
     allowed_values = tuple(allowed)
     if not raw:
@@ -500,7 +674,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--through-wave",
         type=int,
-        help="Stop after this repeat wave. Use 1 to populate every currently empty cell once.",
+        help=(
+            "Stop the Local phase after this repeat wave. Docker starts only when the full "
+            "Local target is complete."
+        ),
     )
     parser.add_argument(
         "--models",
@@ -513,6 +690,7 @@ def parse_args() -> argparse.Namespace:
         help="Optional semicolon-separated configuration filter, e.g. 'ON,ON,OFF;ON,ON,ON'.",
     )
     parser.add_argument("--continue-on-error", action="store_true")
+    parser.add_argument("--docker-project", default="ap4fed-adept")
     parser.add_argument(
         "--skip-dataset-prefetch",
         action="store_true",
@@ -536,129 +714,174 @@ def main() -> int:
         print(str(exc), file=sys.stderr)
         return 2
 
+    existing_results = args.existing_results.resolve()
     output_dir = args.output_dir.resolve()
-    index_path = output_dir / "index.csv"
+    local_index = phase_index_path(output_dir, "Local")
+    docker_index = phase_index_path(output_dir, "Docker")
+    phase_indexes = (("Local", local_index), ("Docker", docker_index))
     combined_path = output_dir / "adept_experiments.csv"
-    completed = successful_run_ids(index_path)
     try:
-        plan = build_plan(
+        full_local_plan = build_plan(
             counts,
-            completed,
+            successful_run_ids(local_index),
+            target_repeats=args.target_repeats,
+            models=models,
+            configurations=configurations,
+            execution_mode="Local",
+        )
+        local_plan = build_plan(
+            counts,
+            successful_run_ids(local_index),
             target_repeats=args.target_repeats,
             models=models,
             configurations=configurations,
             through_wave=args.through_wave,
+            execution_mode="Local",
+        )
+        docker_plan = build_plan(
+            {},
+            successful_run_ids(docker_index),
+            target_repeats=args.target_repeats,
+            models=models,
+            configurations=configurations,
+            execution_mode="Docker",
         )
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
 
     print(f"Existing preliminary experiments: {sum(counts.values())}")
-    print(f"Scheduled new experiments: {len(plan)}")
-    for wave in sorted({spec.repeat for spec in plan}):
-        wave_specs = [spec for spec in plan if spec.repeat == wave]
-        print(f"\nWave {wave}: {len(wave_specs)} run(s)")
-        for spec in wave_specs:
-            print(f"- {spec.run_id}: {spec.model} / {spec.configuration}")
+    print_plan("Local", local_plan)
+    if {spec.run_id for spec in local_plan} == {spec.run_id for spec in full_local_plan}:
+        print_plan("Docker (after Local)", docker_plan)
+    else:
+        print(f"\nDocker phase pending until the remaining {len(full_local_plan)} Local run(s) are complete.")
 
     if args.dry_run:
         return 0
 
-    if not plan:
-        total_rows = regenerate_combined_dataset(args.existing_results.resolve(), index_path, combined_path)
-        print(f"Nothing to run. Combined dataset: {combined_path} ({total_rows} rows)")
-        return 0
+    try:
+        hostname, commit = lock_campaign_to_machine(output_dir)
+    except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
 
-    if not args.skip_dataset_prefetch:
+    if (local_plan or docker_plan) and not args.skip_dataset_prefetch:
         try:
             ensure_cifar10_available()
         except Exception as exc:
             print(f"Unable to prepare CIFAR-10: {exc}", file=sys.stderr)
             return 2
 
-    original_config = LOCAL_CONFIG_PATH.read_text(encoding="utf-8") if LOCAL_CONFIG_PATH.exists() else None
+    config_paths = (LOCAL_CONFIG_PATH, DOCKER_CONFIG_PATH)
+    original_configs = {
+        path: path.read_bytes() if path.exists() else None for path in config_paths
+    }
     runtime_state_paths = (LOCAL_DIR / ".client_idx", LOCAL_DIR / ".cpu_pool_state.json")
     original_runtime_state = {
         path: path.read_bytes() if path.exists() else None for path in runtime_state_paths
     }
-    failures = 0
+    original_compose = (
+        DOCKER_ADEPT_COMPOSE_PATH.read_bytes() if DOCKER_ADEPT_COMPOSE_PATH.exists() else None
+    )
+    local_failures = 0
+    docker_failures = 0
     try:
-        for position, spec in enumerate(plan, start=1):
-            config = build_config(spec, args.rounds)
-            run_dir = output_dir / "runs" / spec.run_id
-            log_path = run_dir / "flower.log"
-            run_dir.mkdir(parents=True, exist_ok=True)
+        local_failures = execute_phase(
+            "Local",
+            local_plan,
+            output_dir,
+            existing_results,
+            phase_indexes,
+            combined_path,
+            args.rounds,
+            hostname,
+            commit,
+            args.continue_on_error,
+            args.docker_project,
+        )
 
+        remaining_local = build_plan(
+            counts,
+            successful_run_ids(local_index),
+            target_repeats=args.target_repeats,
+            models=models,
+            configurations=configurations,
+            execution_mode="Local",
+        )
+        if local_failures or remaining_local:
             print(
-                f"\n[{position}/{len(plan)}] Wave {spec.repeat}: "
-                f"{spec.model} / {spec.configuration}"
+                f"Docker not started: Local phase still has {len(remaining_local)} pending run(s) "
+                f"and {local_failures} failure(s)."
             )
-            reset_local_state()
-            write_json(LOCAL_CONFIG_PATH, config)
-
-            env = dict(os.environ)
-            env["AP4FED_ROUNDS_OVERRIDE"] = str(args.rounds)
-            env["PYTHONUNBUFFERED"] = "1"
-            started = time.time()
-            with log_path.open("w", encoding="utf-8") as log_handle:
-                process = subprocess.run(
-                    ["flower-simulation", "--app", ".", "--num-supernodes", str(config["clients"])],
-                    cwd=LOCAL_DIR,
-                    env=env,
-                    stdout=log_handle,
-                    stderr=subprocess.STDOUT,
-                    check=False,
-                )
-            duration = time.time() - started
-            summary_path = archive_outputs(run_dir, config)
-            status = "ok" if process.returncode == 0 and summary_path else (
-                f"failed({process.returncode})" if process.returncode else "failed(missing-summary)"
-            )
-            selector, compressor, hdh = spec.states
-            append_index_row(
-                index_path,
-                {
-                    "Run ID": spec.run_id,
-                    "Wave": spec.repeat,
-                    "Repeat": spec.repeat,
-                    "Model": spec.model,
-                    "Configuration": spec.configuration,
-                    "Client Selector": selector,
-                    "Message Compressor": compressor,
-                    "HDH": hdh,
-                    "Partition Seed": config["partition_seed"],
-                    "Status": status,
-                    "Duration Seconds": f"{duration:.1f}",
-                    "Output Dir": str(run_dir),
-                    "ML Summary CSV": str(summary_path) if summary_path else "",
-                },
-            )
-
-            if status == "ok":
-                total_rows = regenerate_combined_dataset(
-                    args.existing_results.resolve(), index_path, combined_path
-                )
-                print(f"OK ({duration:.1f}s). Combined dataset now has {total_rows} rows.")
-            else:
-                failures += 1
-                print(f"FAILED: {status}; see {log_path}", file=sys.stderr)
-                if not args.continue_on_error:
-                    return process.returncode or 1
-    finally:
-        if original_config is None:
-            LOCAL_CONFIG_PATH.unlink(missing_ok=True)
         else:
-            LOCAL_CONFIG_PATH.write_text(original_config, encoding="utf-8")
+            docker_plan = build_plan(
+                {},
+                successful_run_ids(docker_index),
+                target_repeats=args.target_repeats,
+                models=models,
+                configurations=configurations,
+                execution_mode="Docker",
+            )
+            docker_failures = execute_phase(
+                "Docker",
+                docker_plan,
+                output_dir,
+                existing_results,
+                phase_indexes,
+                combined_path,
+                args.rounds,
+                hostname,
+                commit,
+                args.continue_on_error,
+                args.docker_project,
+            )
+    finally:
+        for path, original_content in original_configs.items():
+            if original_content is None:
+                path.unlink(missing_ok=True)
+            else:
+                path.write_bytes(original_content)
         for path, original_content in original_runtime_state.items():
             if original_content is None:
                 path.unlink(missing_ok=True)
             else:
                 path.write_bytes(original_content)
+        if original_compose is None:
+            DOCKER_ADEPT_COMPOSE_PATH.unlink(missing_ok=True)
+        else:
+            DOCKER_ADEPT_COMPOSE_PATH.write_bytes(original_compose)
 
-    if failures:
-        print(f"Completed with {failures} failure(s).", file=sys.stderr)
+    total_rows = regenerate_combined_dataset(existing_results, phase_indexes, combined_path)
+    if local_failures or docker_failures:
+        print(
+            f"Completed with {local_failures} Local and {docker_failures} Docker failure(s).",
+            file=sys.stderr,
+        )
         return 1
-    print(f"\nCampaign complete. Combined dataset: {combined_path}")
+    remaining_local = build_plan(
+        counts,
+        successful_run_ids(local_index),
+        target_repeats=args.target_repeats,
+        models=models,
+        configurations=configurations,
+        execution_mode="Local",
+    )
+    remaining_docker = build_plan(
+        {},
+        successful_run_ids(docker_index),
+        target_repeats=args.target_repeats,
+        models=models,
+        configurations=configurations,
+        execution_mode="Docker",
+    )
+    if remaining_local or remaining_docker:
+        print(
+            f"Campaign paused: {len(remaining_local)} Local and {len(remaining_docker)} Docker run(s) remain. "
+            f"Combined dataset: {combined_path} ({total_rows} rows)"
+        )
+        return 0
+    print(f"\nLocal and Docker campaigns complete on {hostname}. Combined dataset: {combined_path}")
     return 0
 
 
