@@ -16,15 +16,20 @@ set -euo pipefail
 
 module load python/3.11.7
 
-source_repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source_repo="${AP4FED_REPO_DIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
+source_repo="$(cd "${source_repo}" && pwd)"
 runner="${source_repo}/.venv-leonardo/bin/python"
 sif_path="${AP4FED_SIF_PATH:-${source_repo}/leonardo/ap4fed.sif}"
 campaign_root="${AP4FED_OUTPUT_DIR:-${WORK}/AP4Fed-pattern-stress-parallel}"
 wave="${SLURM_ARRAY_TASK_ID}"
 task_repo="${TMPDIR}/AP4Fed-wave-${wave}"
 
-if [[ ! -x "${runner}" || ! -f "${sif_path}" ]]; then
-    echo "Prepare the runner and SIF image before submitting the array." >&2
+if [[ ! -x "${runner}" ]]; then
+    echo "Missing campaign runner: ${runner}" >&2
+    exit 2
+fi
+if [[ ! -f "${sif_path}" ]]; then
+    echo "Missing SIF image: ${sif_path}" >&2
     exit 2
 fi
 

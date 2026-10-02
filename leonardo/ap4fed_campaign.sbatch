@@ -16,7 +16,8 @@ set -euo pipefail
 
 module load python/3.11.7
 
-repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_dir="${AP4FED_REPO_DIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
+repo_dir="$(cd "${repo_dir}" && pwd)"
 runner="${repo_dir}/.venv-leonardo/bin/python"
 sif_path="${AP4FED_SIF_PATH:-${repo_dir}/leonardo/ap4fed.sif}"
 output_dir="${AP4FED_OUTPUT_DIR:-${WORK}/AP4Fed-pattern-stress-results}"
