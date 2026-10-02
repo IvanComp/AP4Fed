@@ -150,6 +150,30 @@ command after interruptions: completed runs and completed waves are skipped.
 The results are stored under
 `$WORK/AP4Fed-pattern-stress-parallel/wave_1` through `wave_10`.
 
+To deliberately restart all 600 runs from a clean result directory, archive
+the previous campaign and submit all ten waves with:
+
+```bash
+./leonardo/restart_full_campaign.sh <PROJECT_ACCOUNT> 10
+```
+
+The previous directory is renamed with a timestamp and remains recoverable.
+The Slurm progress log is unbuffered, and an individual failed configuration
+is recorded without preventing the remaining configurations in its wave from
+running.
+
+Before the production campaign, a two-round pilot can exercise all 60
+configurations on one node while keeping its results separate:
+
+```bash
+./leonardo/submit_pilot.sh <PROJECT_ACCOUNT>
+```
+
+Pilot results are stored in `$WORK/AP4Fed-pattern-stress-pilot`. Stopping the
+pilot preserves completed configurations; the configuration active at the
+time of cancellation is repeated if the pilot is submitted again. Production
+submissions continue to use 20 rounds.
+
 When the array has finished, merge and verify it:
 
 ```bash

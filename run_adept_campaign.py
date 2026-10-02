@@ -49,6 +49,8 @@ HIGH_SPEC_PERCENTAGES = (25, 50, 75)
 NON_IID_PERCENTAGES = (25, 50, 75)
 REFERENCE_ALPHA = 0.5
 DELAY_PERCENTAGES = (25, 50, 75)
+DELAY_MIN_SECONDS = 5
+DELAY_MAX_SECONDS = 10
 PARTITION_SEEDS = tuple(range(1, 11))
 HOST_CPU_CAPACITY = 32
 SERVER_CPUS = 2
@@ -377,8 +379,8 @@ def build_config(spec: RunSpec, rounds: int) -> dict[str, Any]:
                 "non_iid_alpha": spec.alpha if non_iid else 1.0,
                 "data_persistence_type": "Same Data",
                 "delay_combobox": "Yes" if delayed else "No",
-                "delay_min_seconds": 20 if delayed else 0,
-                "delay_max_seconds": 50 if delayed else 0,
+                "delay_min_seconds": DELAY_MIN_SECONDS if delayed else 0,
+                "delay_max_seconds": DELAY_MAX_SECONDS if delayed else 0,
                 "model": spec.model,
                 "epochs": 1,
             }

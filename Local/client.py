@@ -288,8 +288,12 @@ class FlowerClient(NumPyClient):
         self.did_hdh = False
         self.trainloader, self.testloader = None, None
         self.delay_enabled = (client_config.get("delay_combobox") == "Yes")
-        self.delay_min_seconds = int(client_config.get("delay_min_seconds", 0) or 0)
-        self.delay_max_seconds = int(client_config.get("delay_max_seconds", 50) or 50)
+        default_delay_min = 5 if self.delay_enabled else 0
+        default_delay_max = 10 if self.delay_enabled else 0
+        delay_min = client_config.get("delay_min_seconds", default_delay_min)
+        delay_max = client_config.get("delay_max_seconds", default_delay_max)
+        self.delay_min_seconds = int(default_delay_min if delay_min is None else delay_min)
+        self.delay_max_seconds = int(default_delay_max if delay_max is None else delay_max)
         if self.delay_max_seconds < self.delay_min_seconds:
             self.delay_min_seconds, self.delay_max_seconds = self.delay_max_seconds, self.delay_min_seconds
         self.assigned_cpu_cores = []

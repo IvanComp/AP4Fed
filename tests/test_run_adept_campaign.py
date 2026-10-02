@@ -142,6 +142,21 @@ class CampaignPlanTests(unittest.TestCase):
         self.assertEqual(2, config["patterns"]["client_selector"]["params"]["selection_value"])
         realized = config["campaign_metadata"]["realized_delay_percentage"]
         self.assertEqual(80.0, realized)
+        delayed = [client for client in clients if client["delay_combobox"] == "Yes"]
+        not_delayed = [client for client in clients if client["delay_combobox"] == "No"]
+        self.assertTrue(delayed)
+        self.assertTrue(
+            all(
+                (client["delay_min_seconds"], client["delay_max_seconds"]) == (5, 10)
+                for client in delayed
+            )
+        )
+        self.assertTrue(
+            all(
+                (client["delay_min_seconds"], client["delay_max_seconds"]) == (0, 0)
+                for client in not_delayed
+            )
+        )
 
     def test_pattern_labels_map_to_ap4fed_order(self):
         expected = {
