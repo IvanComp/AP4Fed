@@ -19,7 +19,10 @@ from skimage.metrics import structural_similarity as ssim
 from PIL import Image
 from logging import INFO
 from typing import List, Tuple, Dict, Optional
-import docker
+try:
+    import docker
+except ImportError:
+    docker = None
 from flwr.common import (
     ndarrays_to_parameters,
     parameters_to_ndarrays,
@@ -40,7 +43,10 @@ from flwr.server.criterion import Criterion
 from flwr.server.strategy import Strategy
 from flwr.common.logger import log
 from taskA import Net as NetA, get_weights as get_weights_A, set_weights as set_weights_A, load_data as load_data_A, normalize_dataset_name
-client = docker.from_env()
+try:
+    docker_runtime_client = docker.from_env() if docker is not None else None
+except Exception:
+    docker_runtime_client = None
 import torch
 from pytorch_grad_cam import (
     GradCAM, HiResCAM, ScoreCAM, GradCAMPlusPlus, 
@@ -179,7 +185,8 @@ def log_round_time(
         already_logged, srt1, srt2, agg_key, ssim_overhead=None, aggregation_baseline="FedAvg"
 ):
     try:
-        client_id = docker_client.containers.get(client_id).name
+        if docker_runtime_client is not None:
+            client_id = docker_runtime_client.containers.get(client_id).name
     except Exception:
         client_id = client_id
 
@@ -1573,7 +1580,7 @@ if __name__ == "__main__":
     )
 
     start_server(
-        server_address="[::]:8080",
+        server_address=f"[::]:{int(os.getenv('SERVER_PORT', '8080'))}",
         config=ServerConfig(num_rounds=num_rounds),
         strategy=strategy,
     )

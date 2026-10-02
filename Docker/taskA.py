@@ -676,7 +676,18 @@ def build_client_partition_map(trainset, client_details, dataset_name, alpha=0.5
         if not indices:
             continue
 
-        active_clients = [client_id for client_id in client_ids if remaining_capacity[client_id] > 0]
+        # Keep IID clients on their reserved, class-balanced quotas.  When the
+        # run mixes IID and non-IID clients, only the non-IID clients receive
+        # the residual samples through the Dirichlet allocation.
+        active_clients = [
+            client_id
+            for client_id in non_iid_client_ids
+            if remaining_capacity[client_id] > 0
+        ]
+        if not active_clients:
+            active_clients = [
+                client_id for client_id in client_ids if remaining_capacity[client_id] > 0
+            ]
         if not active_clients:
             leftover_indices.extend(indices)
             continue
@@ -738,6 +749,24 @@ def build_client_partition_map(trainset, client_details, dataset_name, alpha=0.5
             if cursor >= len(leftover_indices):
                 break
 
+    assigned_indices = [
+        sample_idx
+        for client_id in client_ids
+        for sample_idx in client_allocations[client_id]
+    ]
+    if len(assigned_indices) != total_samples:
+        raise RuntimeError(
+            f"Partition lost samples: assigned {len(assigned_indices)} of {total_samples}"
+        )
+    if len(set(assigned_indices)) != total_samples or set(assigned_indices) != set(range(total_samples)):
+        raise RuntimeError("Client partitions overlap or do not cover the complete training set")
+    for client_id in client_ids:
+        if len(client_allocations[client_id]) != target_counts[client_id]:
+            raise RuntimeError(
+                f"Client {client_id} received {len(client_allocations[client_id])} samples; "
+                f"expected {target_counts[client_id]}"
+            )
+
     return client_allocations
 
 
@@ -795,6 +824,40 @@ class AGNewsDataset(Dataset):
 
     def __getitem__(self, idx: int):
         return self.rows[idx]
+
+
+def should_reload_data(trainloader, persistence_type, cached_round, current_round):
+    if trainloader is None:
+        return True
+    return persistence_type != "Same Data" and cached_round != current_round
+
+
+def apply_hdh_once(
+    trainloader,
+    enabled,
+    distribution_type,
+    already_applied,
+    rebalance_fn,
+):
+    if not enabled or str(distribution_type).strip().lower() == "iid" or already_applied:
+        return trainloader, already_applied, 0.0
+
+    enriched_trainloader, hdh_ms = rebalance_fn(trainloader)
+    return enriched_trainloader, True, hdh_ms
+
+
+def augment_agnews_text(text, rng):
+    words = str(text).split()
+    if len(words) >= 4:
+        del words[rng.randrange(len(words))]
+    elif len(words) >= 2:
+        words = words[1:] + words[:1]
+    else:
+        words.append("news")
+    augmented = " ".join(words)
+    if augmented == str(text):
+        augmented = f"{augmented} news"
+    return augmented
 
 
 def load_data(client_config, GLOBAL_ROUND_COUNTER, dataset_name_override=None):
@@ -1157,13 +1220,15 @@ def rebalance_trainloader_with_gan(trainloader):
             class_samples = [sample for sample in base if sample[1] == class_id]
             if 0 < len(class_samples) < target_per_class:
                 needed = target_per_class - len(class_samples)
-                balanced.extend(rng.choice(class_samples) for _ in range(needed))
+                for _ in range(needed):
+                    source_text, source_label = rng.choice(class_samples)
+                    balanced.append((augment_agnews_text(source_text, rng), source_label))
                 added += needed
 
         rng.shuffle(balanced)
         hdh_ms = (time.time() - _t0_hdh)
-        log(INFO, f"HDH Data Handler rebalanced AG_NEWS text data (added {added} samples)")
-        log(INFO, f"HDH Data Handler (AG_NEWS oversampling) Total Processing time: {hdh_ms:.2f} seconds")
+        log(INFO, f"HDH Data Handler rebalanced AG_NEWS text data (added {added} augmented samples)")
+        log(INFO, f"HDH Data Handler (AG_NEWS augmentation) Total Processing time: {hdh_ms:.2f} seconds")
         batch_size = trainloader.batch_size or 64
         return DataLoader(
             TensorLabelDataset(balanced),
@@ -1185,15 +1250,6 @@ def rebalance_trainloader_with_gan(trainloader):
         target_per_class=len(base) // dataset_config["num_classes"],
     )
 
-    ds_name = DATASET_NAME.lower()
-    if "cifar" in ds_name:
-        max_limit = 5000
-    elif "imagenet" in ds_name:
-        max_limit = 1300
-    else:
-        max_limit = len(base) // dataset_config["num_classes"]
-
-    trainset = truncate_dataset(trainset, max_limit)
     hdh_ms = (time.time() - _t0_hdh)
 
     if hdh_ms < 10:

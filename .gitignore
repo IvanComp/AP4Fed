@@ -1,6 +1,7 @@
 pycache/*
 *.pyc
 *.log
+*.sif
 **/data
 !tests/data/
 !tests/data/FLwithAP_MLdata_split.csv

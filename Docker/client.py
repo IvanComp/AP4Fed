@@ -226,6 +226,7 @@ class FlowerClient(NumPyClient):
         self.model_type = model_type
         self.did_hdh = False
         self.trainloader, self.testloader = None, None
+        self.cached_round_loaded = None
         self.delay_enabled = (client_config.get("delay_combobox") == "Yes")
         self.delay_min_seconds = int(client_config.get("delay_min_seconds", 0) or 0)
         self.delay_max_seconds = int(client_config.get("delay_max_seconds", 50) or 50)
@@ -289,10 +290,14 @@ class FlowerClient(NumPyClient):
                         if (not ADAPTATION_ENABLED) or client_enabled_for_pattern(self.client_config, enabled_clients):
                             HETEROGENEOUS_DATA_HANDLER = True
 
-        self.cached_round_loaded = None
-        if self.cached_round_loaded != GLOBAL_ROUND_COUNTER:
-           self.trainloader, self.testloader = load_data_A(self.client_config, GLOBAL_ROUND_COUNTER)
-           self.cached_round_loaded = GLOBAL_ROUND_COUNTER
+        if taskA.should_reload_data(
+            self.trainloader,
+            self.data_persistence_type,
+            self.cached_round_loaded,
+            GLOBAL_ROUND_COUNTER,
+        ):
+            self.trainloader, self.testloader = load_data_A(self.client_config, GLOBAL_ROUND_COUNTER)
+            self.cached_round_loaded = GLOBAL_ROUND_COUNTER
 
         selection_strategy = ""
 
@@ -312,13 +317,13 @@ class FlowerClient(NumPyClient):
                     return parameters, 0, {}
             log(INFO, f"{self.cid} participates in this round. (CPU: {self.n_cpu}, RAM: {self.ram})")
 
-        if (
-            HETEROGENEOUS_DATA_HANDLER
-            and str(self.data_distribution_type).strip().lower() != "iid"
-            and not self.did_hdh
-        ):
-            self.trainloader, hdh_ms = rebalance_trainloader_with_gan_A(self.trainloader)
-            self.did_hdh = True
+        self.trainloader, self.did_hdh, hdh_ms = taskA.apply_hdh_once(
+            self.trainloader,
+            HETEROGENEOUS_DATA_HANDLER,
+            self.data_distribution_type,
+            self.did_hdh,
+            rebalance_trainloader_with_gan_A,
+        )
 
         if CLIENT_CLUSTER:
             selector_params = configJSON["patterns"]["client_cluster"]["params"]
