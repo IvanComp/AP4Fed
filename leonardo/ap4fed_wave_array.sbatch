@@ -4,6 +4,8 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=112
+#SBATCH --hint=nomultithread
+#SBATCH --exclusive
 #SBATCH --mem=64G
 #SBATCH --time=24:00:00
 #SBATCH --signal=B:TERM@300
@@ -11,6 +13,8 @@
 #SBATCH --error=leonardo/logs/wave-%A_%a.err
 
 set -euo pipefail
+
+module load python/3.11.7
 
 source_repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 runner="${source_repo}/.venv-leonardo/bin/python"

@@ -119,6 +119,10 @@ sequential, but each run receives substantially more CPU resources.
 - high-spec client: 12 cores;
 - largest configuration: 112/112 cores.
 
+The job requests one exclusive DCGP node and disables hardware threads. Smaller
+configurations intentionally leave some cores unused: changing the cores per
+client according to client count would alter the experimental treatment.
+
 ```bash
 ./leonardo/submit_campaign.sh <PROJECT_ACCOUNT>
 ```
@@ -184,6 +188,7 @@ Leonardo.
 ### B. Prepare the runner on the Leonardo login node
 
 ```bash
+module load python/3.11.7
 ./leonardo/prepare_runner.sh
 ```
 
