@@ -758,8 +758,7 @@ def weighted_average_global(
                 dataset_value,
                 srt1,
                 srt2,
-                None,
-                aggregation_baseline
+                None
             ))
 
     num_clients = len(client_data_list)
