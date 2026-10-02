@@ -831,9 +831,9 @@ def _is_resource_eligible_client(cid: str) -> bool:
         return True
     selection_value = int(selector_params.get("selection_value", 0) or 0)
     if selection_criteria == "CPU":
-        return int(detail.get("cpu", 0) or 0) >= selection_value
+        return int(detail.get("cpu", 0) or 0) > selection_value
     if selection_criteria == "RAM":
-        return int(detail.get("ram", 0) or 0) >= selection_value
+        return int(detail.get("ram", 0) or 0) > selection_value
     return True
 
 

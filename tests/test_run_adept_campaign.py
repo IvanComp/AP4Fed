@@ -124,7 +124,7 @@ class CampaignPlanTests(unittest.TestCase):
 
         baseline = by_configuration["OFF,OFF,OFF"]
         self.assertEqual(1, len(baseline))
-        self.assertEqual((50, 50, 0.5, 50), (
+        self.assertEqual((75, 25, 0.5, 25), (
             baseline[0].high_spec_percentage,
             baseline[0].non_iid_percentage,
             baseline[0].alpha,
@@ -132,8 +132,11 @@ class CampaignPlanTests(unittest.TestCase):
         ))
 
         selector = by_configuration["ON,OFF,OFF"]
-        self.assertEqual({25, 50, 75}, {spec.high_spec_percentage for spec in selector})
-        self.assertEqual({(50, 0.5, 50)}, {
+        self.assertEqual(
+            [(25, 75), (50, 50), (75, 25)],
+            [(spec.low_spec_percentage, spec.high_spec_percentage) for spec in selector],
+        )
+        self.assertEqual({(25, 0.5, 25)}, {
             (spec.non_iid_percentage, spec.alpha, spec.delay_percentage) for spec in selector
         })
 
@@ -141,13 +144,13 @@ class CampaignPlanTests(unittest.TestCase):
         self.assertEqual(3, len(hdh))
         self.assertEqual({25, 50, 75}, {spec.non_iid_percentage for spec in hdh})
         self.assertEqual({0.5}, {spec.alpha for spec in hdh})
-        self.assertEqual({(50, 50)}, {
+        self.assertEqual({(75, 25)}, {
             (spec.high_spec_percentage, spec.delay_percentage) for spec in hdh
         })
 
         compressor = by_configuration["OFF,ON,OFF"]
         self.assertEqual({25, 50, 75}, {spec.delay_percentage for spec in compressor})
-        self.assertEqual({(50, 50, 0.5)}, {
+        self.assertEqual({(75, 25, 0.5)}, {
             (spec.high_spec_percentage, spec.non_iid_percentage, spec.alpha)
             for spec in compressor
         })
@@ -168,6 +171,7 @@ class CampaignPlanTests(unittest.TestCase):
         self.assertEqual(2, sum(client["cpu"] == 3 for client in clients))
         self.assertEqual(8, sum(client["cpu"] == 2 for client in clients))
         self.assertEqual(20.0, config["campaign_metadata"]["realized_high_spec_percentage"])
+        self.assertEqual(80.0, config["campaign_metadata"]["realized_low_spec_percentage"])
         self.assertTrue(all(client["ram"] == 4 for client in clients))
         self.assertEqual(5, sum(client["data_distribution_type"] == "non-IID" for client in clients))
         self.assertEqual(5, sum(client["data_distribution_type"] == "IID" for client in clients))

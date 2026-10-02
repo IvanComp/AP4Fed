@@ -45,10 +45,11 @@ TASKS = (
     ("CIFAR-10", "CNN 16k"),
 )
 CLIENT_COUNTS = (4, 8, 10)
-HIGH_SPEC_PERCENTAGES = (25, 50, 75)
+LOW_SPEC_PERCENTAGES = (25, 50, 75)
 NON_IID_PERCENTAGES = (25, 50, 75)
 REFERENCE_ALPHA = 0.5
 DELAY_PERCENTAGES = (25, 50, 75)
+NOMINAL_STRESS_PERCENTAGE = 25
 DELAY_MIN_SECONDS = 5
 DELAY_MAX_SECONDS = 10
 PARTITION_SEEDS = tuple(range(1, 11))
@@ -73,14 +74,46 @@ CONFIGURATION_LABELS = {
 
 def stress_profiles(configuration: str) -> tuple[tuple[int, int, float, int], ...]:
     """Return (high-spec %, non-IID %, alpha, delayed %) for one pattern state."""
+    nominal_high_percentage = 100 - NOMINAL_STRESS_PERCENTAGE
     if configuration == "OFF,OFF,OFF":
-        return ((50, 50, REFERENCE_ALPHA, 50),)
+        return (
+            (
+                nominal_high_percentage,
+                NOMINAL_STRESS_PERCENTAGE,
+                REFERENCE_ALPHA,
+                NOMINAL_STRESS_PERCENTAGE,
+            ),
+        )
     if configuration == "ON,OFF,OFF":  # Client Selector
-        return tuple((percentage, 50, REFERENCE_ALPHA, 50) for percentage in HIGH_SPEC_PERCENTAGES)
+        return tuple(
+            (
+                100 - low_percentage,
+                NOMINAL_STRESS_PERCENTAGE,
+                REFERENCE_ALPHA,
+                NOMINAL_STRESS_PERCENTAGE,
+            )
+            for low_percentage in LOW_SPEC_PERCENTAGES
+        )
     if configuration == "OFF,OFF,ON":  # HDH
-        return tuple((50, percentage, REFERENCE_ALPHA, 50) for percentage in NON_IID_PERCENTAGES)
+        return tuple(
+            (
+                nominal_high_percentage,
+                percentage,
+                REFERENCE_ALPHA,
+                NOMINAL_STRESS_PERCENTAGE,
+            )
+            for percentage in NON_IID_PERCENTAGES
+        )
     if configuration == "OFF,ON,OFF":  # Message Compressor
-        return tuple((50, 50, REFERENCE_ALPHA, percentage) for percentage in DELAY_PERCENTAGES)
+        return tuple(
+            (
+                nominal_high_percentage,
+                NOMINAL_STRESS_PERCENTAGE,
+                REFERENCE_ALPHA,
+                percentage,
+            )
+            for percentage in DELAY_PERCENTAGES
+        )
     raise ValueError(f"Unsupported pattern configuration: {configuration}")
 
 INDEX_FIELDS = (
@@ -91,6 +124,8 @@ INDEX_FIELDS = (
     "Dataset",
     "Model",
     "Clients",
+    "Low-spec Percent",
+    "Realized Low-spec Percent",
     "High-spec Percent",
     "Realized High-spec Percent",
     "High-spec Clients",
@@ -145,6 +180,10 @@ class RunSpec:
         return values  # type: ignore[return-value]
 
     @property
+    def low_spec_percentage(self) -> int:
+        return 100 - self.high_spec_percentage
+
+    @property
     def run_id(self) -> str:
         dataset_slug = sanitize_name(self.dataset.lower())
         model_slug = sanitize_name(self.model.lower())
@@ -152,7 +191,8 @@ class RunSpec:
         alpha_slug = str(self.alpha).replace(".", "p")
         return (
             f"adept__{self.mode.lower()}__{dataset_slug}__{model_slug}"
-            f"__n{self.client_count}__h{self.high_spec_percentage}"
+            f"__n{self.client_count}__l{self.low_spec_percentage}"
+            f"__h{self.high_spec_percentage}"
             f"__ni{self.non_iid_percentage}__a{alpha_slug}"
             f"__d{self.delay_percentage}__{config_slug}__r{self.repeat:02d}"
         )
@@ -304,7 +344,7 @@ def configure_resource_profile(
     if high_spec_cpus <= low_spec_cpus:
         raise ValueError("high-spec CPUs must be greater than low-spec CPUs")
     max_clients = max(CLIENT_COUNTS)
-    max_high = _percentage_count(max_clients, max(HIGH_SPEC_PERCENTAGES))
+    max_high = _percentage_count(max_clients, 100 - min(LOW_SPEC_PERCENTAGES))
     required = (
         server_cpus
         + max_high * high_spec_cpus
@@ -406,6 +446,8 @@ def build_config(spec: RunSpec, rounds: int) -> dict[str, Any]:
         "partition_seed": partition_seed,
         "campaign_metadata": {
             "configuration_label": CONFIGURATION_LABELS[spec.configuration],
+            "low_spec_percentage_requested": spec.low_spec_percentage,
+            "realized_low_spec_percentage": 100.0 * (spec.client_count - high_count) / spec.client_count,
             "high_spec_percentage_requested": spec.high_spec_percentage,
             "realized_high_spec_percentage": 100.0 * high_count / spec.client_count,
             "high_spec_clients": high_count,
@@ -562,6 +604,10 @@ def regenerate_combined_dataset(
             frame["execution_mode"] = mode
             frame["dataset"] = record.get("Dataset", "")
             frame["clients"] = int(record.get("Clients", 0) or 0)
+            frame["low_spec_percentage"] = int(record.get("Low-spec Percent", 0) or 0)
+            frame["realized_low_spec_percentage"] = float(
+                record.get("Realized Low-spec Percent", 0) or 0
+            )
             frame["high_spec_percentage"] = int(record.get("High-spec Percent", 0) or 0)
             frame["realized_high_spec_percentage"] = float(
                 record.get("Realized High-spec Percent", 0) or 0
@@ -1096,6 +1142,8 @@ def execute_phase(
                 "Dataset": spec.dataset,
                 "Model": spec.model,
                 "Clients": spec.client_count,
+                "Low-spec Percent": spec.low_spec_percentage,
+                "Realized Low-spec Percent": f"{metadata['realized_low_spec_percentage']:.6g}",
                 "High-spec Percent": spec.high_spec_percentage,
                 "Realized High-spec Percent": f"{metadata['realized_high_spec_percentage']:.6g}",
                 "High-spec Clients": metadata["high_spec_clients"],
