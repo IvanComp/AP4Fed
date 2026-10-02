@@ -15,9 +15,32 @@ from run_adept_campaign import (
     build_plan,
     build_singularity_step_command,
     configure_resource_profile,
+    _terminate_processes,
     validate_complete_matrix,
     verified_successful_run_ids,
 )
+
+
+class FakeProcess:
+    def __init__(self, running=True):
+        self.returncode = None if running else 0
+        self.terminated = False
+        self.killed = False
+
+    def poll(self):
+        return self.returncode
+
+    def wait(self, timeout=None):
+        self.returncode = 0
+        return self.returncode
+
+    def terminate(self):
+        self.terminated = True
+        self.returncode = -15
+
+    def kill(self):
+        self.killed = True
+        self.returncode = -9
 
 
 def make_spec(**overrides):
@@ -38,6 +61,13 @@ def make_spec(**overrides):
 
 
 class CampaignPlanTests(unittest.TestCase):
+    def test_singularity_cleanup_allows_graceful_client_exit(self):
+        process = FakeProcess()
+        _terminate_processes([process], graceful_timeout=1)
+        self.assertEqual(0, process.returncode)
+        self.assertFalse(process.terminated)
+        self.assertFalse(process.killed)
+
     def test_campaign_has_600_docker_runs_for_ten_seeds(self):
         plan = build_plan(set(), target_repeats=10)
         self.assertEqual(600, len(plan))

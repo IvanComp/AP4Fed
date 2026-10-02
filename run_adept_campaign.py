@@ -861,7 +861,21 @@ def build_singularity_step_command(
     return command
 
 
-def _terminate_processes(processes: list[subprocess.Popen]) -> None:
+def _terminate_processes(
+    processes: list[subprocess.Popen], graceful_timeout: int = 30
+) -> None:
+    # Flower asks every client to disconnect after the server completes.  Give
+    # the corresponding srun steps time to exit normally before signalling
+    # them; terminating the launchers immediately can make Slurm abort the
+    # steps and prevent the next experiment from starting cleanly.
+    graceful_deadline = time.time() + graceful_timeout
+    for process in processes:
+        if process.poll() is None:
+            try:
+                process.wait(timeout=max(0.1, graceful_deadline - time.time()))
+            except subprocess.TimeoutExpired:
+                break
+
     for process in processes:
         if process.poll() is None:
             process.terminate()
