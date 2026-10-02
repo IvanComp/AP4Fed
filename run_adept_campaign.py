@@ -171,28 +171,38 @@ def read_results_csv(path: Path) -> pd.DataFrame:
     return frame
 
 
-def split_pattern_column(frame: pd.DataFrame) -> pd.DataFrame:
+def split_pattern_column(
+    frame: pd.DataFrame, fallback_config_id: str | None = None
+) -> pd.DataFrame:
     result = frame.copy()
     if "config_id" in result.columns:
         return result
 
     ap_column = next((column for column in result.columns if str(column).startswith("AP List")), None)
-    if ap_column is None:
+    if ap_column is not None:
+        states = (
+            result[ap_column]
+            .astype(str)
+            .str.replace("{", "", regex=False)
+            .str.replace("}", "", regex=False)
+            .str.split(",", expand=True)
+        )
+        if states.shape[1] != 3:
+            raise ValueError(f"Expected three pattern states in column '{ap_column}'")
+        result["client_selector_pattern"] = states[0].str.strip()
+        result["message_compressor_pattern"] = states[1].str.strip()
+        result["hdh_pattern"] = states[2].str.strip()
+        result = result.drop(columns=[ap_column])
+    elif fallback_config_id:
+        fallback_states = tuple(state.strip() for state in fallback_config_id.split(","))
+        if len(fallback_states) != 3:
+            raise ValueError(f"Invalid fallback pattern configuration: {fallback_config_id}")
+        result["client_selector_pattern"] = fallback_states[0]
+        result["message_compressor_pattern"] = fallback_states[1]
+        result["hdh_pattern"] = fallback_states[2]
+    else:
         raise ValueError("Results CSV has neither 'config_id' nor an 'AP List' column")
 
-    states = (
-        result[ap_column]
-        .astype(str)
-        .str.replace("{", "", regex=False)
-        .str.replace("}", "", regex=False)
-        .str.split(",", expand=True)
-    )
-    if states.shape[1] != 3:
-        raise ValueError(f"Expected three pattern states in column '{ap_column}'")
-
-    result["client_selector_pattern"] = states[0].str.strip()
-    result["message_compressor_pattern"] = states[1].str.strip()
-    result["hdh_pattern"] = states[2].str.strip()
     result["config_id"] = (
         result["client_selector_pattern"]
         + ","
@@ -200,7 +210,7 @@ def split_pattern_column(frame: pd.DataFrame) -> pd.DataFrame:
         + ","
         + result["hdh_pattern"]
     )
-    return result.drop(columns=[ap_column])
+    return result
 
 
 def verified_successful_run_ids(index_path: Path) -> set[str]:
@@ -536,7 +546,17 @@ def regenerate_combined_dataset(
             summary_path = Path(record["ML Summary CSV"])
             if not summary_path.exists():
                 continue
-            frame = split_pattern_column(read_results_csv(summary_path))
+            try:
+                frame = split_pattern_column(
+                    read_results_csv(summary_path),
+                    fallback_config_id=record.get("Configuration", ""),
+                )
+            except Exception as exc:
+                print(
+                    f"WARNING: unable to merge summary for {record['Run ID']}: {exc}",
+                    file=sys.stderr,
+                )
+                continue
             frame["repeat"] = int(record["Repeat"])
             frame["run_id"] = record["Run ID"]
             frame["execution_mode"] = mode

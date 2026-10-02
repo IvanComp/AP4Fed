@@ -4,6 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import yaml
+import pandas as pd
 
 from run_adept_campaign import (
     CONFIGURATIONS,
@@ -16,6 +17,7 @@ from run_adept_campaign import (
     build_singularity_step_command,
     configure_resource_profile,
     _terminate_processes,
+    split_pattern_column,
     validate_complete_matrix,
     verified_successful_run_ids,
 )
@@ -61,6 +63,14 @@ def make_spec(**overrides):
 
 
 class CampaignPlanTests(unittest.TestCase):
+    def test_pattern_columns_fall_back_to_campaign_index_configuration(self):
+        frame = pd.DataFrame({"Final Val F1": [0.75]})
+        result = split_pattern_column(frame, fallback_config_id="ON,OFF,OFF")
+        self.assertEqual("ON,OFF,OFF", result.loc[0, "config_id"])
+        self.assertEqual("ON", result.loc[0, "client_selector_pattern"])
+        self.assertEqual("OFF", result.loc[0, "message_compressor_pattern"])
+        self.assertEqual("OFF", result.loc[0, "hdh_pattern"])
+
     def test_singularity_cleanup_allows_graceful_client_exit(self):
         process = FakeProcess()
         _terminate_processes([process], graceful_timeout=1)
