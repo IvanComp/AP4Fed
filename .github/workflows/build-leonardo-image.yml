@@ -1,0 +1,43 @@
+name: Build Leonardo container image
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - Docker/**
+      - .github/workflows/build-leonardo-image.yml
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish AP4Fed
+        uses: docker/build-push-action@v6
+        with:
+          context: Docker
+          file: Docker/Dockerfile.server
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/ivancomp/ap4fed-leonardo:latest
+          labels: org.opencontainers.image.source=https://github.com/IvanComp/AP4Fed
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
