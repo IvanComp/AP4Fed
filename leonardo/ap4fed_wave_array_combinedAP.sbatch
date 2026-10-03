@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+#SBATCH --job-name=ap4fed-combined
+#SBATCH --partition=dcgp_usr_prod
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=112
+#SBATCH --hint=nomultithread
+#SBATCH --exclusive
+#SBATCH --mem=64G
+#SBATCH --time=24:00:00
+#SBATCH --signal=B:TERM@300
+#SBATCH --output=leonardo/logs/combined-wave-%A_%a.out
+#SBATCH --error=leonardo/logs/combined-wave-%A_%a.err
+
+set -euo pipefail
+
+module load python/3.11.7
+
+source_repo="${AP4FED_REPO_DIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
+source_repo="$(cd "${source_repo}" && pwd)"
+runner="${source_repo}/.venv-leonardo/bin/python"
+sif_path="${AP4FED_SIF_PATH:-${source_repo}/leonardo/ap4fed.sif}"
+campaign_root="${AP4FED_OUTPUT_DIR:-${WORK}/AP4Fed-pattern-stress-combinedAP-parallel}"
+rounds="${AP4FED_ROUNDS:-20}"
+wave="${SLURM_ARRAY_TASK_ID}"
+task_repo="${TMPDIR}/AP4Fed-combinedAP-wave-${wave}"
+
+if [[ ! -x "${runner}" ]]; then
+    echo "Missing campaign runner: ${runner}" >&2
+    exit 2
+fi
+if [[ ! -f "${sif_path}" ]]; then
+    echo "Missing SIF image: ${sif_path}" >&2
+    exit 2
+fi
+
+mkdir -p "${task_repo}"
+cp "${source_repo}/run_adept_campaign.py" "${task_repo}/"
+cp "${source_repo}/run_adept_campaign_combinedAP.py" "${task_repo}/"
+cp -a "${source_repo}/Docker" "${task_repo}/Docker"
+cp -a "${source_repo}/.git" "${task_repo}/.git"
+
+cd "${task_repo}"
+"${runner}" -u run_adept_campaign_combinedAP.py \
+    --container-runtime singularity \
+    --singularity-image "${sif_path}" \
+    --campaign-machine-id "leonardo-combinedAP-wave-${wave}" \
+    --host-cpus 112 \
+    --server-cpus 2 \
+    --low-spec-cpus 7 \
+    --high-spec-cpus 12 \
+    --continue-on-error \
+    --rounds "${rounds}" \
+    --only-wave "${wave}" \
+    --output-dir "${campaign_root}/wave_${wave}" &
+campaign_pid=$!
+
+stop_campaign() {
+    kill -TERM "${campaign_pid}" 2>/dev/null || true
+    wait "${campaign_pid}" || true
+    exit 143
+}
+trap stop_campaign TERM INT
+wait "${campaign_pid}"
