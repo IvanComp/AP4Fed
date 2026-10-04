@@ -80,4 +80,4 @@ echo "OK: SIF image can be opened"
     --high-spec-cpus 12 \
     --dry-run
 
-echo "PRE-FLIGHT PASSED: the 600-run campaign is ready for Slurm submission."
+echo "PRE-FLIGHT PASSED: the expanded 1380-run campaign is ready for Slurm submission."

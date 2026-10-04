@@ -1,8 +1,16 @@
 # Running the AP4Fed campaign quickly
 
-The campaign contains 600 runs: 10 repetition waves with 60 configurations per
-wave. Every launcher below is restartable. A completed run is skipped; the run
-that was active at interruption is restarted from FL round 1.
+The expanded standard campaign contains 1,380 runs: 10 repetition waves with
+138 configurations per wave. The combined-pattern campaign contains 960 runs:
+10 waves with 96 configurations per wave. Every launcher below is restartable.
+A completed run is skipped; the run active at interruption restarts from FL
+round 1.
+
+The standard matrix preserves the original 60 runs per wave and adds 78 runs:
+matched controls for the pairwise 75% stress scenarios and MC controls at 0%
+and 100% delayed clients. The combined matrix preserves its original 54 runs
+and adds 42 runs: `ON,ON,ON` at the 25% reference setting plus 0% and 100% MC
+endpoint profiles for every combined configuration containing MC.
 
 ## Start here: RCM on Leonardo
 
@@ -72,7 +80,7 @@ not submit this command while the pilot is still running, or wave 1 could run
 twice at the same time.
 
 If ten jobs cannot be scheduled together, use `3` instead of `10`. This changes
-only the number of simultaneous nodes, not the 600-run campaign or its results.
+only the number of simultaneous nodes, not the campaign matrix or its results.
 After an interruption, submit the same command again; completed runs are skipped.
 
 When `squeue -u "$USER"` no longer shows the campaign, merge and verify it:
@@ -83,7 +91,21 @@ When `squeue -u "$USER"` no longer shows the campaign, merge and verify it:
 cat "$WORK/AP4Fed-pattern-stress-parallel/campaign_verification.json"
 ```
 
-The verification must report 600 total runs and 60 runs for every wave.
+The verification must report 1,380 total runs and 138 runs for every wave.
+
+Submit or resume the combined-pattern campaign on ten nodes with:
+
+```bash
+./leonardo/submit_wave_array_combinedAP.sh <PROJECT_ACCOUNT> 10
+```
+
+After it finishes, merge and verify its 960 runs with:
+
+```bash
+.venv-leonardo/bin/python leonardo/merge_wave_results_combinedAP.py \
+  "$WORK/AP4Fed-pattern-stress-combinedAP-parallel"
+cat "$WORK/AP4Fed-pattern-stress-combinedAP-parallel/campaign_verification_combinedAP.json"
+```
 
 Do not combine measurements produced with different CPU profiles in the same
 paper analysis. Choose one of the following solutions for the final campaign.
@@ -93,7 +115,7 @@ paper analysis. Choose one of the following solutions for the final campaign.
 ### 1. Docker VM, 32 cores
 
 Use this when CINECA gives you a virtual machine with Docker Compose. It is the
-simplest solution, but one VM executes the 600 runs sequentially.
+simplest solution, but one VM executes the standard runs sequentially.
 
 - server: 2 cores;
 - low-spec client: 2 cores;
@@ -129,7 +151,7 @@ client according to client count would alter the experimental treatment.
 
 Results are written to `$WORK/AP4Fed-pattern-stress-results`. The production
 queue has a finite walltime, so submit the same command again whenever the job
-stops before all 600 runs are complete.
+stops before all runs are complete.
 
 ### 3. Parallel repetition waves on Leonardo — fastest
 
@@ -145,12 +167,12 @@ independent directory, avoiding file collisions.
 ./leonardo/submit_wave_array.sh <PROJECT_ACCOUNT> 3
 ```
 
-Each array task executes 60 runs for exactly one seed. Re-submit the same
+Each standard array task executes 138 runs for exactly one seed. Re-submit the same
 command after interruptions: completed runs and completed waves are skipped.
 The results are stored under
 `$WORK/AP4Fed-pattern-stress-parallel/wave_1` through `wave_10`.
 
-To deliberately restart all 600 runs from a clean result directory, archive
+To deliberately restart all runs from a clean result directory, archive
 the previous campaign and submit all ten waves with:
 
 ```bash
@@ -162,7 +184,7 @@ The Slurm progress log is unbuffered, and an individual failed configuration
 is recorded without preventing the remaining configurations in its wave from
 running.
 
-Before the production campaign, a two-round pilot can exercise all 60
+Before the production campaign, a two-round pilot can exercise all 138
 configurations on one node while keeping its results separate:
 
 ```bash
@@ -181,7 +203,7 @@ When the array has finished, merge and verify it:
   "$WORK/AP4Fed-pattern-stress-parallel"
 ```
 
-The command succeeds only when all 600 run identifiers are present. It creates:
+The command succeeds only when all 1,380 run identifiers are present. It creates:
 
 - `adept_experiments_all_waves.csv`;
 - `campaign_verification.json` with the count for every wave.
@@ -229,7 +251,7 @@ small campaign-management dependencies.
   --dry-run
 ```
 
-The output must report 600 runs, 60 for each seed from 1 to 10.
+The output must report 1,380 runs, 138 for each seed from 1 to 10.
 
 ## Monitoring and recovery
 

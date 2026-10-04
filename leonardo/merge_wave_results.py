@@ -5,6 +5,10 @@ from pathlib import Path
 
 import pandas as pd
 
+WAVES = 10
+RUNS_PER_WAVE = 138
+EXPECTED_RUNS = WAVES * RUNS_PER_WAVE
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -16,7 +20,7 @@ def main():
     complete_ids = set()
     wave_counts = {}
     problems = []
-    for wave in range(1, 11):
+    for wave in range(1, WAVES + 1):
         wave_root = root / f"wave_{wave}"
         index_path = wave_root / "docker" / "index.csv"
         combined_path = wave_root / "adept_experiments.csv"
@@ -39,8 +43,10 @@ def main():
                 valid_ids.add(record["Run ID"])
         wave_counts[str(wave)] = len(valid_ids)
         complete_ids.update(valid_ids)
-        if len(valid_ids) != 60:
-            problems.append(f"wave {wave}: {len(valid_ids)}/60 verified runs")
+        if len(valid_ids) != RUNS_PER_WAVE:
+            problems.append(
+                f"wave {wave}: {len(valid_ids)}/{RUNS_PER_WAVE} verified runs"
+            )
         if combined_path.is_file():
             frames.append(pd.read_csv(combined_path))
 
@@ -55,8 +61,8 @@ def main():
 
     report = {
         "verified_runs": len(complete_ids),
-        "expected_runs": 600,
-        "complete": len(complete_ids) == 600 and not problems,
+        "expected_runs": EXPECTED_RUNS,
+        "complete": len(complete_ids) == EXPECTED_RUNS and not problems,
         "wave_counts": wave_counts,
         "problems": problems,
         "combined_csv": str(destination),

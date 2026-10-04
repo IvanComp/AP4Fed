@@ -7,7 +7,7 @@ import pandas as pd
 
 
 WAVES = 10
-RUNS_PER_WAVE = 54
+RUNS_PER_WAVE = 96
 EXPECTED_RUNS = WAVES * RUNS_PER_WAVE
 
 

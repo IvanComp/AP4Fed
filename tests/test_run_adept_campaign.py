@@ -78,22 +78,25 @@ class CampaignPlanTests(unittest.TestCase):
         self.assertFalse(process.terminated)
         self.assertFalse(process.killed)
 
-    def test_campaign_has_600_docker_runs_for_ten_seeds(self):
+    def test_campaign_has_1380_docker_runs_for_ten_seeds(self):
         plan = build_plan(set(), target_repeats=10)
-        self.assertEqual(600, len(plan))
+        self.assertEqual(1380, len(plan))
         validate_complete_matrix(plan, 10)
         for repeat in range(1, 11):
-            self.assertEqual(60, sum(spec.repeat == repeat for spec in plan))
+            self.assertEqual(138, sum(spec.repeat == repeat for spec in plan))
 
     def test_complete_first_repetition_precedes_second(self):
         plan = build_plan(set(), target_repeats=10)
-        self.assertTrue(all(spec.repeat == 1 for spec in plan[:60]))
-        self.assertTrue(all(spec.repeat == 2 for spec in plan[60:120]))
-        self.assertEqual(list(range(1, 11)), [plan[offset].repeat for offset in range(0, 600, 60)])
+        self.assertTrue(all(spec.repeat == 1 for spec in plan[:138]))
+        self.assertTrue(all(spec.repeat == 2 for spec in plan[138:276]))
+        self.assertEqual(
+            list(range(1, 11)),
+            [plan[offset].repeat for offset in range(0, 1380, 138)],
+        )
 
-    def test_one_wave_shard_contains_exactly_60_runs(self):
+    def test_one_wave_shard_contains_exactly_138_runs(self):
         plan = build_plan(set(), target_repeats=10, only_wave=7)
-        self.assertEqual(60, len(plan))
+        self.assertEqual(138, len(plan))
         self.assertEqual({7}, {spec.repeat for spec in plan})
 
     def test_112_core_profile_fits_largest_configuration(self):
@@ -114,46 +117,80 @@ class CampaignPlanTests(unittest.TestCase):
         complete = build_plan(set(), target_repeats=1)[0].run_id
         plan = build_plan({complete}, target_repeats=1)
         self.assertNotIn(complete, {spec.run_id for spec in plan})
-        self.assertEqual(59, len(plan))
+        self.assertEqual(137, len(plan))
 
-    def test_each_pattern_varies_only_its_stress_factors(self):
+    def test_legacy_60_run_ids_are_preserved_and_leave_78_new_runs(self):
+        legacy_profiles = {
+            "OFF,OFF,OFF": ((75, 25, 0.5, 25),),
+            "ON,OFF,OFF": (
+                (75, 25, 0.5, 25),
+                (50, 25, 0.5, 25),
+                (25, 25, 0.5, 25),
+            ),
+            "OFF,OFF,ON": (
+                (75, 25, 0.5, 25),
+                (75, 50, 0.5, 25),
+                (75, 75, 0.5, 25),
+            ),
+            "OFF,ON,OFF": (
+                (75, 25, 0.5, 25),
+                (75, 25, 0.5, 50),
+                (75, 25, 0.5, 75),
+            ),
+        }
+        legacy_ids = {
+            RunSpec(1, dataset, model, clients, high, non_iid, alpha, delay, state).run_id
+            for dataset, model in (("AG_NEWS", "MLP"), ("CIFAR-10", "CNN 16k"))
+            for clients in (4, 8, 10)
+            for state, profiles in legacy_profiles.items()
+            for high, non_iid, alpha, delay in profiles
+        }
+        self.assertEqual(60, len(legacy_ids))
+        remaining = build_plan(legacy_ids, target_repeats=1)
+        self.assertEqual(78, len(remaining))
+        self.assertTrue(legacy_ids.isdisjoint({spec.run_id for spec in remaining}))
+
+    def test_campaign_contains_legacy_and_extended_stress_profiles(self):
         plan = build_plan(set(), target_repeats=1, tasks=(("AG_NEWS", "MLP"),), client_counts=(4,))
         by_configuration = {}
         for spec in plan:
             by_configuration.setdefault(spec.configuration, []).append(spec)
 
         baseline = by_configuration["OFF,OFF,OFF"]
-        self.assertEqual(1, len(baseline))
-        self.assertEqual((75, 25, 0.5, 25), (
-            baseline[0].high_spec_percentage,
-            baseline[0].non_iid_percentage,
-            baseline[0].alpha,
-            baseline[0].delay_percentage,
-        ))
+        self.assertEqual(6, len(baseline))
+        self.assertIn(
+            (75, 25, 0.5, 25),
+            {
+                (spec.high_spec_percentage, spec.non_iid_percentage, spec.alpha, spec.delay_percentage)
+                for spec in baseline
+            },
+        )
 
         selector = by_configuration["ON,OFF,OFF"]
-        self.assertEqual(
-            [(25, 75), (50, 50), (75, 25)],
-            [(spec.low_spec_percentage, spec.high_spec_percentage) for spec in selector],
+        self.assertTrue(
+            {(25, 75), (50, 50), (75, 25)}.issubset(
+                {(spec.low_spec_percentage, spec.high_spec_percentage) for spec in selector}
+            )
         )
-        self.assertEqual({(25, 0.5, 25)}, {
-            (spec.non_iid_percentage, spec.alpha, spec.delay_percentage) for spec in selector
-        })
+        self.assertEqual(5, len(selector))
 
         hdh = by_configuration["OFF,OFF,ON"]
-        self.assertEqual(3, len(hdh))
+        self.assertEqual(5, len(hdh))
         self.assertEqual({25, 50, 75}, {spec.non_iid_percentage for spec in hdh})
         self.assertEqual({0.5}, {spec.alpha for spec in hdh})
-        self.assertEqual({(75, 25)}, {
-            (spec.high_spec_percentage, spec.delay_percentage) for spec in hdh
-        })
 
         compressor = by_configuration["OFF,ON,OFF"]
-        self.assertEqual({25, 50, 75}, {spec.delay_percentage for spec in compressor})
-        self.assertEqual({(75, 25, 0.5)}, {
-            (spec.high_spec_percentage, spec.non_iid_percentage, spec.alpha)
-            for spec in compressor
-        })
+        self.assertEqual(7, len(compressor))
+        self.assertEqual(
+            {0, 25, 50, 75, 100},
+            {spec.delay_percentage for spec in compressor},
+        )
+
+    def test_mc_endpoint_profiles_select_zero_or_all_delayed_clients(self):
+        zero = build_config(make_spec(client_count=8, delay_percentage=0), rounds=20)
+        full = build_config(make_spec(client_count=8, delay_percentage=100), rounds=20)
+        self.assertEqual(0, sum(c["delay_combobox"] == "Yes" for c in zero["client_details"]))
+        self.assertEqual(8, sum(c["delay_combobox"] == "Yes" for c in full["client_details"]))
 
     def test_config_encodes_stress_factors(self):
         spec = make_spec(

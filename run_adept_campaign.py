@@ -49,6 +49,7 @@ LOW_SPEC_PERCENTAGES = (25, 50, 75)
 NON_IID_PERCENTAGES = (25, 50, 75)
 REFERENCE_ALPHA = 0.5
 DELAY_PERCENTAGES = (25, 50, 75)
+MC_ENDPOINT_PERCENTAGES = (0, 100)
 NOMINAL_STRESS_PERCENTAGE = 25
 DELAY_MIN_SECONDS = 5
 DELAY_MAX_SECONDS = 10
@@ -73,7 +74,7 @@ CONFIGURATION_LABELS = {
 
 
 def stress_profiles(configuration: str) -> tuple[tuple[int, int, float, int], ...]:
-    """Return (high-spec %, non-IID %, alpha, delayed %) for one pattern state."""
+    """Return legacy profiles plus matched high-stress and MC endpoint controls."""
     nominal_high_percentage = 100 - NOMINAL_STRESS_PERCENTAGE
     if configuration == "OFF,OFF,OFF":
         return (
@@ -83,9 +84,14 @@ def stress_profiles(configuration: str) -> tuple[tuple[int, int, float, int], ..
                 REFERENCE_ALPHA,
                 NOMINAL_STRESS_PERCENTAGE,
             ),
+            (25, 25, REFERENCE_ALPHA, 75),
+            (25, 75, REFERENCE_ALPHA, 25),
+            (75, 75, REFERENCE_ALPHA, 75),
+            (75, 25, REFERENCE_ALPHA, 0),
+            (75, 25, REFERENCE_ALPHA, 100),
         )
     if configuration == "ON,OFF,OFF":  # Client Selector
-        return tuple(
+        legacy = tuple(
             (
                 100 - low_percentage,
                 NOMINAL_STRESS_PERCENTAGE,
@@ -94,8 +100,12 @@ def stress_profiles(configuration: str) -> tuple[tuple[int, int, float, int], ..
             )
             for low_percentage in LOW_SPEC_PERCENTAGES
         )
+        return legacy + (
+            (25, 25, REFERENCE_ALPHA, 75),
+            (25, 75, REFERENCE_ALPHA, 25),
+        )
     if configuration == "OFF,OFF,ON":  # HDH
-        return tuple(
+        legacy = tuple(
             (
                 nominal_high_percentage,
                 percentage,
@@ -104,8 +114,12 @@ def stress_profiles(configuration: str) -> tuple[tuple[int, int, float, int], ..
             )
             for percentage in NON_IID_PERCENTAGES
         )
+        return legacy + (
+            (25, 75, REFERENCE_ALPHA, 25),
+            (75, 75, REFERENCE_ALPHA, 75),
+        )
     if configuration == "OFF,ON,OFF":  # Message Compressor
-        return tuple(
+        legacy = tuple(
             (
                 nominal_high_percentage,
                 NOMINAL_STRESS_PERCENTAGE,
@@ -113,6 +127,13 @@ def stress_profiles(configuration: str) -> tuple[tuple[int, int, float, int], ..
                 percentage,
             )
             for percentage in DELAY_PERCENTAGES
+        )
+        return legacy + tuple(
+            (nominal_high_percentage, 25, REFERENCE_ALPHA, percentage)
+            for percentage in MC_ENDPOINT_PERCENTAGES
+        ) + (
+            (25, 25, REFERENCE_ALPHA, 75),
+            (75, 75, REFERENCE_ALPHA, 75),
         )
     raise ValueError(f"Unsupported pattern configuration: {configuration}")
 
@@ -384,8 +405,12 @@ def build_patterns(spec: RunSpec) -> dict[str, dict[str, Any]]:
 def _percentage_count(client_count: int, percentage: int) -> int:
     if client_count < 2:
         raise ValueError("client_count must be >= 2")
-    if percentage not in {25, 50, 75}:
+    if not 0 <= percentage <= 100:
         raise ValueError(f"Unsupported client percentage: {percentage}")
+    if percentage == 0:
+        return 0
+    if percentage == 100:
+        return client_count
     # Python's tie-to-even rounding keeps the N=10 endpoints complementary:
     # 25% -> 2 clients, 75% -> 8 clients.
     return max(1, min(client_count - 1, round(client_count * percentage / 100.0)))
