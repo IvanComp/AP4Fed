@@ -16,6 +16,8 @@ from run_adept_campaign import (
     build_plan,
     build_singularity_step_command,
     configure_resource_profile,
+    read_results_csv,
+    regenerate_combined_dataset,
     _terminate_processes,
     split_pattern_column,
     validate_complete_matrix,
@@ -63,6 +65,79 @@ def make_spec(**overrides):
 
 
 class CampaignPlanTests(unittest.TestCase):
+    def test_semicolon_results_with_decimal_commas_are_parsed_correctly(self):
+        with TemporaryDirectory() as temp_dir:
+            results = Path(temp_dir) / "FLwithAP_MLdata.csv"
+            results.write_text(
+                "N Rounds;Total Clients;AP List (client_selector,message_compressor,heterogeneous_data_handler);Final Val F1\n"
+                "20;4;{OFF,OFF,OFF};0,75\n",
+                encoding="utf-8",
+            )
+
+            frame = read_results_csv(results)
+
+        self.assertEqual(
+            [
+                "N Rounds",
+                "Total Clients",
+                "AP List (client_selector,message_compressor,heterogeneous_data_handler)",
+                "Final Val F1",
+            ],
+            list(frame.columns),
+        )
+        self.assertEqual(20, frame.loc[0, "N Rounds"])
+        self.assertEqual(0.75, frame.loc[0, "Final Val F1"])
+
+    def test_regenerated_dataset_preserves_metrics_from_semicolon_summary(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            run_dir = root / "run"
+            run_dir.mkdir()
+            summary = run_dir / "FLwithAP_MLdata.csv"
+            summary.write_text(
+                "N Rounds;Total Clients;AP List (client_selector,message_compressor,heterogeneous_data_handler);Final Val F1\n"
+                "20;4;{OFF,OFF,OFF};0,75\n",
+                encoding="utf-8",
+            )
+            index = root / "index.csv"
+            record = {
+                "Run ID": "example-run",
+                "Status": "ok",
+                "ML Summary CSV": str(summary),
+                "Configuration": "OFF,OFF,OFF",
+                "Repeat": "1",
+                "Dataset": "AG_NEWS",
+                "Clients": "4",
+                "Low-spec Percent": "75",
+                "Realized Low-spec Percent": "75",
+                "High-spec Percent": "25",
+                "Realized High-spec Percent": "25",
+                "Non-IID Percent": "25",
+                "Realized Non-IID Percent": "25",
+                "Non-IID Clients": "1",
+                "Dirichlet Alpha": "0.5",
+                "Delay Percent": "25",
+                "Delayed Clients": "1",
+                "Realized Delay Percent": "25",
+                "Hostname": "test-host",
+                "Git Commit": "abc123",
+                "Partition Seed": "1",
+            }
+            with index.open("w", newline="", encoding="utf-8") as handle:
+                writer = csv.DictWriter(handle, fieldnames=list(record))
+                writer.writeheader()
+                writer.writerow(record)
+
+            destination = root / "adept_experiments.csv"
+            count = regenerate_combined_dataset((("Docker", index),), destination)
+            merged = pd.read_csv(destination)
+
+        self.assertEqual(1, count)
+        self.assertEqual(20, merged.loc[0, "N Rounds"])
+        self.assertEqual(0.75, merged.loc[0, "Final Val F1"])
+        self.assertEqual("OFF,OFF,OFF", merged.loc[0, "config_id"])
+        self.assertEqual("example-run", merged.loc[0, "run_id"])
+
     def test_pattern_columns_fall_back_to_campaign_index_configuration(self):
         frame = pd.DataFrame({"Final Val F1": [0.75]})
         result = split_pattern_column(frame, fallback_config_id="ON,OFF,OFF")

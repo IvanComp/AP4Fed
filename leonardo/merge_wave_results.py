@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import pandas as pd
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
+
+from run_adept_campaign import regenerate_combined_dataset
 
 WAVES = 10
 RUNS_PER_WAVE = 138
@@ -47,6 +54,7 @@ def main():
             problems.append(
                 f"wave {wave}: {len(valid_ids)}/{RUNS_PER_WAVE} verified runs"
             )
+        regenerate_combined_dataset((("Docker", index_path),), combined_path)
         if combined_path.is_file():
             frames.append(pd.read_csv(combined_path))
 

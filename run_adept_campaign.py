@@ -226,10 +226,16 @@ def sanitize_name(value: str) -> str:
 def read_results_csv(path: Path) -> pd.DataFrame:
     if not path.exists():
         raise FileNotFoundError(path)
-    frame = pd.read_csv(path)
-    if len(frame.columns) == 1:
-        frame = pd.read_csv(path, sep=";", decimal=",")
-    return frame
+    with path.open("r", encoding="utf-8-sig", errors="replace") as handle:
+        header = handle.readline()
+
+    # FLwithAP_MLdata.csv is normally written with semicolon-separated fields
+    # and decimal commas.  Looking only at the number of columns after a
+    # default read is unsafe because the AP List header and values themselves
+    # contain commas, making a semicolon CSV appear to have multiple columns.
+    if header.count(";") > header.count(","):
+        return pd.read_csv(path, sep=";", decimal=",")
+    return pd.read_csv(path)
 
 
 def split_pattern_column(
