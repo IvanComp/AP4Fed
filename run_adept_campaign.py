@@ -748,6 +748,9 @@ def regenerate_client_round_dataset(
                     validate="one_to_one",
                 )
                 frame["participated"] = frame.pop("_merge").eq("both")
+                frame = frame.sort_values(
+                    ["FL Round", "client_number"], kind="stable"
+                ).reset_index(drop=True)
                 frame = frame.drop(columns=["client_number"])
             except Exception as exc:
                 print(

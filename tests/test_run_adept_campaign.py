@@ -199,6 +199,15 @@ class CampaignPlanTests(unittest.TestCase):
 
         self.assertEqual(4, count)
         self.assertEqual(4, len(merged))
+        self.assertEqual(
+            [
+                (1, "Client 1"),
+                (1, "Client 2"),
+                (2, "Client 1"),
+                (2, "Client 2"),
+            ],
+            list(zip(merged["FL Round"], merged["Client ID"])),
+        )
         absent = merged[(merged["Client ID"] == "Client 2") & (merged["FL Round"] == 2)].iloc[0]
         self.assertFalse(absent["participated"])
         self.assertTrue(pd.isna(absent["Training Time"]))
