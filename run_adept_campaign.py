@@ -666,6 +666,148 @@ def regenerate_combined_dataset(
     return len(combined)
 
 
+def regenerate_client_round_dataset(
+    phase_indexes: Iterable[tuple[str, Path]],
+    destination: Path,
+) -> int:
+    """Create one row per configured client and FL round for every completed run."""
+    frames: list[pd.DataFrame] = []
+    for mode, index_path in phase_indexes:
+        if not index_path.exists():
+            continue
+        index = pd.read_csv(index_path, dtype=str).fillna("")
+        successful = index[index["Status"] == "ok"].drop_duplicates("Run ID", keep="last")
+        for _, record in successful.iterrows():
+            output_dir = Path(record["Output Dir"])
+            metrics_path = output_dir / "performance" / "FLwithAP_performance_metrics.csv"
+            config_path = output_dir / "config.json"
+            if not metrics_path.is_file() or not config_path.is_file():
+                print(
+                    f"WARNING: unable to merge client-round metrics for {record['Run ID']}: "
+                    "missing performance CSV or config.json",
+                    file=sys.stderr,
+                )
+                continue
+
+            try:
+                metrics = pd.read_csv(metrics_path)
+                config = json.loads(config_path.read_text(encoding="utf-8"))
+                client_details = config.get("client_details", [])
+                rounds = int(config.get("rounds", 0))
+                if not client_details or rounds < 1:
+                    raise ValueError("config.json has no clients or rounds")
+
+                metrics["client_number"] = pd.to_numeric(
+                    metrics["Client ID"].astype(str).str.extract(r"(\d+)")[0],
+                    errors="coerce",
+                ).astype("Int64")
+                metrics["FL Round"] = pd.to_numeric(
+                    metrics["FL Round"], errors="coerce"
+                ).astype("Int64")
+                metrics = metrics.dropna(subset=["client_number", "FL Round"])
+                metrics = metrics.drop_duplicates(
+                    ["client_number", "FL Round"], keep="last"
+                )
+
+                grid_rows = []
+                for client in client_details:
+                    client_number = int(client["client_id"])
+                    for round_number in range(1, rounds + 1):
+                        grid_rows.append(
+                            {
+                                "client_number": client_number,
+                                "Client ID": f"Client {client_number}",
+                                "FL Round": round_number,
+                                "configured_cpu": client.get("cpu"),
+                                "configured_ram_gb": client.get("ram"),
+                                "configured_data_distribution": client.get(
+                                    "data_distribution_type"
+                                ),
+                                "configured_data_persistence": client.get(
+                                    "data_persistence_type"
+                                ),
+                                "configured_dirichlet_alpha": client.get(
+                                    "non_iid_alpha"
+                                ),
+                                "configured_delay": client.get("delay_combobox") == "Yes",
+                                "configured_delay_min_seconds": client.get(
+                                    "delay_min_seconds"
+                                ),
+                                "configured_delay_max_seconds": client.get(
+                                    "delay_max_seconds"
+                                ),
+                            }
+                        )
+                grid = pd.DataFrame(grid_rows)
+                metrics = metrics.drop(columns=["Client ID"])
+                frame = grid.merge(
+                    metrics,
+                    on=["client_number", "FL Round"],
+                    how="left",
+                    indicator=True,
+                    validate="one_to_one",
+                )
+                frame["participated"] = frame.pop("_merge").eq("both")
+                frame = frame.drop(columns=["client_number"])
+            except Exception as exc:
+                print(
+                    f"WARNING: unable to merge client-round metrics for {record['Run ID']}: {exc}",
+                    file=sys.stderr,
+                )
+                continue
+
+            configuration = record.get("Configuration", "")
+            pattern_states = tuple(state.strip() for state in configuration.split(","))
+            if len(pattern_states) != 3:
+                print(
+                    f"WARNING: invalid configuration for {record['Run ID']}: {configuration}",
+                    file=sys.stderr,
+                )
+                continue
+            frame["client_selector_pattern"] = pattern_states[0]
+            frame["message_compressor_pattern"] = pattern_states[1]
+            frame["hdh_pattern"] = pattern_states[2]
+            frame["config_id"] = configuration
+            frame["repeat"] = int(record["Repeat"])
+            frame["run_id"] = record["Run ID"]
+            frame["execution_mode"] = mode
+            frame["dataset"] = record.get("Dataset", "")
+            frame["model"] = record.get("Model", "")
+            frame["clients"] = int(record.get("Clients", 0) or 0)
+            frame["low_spec_percentage"] = int(record.get("Low-spec Percent", 0) or 0)
+            frame["realized_low_spec_percentage"] = float(
+                record.get("Realized Low-spec Percent", 0) or 0
+            )
+            frame["high_spec_percentage"] = int(record.get("High-spec Percent", 0) or 0)
+            frame["realized_high_spec_percentage"] = float(
+                record.get("Realized High-spec Percent", 0) or 0
+            )
+            frame["non_iid_percentage"] = int(record.get("Non-IID Percent", 0) or 0)
+            frame["realized_non_iid_percentage"] = float(
+                record.get("Realized Non-IID Percent", 0) or 0
+            )
+            frame["dirichlet_alpha"] = float(record.get("Dirichlet Alpha", 0) or 0)
+            frame["delay_percentage"] = int(record.get("Delay Percent", 0) or 0)
+            frame["realized_delay_percentage"] = float(
+                record.get("Realized Delay Percent", 0) or 0
+            )
+            frame["hostname"] = record.get("Hostname", "")
+            frame["git_commit"] = record.get("Git Commit", "")
+            frame["partition_seed"] = int(record["Partition Seed"])
+            frames.append(frame)
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if not frames:
+        pd.DataFrame().to_csv(destination, index=False)
+        return 0
+    combined = pd.concat(frames, ignore_index=True, sort=False)
+    combined = combined.drop_duplicates(
+        ["run_id", "FL Round", "Client ID"], keep="last"
+    )
+    combined.to_csv(destination, index=False)
+    return len(combined)
+
+
 def build_docker_compose(
     config: dict[str, Any],
     source: Path = DOCKER_COMPOSE_PATH,

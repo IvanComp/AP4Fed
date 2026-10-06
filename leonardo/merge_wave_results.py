@@ -10,7 +10,10 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from run_adept_campaign import regenerate_combined_dataset
+from run_adept_campaign import (
+    regenerate_client_round_dataset,
+    regenerate_combined_dataset,
+)
 
 WAVES = 10
 RUNS_PER_WAVE = 138
@@ -24,6 +27,7 @@ def main():
     root = args.campaign_root.resolve()
 
     frames = []
+    client_round_frames = []
     complete_ids = set()
     wave_counts = {}
     problems = []
@@ -31,6 +35,7 @@ def main():
         wave_root = root / f"wave_{wave}"
         index_path = wave_root / "docker" / "index.csv"
         combined_path = wave_root / "adept_experiments.csv"
+        client_round_path = wave_root / "adept_experiments_client_rounds.csv"
         if not index_path.is_file():
             wave_counts[str(wave)] = 0
             problems.append(f"wave {wave}: missing index")
@@ -55,8 +60,11 @@ def main():
                 f"wave {wave}: {len(valid_ids)}/{RUNS_PER_WAVE} verified runs"
             )
         regenerate_combined_dataset((("Docker", index_path),), combined_path)
+        regenerate_client_round_dataset((("Docker", index_path),), client_round_path)
         if combined_path.is_file():
             frames.append(pd.read_csv(combined_path))
+        if client_round_path.is_file():
+            client_round_frames.append(pd.read_csv(client_round_path))
 
     destination = root / "adept_experiments_all_waves.csv"
     if frames:
@@ -67,6 +75,16 @@ def main():
     else:
         pd.DataFrame().to_csv(destination, index=False)
 
+    client_round_destination = root / "adept_experiments_all_waves_client_rounds.csv"
+    if client_round_frames:
+        client_round_combined = pd.concat(client_round_frames, ignore_index=True, sort=False)
+        client_round_combined = client_round_combined.drop_duplicates(
+            ["run_id", "FL Round", "Client ID"], keep="last"
+        )
+        client_round_combined.to_csv(client_round_destination, index=False)
+    else:
+        pd.DataFrame().to_csv(client_round_destination, index=False)
+
     report = {
         "verified_runs": len(complete_ids),
         "expected_runs": EXPECTED_RUNS,
@@ -74,6 +92,8 @@ def main():
         "wave_counts": wave_counts,
         "problems": problems,
         "combined_csv": str(destination),
+        "client_round_csv": str(client_round_destination),
+        "client_round_rows": len(client_round_combined) if client_round_frames else 0,
     }
     report_path = root / "campaign_verification.json"
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

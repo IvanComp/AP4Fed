@@ -17,6 +17,7 @@ from run_adept_campaign import (
     build_singularity_step_command,
     configure_resource_profile,
     read_results_csv,
+    regenerate_client_round_dataset,
     regenerate_combined_dataset,
     _terminate_processes,
     split_pattern_column,
@@ -137,6 +138,78 @@ class CampaignPlanTests(unittest.TestCase):
         self.assertEqual(0.75, merged.loc[0, "Final Val F1"])
         self.assertEqual("OFF,OFF,OFF", merged.loc[0, "config_id"])
         self.assertEqual("example-run", merged.loc[0, "run_id"])
+
+    def test_client_round_dataset_includes_non_participating_clients(self):
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            run_dir = root / "run"
+            performance = run_dir / "performance"
+            performance.mkdir(parents=True)
+            (run_dir / "config.json").write_text(
+                """{
+                    "rounds": 2,
+                    "client_details": [
+                        {"client_id": 1, "cpu": 3, "ram": 4, "data_distribution_type": "IID", "data_persistence_type": "Same Data", "non_iid_alpha": 1.0, "delay_combobox": "No", "delay_min_seconds": 0, "delay_max_seconds": 0},
+                        {"client_id": 2, "cpu": 2, "ram": 4, "data_distribution_type": "non-IID", "data_persistence_type": "Same Data", "non_iid_alpha": 0.5, "delay_combobox": "Yes", "delay_min_seconds": 5, "delay_max_seconds": 10}
+                    ]
+                }""",
+                encoding="utf-8",
+            )
+            pd.DataFrame(
+                [
+                    {"Client ID": "Client 1", "FL Round": 1, "Training Time": 1.1},
+                    {"Client ID": "Client 2", "FL Round": 1, "Training Time": 2.2},
+                    {"Client ID": "Client 1", "FL Round": 2, "Training Time": 1.3},
+                ]
+            ).to_csv(performance / "FLwithAP_performance_metrics.csv", index=False)
+            summary = run_dir / "FLwithAP_MLdata.csv"
+            summary.write_text("metric\n1\n", encoding="utf-8")
+            index = root / "index.csv"
+            record = {
+                "Run ID": "example-run",
+                "Status": "ok",
+                "Output Dir": str(run_dir),
+                "ML Summary CSV": str(summary),
+                "Configuration": "ON,OFF,OFF",
+                "Repeat": "1",
+                "Dataset": "AG_NEWS",
+                "Model": "MLP",
+                "Clients": "2",
+                "Low-spec Percent": "50",
+                "Realized Low-spec Percent": "50",
+                "High-spec Percent": "50",
+                "Realized High-spec Percent": "50",
+                "Non-IID Percent": "50",
+                "Realized Non-IID Percent": "50",
+                "Dirichlet Alpha": "0.5",
+                "Delay Percent": "50",
+                "Realized Delay Percent": "50",
+                "Hostname": "test-host",
+                "Git Commit": "abc123",
+                "Partition Seed": "1",
+            }
+            with index.open("w", newline="", encoding="utf-8") as handle:
+                writer = csv.DictWriter(handle, fieldnames=list(record))
+                writer.writeheader()
+                writer.writerow(record)
+
+            destination = root / "client_rounds.csv"
+            count = regenerate_client_round_dataset((("Docker", index),), destination)
+            merged = pd.read_csv(destination)
+
+        self.assertEqual(4, count)
+        self.assertEqual(4, len(merged))
+        absent = merged[(merged["Client ID"] == "Client 2") & (merged["FL Round"] == 2)].iloc[0]
+        self.assertFalse(absent["participated"])
+        self.assertTrue(pd.isna(absent["Training Time"]))
+        self.assertEqual(2, absent["configured_cpu"])
+        self.assertTrue(absent["configured_delay"])
+        self.assertTrue(
+            merged.loc[
+                (merged["Client ID"] == "Client 1") & (merged["FL Round"] == 2),
+                "participated",
+            ].iloc[0]
+        )
 
     def test_pattern_columns_fall_back_to_campaign_index_configuration(self):
         frame = pd.DataFrame({"Final Val F1": [0.75]})
