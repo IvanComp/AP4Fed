@@ -91,7 +91,13 @@ When `squeue -u "$USER"` no longer shows the campaign, merge and verify it:
 cat "$WORK/AP4Fed-pattern-stress-parallel/campaign_verification.json"
 ```
 
-The verification must report 1,380 total runs and 138 runs for every wave.
+The merger rebuilds the wave-level CSV files from the archived raw results; it
+does not repeat any experiment. The verification must report 1,380 total runs,
+138 runs for every wave, and 202,400 client-round rows. It creates two datasets:
+
+- `adept_experiments_all_waves.csv`: one summary row per run (1,380 rows);
+- `adept_experiments_all_waves_client_rounds.csv`: one row per configured
+  client in every FL round (202,400 rows).
 
 Submit or resume the combined-pattern campaign on ten nodes with:
 
@@ -106,6 +112,14 @@ After it finishes, merge and verify its 960 runs with:
   "$WORK/AP4Fed-pattern-stress-combinedAP-parallel"
 cat "$WORK/AP4Fed-pattern-stress-combinedAP-parallel/campaign_verification_combinedAP.json"
 ```
+
+The combined-pattern verification must report 960 runs and 140,800
+client-round rows. It creates:
+
+- `adept_experiments_all_waves_combinedAP.csv`: one summary row per run
+  (960 rows);
+- `adept_experiments_all_waves_combinedAP_client_rounds.csv`: one row per
+  configured client in every FL round (140,800 rows).
 
 Do not combine measurements produced with different CPU profiles in the same
 paper analysis. Choose one of the following solutions for the final campaign.
@@ -205,8 +219,85 @@ When the array has finished, merge and verify it:
 
 The command succeeds only when all 1,380 run identifiers are present. It creates:
 
-- `adept_experiments_all_waves.csv`;
+- `adept_experiments_all_waves.csv`, with one row per run;
+- `adept_experiments_all_waves_client_rounds.csv`, with one row per client and
+  round;
 - `campaign_verification.json` with the count for every wave.
+
+The detailed CSV is ordered by experiment, then FL round, then client number:
+
+```text
+experiment 1
+  round 1: Client 1, Client 2, ...
+  round 2: Client 1, Client 2, ...
+  ...
+experiment 2
+  round 1: Client 1, Client 2, ...
+```
+
+Every configured client has a row for every round. `participated=true` means
+that the client trained in that round. When `participated=false`, the client was
+excluded (for example by Client Selector), so its dynamic timing and utilization
+metrics are empty. Configuration fields such as allocated CPU, RAM, data
+distribution, persistence, and delay remain available. Global round metrics
+such as validation F1 and total round time are stored once per round in the raw
+AP4Fed report rather than duplicated for every client.
+
+### Rebuild and download the result CSVs
+
+Run the mergers from the Leonardo SSH session after the jobs finish. Re-running
+these commands is safe and does not launch experiments:
+
+```bash
+cd ~/AP4Fed
+
+.venv-leonardo/bin/python leonardo/merge_wave_results.py \
+  "$WORK/AP4Fed-pattern-stress-parallel"
+
+.venv-leonardo/bin/python leonardo/merge_wave_results_combinedAP.py \
+  "$WORK/AP4Fed-pattern-stress-combinedAP-parallel"
+```
+
+The JSON output must contain `"complete": true`. The expected values are:
+
+| Campaign | Summary rows | Client-round rows |
+| --- | ---: | ---: |
+| Standard | 1,380 | 202,400 |
+| Combined AP | 960 | 140,800 |
+
+If a wave is incomplete, submit only the missing wave numbers. For example,
+this resumes waves 1 and 9 of the standard campaign while skipping their
+completed runs:
+
+```bash
+sbatch --account=<PROJECT_ACCOUNT> --array=1,9 \
+  leonardo/ap4fed_wave_array.sbatch
+```
+
+After those jobs finish, run the relevant merger again.
+
+To download the four final CSVs, open a terminal on the local Mac (not inside
+Leonardo) and run:
+
+```bash
+mkdir -p "$HOME/Downloads/AP4Fed-results"
+
+scp icompagn@data.leonardo.cineca.it:/leonardo_work/INF26_enesma/AP4Fed-pattern-stress-parallel/adept_experiments_all_waves.csv \
+  "$HOME/Downloads/AP4Fed-results/"
+
+scp icompagn@data.leonardo.cineca.it:/leonardo_work/INF26_enesma/AP4Fed-pattern-stress-parallel/adept_experiments_all_waves_client_rounds.csv \
+  "$HOME/Downloads/AP4Fed-results/"
+
+scp icompagn@data.leonardo.cineca.it:/leonardo_work/INF26_enesma/AP4Fed-pattern-stress-combinedAP-parallel/adept_experiments_all_waves_combinedAP.csv \
+  "$HOME/Downloads/AP4Fed-results/"
+
+scp icompagn@data.leonardo.cineca.it:/leonardo_work/INF26_enesma/AP4Fed-pattern-stress-combinedAP-parallel/adept_experiments_all_waves_combinedAP_client_rounds.csv \
+  "$HOME/Downloads/AP4Fed-results/"
+```
+
+Replace `icompagn`, the project allocation, or the campaign roots if they are
+different for another user. A trailing backslash is only a line continuation;
+do not put `\` directly before the destination path.
 
 ## Initial setup for Slurm solutions
 
@@ -279,4 +370,6 @@ serial or array command again.
 - `ap4fed_wave_array.sbatch`: isolated 112-core repetition wave;
 - `submit_campaign.sh`: serial submission wrapper;
 - `submit_wave_array.sh`: parallel array submission wrapper;
-- `merge_wave_results.py`: final merge and completeness check.
+- `merge_wave_results.py`: standard-campaign summary and client-round merge;
+- `merge_wave_results_combinedAP.py`: combined-pattern summary and client-round
+  merge.
