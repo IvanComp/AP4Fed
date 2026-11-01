@@ -121,6 +121,28 @@ client-round rows. It creates:
 - `adept_experiments_all_waves_combinedAP_client_rounds.csv`: one row per
   configured client in every FL round (140,800 rows).
 
+## 6-client campaign (completes the 4, 6, 8, 10 scale)
+
+`run_adept_campaign_6clients.py` reruns the standard and combined-pattern
+matrices unchanged (same patterns, stress profiles, datasets, seeds 1-10,
+20 rounds, 1 local epoch, CPU profile) with 6 clients only: 46 + 32 = 78 runs
+per wave, 780 runs in total. Each array task runs both matrices for its wave.
+At 6 clients the 25/50/75% stress levels map to 2/3/4 clients.
+
+```bash
+./leonardo/submit_wave_array_6clients.sh <PROJECT_ACCOUNT> 10
+```
+
+Merge and verify (schema and file names match the existing campaigns, so the
+CSV files can be concatenated with the 4/8/10-client data):
+
+```bash
+.venv-leonardo/bin/python leonardo/merge_wave_results.py \
+  "$WORK/AP4Fed-pattern-stress-6clients-parallel" --runs-per-wave 46
+.venv-leonardo/bin/python leonardo/merge_wave_results_combinedAP.py \
+  "$WORK/AP4Fed-pattern-stress-combinedAP-6clients-parallel" --runs-per-wave 32
+```
+
 Do not combine measurements produced with different CPU profiles in the same
 paper analysis. Choose one of the following solutions for the final campaign.
 

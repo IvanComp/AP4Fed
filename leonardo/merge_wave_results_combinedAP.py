@@ -24,7 +24,15 @@ EXPECTED_RUNS = WAVES * RUNS_PER_WAVE
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("campaign_root", type=Path)
+    parser.add_argument(
+        "--runs-per-wave",
+        type=int,
+        default=RUNS_PER_WAVE,
+        help="Expected runs per wave (46 standard / 32 combined for the 6-client campaign).",
+    )
     args = parser.parse_args()
+    runs_per_wave = args.runs_per_wave
+    expected_runs = WAVES * runs_per_wave
     root = args.campaign_root.resolve()
 
     frames = []
@@ -56,9 +64,9 @@ def main() -> int:
                 valid_ids.add(record["Run ID"])
         wave_counts[str(wave)] = len(valid_ids)
         complete_ids.update(valid_ids)
-        if len(valid_ids) != RUNS_PER_WAVE:
+        if len(valid_ids) != runs_per_wave:
             problems.append(
-                f"wave {wave}: {len(valid_ids)}/{RUNS_PER_WAVE} verified runs"
+                f"wave {wave}: {len(valid_ids)}/{runs_per_wave} verified runs"
             )
         regenerate_combined_dataset((("Docker", index_path),), combined_path)
         regenerate_client_round_dataset((("Docker", index_path),), client_round_path)
@@ -88,8 +96,8 @@ def main() -> int:
 
     report = {
         "verified_runs": len(complete_ids),
-        "expected_runs": EXPECTED_RUNS,
-        "complete": len(complete_ids) == EXPECTED_RUNS and not problems,
+        "expected_runs": expected_runs,
+        "complete": len(complete_ids) == expected_runs and not problems,
         "wave_counts": wave_counts,
         "problems": problems,
         "combined_csv": str(destination),
